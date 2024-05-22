@@ -25,5 +25,8 @@ async def on_message(message):
     if message.content == "ping":
         await message.channel.send("pong")
 
+    if message.content == "plap":
+        await message.channel.send("clank")
+
 
 client.run(DISCORD_TOKEN)
