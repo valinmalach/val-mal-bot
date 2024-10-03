@@ -42,6 +42,7 @@ async def on_message(message):
 
 @app.post("/webhook/twitch")
 async def twitch_webhook(request: Request):
+    await send_discord_message("Test alert", DISCORD_STREAM_ALERTS_CHANNEL_ID)
     headers = request.headers
     body = await request.json()
 
@@ -69,9 +70,8 @@ async def send_discord_message(message, channel_id):
 
 
 async def main():
-    # Run the FastAPI app in a background thread
-    loop = asyncio.get_event_loop()
-    loop.create_task(uvicorn.run(app, host="0.0.0.0", port=8000))
+    # Start FastAPI in the background
+    asyncio.create_task(await uvicorn.run(app, host="0.0.0.0", port=8000))
 
     # Run the Discord bot
     await client.start(DISCORD_TOKEN)
