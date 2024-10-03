@@ -2,9 +2,9 @@ import asyncio
 import os
 
 import discord
-import uvicorn
+from discord.ext import commands
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from quart import Quart, request
 
 load_dotenv()
 
@@ -16,21 +16,35 @@ DISCORD_STREAM_ALERTS_CHANNEL_ID = int(os.getenv("DISCORD_STREAM_ALERTS_CHANNEL_
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 APP_URL = os.getenv("APP_URL")
 
-intents = discord.Intents.default()
-intents.message_content = True
-client = discord.Client(intents=intents)
+intents = discord.Intents.all()
 
-app = FastAPI()
+bot = commands.Bot(
+    command_prefix="!",
+    intents=intents,
+    case_insensitive=True,
+    reload=True,
+    max_messages=1000000000,
+)
+bot.remove_command("help")
+
+app = Quart(__name__)
 
 
-@client.event
+@app.before_serving
+async def before_serving():
+    loop = asyncio.get_event_loop()
+    await bot.login(DISCORD_TOKEN)
+    loop.create_task(bot.connect())
+
+
+@bot.event
 async def on_ready():
-    print(f"{client.user} has connected to Discord!")
+    print(f"{bot.user} has connected to Discord!")
 
 
-@client.event
+@bot.event
 async def on_message(message):
-    if message.author == client.user:
+    if message.author == bot.user:
         return
 
     if message.content == "ping":
@@ -40,11 +54,11 @@ async def on_message(message):
         await message.channel.send("clank")
 
 
-@app.post("/webhook/twitch")
-async def twitch_webhook(request: Request):
+@app.route("/webhook/twitch", methods=["POST"])
+async def twitch_webhook():
     await send_discord_message("Test alert", DISCORD_STREAM_ALERTS_CHANNEL_ID)
     headers = request.headers
-    body = await request.json()
+    body = await request.get_json()
 
     if (
         "Twitch-Eventsub-Message-Type" in headers
@@ -64,18 +78,10 @@ async def twitch_webhook(request: Request):
     return {"status": "ok"}
 
 
-async def send_discord_message(message, channel_id):
-    if channel := client.get_channel(channel_id):
-        await channel.send(message)
-
-
-async def main():
-    # Start FastAPI in the background
-    asyncio.create_task(await uvicorn.run(app, host="0.0.0.0", port=8000))
-
-    # Run the Discord bot
-    await client.start(DISCORD_TOKEN)
+async def send_discord_message(message, channel):
+    channel = bot.get_channel(channel)
+    await channel.send(message)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    app.run()
