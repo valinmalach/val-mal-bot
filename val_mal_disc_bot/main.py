@@ -56,7 +56,6 @@ async def on_message(message):
 
 @app.route("/webhook/twitch", methods=["POST"])
 async def twitch_webhook():
-    await send_discord_message("Test alert", DISCORD_STREAM_ALERTS_CHANNEL_ID)
     headers = request.headers
     body = await request.get_json()
 
