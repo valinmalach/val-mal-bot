@@ -2,9 +2,7 @@ import asyncio
 import os
 
 import discord
-import requests
 import uvicorn
-from discord.ext import tasks
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 
@@ -70,55 +68,7 @@ async def send_discord_message(message, channel_id):
         await channel.send(message)
 
 
-def subscribe_to_twitch_webhook():
-    access_token = get_twitch_oauth_token()
-    headers = {
-        "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
-
-    callback_url = f"{APP_URL}/webhook/twitch"
-
-    data = {
-        "hub.callback": callback_url,
-        "hub.mode": "subscribe",
-        "hub.topic": f"https://api.twitch.tv/helix/streams?user_id={TWITCH_USER_ID}",
-        "hub.lease_seconds": 864000,
-        "hub.secret": WEBHOOK_SECRET,
-    }
-
-    response = requests.post(
-        "https://api.twitch.tv/helix/webhooks/hub",
-        json=data,
-        headers=headers,
-        timeout=60,
-    )
-    response.raise_for_status()
-    print("Subscribed to Twitch webhook:", response.status_code, response.json())
-
-
-def get_twitch_oauth_token():
-    url = "https://id.twitch.tv/oauth2/token"
-    params = {
-        "client_id": TWITCH_CLIENT_ID,
-        "client_secret": TWITCH_CLIENT_SECRET,
-        "grant_type": "client_credentials",
-    }
-    response = requests.post(url, params=params, timeout=60)
-    return response.json()["access_token"]
-
-
-# Renew webhook subscription every 9 days (a little less to be safe)
-@tasks.loop(hours=216)
-async def renew_twitch_webhook():
-    subscribe_to_twitch_webhook()
-
-
 async def main():
-    # Subscribe to the Twitch webhook once when the bot starts
-    subscribe_to_twitch_webhook()
-
     # Run the FastAPI app in a background thread
     loop = asyncio.get_event_loop()
     loop.create_task(uvicorn.run(app, host="0.0.0.0", port=8000))
