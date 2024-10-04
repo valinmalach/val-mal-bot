@@ -19,6 +19,11 @@ class Events(commands.Cog):
         if message.content == "plap":
             await message.channel.send("clank")
 
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member):
+        channel = self.bot.get_channel(1285276874645438544)  # welcome channel
+        await channel.send(f"{member.mention} has joined. Welcome!")
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Events(bot))
