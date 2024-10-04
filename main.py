@@ -8,6 +8,8 @@ from discord.ext import commands
 from dotenv import load_dotenv
 from quart import Quart, request
 
+from send_discord_message import send_discord_message
+
 load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -22,6 +24,20 @@ bot = commands.Bot(
     max_messages=1000000000,
 )
 bot.remove_command("help")
+for ext in [
+    "cogs.events",
+]:
+    try:
+        bot.load_extension(ext)
+    except Exception as e:
+        print(f"Something went wrong when loading extension {ext}: {e}")
+
+
+def __init__(self, bot):
+    self.bot = bot
+    self.member = discord.Member
+    self.guild = discord.guild
+
 
 app = Quart(__name__)
 
@@ -31,26 +47,6 @@ async def before_serving():
     loop = asyncio.get_event_loop()
     await bot.login(DISCORD_TOKEN)
     loop.create_task(bot.connect())
-
-
-@bot.event
-async def on_ready():
-    print(intents.message_content)
-    await send_discord_message(
-        "Started successfully!", 1291023411765837919  # bot-spam channel
-    )
-
-
-@bot.event
-async def on_message(message):
-    if message.author == bot.user:
-        return
-
-    if message.content == "ping":
-        await message.channel.send("pong")
-
-    if message.content == "plap":
-        await message.channel.send("clank")
 
 
 @bot.command()
@@ -73,8 +69,8 @@ async def restart(ctx):
                 cwd="/home/valinmalach/val-mal-bot",
                 check=True,
             )
-        except subprocess.CalledProcessError as e:
-            await ctx.send(f"Update failed: {e}")
+        except subprocess.CalledProcessError as error:
+            await ctx.send(f"Update failed: {error}")
             return
 
         await ctx.send("Restarting to apply updates...")
@@ -105,6 +101,7 @@ async def twitch_webhook():
         # Send a message to Discord when the stream goes live
         await send_discord_message(
             "I am live on Twitch! Come join at https://www.twitch.tv/valinmalach",
+            bot,
             1285276760044474461,  # stream-alerts channel
         )
 
