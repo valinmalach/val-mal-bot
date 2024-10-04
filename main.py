@@ -11,11 +11,6 @@ from quart import Quart, request
 load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
-TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
-TWITCH_USER_ID = os.getenv("TWITCH_USER_ID")
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
-APP_URL = os.getenv("APP_URL")
 
 intents = discord.Intents.all()
 
@@ -73,7 +68,7 @@ async def twitch_webhook():
         print("Stream is live, sending message to Discord.")
         # Send a message to Discord when the stream goes live
         await send_discord_message(
-            f"I am live on Twitch! Come join at https://www.twitch.tv/{TWITCH_USER_ID}",
+            "I am live on Twitch! Come join at https://www.twitch.tv/valinmalach",
             1285276760044474461,  # stream-alerts channel
         )
 
@@ -95,7 +90,14 @@ async def restart(ctx):
                 ["git", "pull"],
                 capture_output=True,
                 text=True,
-                cwd="/path/to/your/repo",  # Change this to your bot's directory
+                cwd="/home/valinmalach/val-mal-bot",
+                check=True,
+            )
+            subprocess.run(
+                ["pip3", "install", "-r", "requirements.txt", "-U"],
+                capture_output=True,
+                text=True,
+                cwd="/home/valinmalach/val-mal-bot",
                 check=True,
             )
         except subprocess.CalledProcessError as e:
@@ -103,7 +105,7 @@ async def restart(ctx):
             return
 
         await ctx.send("Restarting to apply updates...")
-        os.execv(sys.executable, ["python3"] + sys.argv)
+        os.execv(sys.executable, [sys.executable] + sys.argv)
     else:
         await ctx.send(
             "I don't know who you are, and I don't know what you want. "
