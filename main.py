@@ -74,9 +74,8 @@ async def before_serving():
 @bot.command()
 async def restart(ctx):
     if ctx.author.id == 389318636201967628:  # Owner's user id
-        await ctx.send("Updating...")
-
         try:
+            await ctx.send("Updating...")
             print("Updating from git...")
             subprocess.run(
                 ["git", "pull"],
@@ -93,12 +92,12 @@ async def restart(ctx):
                 cwd="/home/valinmalach/val-mal-bot",
                 check=True,
             )
+            print("Restarting...")
+            await ctx.send("Restarting to apply updates...")
+            os.execv(sys.executable, [sys.executable] + sys.argv)
         except subprocess.CalledProcessError as error:
             await ctx.send(f"Update failed: {error}")
             return
-
-        await ctx.send("Restarting to apply updates...")
-        os.execv(sys.executable, [sys.executable] + sys.argv)
     else:
         await ctx.send(
             "I don't know who you are, and I don't know what you want. "
