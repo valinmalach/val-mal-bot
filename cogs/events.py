@@ -41,6 +41,21 @@ class Events(commands.Cog):
             if member is not None:
                 await member.add_roles(role)
 
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
+        if payload.message_id == 1291772906841571500:
+            guild_id = payload.guild_id
+            guild = discord.utils.find(lambda g: g.id == guild_id, self.bot.guilds)
+
+            if payload.emoji.name == "✅":
+                role = discord.utils.get(guild.roles, name="Followers")
+
+            member = discord.utils.find(
+                lambda m: m.id == payload.user_id, guild.members
+            )
+            if member is not None:
+                await member.remove_roles(role)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Events(bot))
