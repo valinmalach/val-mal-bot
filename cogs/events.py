@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
 
+from send_discord_message import send_discord_message
+
 
 class Events(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -23,6 +25,24 @@ class Events(commands.Cog):
     async def on_member_join(self, member: discord.Member):
         channel = self.bot.get_channel(1285276874645438544)  # welcome channel
         await channel.send(f"{member.mention} has joined. Welcome!")
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        message_id = payload.message_id
+        if message_id == 1291772906841571500:  # rules reaction message id
+            send_discord_message(payload.emoji.name, self.bot, 1291023411765837919)
+            send_discord_message(payload.emoji.id, self.bot, 1291023411765837919)
+            # guild_id = payload.guild_id
+            # guild = discord.utils.find(lambda g: g.id == guild_id, self.bot.guilds)
+
+            # if payload.emoji.name == "thonk":
+            #     role = discord.utils.get(guild.roles, name="Followers")
+
+            # member = discord.utils.find(
+            #     lambda m: m.id == payload.user_id, guild.members
+            # )
+            # if member is not None:
+            #     await member.add_roles(role)
 
 
 async def setup(bot: commands.Bot):
