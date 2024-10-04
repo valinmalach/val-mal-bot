@@ -1,7 +1,6 @@
 import asyncio
 import os
 import subprocess
-import sys
 
 import discord
 from discord.ext import commands
@@ -70,26 +69,8 @@ async def restart(ctx: commands.Context):
     if ctx.author.id == 389318636201967628:  # Owner's user id
         try:
             await ctx.send("Restarting...")
-            print("Updating from git...")
-            subprocess.run(
-                ["git", "pull"],
-                capture_output=True,
-                text=True,
-                cwd="/home/valinmalach/val-mal-bot",
-                check=True,
-            )
-            print("Installing requirements...")
-            subprocess.run(
-                ["pip3", "install", "-r", "requirements.txt", "-U"],
-                capture_output=True,
-                text=True,
-                cwd="/home/valinmalach/val-mal-bot",
-                check=True,
-            )
-            print("Restarting...")
-            await bot.close()
-            await app.shutdown()
-            os.execv(sys.executable, [sys.executable] + sys.argv)
+            print("Calling restart script...")
+            subprocess.run(["/home/valinmalach/val-mal-bot/restart_bot.sh"], check=True)
         except subprocess.CalledProcessError as error:
             await ctx.send(f"Update failed: {error}")
             return
