@@ -88,6 +88,7 @@ async def restart(ctx: commands.Context):
             )
             print("Restarting...")
             await bot.close()
+            await app.shutdown()
             os.execv(sys.executable, [sys.executable] + sys.argv)
         except subprocess.CalledProcessError as error:
             await ctx.send(f"Update failed: {error}")
