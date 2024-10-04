@@ -108,10 +108,5 @@ async def twitch_webhook():
     return {"status": "ok"}
 
 
-async def send_discord_message(message, channel):
-    channel = bot.get_channel(channel)
-    await channel.send(message)
-
-
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
