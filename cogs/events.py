@@ -20,5 +20,5 @@ class Events(commands.Cog):
             await message.channel.send("clank")
 
 
-async def setup(bot):
-    await bot.add_cog(Events(bot))
+def setup(bot):
+    bot.add_cog(Events(bot))
