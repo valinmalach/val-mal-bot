@@ -38,9 +38,9 @@ def __init__(self, bot_instance):
 
 
 @bot.event
-async def on_ready(self):
+async def on_ready():
     await send_discord_message(
-        "Started successfully!", self.bot, 1291023411765837919  # bot-spam channel
+        "Started successfully!", bot, 1291023411765837919  # bot-spam channel
     )
 
 
