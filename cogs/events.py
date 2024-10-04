@@ -29,18 +29,17 @@ class Events(commands.Cog):
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         if payload.message_id == 1291772906841571500:  # rules reaction message id
-            print(payload.emoji.name == "✅")
-            # guild_id = payload.guild_id
-            # guild = discord.utils.find(lambda g: g.id == guild_id, self.bot.guilds)
+            guild_id = payload.guild_id
+            guild = discord.utils.find(lambda g: g.id == guild_id, self.bot.guilds)
 
-            # if payload.emoji.name == "thonk":
-            #     role = discord.utils.get(guild.roles, name="Followers")
+            if payload.emoji.name == "✅":
+                role = discord.utils.get(guild.roles, name="Followers")
 
-            # member = discord.utils.find(
-            #     lambda m: m.id == payload.user_id, guild.members
-            # )
-            # if member is not None:
-            #     await member.add_roles(role)
+            member = discord.utils.find(
+                lambda m: m.id == payload.user_id, guild.members
+            )
+            if member is not None:
+                await member.add_roles(role)
 
 
 async def setup(bot: commands.Bot):
