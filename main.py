@@ -15,7 +15,7 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 intents = discord.Intents.all()
 
 bot = commands.Bot(
-    command_prefix="!",
+    command_prefix="$",
     intents=intents,
     case_insensitive=True,
     reload=True,
@@ -52,9 +52,8 @@ async def on_message(message):
         await message.channel.send("clank")
 
 
-@bot.command("restart")
+@bot.command()
 async def restart(ctx):
-    print("test")
     if ctx.author.id == 389318636201967628:  # Owner's user id
         await ctx.send("Updating...")
 
