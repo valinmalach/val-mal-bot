@@ -28,10 +28,8 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
-        print(payload.message_id == 1291772906841571500)
         if payload.message_id == 1291772906841571500:  # rules reaction message id
-            print(payload.emoji.name)
-            print(payload.emoji.id)
+            print(payload.emoji.name == "✅")
             # guild_id = payload.guild_id
             # guild = discord.utils.find(lambda g: g.id == guild_id, self.bot.guilds)
 
