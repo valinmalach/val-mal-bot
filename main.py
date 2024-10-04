@@ -5,6 +5,12 @@ import sys
 
 import discord
 from discord.ext import commands
+from discord.ext.commands.errors import (
+    ExtensionAlreadyLoaded,
+    ExtensionFailed,
+    ExtensionNotFound,
+    NoEntryPointError,
+)
 from dotenv import load_dotenv
 from quart import Quart, request
 
@@ -29,12 +35,17 @@ for ext in [
 ]:
     try:
         bot.load_extension(ext)
-    except Exception as e:
+    except (
+        ExtensionNotFound,
+        ExtensionAlreadyLoaded,
+        NoEntryPointError,
+        ExtensionFailed,
+    ) as e:
         print(f"Something went wrong when loading extension {ext}: {e}")
 
 
-def __init__(self, bot):
-    self.bot = bot
+def __init__(self, bot_instance):
+    self.bot = bot_instance
     self.member = discord.Member
     self.guild = discord.guild
 
