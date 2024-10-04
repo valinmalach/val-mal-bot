@@ -31,12 +31,6 @@ bot = commands.Bot(
 )
 
 
-def __init__(self, bot_instance):
-    self.bot = bot_instance
-    self.member = discord.Member
-    self.guild = discord.guild
-
-
 @bot.event
 async def on_ready():
     await send_discord_message(
@@ -72,7 +66,7 @@ async def before_serving():
 
 
 @bot.command()
-async def restart(ctx):
+async def restart(ctx: commands.Context):
     if ctx.author.id == 389318636201967628:  # Owner's user id
         try:
             await ctx.send("Updating...")
@@ -106,6 +100,12 @@ async def restart(ctx):
             + "I will not pursue you. But if you don't, I will look for you, "
             + "I will find you, and I will ban you."
         )
+
+
+@bot.command()
+async def nuke(ctx: commands.Context):
+    if ctx.author.id == 389318636201967628:
+        await ctx.channel.purge()
 
 
 @app.route("/webhook/twitch", methods=["POST"])
