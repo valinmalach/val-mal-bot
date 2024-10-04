@@ -1,8 +1,6 @@
 import discord
 from discord.ext import commands
 
-from send_discord_message import send_discord_message
-
 
 class Events(commands.Cog):
     def __init__(self, bot):
