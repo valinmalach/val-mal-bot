@@ -28,6 +28,7 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        print(payload.message_id)
         if payload.message_id == 1291772906841571500:  # rules reaction message id
             print(payload.emoji.name)
             print(payload.emoji.id)
