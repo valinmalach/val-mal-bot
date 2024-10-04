@@ -19,7 +19,7 @@ git pull
 
 # Install the required packages
 echo "Installing requirements..."
-pip3 install -r requirements.txt -U
+pip3 install -r requirements.txt -U -q
 
 # Restart the bot
 echo "Restarting the bot..."
