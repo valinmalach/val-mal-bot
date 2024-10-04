@@ -29,19 +29,6 @@ bot = commands.Bot(
     reload=True,
     max_messages=1000000000,
 )
-bot.remove_command("help")
-for ext in [
-    "cogs.events",
-]:
-    try:
-        bot.load_extension(ext)
-    except (
-        ExtensionNotFound,
-        ExtensionAlreadyLoaded,
-        NoEntryPointError,
-        ExtensionFailed,
-    ) as e:
-        print(f"Something went wrong when loading extension {ext}: {e}")
 
 
 def __init__(self, bot_instance):
@@ -60,11 +47,28 @@ async def on_ready(self):
 app = Quart(__name__)
 
 
+async def main():
+    async with bot:
+        bot.remove_command("help")
+        for ext in [
+            "cogs.events",
+        ]:
+            try:
+                await bot.load_extension(ext)
+            except (
+                ExtensionNotFound,
+                ExtensionAlreadyLoaded,
+                NoEntryPointError,
+                ExtensionFailed,
+            ) as e:
+                print(f"Something went wrong when loading extension {ext}: {e}")
+        loop = asyncio.get_event_loop()
+        loop.create_task(bot.start(DISCORD_TOKEN))
+
+
 @app.before_serving
 async def before_serving():
-    loop = asyncio.get_event_loop()
-    await bot.login(DISCORD_TOKEN)
-    loop.create_task(bot.connect())
+    await main()
 
 
 @bot.command()
