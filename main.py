@@ -53,7 +53,7 @@ async def main():
         "cogs.events",
     ]:
         try:
-            bot.load_extension(ext)
+            await bot.load_extension(ext)
         except (
             ExtensionNotFound,
             ExtensionAlreadyLoaded,
