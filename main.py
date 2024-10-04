@@ -87,6 +87,7 @@ async def restart(ctx: commands.Context):
                 check=True,
             )
             print("Restarting...")
+            asyncio.sleep(1)
             os.execv(sys.executable, [sys.executable] + sys.argv)
         except subprocess.CalledProcessError as error:
             await ctx.send(f"Update failed: {error}")
