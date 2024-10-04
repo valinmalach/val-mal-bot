@@ -35,6 +35,7 @@ async def before_serving():
 
 @bot.event
 async def on_ready():
+    print(intents.message_content)
     await send_discord_message(
         "Started successfully!", 1291023411765837919  # bot-spam channel
     )
