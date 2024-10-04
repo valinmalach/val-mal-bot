@@ -77,6 +77,7 @@ async def restart(ctx):
         await ctx.send("Updating...")
 
         try:
+            print("Updating from git...")
             subprocess.run(
                 ["git", "pull"],
                 capture_output=True,
@@ -84,6 +85,7 @@ async def restart(ctx):
                 cwd="/home/valinmalach/val-mal-bot",
                 check=True,
             )
+            print("Installing requirements...")
             subprocess.run(
                 ["pip3", "install", "-r", "requirements.txt", "-U"],
                 capture_output=True,
