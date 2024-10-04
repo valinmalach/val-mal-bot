@@ -52,36 +52,9 @@ async def on_message(message):
         await message.channel.send("clank")
 
 
-@app.route("/webhook/twitch", methods=["POST"])
-async def twitch_webhook():
-    headers = request.headers
-    body = await request.get_json()
-
-    if (
-        "Twitch-Eventsub-Message-Type" in headers
-        and headers["Twitch-Eventsub-Message-Type"] == "webhook_callback_verification"
-    ):
-        return body["challenge"]
-
-    # Handle the "stream.online" event
-    if body.get("subscription", {}).get("type") == "stream.online":
-        print("Stream is live, sending message to Discord.")
-        # Send a message to Discord when the stream goes live
-        await send_discord_message(
-            "I am live on Twitch! Come join at https://www.twitch.tv/valinmalach",
-            1285276760044474461,  # stream-alerts channel
-        )
-
-    return {"status": "ok"}
-
-
-async def send_discord_message(message, channel):
-    channel = bot.get_channel(channel)
-    await channel.send(message)
-
-
-@bot.command()
+@bot.command("restart")
 async def restart(ctx):
+    print("test")
     if ctx.author.id == 389318636201967628:  # Owner's user id
         await ctx.send("Updating...")
 
@@ -113,6 +86,34 @@ async def restart(ctx):
             + "I will not pursue you. But if you don't, I will look for you, "
             + "I will find you, and I will ban you."
         )
+
+
+@app.route("/webhook/twitch", methods=["POST"])
+async def twitch_webhook():
+    headers = request.headers
+    body = await request.get_json()
+
+    if (
+        "Twitch-Eventsub-Message-Type" in headers
+        and headers["Twitch-Eventsub-Message-Type"] == "webhook_callback_verification"
+    ):
+        return body["challenge"]
+
+    # Handle the "stream.online" event
+    if body.get("subscription", {}).get("type") == "stream.online":
+        print("Stream is live, sending message to Discord.")
+        # Send a message to Discord when the stream goes live
+        await send_discord_message(
+            "I am live on Twitch! Come join at https://www.twitch.tv/valinmalach",
+            1285276760044474461,  # stream-alerts channel
+        )
+
+    return {"status": "ok"}
+
+
+async def send_discord_message(message, channel):
+    channel = bot.get_channel(channel)
+    await channel.send(message)
 
 
 if __name__ == "__main__":
