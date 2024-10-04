@@ -50,6 +50,13 @@ def __init__(self, bot_instance):
     self.guild = discord.guild
 
 
+@bot.event
+async def on_ready(self):
+    await send_discord_message(
+        "Started successfully!", self.bot, 1291023411765837919  # bot-spam channel
+    )
+
+
 app = Quart(__name__)
 
 

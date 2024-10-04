@@ -11,12 +11,6 @@ class Events(commands.Cog):
         self.guild = discord.guild
 
     @commands.Cog.listener()
-    async def on_ready(self):
-        await send_discord_message(
-            "Started successfully!", self.bot, 1291023411765837919  # bot-spam channel
-        )
-
-    @commands.Cog.listener()
     async def on_message(self, message):
         if message.author == self.bot.user:
             return
