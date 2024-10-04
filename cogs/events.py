@@ -18,3 +18,7 @@ class Events(commands.Cog):
 
         if message.content == "plap":
             await message.channel.send("clank")
+
+
+def setup(bot):
+    bot.add_cog(Events(bot))
