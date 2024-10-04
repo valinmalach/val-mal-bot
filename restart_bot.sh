@@ -23,4 +23,4 @@ pip3 install -r requirements.txt -U
 
 # Restart the bot
 echo "Restarting the bot..."
-nohup python3 main.py &
+python3 main.py
