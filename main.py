@@ -69,7 +69,7 @@ async def before_serving():
 async def restart(ctx: commands.Context):
     if ctx.author.id == 389318636201967628:  # Owner's user id
         try:
-            await ctx.send("Updating...")
+            await ctx.send("Restarting...")
             print("Updating from git...")
             subprocess.run(
                 ["git", "pull"],
@@ -87,8 +87,6 @@ async def restart(ctx: commands.Context):
                 check=True,
             )
             print("Restarting...")
-            await ctx.send("Restarting to apply updates...")
-            await asyncio.sleep(5)
             os.execv(sys.executable, [sys.executable] + sys.argv)
         except subprocess.CalledProcessError as error:
             await ctx.send(f"Update failed: {error}")
