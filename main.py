@@ -37,33 +37,6 @@ async def on_ready():
     )
 
 
-app = Quart(__name__)
-
-
-async def main():
-    bot.remove_command("help")
-    for ext in [
-        "cogs.events",
-    ]:
-        try:
-            await bot.load_extension(ext)
-        except (
-            ExtensionNotFound,
-            ExtensionAlreadyLoaded,
-            NoEntryPointError,
-            ExtensionFailed,
-        ) as e:
-            print(f"Something went wrong when loading extension {ext}: {e}")
-    loop = asyncio.get_event_loop()
-    await bot.login(DISCORD_TOKEN)
-    loop.create_task(bot.connect())
-
-
-@app.before_serving
-async def before_serving():
-    await main()
-
-
 @bot.command()
 async def restart(ctx: commands.Context):
     if ctx.author.id == 389318636201967628:  # Owner's user id
@@ -89,10 +62,40 @@ async def nuke(ctx: commands.Context):
         await ctx.channel.purge()
 
 
+async def main():
+    bot.remove_command("help")
+    for ext in [
+        "cogs.events",
+    ]:
+        try:
+            await bot.load_extension(ext)
+        except (
+            ExtensionNotFound,
+            ExtensionAlreadyLoaded,
+            NoEntryPointError,
+            ExtensionFailed,
+        ) as e:
+            print(f"Something went wrong when loading extension {ext}: {e}")
+    loop = asyncio.get_event_loop()
+    await bot.login(DISCORD_TOKEN)
+    loop.create_task(bot.connect())
+
+
+app = Quart(__name__)
+
+
+@app.before_serving
+async def before_serving():
+    await main()
+
+
 @app.route("/webhook/twitch", methods=["POST"])
 async def twitch_webhook():
     headers = request.headers
     body = await request.get_json()
+
+    print(f"Received Twitch webhook: {body}")
+    print(f"Headers: {headers}")
 
     if (
         "Twitch-Eventsub-Message-Type" in headers
@@ -110,6 +113,11 @@ async def twitch_webhook():
             1285276760044474461,  # stream-alerts channel
         )
 
+    return {"status": "ok"}
+
+
+@app.route("/health", methods=["GET"])
+async def health():
     return {"status": "ok"}
 
 
