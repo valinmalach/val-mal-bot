@@ -18,6 +18,7 @@ from send_discord_message import send_discord_message
 load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 
 intents = discord.Intents.all()
 
@@ -93,9 +94,6 @@ async def before_serving():
 async def twitch_webhook():
     headers = request.headers
     body = await request.get_json()
-
-    print(f"Received Twitch webhook: {body}")
-    print(f"Headers: {headers}")
 
     if (
         "Twitch-Eventsub-Message-Type" in headers
