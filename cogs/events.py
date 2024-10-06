@@ -57,12 +57,15 @@ class Events(commands.Cog):
         await self._toggle_role(payload, False)
 
     async def _toggle_role(self, payload: discord.RawReactionActionEvent, add: bool):
+        print("This is the payload:", payload)
         guild = discord.utils.find(lambda g: g.id == payload.guild_id, self.bot.guilds)
         if guild is None:
+            print("Guild not found")
             return
 
         member = discord.utils.find(lambda m: m.id == payload.user_id, guild.members)
         if member is None:
+            print("Member not found")
             return
 
         message_id = payload.message_id
