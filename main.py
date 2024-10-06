@@ -106,7 +106,8 @@ async def twitch_webhook():
         print("Stream is live, sending message to Discord.")
         # Send a message to Discord when the stream goes live
         await send_discord_message(
-            "I am live on Twitch! Come join at https://www.twitch.tv/valinmalach",
+            "<@&1292348044888768605> Valin has gone live!\n"
+            + "Come join at https://www.twitch.tv/valinmalach",
             bot,
             1285276760044474461,  # stream-alerts channel
         )
