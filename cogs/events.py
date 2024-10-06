@@ -7,28 +7,28 @@ class Events(commands.Cog):
         self.bot = bot
         # Message_id, reaction_emoji, role_name mapping
         self.message_reaction_role_map = {
-            1291772906841571500: {"✅": "Followers"},  # Rules message
+            1291772906841571500: {"✅": "🙇Followers"},  # Rules message
             1292348915257053367: {  # Ping roles message
-                "📢": "Announcements",
-                "🔴": "Live Alerts",
-                "❗": "Ping Role",
+                "📢": "📢Announcements",
+                "🔴": "🔴Live Alerts",
+                "❗": "❗Ping Role",
             },
             1292349441763971123: {"🔞": "NSFW Access"},  # NSFW Access role message
             1292349494666465282: {  # Pronouns roles message
-                "🙋‍♂️": "He/Him/They",
-                "🙋‍♀️": "She/Her/They",
-                "🙋": "They/Them",
-                "❓": "Other/Ask for pronouns",
+                "🙋‍♂️": "🙋‍♂️He/Him/They",
+                "🙋‍♀️": "🙋‍♀️She/Her/They",
+                "🙋": "🙋They/Them",
+                "❓": "❓Other/Ask for pronouns",
             },
             1292350341521739837: {  # Streamer, Gamer, Artist roles message
-                "📽️": "Streamer",
-                "🎮": "Gamer",
-                "🎨": "Artist",
+                "📽️": "📽️Streamer",
+                "🎮": "🎮Gamer",
+                "🎨": "🎨Artist",
             },
             1292357707365351445: {  # DMs Open, Ask to DM, DMs Closed roles message
-                "🟩": "DMs Open",
-                "🟨": "Ask to DM",
-                "🟥": "DMs Closed",
+                "🟩": "🟩DMs Open",
+                "🟨": "🟨Ask to DM",
+                "🟥": "🟥DMs Closed",
             },
         }
 
@@ -57,15 +57,12 @@ class Events(commands.Cog):
         await self._toggle_role(payload, False)
 
     async def _toggle_role(self, payload: discord.RawReactionActionEvent, add: bool):
-        print("This is the payload:", payload)
         guild = discord.utils.find(lambda g: g.id == payload.guild_id, self.bot.guilds)
         if guild is None:
-            print("Guild not found")
             return
 
         member = discord.utils.find(lambda m: m.id == payload.user_id, guild.members)
         if member is None:
-            print("Member not found")
             return
 
         message_id = payload.message_id
@@ -74,8 +71,6 @@ class Events(commands.Cog):
             guild.roles,
             name=self.message_reaction_role_map[message_id][payload.emoji.name],
         )
-
-        print(payload.message_id, payload.emoji.name, role.name)
 
         if role is not None:
             if add:
