@@ -13,7 +13,7 @@ class Events(commands.Cog):
                 "🔴": "🔴Live Alerts",
                 "❗": "❗Ping Role",
             },
-            1292349441763971123: {"🔞": "NSFW Access"},  # NSFW Access role message
+            1292349441763971123: {"🔞": "🔞NSFW Access"},  # NSFW Access role message
             1292349494666465282: {  # Pronouns roles message
                 "🙋‍♂️": "🙋‍♂️He/Him/They",
                 "🙋‍♀️": "🙋‍♀️She/Her/They",
