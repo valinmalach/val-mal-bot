@@ -5,8 +5,6 @@ from discord.ext import commands
 class Events(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.member = discord.Member
-        self.guild = discord.guild
         # Message_id, reaction_emoji, role_name mapping
         self.message_reaction_role_map = {
             1291772906841571500: {"✅": "Followers"},  # Rules message
@@ -73,6 +71,8 @@ class Events(commands.Cog):
             guild.roles,
             name=self.message_reaction_role_map[message_id][payload.emoji.name],
         )
+
+        print(payload.message_id, payload.emoji.name, role.name)
 
         if role is not None:
             if add:
