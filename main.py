@@ -43,7 +43,6 @@ async def restart(ctx: commands.Context):
     if ctx.author.id == 389318636201967628:  # Owner's user id
         try:
             await ctx.send("Restarting...")
-            print("Calling restart script...")
             subprocess.run(["/home/valinmalach/val-mal-bot/restart_bot.sh"], check=True)
         except subprocess.CalledProcessError as error:
             await ctx.send(f"Update failed: {error}")
@@ -101,10 +100,7 @@ async def twitch_webhook():
     ):
         return body["challenge"]
 
-    # Handle the "stream.online" event
     if body.get("subscription", {}).get("type") == "stream.online":
-        print("Stream is live, sending message to Discord.")
-        # Send a message to Discord when the stream goes live
         await send_discord_message(
             "<@&1292348044888768605> Valin has gone live!\n"
             + "Come join at https://www.twitch.tv/valinmalach",
