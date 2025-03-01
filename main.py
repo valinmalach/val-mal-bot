@@ -21,7 +21,7 @@ from send_discord_message import send_discord_message
 load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
+TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")  # Not used yet. For future use.
 
 intents = discord.Intents.all()
 
