@@ -33,7 +33,10 @@ bot = commands.Bot(
 
 @bot.event
 async def on_ready():
-    print("Discord bot started!")
+    await send_discord_message(
+        "Started successfully!", bot, 1291023411765837919  # bot-spam channel
+    )
+
 
 
 @bot.command()
@@ -95,6 +98,9 @@ async def twitch_webhook():
     headers = request.headers
     body = await request.get_json()
 
+    print(headers)
+    print(body)
+
     if (
         "Twitch-Eventsub-Message-Type" in headers
         and headers["Twitch-Eventsub-Message-Type"] == "webhook_callback_verification"
@@ -114,6 +120,7 @@ async def twitch_webhook():
 
 @app.route("/health", methods=["GET"])
 async def health():
+    print("Health check")
     return {"status": "ok"}
 
 
