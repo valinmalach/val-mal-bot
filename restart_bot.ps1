@@ -21,7 +21,7 @@ git pull
 
 # Install or update the required packages
 Write-Host "Installing requirements..."
-python.exe -m pip install -r requirements.txt --upgrade --user
+python.exe -m pip install -r requirements.txt --upgrade
 
 # Restart the bot
 Write-Host "Restarting the bot..."
