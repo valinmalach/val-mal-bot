@@ -33,9 +33,7 @@ bot = commands.Bot(
 
 @bot.event
 async def on_ready():
-    await send_discord_message(
-        "Started successfully!", bot, 1291023411765837919  # bot-spam channel
-    )
+    print("Discord bot started!")
 
 
 @bot.command()
@@ -43,7 +41,10 @@ async def restart(ctx: commands.Context):
     if ctx.author.id == 389318636201967628:  # Owner's user id
         try:
             await ctx.send("Restarting...")
-            subprocess.run(["/home/valinmalach/val-mal-bot/restart_bot.sh"], check=True)
+            subprocess.run(
+                ["powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"],
+                check=True,
+            )
         except subprocess.CalledProcessError as error:
             await ctx.send(f"Update failed: {error}")
             return
