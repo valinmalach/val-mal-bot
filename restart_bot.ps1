@@ -1,6 +1,6 @@
 # Application directory and bot script
 $AppPath = "C:\val-mal-bot"
-$BotScript = "main.py"
+$BotScript = ".\main.py"
 
 # Kill the running bot by filtering processes whose command line contains the bot script name
 Write-Host "Stopping existing bot processes..."
@@ -21,8 +21,9 @@ git pull
 
 # Install or update the required packages
 Write-Host "Installing requirements..."
-python.exe -m pip install -r requirements.txt --upgrade
+python -m pip install -r requirements.txt --upgrade
+python .\upgrade_pip_packages.py
 
 # Restart the bot
 Write-Host "Restarting the bot..."
-Start-Process python -ArgumentList $BotScript
+python $BotScript
