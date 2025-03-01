@@ -1,3 +1,6 @@
+import truststore
+truststore.inject_into_ssl()
+
 import asyncio
 import os
 import subprocess
