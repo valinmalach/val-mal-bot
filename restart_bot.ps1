@@ -1,6 +1,6 @@
 # Application directory and bot script
 $AppPath = "C:\val-mal-bot"
-$BotScript = ".\main.py"
+$BotScript = "main.py"
 
 # Kill the running bot by filtering processes whose command line contains the bot script name
 Write-Host "Stopping existing bot processes..."
