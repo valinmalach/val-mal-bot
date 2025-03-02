@@ -74,7 +74,7 @@ async def restart(ctx: commands.Context):
 
 @bot.command()
 async def nuke(ctx: commands.Context):
-    if ctx.author.id == 389318636201967628:
+    if ctx.author.id == 389318636201967628:  # Owner's user id
         await ctx.channel.purge()
 
 

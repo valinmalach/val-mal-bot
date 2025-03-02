@@ -15,8 +15,8 @@ class Events(commands.Cog):
             },
             1292349441763971123: {"🔞": "🔞NSFW Access"},  # NSFW Access role message
             1292349494666465282: {  # Pronouns roles message
-                "🙋‍♂️": "🙋‍♂️He/Him/They",
-                "🙋‍♀️": "🙋‍♀️She/Her/They",
+                "🙋‍♂️": "🙋‍♂️He/Him",
+                "🙋‍♀️": "🙋‍♀️She/Her",
                 "🙋": "🙋They/Them",
                 "❓": "❓Other/Ask for pronouns",
             },
