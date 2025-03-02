@@ -9,9 +9,6 @@ foreach ($process in $processes) {
     Stop-Process -Id $process.ProcessId -Force
 }
 
-# Pause to ensure processes are completely terminated
-Start-Sleep -Seconds 2
-
 # Change to the application directory
 Set-Location $AppPath
 
