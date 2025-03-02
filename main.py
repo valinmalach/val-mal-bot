@@ -1,7 +1,10 @@
 import truststore
+
 truststore.inject_into_ssl()
 
 import asyncio
+import hashlib
+import hmac
 import os
 import subprocess
 
@@ -14,14 +17,21 @@ from discord.ext.commands.errors import (
     NoEntryPointError,
 )
 from dotenv import load_dotenv
-from quart import Quart, request
+from quart import Quart, Response, abort, request
+from werkzeug.datastructures import Headers
 
 from send_discord_message import send_discord_message
 
 load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")  # Not used yet. For future use.
+TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
+
+TWITCH_MESSAGE_ID = "Twitch-Eventsub-Message-Id"
+TWITCH_MESSAGE_TYPE = "Twitch-Eventsub-Message-Type"
+TWITCH_MESSAGE_TIMESTAMP = "Twitch-Eventsub-Message-Timestamp"
+TWITCH_MESSAGE_SIGNATURE = "Twitch-Eventsub-Message-Signature"
+HMAC_PREFIX = "sha256="
 
 intents = discord.Intents.all()
 
@@ -39,7 +49,6 @@ async def on_ready():
     await send_discord_message(
         "Started successfully!", bot, 1291023411765837919  # bot-spam channel
     )
-
 
 
 @bot.command()
@@ -67,6 +76,20 @@ async def restart(ctx: commands.Context):
 async def nuke(ctx: commands.Context):
     if ctx.author.id == 389318636201967628:
         await ctx.channel.purge()
+
+
+def get_hmac_message(headers: Headers, body: str) -> str:
+    return headers[TWITCH_MESSAGE_ID] + headers[TWITCH_MESSAGE_TIMESTAMP] + body
+
+
+def get_hmac(secret: str, message: str) -> str:
+    return hmac.new(
+        secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+
+
+def verify_message(hmac_str: str, verifySignature: str) -> bool:
+    return hmac.compare_digest(hmac_str, verifySignature)
 
 
 async def main():
@@ -99,32 +122,36 @@ async def before_serving():
 @app.route("/webhook/twitch", methods=["POST"])
 async def twitch_webhook():
     headers = request.headers
+    body_str = await request.get_data(as_text=True)
     body = await request.get_json()
 
-    print(headers)
-    print(body)
-
     if (
-        "Twitch-Eventsub-Message-Type" in headers
-        and headers["Twitch-Eventsub-Message-Type"] == "webhook_callback_verification"
+        TWITCH_MESSAGE_TYPE in headers
+        and headers[TWITCH_MESSAGE_TYPE] == "webhook_callback_verification"
     ):
         return body["challenge"]
 
-    if body.get("subscription", {}).get("type") == "stream.online":
-        await send_discord_message(
-            "<@&1292348044888768605> Valin has gone live!\n"
-            + "Come join at https://www.twitch.tv/valinmalach",
-            bot,
-            1285276760044474461,  # stream-alerts channel
-        )
+    message = get_hmac_message(headers, body_str)
+    secret_hmac = HMAC_PREFIX + get_hmac(TWITCH_WEBHOOK_SECRET, message)
 
-    return {"status": "ok"}
+    if verify_message(secret_hmac, headers[TWITCH_MESSAGE_SIGNATURE]):
+        if body.get("subscription", {}).get("type", "") == "stream.online":
+            await send_discord_message(
+                "<@&1292348044888768605> Valin has gone live!\n"
+                + "Come join at https://www.twitch.tv/valinmalach",
+                bot,
+                1285276760044474461,  # stream-alerts channel
+            )
+
+        return Response(status=200)
+    else:
+        print("403: Forbidden. Signature does not match.")
+        abort(403)
 
 
 @app.route("/health", methods=["GET"])
 async def health():
-    print("Health check")
-    return {"status": "ok"}
+    return Response("Healthy", 200)
 
 
 if __name__ == "__main__":
