@@ -12,6 +12,7 @@ class Events(commands.Cog):
                 "📢": "📢Announcements",
                 "🔴": "🔴Live Alerts",
                 "❗": "❗Ping Role",
+                "🦋": "🦋Bluesky",
             },
             1292349441763971123: {"🔞": "🔞NSFW Access"},  # NSFW Access role message
             1292349494666465282: {  # Pronouns roles message
