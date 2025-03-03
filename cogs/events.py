@@ -19,7 +19,7 @@ class Events(commands.Cog):
                 "🙋‍♂️": "🙋‍♂️He/Him",
                 "🙋‍♀️": "🙋‍♀️She/Her",
                 "🙋": "🙋They/Them",
-                "❓": "❓Other/Ask for pronouns",
+                "❓": "❓Other/Ask",
             },
             1292350341521739837: {  # Streamer, Gamer, Artist roles message
                 "📽️": "📽️Streamer",
