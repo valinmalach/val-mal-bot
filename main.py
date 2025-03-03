@@ -57,40 +57,6 @@ bot = commands.Bot(
 )
 
 
-@bot.event
-async def on_ready():
-    await send_discord_message(
-        "Started successfully!", bot, 1291023411765837919  # bot-spam channel
-    )
-
-
-@bot.command()
-async def restart(ctx: commands.Context):
-    if ctx.author.id == 389318636201967628:  # Owner's user id
-        try:
-            await ctx.send("Restarting...")
-            subprocess.run(
-                ["powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"],
-                check=True,
-            )
-        except subprocess.CalledProcessError as error:
-            await ctx.send(f"Update failed: {error}")
-            return
-    else:
-        await ctx.send(
-            "I don't know who you are, and I don't know what you want. "
-            + "If you stop now, that'll be the end of it. I will not look for you, "
-            + "I will not pursue you. But if you don't, I will look for you, "
-            + "I will find you, and I will ban you."
-        )
-
-
-@bot.command()
-async def nuke(ctx: commands.Context):
-    if ctx.author.id == 389318636201967628:  # Owner's user id
-        await ctx.channel.purge()
-
-
 @tasks.loop(minutes=1)
 async def check_posts():
     last_sync_date_time = xata_client.data().query(
@@ -129,6 +95,41 @@ async def check_posts():
             )
         else:
             print(f"Failed to insert post {post_id}.")
+
+
+@bot.event
+async def on_ready():
+    check_posts.start()
+    await send_discord_message(
+        "Started successfully!", bot, 1291023411765837919  # bot-spam channel
+    )
+
+
+@bot.command()
+async def restart(ctx: commands.Context):
+    if ctx.author.id == 389318636201967628:  # Owner's user id
+        try:
+            await ctx.send("Restarting...")
+            subprocess.run(
+                ["powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"],
+                check=True,
+            )
+        except subprocess.CalledProcessError as error:
+            await ctx.send(f"Update failed: {error}")
+            return
+    else:
+        await ctx.send(
+            "I don't know who you are, and I don't know what you want. "
+            + "If you stop now, that'll be the end of it. I will not look for you, "
+            + "I will not pursue you. But if you don't, I will look for you, "
+            + "I will find you, and I will ban you."
+        )
+
+
+@bot.command()
+async def nuke(ctx: commands.Context):
+    if ctx.author.id == 389318636201967628:  # Owner's user id
+        await ctx.channel.purge()
 
 
 async def main():
