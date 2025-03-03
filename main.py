@@ -79,7 +79,7 @@ async def check_posts():
         {
             "id": post.uri.split("/")[-1],
             "date": post.indexed_at,
-            "url": f"https://fxbsky.app/profile/valinmalach.bsky.social/post/{post.uri.split('/')[-1]}",
+            "url": f"https://bsky.app/profile/valinmalach.bsky.social/post/{post.uri.split('/')[-1]}",
         }
         for post in posts
     ]
