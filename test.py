@@ -44,6 +44,4 @@ posts = [
     for post in posts
 ]
 
-for post in posts:
-    post_id = post.pop("id")
-    resp = xata_client.records().insert_with_id("bluesky", post_id, post)
+print(posts)
