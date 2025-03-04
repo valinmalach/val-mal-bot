@@ -7,7 +7,6 @@ import hashlib
 import hmac
 import logging
 import os
-import subprocess
 
 import discord
 from discord.ext import commands
@@ -89,8 +88,9 @@ async def main():
         ) as e:
             logging.error(f"Something went wrong when loading extension {ext}: {e}")
 
+    loop = asyncio.get_event_loop()
     await bot.login(DISCORD_TOKEN)
-    asyncio.get_event_loop().create_task(bot.connect())
+    loop.create_task(bot.connect())
 
 
 def get_hmac_message(headers: Headers, body: str) -> str:
