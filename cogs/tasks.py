@@ -29,7 +29,7 @@ class Tasks(commands.Cog):
         self.check_birthdays.start()
 
     _quarter_hours = [
-        datetime.time(hour, minute, tzinfo=datetime.timezone.utc)
+        datetime.time(hour, minute)
         for hour in range(24)
         for minute in (0, 15, 30, 45)
     ]
@@ -78,9 +78,11 @@ class Tasks(commands.Cog):
     async def check_birthdays(self):
         now = (
             datetime.datetime.now(datetime.timezone.utc)
-            .replace(second=0, microsecond=0, tzinfo=None)
+            .replace(year=1970, second=0, microsecond=0, tzinfo=None)
             .isoformat()
-        ) + ".000Z"
+            + ".000Z"
+        )
+        print(now)
 
         records = xata_client.data().query(
             "users",
