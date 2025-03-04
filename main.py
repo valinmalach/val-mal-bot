@@ -5,7 +5,6 @@ truststore.inject_into_ssl()
 import asyncio
 import hashlib
 import hmac
-import logging
 import os
 
 import discord
@@ -32,8 +31,6 @@ TWITCH_MESSAGE_TYPE = "Twitch-Eventsub-Message-Type"
 TWITCH_MESSAGE_TIMESTAMP = "Twitch-Eventsub-Message-Timestamp"
 TWITCH_MESSAGE_SIGNATURE = "Twitch-Eventsub-Message-Signature"
 HMAC_PREFIX = "sha256="
-
-logging.basicConfig(level=logging.INFO)
 
 intents = discord.Intents.all()
 bot = commands.Bot(
@@ -86,7 +83,7 @@ async def main():
             NoEntryPointError,
             ExtensionFailed,
         ) as e:
-            logging.error(f"Something went wrong when loading extension {ext}: {e}")
+            print(f"Something went wrong when loading extension {ext}: {e}")
 
     loop = asyncio.get_event_loop()
     await bot.login(DISCORD_TOKEN)
@@ -143,7 +140,7 @@ async def twitch_webhook():
         bot,
         1346408909442781237,  # bot-admin channel
     )
-    logging.warning("403: Forbidden. Signature does not match.")
+    print("403: Forbidden. Signature does not match.")
     abort(403)
     return Response(status=403)
 
