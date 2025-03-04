@@ -26,6 +26,7 @@ class Tasks(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.check_posts.start()
+        self.check_birthdays.start()
 
     _quarter_hours = [
         datetime.time(hour, minute, tzinfo=datetime.timezone.utc)
