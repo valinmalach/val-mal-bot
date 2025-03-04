@@ -113,3 +113,7 @@ class Tasks(commands.Cog):
                     self.bot,
                     1291026077287710751,  # shoutouts channel
                 )
+
+
+async def setup(bot: commands.Bot):
+    await bot.add_cog(Tasks(bot))
