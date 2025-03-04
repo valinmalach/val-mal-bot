@@ -86,9 +86,6 @@ class Tasks(commands.Cog):
             {"columns": ["id", "birthday"], "filter": {"birthday": now}},
         )
 
-        if "records" not in records:
-            return
-
         birthdays_now = records["records"]
         for record in birthdays_now:
             user_id = record["id"]
@@ -107,9 +104,6 @@ class Tasks(commands.Cog):
                     "page": {"after": records.get_cursor()},
                 },
             )
-
-            if "records" not in records:
-                continue
 
             birthdays_now = records["records"]
             for record in birthdays_now:
