@@ -80,23 +80,18 @@ class Tasks(commands.Cog):
             .isoformat()
             + ".000Z"
         )
-        print(now)
 
         records = xata_client.data().query(
             "users",
             {"columns": ["id", "birthday"], "filter": {"birthday": now}},
         )
-        print(records)
 
         if "records" not in records:
             return
 
         birthdays_now = records["records"]
-        print(birthdays_now)
         for record in birthdays_now:
-            print(record)
             user_id = record["id"]
-            print(user_id)
             await send_discord_message(
                 f"Happy Birthday <@{user_id}>! 🎉",
                 self.bot,
@@ -114,7 +109,7 @@ class Tasks(commands.Cog):
             )
 
             if "records" not in records:
-                return
+                continue
 
             birthdays_now = records["records"]
             for record in birthdays_now:
