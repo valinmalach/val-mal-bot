@@ -31,7 +31,7 @@ class Tasks(commands.Cog):
     _quarter_hours = [
         datetime.time(hour, minute)
         for hour in range(24)
-        for minute in (0, 15, 30, 45)
+        for minute in (0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)
     ]
 
     @tasks.loop(minutes=1)
