@@ -77,10 +77,9 @@ class Tasks(commands.Cog):
     async def check_birthdays(self):
         now = (
             datetime.datetime.now(datetime.timezone.utc)
-            .replace(second=0, microsecond=0, tzinfo=datetime.timezone.utc)
+            .replace(second=0, microsecond=0, tzinfo=None)
             .isoformat()
-        )
-        print(now)
+        ) + ".000Z"
 
         records = xata_client.data().query(
             "users",
