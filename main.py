@@ -47,7 +47,7 @@ bot = commands.Bot(
 @bot.event
 async def on_ready():
     await send_discord_message(
-        "Started successfully!", bot, 1291023411765837919  # bot-spam channel
+        "Started successfully!", bot, 1346408909442781237  # bot-admin channel
     )
 
 
