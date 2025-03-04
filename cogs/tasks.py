@@ -29,9 +29,7 @@ class Tasks(commands.Cog):
         self.check_birthdays.start()
 
     _quarter_hours = [
-        datetime.time(hour, minute)
-        for hour in range(24)
-        for minute in (0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)
+        datetime.time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
     ]
 
     @tasks.loop(minutes=1)
@@ -88,12 +86,19 @@ class Tasks(commands.Cog):
             "users",
             {"columns": ["id", "birthday"], "filter": {"birthday": now}},
         )
+        print(records)
+
+        if "records" not in records:
+            return
 
         birthdays_now = records["records"]
+        print(birthdays_now)
         for record in birthdays_now:
+            print(record)
             user_id = record["id"]
+            print(user_id)
             await send_discord_message(
-                f"Happy Birthday <@{user_id}>!",
+                f"Happy Birthday <@{user_id}>! 🎉",
                 self.bot,
                 1291026077287710751,  # shoutouts channel
             )
@@ -107,6 +112,9 @@ class Tasks(commands.Cog):
                     "page": {"after": records.get_cursor()},
                 },
             )
+
+            if "records" not in records:
+                return
 
             birthdays_now = records["records"]
             for record in birthdays_now:
