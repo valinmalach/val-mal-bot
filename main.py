@@ -5,6 +5,7 @@ truststore.inject_into_ssl()
 import asyncio
 import hashlib
 import hmac
+import logging
 import os
 import subprocess
 
@@ -33,15 +34,14 @@ TWITCH_MESSAGE_TIMESTAMP = "Twitch-Eventsub-Message-Timestamp"
 TWITCH_MESSAGE_SIGNATURE = "Twitch-Eventsub-Message-Signature"
 HMAC_PREFIX = "sha256="
 
-intents = discord.Intents.all()
+logging.basicConfig(level=logging.INFO)
 
+intents = discord.Intents.all()
 bot = commands.Bot(
     command_prefix="$",
     intents=intents,
-    case_insensitive=True,
-    reload=True,
-    max_messages=1000000000,
 )
+bot.case_insensitive = True
 
 
 @bot.event
@@ -54,22 +54,17 @@ async def on_ready():
 @bot.command()
 async def restart(ctx: commands.Context):
     if ctx.author.id == 389318636201967628:  # Owner's user id
-        try:
-            await ctx.send("Restarting...")
-            subprocess.run(
-                ["powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"],
-                check=True,
-            )
-        except subprocess.CalledProcessError as error:
-            await ctx.send(f"Update failed: {error}")
-            return
-    else:
-        await ctx.send(
-            "I don't know who you are, and I don't know what you want. "
-            + "If you stop now, that'll be the end of it. I will not look for you, "
-            + "I will not pursue you. But if you don't, I will look for you, "
-            + "I will find you, and I will ban you."
+        await ctx.send("Restarting...")
+        await asyncio.create_subprocess_exec(
+            "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
         )
+
+    await ctx.send(
+        "I don't know who you are, and I don't know what you want. "
+        + "If you stop now, that'll be the end of it. I will not look for you, "
+        + "I will not pursue you. But if you don't, I will look for you, "
+        + "I will find you, and I will ban you."
+    )
 
 
 @bot.command()
@@ -92,10 +87,10 @@ async def main():
             NoEntryPointError,
             ExtensionFailed,
         ) as e:
-            print(f"Something went wrong when loading extension {ext}: {e}")
-    loop = asyncio.get_event_loop()
+            logging.error(f"Something went wrong when loading extension {ext}: {e}")
+
     await bot.login(DISCORD_TOKEN)
-    loop.create_task(bot.connect())
+    asyncio.get_event_loop().create_task(bot.connect())
 
 
 def get_hmac_message(headers: Headers, body: str) -> str:
@@ -126,10 +121,7 @@ async def twitch_webhook():
     body_str = await request.get_data(as_text=True)
     body = await request.get_json()
 
-    if (
-        TWITCH_MESSAGE_TYPE in headers
-        and headers[TWITCH_MESSAGE_TYPE] == "webhook_callback_verification"
-    ):
+    if headers.get(TWITCH_MESSAGE_TYPE) == "webhook_callback_verification":
         return body["challenge"]
 
     message = get_hmac_message(headers, body_str)
@@ -145,9 +137,15 @@ async def twitch_webhook():
             )
 
         return Response(status=200)
-    else:
-        print("403: Forbidden. Signature does not match.")
-        abort(403)
+
+    await send_discord_message(
+        "403: Forbidden request on /webhook/twitch. Signature does not match.",
+        bot,
+        1346408909442781237,  # bot-admin channel
+    )
+    logging.warning("403: Forbidden. Signature does not match.")
+    abort(403)
+    return Response(status=403)
 
 
 @app.route("/health", methods=["GET"])

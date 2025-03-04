@@ -58,26 +58,33 @@ class Events(commands.Cog):
         await self._toggle_role(payload, False)
 
     async def _toggle_role(self, payload: discord.RawReactionActionEvent, add: bool):
-        guild = discord.utils.find(lambda g: g.id == payload.guild_id, self.bot.guilds)
+        guild = self.bot.get_guild(payload.guild_id)
         if guild is None:
             return
 
-        member = discord.utils.find(lambda m: m.id == payload.user_id, guild.members)
+        member = guild.get_member(payload.user_id)
         if member is None:
             return
 
         message_id = payload.message_id
 
-        role = discord.utils.get(
-            guild.roles,
-            name=self.message_reaction_role_map[message_id][payload.emoji.name],
-        )
+        role_mapping = self.message_reaction_role_map.get(message_id)
+        if not role_mapping:
+            return
 
-        if role is not None:
-            if add:
-                await member.add_roles(role)
-            else:
-                await member.remove_roles(role)
+        role_name = role_mapping.get(payload.emoji.name)
+        if not role_name:
+            return
+
+        role = discord.utils.get(guild.roles, name=role_name)
+
+        if role is None:
+            return
+
+        if add:
+            await member.add_roles(role)
+        else:
+            await member.remove_roles(role)
 
 
 async def setup(bot: commands.Bot):
