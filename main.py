@@ -54,13 +54,13 @@ async def restart(ctx: commands.Context):
         await asyncio.create_subprocess_exec(
             "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
         )
-
-    await ctx.send(
-        "I don't know who you are, and I don't know what you want. "
-        + "If you stop now, that'll be the end of it. I will not look for you, "
-        + "I will not pursue you. But if you don't, I will look for you, "
-        + "I will find you, and I will ban you."
-    )
+    else:
+        await ctx.send(
+            "I don't know who you are, and I don't know what you want. "
+            + "If you stop now, that'll be the end of it. I will not look for you, "
+            + "I will not pursue you. But if you don't, I will look for you, "
+            + "I will find you, and I will ban you."
+        )
 
 
 @bot.command()
