@@ -31,6 +31,8 @@ xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
 load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+MY_GUILD = discord.Object(id=813237030385090580)
+
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 
 TWITCH_MESSAGE_ID = "Twitch-Eventsub-Message-Id"
@@ -55,13 +57,18 @@ async def is_owner(context: commands.Context) -> bool:
     return False
 
 
+class MyBot(commands.Bot):
+    def __init__(self, *, command_prefix: str, intents: discord.Intents):
+        super().__init__(command_prefix=command_prefix, intents=intents)
+        self.case_insensitive = True
+
+    async def setup_hook(self):
+        self.tree.copy_global_to(guild=MY_GUILD)
+        await self.tree.sync(guild=MY_GUILD)
+
+
 intents = discord.Intents.all()
-bot = commands.Bot(
-    command_prefix="$",
-    intents=intents,
-)
-bot.case_insensitive = True
-bot.tree = app_commands.CommandTree(bot)
+bot = MyBot(command_prefix="$", intents=intents)
 
 
 @bot.event
