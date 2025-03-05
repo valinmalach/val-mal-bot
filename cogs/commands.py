@@ -3,14 +3,12 @@ from datetime import datetime
 from enum import Enum
 
 import discord
+import pytz
 from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 from pytz import timezone as tz
 from xata import XataClient
-
-from send_discord_message import send_discord_message
-from TimeZoneLiteral import TimeZoneLiteral
 
 load_dotenv()
 
@@ -66,8 +64,16 @@ class Commands(commands.Cog):
         interaction: discord.Interaction,
         month: Months,
         day: app_commands.Range[int, 1, 31],
-        timezone: TimeZoneLiteral = "UTC",
+        timezone: str = "UTC",
     ):
+        if timezone not in pytz.all_timezones:
+            await interaction.response.send_message(
+                f"Sorry. I've never heard of the timezone {timezone}. "
+                + "Have you tried using the autocomplete options provided? "
+                + "Because those are the only timezones I know of."
+            )
+            return
+
         if day > MAX_DAYS[month]:
             await interaction.response.send_message(
                 f"{month.name} doesn't have that many days..."
@@ -105,6 +111,17 @@ class Commands(commands.Cog):
         await interaction.response.send_message(
             "I've remembered your birthday! I'll wish you at midnight of your selected timezone!"
         )
+
+    @set_birthday.autocomplete("timezone")
+    async def timezone_autocomplete(
+        self, _: discord.Interaction, current_input: str
+    ) -> list[app_commands.Choice[str]]:
+        choices = [
+            app_commands.Choice(name=tz, value=tz)
+            for tz in pytz.all_timezones
+            if current_input.lower() in tz.lower()
+        ]
+        return choices[:25]
 
     def _update_birthday(self, user: discord.User, record: dict[str, str]) -> bool:
         existing_user = xata_client.records().get("users", str(user.id))
