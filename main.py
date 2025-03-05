@@ -58,8 +58,8 @@ async def is_owner(interaction: discord.Interaction) -> bool:
 
 
 class MyBot(commands.Bot):
-    def __init__(self, *, intents: discord.Intents):
-        super().__init__(intents=intents)
+    def __init__(self, *, command_prefix: str, intents: discord.Intents):
+        super().__init__(command_prefix=command_prefix, intents=intents)
         self.case_insensitive = True
 
     async def setup_hook(self):
@@ -68,7 +68,7 @@ class MyBot(commands.Bot):
 
 
 intents = discord.Intents.all()
-bot = MyBot(intents=intents)
+bot = MyBot(command_prefix="$", intents=intents)
 
 
 @bot.event
