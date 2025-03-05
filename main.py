@@ -23,12 +23,12 @@ from xata import XataClient
 
 from send_discord_message import send_discord_message
 
+load_dotenv()
+
 XATA_API_KEY = os.getenv("XATA_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
-
-load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 MY_GUILD = discord.Object(id=813237030385090580)
