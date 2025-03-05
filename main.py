@@ -91,7 +91,7 @@ async def restart(ctx: commands.Context):
 
 
 @bot.tree.command(description="Deletes all messages in the channel")
-@app_commands.checks.has_role(1285278282966896701)
+@app_commands.checks.has_permissions(discord.Permissions.administrator)
 async def nuke(ctx: commands.Context):
     if is_owner(ctx):
         await ctx.channel.purge(limit=1000000000)
