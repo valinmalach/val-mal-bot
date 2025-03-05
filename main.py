@@ -43,7 +43,7 @@ HMAC_PREFIX = "sha256="
 
 
 async def is_owner(interaction: discord.Interaction) -> bool:
-    if interaction.user.id == 389318636201967628:  # Owner's user id
+    if interaction.user.id == interaction.guild.owner_id:
         return True
 
     await interaction.response.send_message(
