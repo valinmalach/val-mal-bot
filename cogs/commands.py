@@ -80,20 +80,21 @@ class Commands(commands.Cog):
             )
             return
 
-        user = interaction.user
         record = {
-            "username": user.name,
+            "username": interaction.user.name,
             "birthday": (
-                datetime.strptime(
-                    f"1970-{month.value:02d}-{day:02d} 00:00:00",
-                    "%Y-%m-%d %H:%M:%S",
+                pytz.timezone(timezone)
+                .localize(
+                    datetime.strptime(
+                        f"1970-{month.value:02d}-{day:02d} 00:00:00",
+                        "%Y-%m-%d %H:%M:%S",
+                    )
                 )
-                .astimezone(tz(timezone))
                 .astimezone(pytz.utc)
                 .strftime("%Y-%m-%dT%H:%M:%S.000Z")
             ),
         }
-        success = self._update_birthday(user, record)
+        success = self._update_birthday(interaction.user, record)
         if not success:
             await interaction.response.send_message(
                 "Sorry, it seems like I couldn't set your birthday...\n\n"
