@@ -1,13 +1,13 @@
 import os
 from datetime import datetime
 from enum import Enum
+from zoneinfo import ZoneInfo
 
 import discord
 import pytz
 from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
-from pytz import timezone as tz
 from xata import XataClient
 
 load_dotenv()
@@ -83,14 +83,11 @@ class Commands(commands.Cog):
         record = {
             "username": interaction.user.name,
             "birthday": (
-                pytz.timezone(timezone)
-                .localize(
-                    datetime.strptime(
-                        f"1970-{month.value:02d}-{day:02d} 00:00:00",
-                        "%Y-%m-%d %H:%M:%S",
-                    )
+                datetime.strptime(
+                    f"1970-{month.value:02d}-{day:02d} 00:00:00", "%Y-%m-%d %H:%M:%S"
                 )
-                .astimezone(pytz.utc)
+                .replace(tzinfo=ZoneInfo(timezone))
+                .astimezone(ZoneInfo("UTC"))
                 .strftime("%Y-%m-%dT%H:%M:%S.000Z")
             ),
         }
