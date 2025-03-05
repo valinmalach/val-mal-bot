@@ -109,7 +109,8 @@ class Commands(commands.Cog):
             return
 
         await interaction.response.send_message(
-            "I've remembered your birthday! I'll wish you at midnight of your selected timezone!"
+            "I've remembered your birthday! "
+            + "I'll wish you at midnight of your selected timezone!"
         )
 
     @set_birthday.autocomplete("timezone")
@@ -122,6 +123,39 @@ class Commands(commands.Cog):
             if current_input.lower() in tz.lower()
         ]
         return choices[:25]
+
+    @app_commands.command(
+        name="birthday remove", description="Removes your birthday, if it exists"
+    )
+    @app_commands.checks.has_role(1291769015190032435)
+    async def remove_birthday(
+        self,
+        interaction: discord.Interaction,
+    ):
+        existing_user = xata_client.records().get("users", str(interaction.user.id))
+
+        record = {
+            "username": interaction.user.name,
+            "birthday": None,
+        }
+        success = self._update_birthday(interaction.user, record)
+        if not success:
+            await interaction.response.send_message(
+                "Oops, it seems like I couldn't forget your birthday...\n\n"
+                + "# <@389318636201967628> FIX MEEEE!!!"
+            )
+            return
+
+        if existing_user.is_success() and existing_user.get("birthday"):
+            await interaction.response.send_message(
+                "I've removed your birthday! I won't wish you anymore!"
+            )
+            return
+
+        await interaction.response.send_message(
+            "You had no birthday to remove. "
+            + "Maybe try setting one first before asking me to remove it?"
+        )
 
     def _update_birthday(self, user: discord.User, record: dict[str, str]) -> bool:
         existing_user = xata_client.records().get("users", str(user.id))
