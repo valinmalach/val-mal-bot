@@ -91,7 +91,7 @@ async def restart(interaction: discord.Interaction):
 
 
 @bot.tree.command(description="Deletes all messages in the channel")
-@app_commands.checks.has_permissions(perms=discord.Permissions.administrator)
+@app_commands.checks.has_permissions(administrator=True)
 async def nuke(interaction: discord.Interaction):
     if await is_owner(interaction):
         await interaction.channel.purge(limit=1000000000)
