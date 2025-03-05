@@ -55,7 +55,7 @@ class Commands(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command("birthday", "Set your birthday")
+    @app_commands.command(name="birthday", description="Set your birthday")
     @app_commands.describe(
         month="The month of your birthday",
         day="The day of your birthday",
