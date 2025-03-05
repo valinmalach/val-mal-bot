@@ -53,6 +53,8 @@ class Commands(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    group = app_commands.Group(name="birthday", description="Set your birthday")
+
     @app_commands.command(name="birthday", description="Set your birthday")
     @app_commands.checks.has_role(1291769015190032435)
     @app_commands.describe(
@@ -124,9 +126,7 @@ class Commands(commands.Cog):
         ]
         return choices[:25]
 
-    @app_commands.command(
-        name="birthday remove", description="Removes your birthday, if it exists"
-    )
+    @group.command(name="remove", description="Removes your birthday, if it exists")
     @app_commands.checks.has_role(1291769015190032435)
     async def remove_birthday(
         self,
