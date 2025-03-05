@@ -93,14 +93,13 @@ class Birthday(GroupCog):
             ),
         }
         success = self._update_birthday(interaction.user, record)
-        print(success)
         if not success:
             await interaction.response.send_message(
                 "Sorry, it seems like I couldn't set your birthday...\n\n"
                 + "# <@389318636201967628> FIX MEEEE!!!"
             )
             return
-        print("Is this reached?")
+
         if month == Months.February and day == 29:
             await interaction.response.send_message(
                 "That's an unfortunate birthday :(\n\n"
