@@ -81,19 +81,18 @@ async def on_ready():
 @bot.tree.command(description="Restarts the bot")
 @app_commands.checks.has_role(1285278282966896701)
 async def restart(interaction: discord.Interaction):
-    if not await is_owner(interaction):
-        return
-
-    await interaction.response.send_message("Restarting...")
-    await asyncio.create_subprocess_exec(
-        "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
-    )
+    if await is_owner(interaction):
+        await interaction.response.send_message("Restarting...")
+        await asyncio.create_subprocess_exec(
+            "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
+        )
 
 
 @bot.tree.command(description="Deletes all messages in the channel")
 @app_commands.checks.has_permissions(administrator=True)
 async def nuke(interaction: discord.Interaction):
     if await is_owner(interaction):
+        await interaction.response.send_message("Nuking channel...")
         await interaction.channel.purge(limit=1000000000)
 
 
