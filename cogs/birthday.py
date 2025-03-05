@@ -85,7 +85,7 @@ class Birthday(GroupCog):
             "username": interaction.user.name,
             "birthday": (
                 datetime.strptime(
-                    f"1980-{month.value:02d}-{day:02d} 00:00:00", "%Y-%m-%d %H:%M:%S"
+                    f"2020-{month.value:02d}-{day:02d} 00:00:00", "%Y-%m-%d %H:%M:%S"
                 )
                 .replace(tzinfo=ZoneInfo(timezone))
                 .astimezone(ZoneInfo("UTC"))

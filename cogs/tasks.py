@@ -82,7 +82,7 @@ class Tasks(Cog):
     async def check_birthdays(self):
         now = (
             datetime.datetime.now(datetime.timezone.utc)
-            .replace(year=1980, second=0, microsecond=0)
+            .replace(year=2020, second=0, microsecond=0)
             .strftime("%Y-%m-%dT%H:%M:%S.000Z")
         )
 
