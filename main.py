@@ -38,6 +38,22 @@ TWITCH_MESSAGE_TIMESTAMP = "Twitch-Eventsub-Message-Timestamp"
 TWITCH_MESSAGE_SIGNATURE = "Twitch-Eventsub-Message-Signature"
 HMAC_PREFIX = "sha256="
 
+
+async def is_owner(context: commands.Context) -> bool:
+    if context.author.id == 389318636201967628:  # Owner's user id
+        return True
+
+    await context.send(
+        "I don't know who you are, and I don't know what you want.\n"
+        + "If you stop now, that'll be the end of it.\n"
+        + "I will not look for you, I will not pursue you.\n"
+        + "But if you don't...\n"
+        + "I will look for you, I **will** find you\n"
+        + "## and I will ban you."
+    )
+    return False
+
+
 intents = discord.Intents.all()
 bot = commands.Bot(
     command_prefix="$",
@@ -55,62 +71,19 @@ async def on_ready():
 
 @bot.command()
 async def restart(ctx: commands.Context):
-    if ctx.author.id == 389318636201967628:  # Owner's user id
-        await ctx.send("Restarting...")
-        await asyncio.create_subprocess_exec(
-            "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
-        )
-    else:
-        await ctx.send(
-            "I don't know who you are, and I don't know what you want.\n"
-            + "If you stop now, that'll be the end of it.\n"
-            + "I will not look for you, I will not pursue you.\n"
-            + "But if you don't...\n"
-            + "I will look for you, I **will** find you\n"
-            + "## and I will ban you."
-        )
+    if not is_owner(ctx):
+        return
+
+    await ctx.send("Restarting...")
+    await asyncio.create_subprocess_exec(
+        "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
+    )
 
 
 @bot.command()
 async def nuke(ctx: commands.Context):
-    if ctx.author.id == 389318636201967628:  # Owner's user id
+    if is_owner(ctx):
         await ctx.channel.purge()
-    else:
-        await ctx.send(
-            "I don't know who you are, and I don't know what you want.\n"
-            + "If you stop now, that'll be the end of it.\n"
-            + "I will not look for you, I will not pursue you.\n"
-            + "But if you don't...\n"
-            + "I will look for you, I **will** find you\n"
-            + "## and I will ban you."
-        )
-
-
-@bot.command()
-async def init_users_db(ctx: commands.Context):
-    if ctx.author.id == 389318636201967628:  # Owner's user id
-        # Get all members in server
-        members = ctx.guild.members
-        for member in members:
-            existing_user = xata_client.records().get("users", str(member.id))
-            if existing_user.is_success():
-                continue  # User already exists in database
-            user = {
-                "username": member.name,
-                "birthday": None,
-            }
-            resp = xata_client.records().insert_with_id("users", str(member.id), user)
-            if not resp.is_success():
-                await ctx.send(f"Failed to insert user {member.name} into database.")
-    else:
-        await ctx.send(
-            "I don't know who you are, and I don't know what you want.\n"
-            + "If you stop now, that'll be the end of it.\n"
-            + "I will not look for you, I will not pursue you.\n"
-            + "But if you don't...\n"
-            + "I will look for you, I **will** find you\n"
-            + "## and I will ban you."
-        )
 
 
 async def main():
@@ -118,6 +91,7 @@ async def main():
     for ext in [
         "cogs.events",
         "cogs.tasks",
+        "cogs.commands",
     ]:
         try:
             await bot.load_extension(ext)

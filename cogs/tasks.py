@@ -112,6 +112,9 @@ class Tasks(commands.Cog):
                 1291026077287710751,  # shoutouts channel
             )
 
+    def _is_leap_year(self, year: int) -> bool:
+        return (year % 400 == 0) or (year % 100 != 0) and (year % 4 == 0)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Tasks(bot))
