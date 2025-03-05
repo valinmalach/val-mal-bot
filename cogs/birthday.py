@@ -99,19 +99,18 @@ class Birthday(GroupCog):
                 + "# <@389318636201967628> FIX MEEEE!!!"
             )
             return
-
+        print("Is this reached?")
         if month == Months.February and day == 29:
             await interaction.response.send_message(
                 "That's an unfortunate birthday :(\n\n"
                 + "Don't worry! If it's not a leap year, I'll wish you on both the "
                 + "28th of February and the 1st of March!"
             )
-            return
-
-        await interaction.response.send_message(
-            "I've remembered your birthday! "
-            + "I'll wish you at midnight of your selected timezone!"
-        )
+        else:
+            await interaction.response.send_message(
+                "I've remembered your birthday! "
+                + "I'll wish you at midnight of your selected timezone!"
+            )
 
     @set_birthday.autocomplete("timezone")
     async def timezone_autocomplete(
