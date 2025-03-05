@@ -93,6 +93,7 @@ class Birthday(GroupCog):
             ),
         }
         success = self._update_birthday(interaction.user, record)
+        print(success)
         if not success:
             await interaction.response.send_message(
                 "Sorry, it seems like I couldn't set your birthday...\n\n"
