@@ -49,14 +49,15 @@ MAX_DAYS = {
 }
 
 
+@app_commands.checks.has_role(1291769015190032435)
+class BirthdayGroup(app_commands.Group):
+    def __init__(self):
+        super().__init__(self, name="birthday", description="Set your birthday")
+
+
 class Commands(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-
-    @app_commands.checks.has_role(1291769015190032435)
-    class BirthdayGroup(app_commands.Group):
-        def __init__():
-            super().__init__(name="birthday", description="Set your birthday")
 
     @app_commands.command(name="birthday", description="Set your birthday")
     @app_commands.checks.has_role(1291769015190032435)
