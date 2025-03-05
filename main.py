@@ -78,7 +78,8 @@ async def on_ready():
     )
 
 
-@bot.command()
+@bot.tree.command()
+@app_commands.checks.has_role(1285278282966896701)
 async def restart(ctx: commands.Context):
     if not is_owner(ctx):
         return
@@ -89,7 +90,8 @@ async def restart(ctx: commands.Context):
     )
 
 
-@bot.command()
+@bot.tree.command()
+@app_commands.checks.has_role(1285278282966896701)
 async def nuke(ctx: commands.Context):
     if is_owner(ctx):
         await ctx.channel.purge()
