@@ -3,10 +3,10 @@ from datetime import datetime
 from enum import Enum
 from zoneinfo import ZoneInfo
 
-import discord
 import pytz
-from discord import app_commands
-from discord.ext import commands
+from discord import Interaction, User, app_commands
+from discord.app_commands import Choice, Range
+from discord.ext.commands import Bot, GroupCog
 from dotenv import load_dotenv
 from xata import XataClient
 
@@ -49,8 +49,8 @@ MAX_DAYS = {
 }
 
 
-class Commands(commands.GroupCog):
-    def __init__(self, bot: commands.Bot):
+class Birthday(GroupCog):
+    def __init__(self, bot: Bot):
         self.bot = bot
 
     @app_commands.command(name="set", description="Set your birthday")
@@ -62,9 +62,9 @@ class Commands(commands.GroupCog):
     )
     async def set_birthday(
         self,
-        interaction: discord.Interaction,
+        interaction: Interaction,
         month: Months,
-        day: app_commands.Range[int, 1, 31],
+        day: Range[int, 1, 31],
         timezone: str = "UTC",
     ):
         if timezone not in pytz.all_timezones:
@@ -115,10 +115,10 @@ class Commands(commands.GroupCog):
 
     @set_birthday.autocomplete("timezone")
     async def timezone_autocomplete(
-        self, _: discord.Interaction, current_input: str
-    ) -> list[app_commands.Choice[str]]:
+        self, _: Interaction, current_input: str
+    ) -> list[Choice[str]]:
         choices = [
-            app_commands.Choice(name=tz, value=tz)
+            Choice(name=tz, value=tz)
             for tz in pytz.all_timezones
             if current_input.lower() in tz.lower()
         ]
@@ -130,7 +130,7 @@ class Commands(commands.GroupCog):
     @app_commands.checks.has_role(1291769015190032435)
     async def remove_birthday(
         self,
-        interaction: discord.Interaction,
+        interaction: Interaction,
     ):
         existing_user = xata_client.records().get("users", str(interaction.user.id))
 
@@ -157,7 +157,7 @@ class Commands(commands.GroupCog):
             + "Maybe try setting one first before asking me to remove it?"
         )
 
-    def _update_birthday(self, user: discord.User, record: dict[str, str]) -> bool:
+    def _update_birthday(self, user: User, record: dict[str, str]) -> bool:
         existing_user = xata_client.records().get("users", str(user.id))
         if existing_user.is_success():
             resp = xata_client.records().update("users", user.id, record)
@@ -166,5 +166,5 @@ class Commands(commands.GroupCog):
         return resp.is_success()
 
 
-async def setup(bot: commands.Bot):
-    await bot.add_cog(Commands(bot))
+async def setup(bot: Bot):
+    await bot.add_cog(Birthday(bot))

@@ -8,8 +8,8 @@ import hmac
 import os
 
 import discord
-from discord import app_commands
-from discord.ext import commands
+import quart
+from discord.ext.commands import Bot
 from discord.ext.commands.errors import (
     ExtensionAlreadyLoaded,
     ExtensionFailed,
@@ -17,7 +17,7 @@ from discord.ext.commands.errors import (
     NoEntryPointError,
 )
 from dotenv import load_dotenv
-from quart import Quart, Response, abort, request
+from quart import Quart, Response, request
 from werkzeug.datastructures import Headers
 from xata import XataClient
 
@@ -42,22 +42,7 @@ TWITCH_MESSAGE_SIGNATURE = "Twitch-Eventsub-Message-Signature"
 HMAC_PREFIX = "sha256="
 
 
-async def is_owner(interaction: discord.Interaction) -> bool:
-    if interaction.user.id == interaction.guild.owner_id:
-        return True
-
-    await interaction.response.send_message(
-        "I don't know who you are, and I don't know what you want.\n"
-        + "If you stop now, that'll be the end of it.\n"
-        + "I will not look for you, I will not pursue you.\n"
-        + "But if you don't...\n"
-        + "I will look for you, I **will** find you\n"
-        + "## and I will ban you."
-    )
-    return False
-
-
-class MyBot(commands.Bot):
+class MyBot(Bot):
     def __init__(self, *, command_prefix: str, intents: discord.Intents):
         super().__init__(command_prefix=command_prefix, intents=intents)
         self.case_insensitive = True
@@ -78,30 +63,13 @@ async def on_ready():
     )
 
 
-@bot.tree.command(description="Restarts the bot")
-@app_commands.commands.default_permissions(administrator=True)
-async def restart(interaction: discord.Interaction):
-    if await is_owner(interaction):
-        await interaction.response.send_message("Restarting...")
-        await asyncio.create_subprocess_exec(
-            "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
-        )
-
-
-@bot.tree.command(description="Deletes all messages in the channel")
-@app_commands.commands.default_permissions(administrator=True)
-async def nuke(interaction: discord.Interaction):
-    if await is_owner(interaction):
-        await interaction.response.send_message("Nuking channel...")
-        await interaction.channel.purge(limit=1000000000)
-
-
 async def main():
     bot.remove_command("help")
     for ext in [
+        "cogs.admin",
+        "cogs.birthday",
         "cogs.events",
         "cogs.tasks",
-        "cogs.commands",
     ]:
         try:
             await bot.load_extension(ext)
@@ -169,7 +137,7 @@ async def twitch_webhook():
         1346408909442781237,  # bot-admin channel
     )
     print("403: Forbidden. Signature does not match.")
-    abort(403)
+    quart.abort(403)
     return Response(status=403)
 
 

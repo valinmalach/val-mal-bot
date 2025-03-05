@@ -2,7 +2,8 @@ import datetime
 import os
 
 from atproto import Client
-from discord.ext import commands, tasks
+from discord.ext import tasks
+from discord.ext.commands import Bot, Cog
 from dotenv import load_dotenv
 from xata import XataClient
 from xata.api_response import ApiResponse
@@ -23,8 +24,8 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
 
 
-class Tasks(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+class Tasks(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
         self.check_posts.start()
         self.check_birthdays.start()
@@ -116,5 +117,5 @@ class Tasks(commands.Cog):
         return (year % 400 == 0) or (year % 100 != 0) and (year % 4 == 0)
 
 
-async def setup(bot: commands.Bot):
+async def setup(bot: Bot):
     await bot.add_cog(Tasks(bot))

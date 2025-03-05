@@ -1,9 +1,10 @@
 import discord
-from discord.ext import commands
+from discord import Member, Message, RawReactionActionEvent
+from discord.ext.commands import Bot, Cog
 
 
-class Events(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+class Events(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
         # Message_id, reaction_emoji, role_name mapping
         self.message_reaction_role_map = {
@@ -33,8 +34,8 @@ class Events(commands.Cog):
             },
         }
 
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
+    @Cog.listener()
+    async def on_message(self, message: Message):
         if message.author == self.bot.user:
             return
 
@@ -44,20 +45,20 @@ class Events(commands.Cog):
         if message.content == "plap":
             await message.channel.send("clank")
 
-    @commands.Cog.listener()
-    async def on_member_join(self, member: discord.Member):
+    @Cog.listener()
+    async def on_member_join(self, member: Member):
         channel = self.bot.get_channel(1285276874645438544)  # welcome channel
         await channel.send(f"{member.mention} has joined. Welcome!")
 
-    @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+    @Cog.listener()
+    async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
         await self._toggle_role(payload, True)
 
-    @commands.Cog.listener()
-    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
+    @Cog.listener()
+    async def on_raw_reaction_remove(self, payload: RawReactionActionEvent):
         await self._toggle_role(payload, False)
 
-    async def _toggle_role(self, payload: discord.RawReactionActionEvent, add: bool):
+    async def _toggle_role(self, payload: RawReactionActionEvent, add: bool):
         guild = self.bot.get_guild(payload.guild_id)
         if guild is None:
             return
@@ -87,5 +88,5 @@ class Events(commands.Cog):
             await member.remove_roles(role)
 
 
-async def setup(bot: commands.Bot):
+async def setup(bot: Bot):
     await bot.add_cog(Events(bot))
