@@ -42,11 +42,11 @@ TWITCH_MESSAGE_SIGNATURE = "Twitch-Eventsub-Message-Signature"
 HMAC_PREFIX = "sha256="
 
 
-async def is_owner(context: commands.Context) -> bool:
-    if context.author.id == 389318636201967628:  # Owner's user id
+async def is_owner(interaction: discord.Interaction) -> bool:
+    if interaction.user.id == 389318636201967628:  # Owner's user id
         return True
 
-    await context.send(
+    await interaction.response.send_message(
         "I don't know who you are, and I don't know what you want.\n"
         + "If you stop now, that'll be the end of it.\n"
         + "I will not look for you, I will not pursue you.\n"
@@ -80,11 +80,11 @@ async def on_ready():
 
 @bot.tree.command(description="Restarts the bot")
 @app_commands.checks.has_role(1285278282966896701)
-async def restart(ctx: commands.Context):
-    if not is_owner(ctx):
+async def restart(interaction: discord.Interaction):
+    if not await is_owner(interaction):
         return
 
-    await ctx.send("Restarting...")
+    await interaction.response.send_message("Restarting...")
     await asyncio.create_subprocess_exec(
         "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
     )
@@ -92,9 +92,9 @@ async def restart(ctx: commands.Context):
 
 @bot.tree.command(description="Deletes all messages in the channel")
 @app_commands.checks.has_permissions(discord.Permissions.administrator)
-async def nuke(ctx: commands.Context):
-    if is_owner(ctx):
-        await ctx.channel.purge(limit=1000000000)
+async def nuke(interaction: discord.Interaction):
+    if await is_owner(interaction):
+        await interaction.channel.purge(limit=1000000000)
 
 
 async def main():
