@@ -79,7 +79,7 @@ async def on_ready():
 
 
 @bot.tree.command(description="Restarts the bot")
-@app_commands.checks.has_role(1285278282966896701)
+@app_commands.checks.has_permissions(administrator=True)
 async def restart(interaction: discord.Interaction):
     if await is_owner(interaction):
         await interaction.response.send_message("Restarting...")
