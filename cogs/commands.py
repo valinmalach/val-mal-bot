@@ -49,22 +49,11 @@ MAX_DAYS = {
 }
 
 
-@app_commands.checks.has_role(1291769015190032435)
-class BirthdayGroup(app_commands.Group):
-    def __init__(self, *, name, description):
-        super().__init__(self, name=name, description=description)
-
-
-birthday_group = BirthdayGroup(
-    name="birthday", description="Commands related to birthdays"
-)
-
-
-class Commands(commands.Cog):
+class Commands(commands.GroupCog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="birthday", description="Set your birthday")
+    @app_commands.command(name="set", description="Set your birthday")
     @app_commands.checks.has_role(1291769015190032435)
     @app_commands.describe(
         month="The month of your birthday",
@@ -135,9 +124,10 @@ class Commands(commands.Cog):
         ]
         return choices[:25]
 
-    @birthday_group.command(
+    @app_commands.command(
         name="remove", description="Removes your birthday, if it exists"
     )
+    @app_commands.checks.has_role(1291769015190032435)
     async def remove_birthday(
         self,
         interaction: discord.Interaction,
