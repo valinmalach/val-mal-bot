@@ -51,8 +51,13 @@ MAX_DAYS = {
 
 @app_commands.checks.has_role(1291769015190032435)
 class BirthdayGroup(app_commands.Group):
-    def __init__(self):
-        super().__init__(self, name="birthday", description="Set your birthday")
+    def __init__(self, *, name, description):
+        super().__init__(self, name=name, description=description)
+
+
+birthday_group = BirthdayGroup(
+    name="birthday", description="Commands related to birthdays"
+)
 
 
 class Commands(commands.Cog):
@@ -130,7 +135,7 @@ class Commands(commands.Cog):
         ]
         return choices[:25]
 
-    @BirthdayGroup.command(
+    @birthday_group.command(
         name="remove", description="Removes your birthday, if it exists"
     )
     async def remove_birthday(
