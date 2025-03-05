@@ -54,6 +54,7 @@ class Commands(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="birthday", description="Set your birthday")
+    @app_commands.checks.has_role(1291769015190032435)
     @app_commands.describe(
         month="The month of your birthday",
         day="The day of your birthday",

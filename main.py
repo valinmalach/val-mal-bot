@@ -79,7 +79,6 @@ async def on_ready():
 
 
 @bot.tree.command(description="Restarts the bot")
-# @app_commands.checks.has_permissions(administrator=True)
 @app_commands.commands.default_permissions(administrator=True)
 async def restart(interaction: discord.Interaction):
     if await is_owner(interaction):
@@ -90,7 +89,6 @@ async def restart(interaction: discord.Interaction):
 
 
 @bot.tree.command(description="Deletes all messages in the channel")
-@app_commands.checks.has_permissions(administrator=True)
 @app_commands.commands.default_permissions(administrator=True)
 async def nuke(interaction: discord.Interaction):
     if await is_owner(interaction):
