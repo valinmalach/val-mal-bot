@@ -89,7 +89,8 @@ class Commands(commands.Cog):
                     "%Y-%m-%d %H:%M:%S",
                 )
                 .astimezone(tz(timezone))
-                .isoformat()
+                .astimezone(pytz.utc)
+                .strftime("%Y-%m-%dT%H:%M:%S.000Z")
             ),
         }
         success = self._update_birthday(user, record)
