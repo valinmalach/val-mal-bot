@@ -53,7 +53,10 @@ class Commands(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    group = app_commands.Group(name="birthday", description="Set your birthday")
+    @app_commands.checks.has_role(1291769015190032435)
+    class BirthdayGroup(app_commands.Group):
+        def __init__(self):
+            super().__init__(name="birthday", description="Set your birthday")
 
     @app_commands.command(name="birthday", description="Set your birthday")
     @app_commands.checks.has_role(1291769015190032435)
@@ -126,8 +129,9 @@ class Commands(commands.Cog):
         ]
         return choices[:25]
 
-    @group.command(name="remove", description="Removes your birthday, if it exists")
-    @app_commands.checks.has_role(1291769015190032435)
+    @BirthdayGroup.command(
+        name="remove", description="Removes your birthday, if it exists"
+    )
     async def remove_birthday(
         self,
         interaction: discord.Interaction,
