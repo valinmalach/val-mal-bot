@@ -82,10 +82,11 @@ class Tasks(Cog):
     async def check_birthdays(self):
         now = (
             datetime.datetime.now(datetime.timezone.utc)
-            .replace(year=2020, second=0, microsecond=0)
+            .replace(second=0, microsecond=0)
             .strftime("%Y-%m-%dT%H:%M:%S.000Z")
         )
 
+        # TODO: If this year is not a leap year, and it is February 28th or March 1st, get all users with birthdays on February 29th on the next leap year as well
         records = xata_client.data().query(
             "users",
             {"columns": ["id", "birthday"], "filter": {"birthday": now}},
@@ -112,6 +113,9 @@ class Tasks(Cog):
                 self.bot,
                 1291026077287710751,  # shoutouts channel
             )
+            # TODO: Update user's birthday entry to next year
+            # TODO: If user's birthday is on February 29th and it is not a leap year, do not update the birthday entry
+            # TODO: If user's birthday is on February 29th and it is a leap year, update the birthday entry to the next leap year
 
     def _is_leap_year(self, year: int) -> bool:
         return (year % 400 == 0) or (year % 100 != 0) and (year % 4 == 0)

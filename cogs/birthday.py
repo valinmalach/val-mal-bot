@@ -67,6 +67,8 @@ class Birthday(GroupCog):
         day: Range[int, 1, 31],
         timezone: str = "UTC",
     ):
+        # TODO: Set birthday to be the next time it needs to be wished. i.e. if this year's birthday has passed, set it to next year. If it has not, set it to this year.
+        # TODO: If the birthday is 29th February, set it to the next leap year. If this year is a leap year and the birthday has not yet passed, set it to this year.
         if timezone not in pytz.all_timezones:
             await interaction.response.send_message(
                 f"Sorry. I've never heard of the timezone {timezone}. "
