@@ -8,6 +8,7 @@ import hmac
 import os
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 from discord.ext.commands.errors import (
     ExtensionAlreadyLoaded,
@@ -60,6 +61,7 @@ bot = commands.Bot(
     intents=intents,
 )
 bot.case_insensitive = True
+bot.tree = app_commands.CommandTree(bot)
 
 
 @bot.event

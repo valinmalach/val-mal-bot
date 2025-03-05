@@ -54,7 +54,6 @@ MAX_DAYS = {
 class Commands(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.bot.add_command(self.set_birthday)
 
     @app_commands.command(name="birthday", description="Set your birthday")
     @app_commands.describe(
