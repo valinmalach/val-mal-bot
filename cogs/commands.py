@@ -55,7 +55,7 @@ class Commands(commands.Cog):
 
     @app_commands.checks.has_role(1291769015190032435)
     class BirthdayGroup(app_commands.Group):
-        def __init__(self):
+        def __init__():
             super().__init__(name="birthday", description="Set your birthday")
 
     @app_commands.command(name="birthday", description="Set your birthday")
