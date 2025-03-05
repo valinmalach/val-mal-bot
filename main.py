@@ -18,8 +18,14 @@ from discord.ext.commands.errors import (
 from dotenv import load_dotenv
 from quart import Quart, Response, abort, request
 from werkzeug.datastructures import Headers
+from xata import XataClient
 
 from send_discord_message import send_discord_message
+
+XATA_API_KEY = os.getenv("XATA_API_KEY")
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
 
 load_dotenv()
 
@@ -56,10 +62,12 @@ async def restart(ctx: commands.Context):
         )
     else:
         await ctx.send(
-            "I don't know who you are, and I don't know what you want. "
-            + "If you stop now, that'll be the end of it. I will not look for you, "
-            + "I will not pursue you. But if you don't, I will look for you, "
-            + "I will find you, and I will ban you."
+            "I don't know who you are, and I don't know what you want.\n"
+            + "If you stop now, that'll be the end of it.\n"
+            + "I will not look for you, I will not pursue you.\n"
+            + "But if you don't...\n"
+            + "I will look for you, I **will** find you\n"
+            + "## and I will ban you."
         )
 
 
@@ -67,6 +75,42 @@ async def restart(ctx: commands.Context):
 async def nuke(ctx: commands.Context):
     if ctx.author.id == 389318636201967628:  # Owner's user id
         await ctx.channel.purge()
+    else:
+        await ctx.send(
+            "I don't know who you are, and I don't know what you want.\n"
+            + "If you stop now, that'll be the end of it.\n"
+            + "I will not look for you, I will not pursue you.\n"
+            + "But if you don't...\n"
+            + "I will look for you, I **will** find you\n"
+            + "## and I will ban you."
+        )
+
+
+@bot.command()
+async def init_users_db(ctx: commands.Context):
+    if ctx.author.id == 389318636201967628:  # Owner's user id
+        # Get all members in server
+        members = ctx.guild.members
+        for member in members:
+            existing_user = xata_client.records().get("users", str(member.id))
+            if existing_user.is_success():
+                continue  # User already exists in database
+            user = {
+                "username": member.name,
+                "birthday": None,
+            }
+            resp = xata_client.records().insert_with_id("users", str(member.id), user)
+            if not resp.is_success():
+                await ctx.send(f"Failed to insert user {member.name} into database.")
+    else:
+        await ctx.send(
+            "I don't know who you are, and I don't know what you want.\n"
+            + "If you stop now, that'll be the end of it.\n"
+            + "I will not look for you, I will not pursue you.\n"
+            + "But if you don't...\n"
+            + "I will look for you, I **will** find you\n"
+            + "## and I will ban you."
+        )
 
 
 async def main():

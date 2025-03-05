@@ -159,7 +159,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-xata_db/
+xata_init.py
 test.py
 setup.cfg
 upgrade_pip_packages.py
