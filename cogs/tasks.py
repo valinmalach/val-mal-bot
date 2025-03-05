@@ -84,7 +84,6 @@ class Tasks(commands.Cog):
             .replace(year=1970, second=0, microsecond=0)
             .strftime("%Y-%m-%dT%H:%M:%S.000Z")
         )
-        print(now)
 
         records = xata_client.data().query(
             "users",
