@@ -124,6 +124,15 @@ class Birthday(GroupCog):
         self,
         interaction: Interaction,
     ):
+        try:
+            existing_user = xata_client.records().get("users", str(interaction.user.id))
+            if not existing_user.is_success():
+                self._forget_birthday_failed(interaction, existing_user.error_message)
+                return
+        except Exception as e:
+            self._forget_birthday_failed(interaction, e)
+            return
+
         record = {
             "username": interaction.user.name,
             "birthday": None,
@@ -131,19 +140,10 @@ class Birthday(GroupCog):
         }
         success = update_birthday(xata_client, str(interaction.user.id), record)
         if not success[0]:
-            await interaction.response.send_message(
-                "Oops, it seems like I couldn't forget your birthday...\n\n"
-                + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
-            )
-            send_discord_message(
-                f"Failed to remove birthday for {interaction.user.name}: {success[1]}",
-                self.bot,
-                BOT_ADMIN_CHANNEL,
-            )
+            self._forget_birthday_failed(interaction, success[1])
             return
 
         try:
-            existing_user = xata_client.records().get("users", str(interaction.user.id))
             if existing_user.is_success() and existing_user.get("birthday"):
                 await interaction.response.send_message(
                     "I've removed your birthday! I won't wish you anymore!"
@@ -155,16 +155,22 @@ class Birthday(GroupCog):
                 + "Maybe try setting one first before asking me to remove it?"
             )
         except Exception as e:
-            await interaction.response.send_message(
-                "Oops, it seems like I couldn't forget your birthday...\n\n"
-                + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
-            )
-            send_discord_message(
-                f"Failed to remove birthday for {interaction.user.name}: {e}",
-                self.bot,
-                BOT_ADMIN_CHANNEL,
-            )
+            self._forget_birthday_failed(interaction, e)
             return
+
+    async def _forget_birthday_failed(
+        self, interaction: Interaction, e: Exception | str | None
+    ):
+        await interaction.response.send_message(
+            "Oops, it seems like I couldn't forget your birthday...\n\n"
+            + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
+        )
+        send_discord_message(
+            f"Failed to remove birthday for {interaction.user.name}: {e}",
+            self.bot,
+            BOT_ADMIN_CHANNEL,
+        )
+        return
 
 
 async def setup(bot: Bot):
