@@ -9,7 +9,7 @@ from discord.ext.commands import Bot, GroupCog
 from dotenv import load_dotenv
 from xata import XataClient
 
-from constants import MAX_DAYS, Months
+from constants import FOLLOWER_ROLE, MAX_DAYS, Months
 from helper import get_next_leap_year, update_birthday
 
 load_dotenv()
@@ -25,7 +25,7 @@ class Birthday(GroupCog):
         self.bot = bot
 
     @app_commands.command(name="set", description="Set your birthday")
-    @app_commands.checks.has_role(1291769015190032435)
+    @app_commands.checks.has_role(FOLLOWER_ROLE)
     @app_commands.describe(
         month="The month of your birthday",
         day="The day of your birthday",
@@ -85,7 +85,7 @@ class Birthday(GroupCog):
         if not success:
             await interaction.response.send_message(
                 "Sorry, it seems like I couldn't set your birthday...\n\n"
-                + "# <@389318636201967628> FIX MEEEE!!!"
+                + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
             )
             return
 
@@ -114,7 +114,7 @@ class Birthday(GroupCog):
     @app_commands.command(
         name="remove", description="Removes your birthday, if it exists"
     )
-    @app_commands.checks.has_role(1291769015190032435)
+    @app_commands.checks.has_role(FOLLOWER_ROLE)
     async def remove_birthday(
         self,
         interaction: Interaction,
@@ -130,7 +130,7 @@ class Birthday(GroupCog):
         if not success:
             await interaction.response.send_message(
                 "Oops, it seems like I couldn't forget your birthday...\n\n"
-                + "# <@389318636201967628> FIX MEEEE!!!"
+                + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
             )
             return
 

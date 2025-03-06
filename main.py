@@ -1,6 +1,11 @@
 import truststore
 
-from constants import BOT_ADMIN_CHANNEL, STREAM_ALERTS_CHANNEL
+from constants import (
+    BOT_ADMIN_CHANNEL,
+    GUILD_ID,
+    LIVE_ALERTS_ROLE,
+    STREAM_ALERTS_CHANNEL,
+)
 
 truststore.inject_into_ssl()
 
@@ -19,7 +24,7 @@ from discord.ext.commands.errors import (
     NoEntryPointError,
 )
 from dotenv import load_dotenv
-from quart import Quart, Response, request
+from quart import Quart, request
 from werkzeug.datastructures import Headers
 from xata import XataClient
 
@@ -33,7 +38,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-MY_GUILD = discord.Object(id=813237030385090580)
+MY_GUILD = discord.Object(id=GUILD_ID)
 
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 
@@ -111,7 +116,7 @@ async def before_serving():
 async def twitch_webhook():
     headers = request.headers
     body_str = await request.get_data(as_text=True)
-    body = await request.get_json()
+    body: dict[str, str | dict[str, str]] = await request.get_json()
 
     if headers.get(TWITCH_MESSAGE_TYPE) == "webhook_callback_verification":
         return body["challenge"]
@@ -122,13 +127,13 @@ async def twitch_webhook():
     if verify_message(secret_hmac, headers[TWITCH_MESSAGE_SIGNATURE]):
         if body.get("subscription", {}).get("type", "") == "stream.online":
             await send_discord_message(
-                "<@&1292348044888768605> Valin has gone live!\n"
+                f"<@&{LIVE_ALERTS_ROLE}> Valin has gone live!\n"
                 + "Come join at https://www.twitch.tv/valinmalach",
                 bot,
                 STREAM_ALERTS_CHANNEL,
             )
 
-        return Response(status=200)
+        return ""
 
     await send_discord_message(
         "403: Forbidden request on /webhook/twitch. Signature does not match.",
@@ -141,7 +146,7 @@ async def twitch_webhook():
 
 @app.route("/health", methods=["GET"])
 async def health():
-    return Response("Healthy", 200)
+    return "Healthy"
 
 
 if __name__ == "__main__":

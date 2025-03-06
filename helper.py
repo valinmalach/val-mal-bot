@@ -1,4 +1,3 @@
-from discord import User
 from discord.ext.commands import Bot
 from xata import XataClient
 

@@ -8,7 +8,13 @@ from dotenv import load_dotenv
 from xata import XataClient
 from xata.api_response import ApiResponse
 
-from constants import BLUESKY_CHANNEL, BOT_ADMIN_CHANNEL, SHOUTOUTS_CHANNEL
+from constants import (
+    BLUESKY_CHANNEL,
+    BLUESKY_ROLE,
+    BOT_ADMIN_CHANNEL,
+    GUILD_ID,
+    SHOUTOUTS_CHANNEL,
+)
 from helper import get_next_leap_year, send_discord_message, update_birthday
 
 load_dotenv()
@@ -28,6 +34,7 @@ xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
 class Tasks(Cog):
     def __init__(self, bot: Bot):
         self.bot = bot
+        self.guild = self.bot.get_guild(GUILD_ID)
         self.check_posts.start()
         self.check_birthdays.start()
 
@@ -67,8 +74,9 @@ class Tasks(Cog):
             post_id = post.pop("id")
             resp = xata_client.records().insert_with_id("bluesky", post_id, post)
             if resp.is_success():
+                bluesky_role = self.guild.get_role(BLUESKY_ROLE)
                 await send_discord_message(
-                    f"<@&1345584502805626973>\n\n{post['url']}",
+                    f"{bluesky_role.mention}\n\n{post['url']}",
                     self.bot,
                     BLUESKY_CHANNEL,
                 )
@@ -101,8 +109,9 @@ class Tasks(Cog):
         birthdays_now = records["records"]
         for record in birthdays_now:
             user_id = record["id"]
+            user = self.bot.get_user(int(user_id))
             await send_discord_message(
-                f"Happy Birthday <@{user_id}>!",
+                f"Happy Birthday {user.mention}!",
                 self.bot,
                 SHOUTOUTS_CHANNEL,
             )
@@ -122,7 +131,7 @@ class Tasks(Cog):
             success = update_birthday(xata_client, user_id, updated_record)
             if not success:
                 await send_discord_message(
-                    f"Failed to update birthday for <@{updated_record['username']}>",
+                    f"Failed to update birthday for {updated_record['username']}",
                     self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
