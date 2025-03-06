@@ -127,7 +127,7 @@ class Birthday(GroupCog):
         record = {
             "username": interaction.user.name,
             "birthday": None,
-            "isBirthdayLeap": False,
+            "isBirthdayLeap": None,
         }
         success = update_birthday(xata_client, str(interaction.user.id), record)
         if not success[0]:
