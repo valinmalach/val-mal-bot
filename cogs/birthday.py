@@ -149,6 +149,11 @@ class Birthday(GroupCog):
                     "I've removed your birthday! I won't wish you anymore!"
                 )
                 return
+
+            await interaction.response.send_message(
+                "You had no birthday to remove. "
+                + "Maybe try setting one first before asking me to remove it?"
+            )
         except Exception as e:
             await interaction.response.send_message(
                 "Oops, it seems like I couldn't forget your birthday...\n\n"
@@ -160,11 +165,6 @@ class Birthday(GroupCog):
                 BOT_ADMIN_CHANNEL,
             )
             return
-
-        await interaction.response.send_message(
-            "You had no birthday to remove. "
-            + "Maybe try setting one first before asking me to remove it?"
-        )
 
 
 async def setup(bot: Bot):
