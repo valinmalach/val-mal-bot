@@ -53,7 +53,7 @@ class Birthday(GroupCog):
             return
 
         tz = ZoneInfo(timezone)
-        now = datetime.now(tz)
+        now = datetime.now(tz).replace(second=0, microsecond=0)
         year = now.year
 
         if month == Months.February and day == 29:
@@ -62,11 +62,11 @@ class Birthday(GroupCog):
             except ValueError:
                 birthday_this_year = None
 
-            if birthday_this_year is None or birthday_this_year.date() <= now.date():
+            if birthday_this_year is None or birthday_this_year <= now:
                 year = get_next_leap_year(year)
         else:
             birthday_this_year = datetime(year, month.value, day, tzinfo=tz)
-            if birthday_this_year.date() <= now.date():
+            if birthday_this_year <= now:
                 year += 1
 
         record = {
