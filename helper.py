@@ -25,6 +25,6 @@ def update_birthday(
             resp = xata_client.records().update("users", user_id, record)
         else:
             resp = xata_client.records().insert_with_id("users", user_id, record)
-        return resp.is_success()
+        return resp.is_success(), None
     except Exception as e:
         return False, e
