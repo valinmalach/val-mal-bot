@@ -1,16 +1,16 @@
 import os
 from datetime import datetime
-from enum import Enum
 from zoneinfo import ZoneInfo
 
 import pytz
-from discord import Interaction, User, app_commands
+from discord import Interaction, app_commands
 from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
 from dotenv import load_dotenv
 from xata import XataClient
 
-from helper import get_next_leap_year
+from constants import MAX_DAYS, Months
+from helper import get_next_leap_year, update_birthday
 
 load_dotenv()
 
@@ -18,37 +18,6 @@ XATA_API_KEY = os.getenv("XATA_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
-
-
-class Months(Enum):
-    January = 1
-    February = 2
-    March = 3
-    April = 4
-    May = 5
-    June = 6
-    July = 7
-    August = 8
-    September = 9
-    October = 10
-    November = 11
-    December = 12
-
-
-MAX_DAYS = {
-    Months.January: 31,
-    Months.February: 29,
-    Months.March: 31,
-    Months.April: 30,
-    Months.May: 31,
-    Months.June: 30,
-    Months.July: 31,
-    Months.August: 31,
-    Months.September: 30,
-    Months.October: 31,
-    Months.November: 30,
-    Months.December: 31,
-}
 
 
 class Birthday(GroupCog):
@@ -110,8 +79,9 @@ class Birthday(GroupCog):
                 .astimezone(ZoneInfo("UTC"))
                 .strftime("%Y-%m-%dT%H:%M:%S.000Z")
             ),
+            "isBirthdayLeap": month == Months.February and day == 29,
         }
-        success = self._update_birthday(interaction.user, record)
+        success = update_birthday(xata_client, interaction.user, record)
         if not success:
             await interaction.response.send_message(
                 "Sorry, it seems like I couldn't set your birthday...\n\n"
@@ -121,9 +91,8 @@ class Birthday(GroupCog):
 
         if month == Months.February and day == 29:
             await interaction.response.send_message(
-                "That's an unfortunate birthday :(\n\n"
-                + "Don't worry! If it's not a leap year, I'll wish you on both the "
-                + "28th of February and the 1st of March!"
+                "That's an unfortunate birthday 😦\n\n"
+                + "Ah well, looks like I'll only wish you every 4 years!"
             )
         else:
             await interaction.response.send_message(
@@ -155,8 +124,9 @@ class Birthday(GroupCog):
         record = {
             "username": interaction.user.name,
             "birthday": None,
+            "isBirthdayLeap": False,
         }
-        success = self._update_birthday(interaction.user, record)
+        success = update_birthday(xata_client, interaction.user, record)
         if not success:
             await interaction.response.send_message(
                 "Oops, it seems like I couldn't forget your birthday...\n\n"
@@ -174,15 +144,6 @@ class Birthday(GroupCog):
             "You had no birthday to remove. "
             + "Maybe try setting one first before asking me to remove it?"
         )
-
-    @staticmethod
-    def _update_birthday(user: User, record: dict[str, str]) -> bool:
-        existing_user = xata_client.records().get("users", str(user.id))
-        if existing_user.is_success():
-            resp = xata_client.records().update("users", str(user.id), record)
-        else:
-            resp = xata_client.records().insert_with_id("users", str(user.id), record)
-        return resp.is_success()
 
 
 async def setup(bot: Bot):

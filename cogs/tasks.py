@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from xata import XataClient
 from xata.api_response import ApiResponse
 
-from helper import send_discord_message
+from helper import get_next_leap_year, send_discord_message, update_birthday
 
 load_dotenv()
 
@@ -85,8 +85,6 @@ class Tasks(Cog):
             .replace(second=0, microsecond=0)
             .strftime("%Y-%m-%dT%H:%M:%S.000Z")
         )
-
-        # TODO: If this year is not a leap year, and it is February 28th or March 1st, get all users with birthdays on February 29th on the next leap year as well
         records = xata_client.data().query(
             "users",
             {"columns": ["id", "birthday"], "filter": {"birthday": now}},
@@ -97,7 +95,7 @@ class Tasks(Cog):
             records = xata_client.data().query(
                 "users",
                 {
-                    "columns": ["id", "birthday"],
+                    "columns": ["id", "birthday", "isBirthdayLeap"],
                     "filter": {"birthday": now},
                     "page": {"after": records.get_cursor()},
                 },
@@ -105,6 +103,7 @@ class Tasks(Cog):
             await self._process_birthday_records(records)
 
     async def _process_birthday_records(self, records: ApiResponse):
+        now = datetime.datetime.now()
         birthdays_now = records["records"]
         for record in birthdays_now:
             user_id = record["id"]
@@ -113,9 +112,26 @@ class Tasks(Cog):
                 self.bot,
                 1291026077287710751,  # shoutouts channel
             )
-            # TODO: Update user's birthday entry to next year
-            # TODO: If user's birthday is on February 29th and it is not a leap year, do not update the birthday entry
-            # TODO: If user's birthday is on February 29th and it is a leap year, update the birthday entry to the next leap year
+            if record["isBirthdayLeap"]:
+                leap = True
+                next_birthday = (
+                    f"{get_next_leap_year(now.year)}{record['birthday'][4:]}"
+                )
+            else:
+                leap = False
+                next_birthday = f"{now.year + 1}{record['birthday'][4:]}"
+            updated_record = {
+                "username": record["username"],
+                "birthday": next_birthday,
+                "isBirthdayLeap": leap,
+            }
+            success = update_birthday(xata_client, user_id, updated_record)
+            if not success:
+                await send_discord_message(
+                    f"Failed to update birthday for <@{updated_record['username']}>",
+                    self.bot,
+                    1346408909442781237,  # bot-admin channel
+                )
 
 
 async def setup(bot: Bot):
