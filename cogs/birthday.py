@@ -81,7 +81,7 @@ class Birthday(GroupCog):
             ),
             "isBirthdayLeap": month == Months.February and day == 29,
         }
-        success = update_birthday(xata_client, interaction.user, record)
+        success = update_birthday(xata_client, str(interaction.user.id), record)
         if not success:
             await interaction.response.send_message(
                 "Sorry, it seems like I couldn't set your birthday...\n\n"
@@ -126,7 +126,7 @@ class Birthday(GroupCog):
             "birthday": None,
             "isBirthdayLeap": False,
         }
-        success = update_birthday(xata_client, interaction.user, record)
+        success = update_birthday(xata_client, str(interaction.user.id), record)
         if not success:
             await interaction.response.send_message(
                 "Oops, it seems like I couldn't forget your birthday...\n\n"

@@ -18,11 +18,11 @@ def get_next_leap_year(year: int) -> int:
 
 
 def update_birthday(
-    xata_client: XataClient, user: User, record: dict[str, str]
+    xata_client: XataClient, user_id: str, record: dict[str, str]
 ) -> bool:
-    existing_user = xata_client.records().get("users", str(user.id))
+    existing_user = xata_client.records().get("users", user_id)
     if existing_user.is_success():
-        resp = xata_client.records().update("users", str(user.id), record)
+        resp = xata_client.records().update("users", user_id, record)
     else:
-        resp = xata_client.records().insert_with_id("users", str(user.id), record)
+        resp = xata_client.records().insert_with_id("users", user_id, record)
     return resp.is_success()

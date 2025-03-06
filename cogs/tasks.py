@@ -119,7 +119,7 @@ class Tasks(Cog):
                 "isBirthdayLeap": leap,
             }
             success = update_birthday(
-                xata_client, self.bot.get_user(user_id), updated_record
+                xata_client, user_id, updated_record
             )
             if not success:
                 await send_discord_message(
