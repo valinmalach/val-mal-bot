@@ -21,7 +21,7 @@ from quart import Quart, Response, request
 from werkzeug.datastructures import Headers
 from xata import XataClient
 
-from send_discord_message import send_discord_message
+from helper import send_discord_message
 
 load_dotenv()
 

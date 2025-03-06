@@ -10,6 +10,8 @@ from discord.ext.commands import Bot, GroupCog
 from dotenv import load_dotenv
 from xata import XataClient
 
+from helper import get_next_leap_year
+
 load_dotenv()
 
 XATA_API_KEY = os.getenv("XATA_API_KEY")
@@ -67,8 +69,6 @@ class Birthday(GroupCog):
         day: Range[int, 1, 31],
         timezone: str = "UTC",
     ):
-        # TODO: Set birthday to be the next time it needs to be wished. i.e. if this year's birthday has passed, set it to next year. If it has not, set it to this year.
-        # TODO: If the birthday is 29th February, set it to the next leap year. If this year is a leap year and the birthday has not yet passed, set it to this year.
         if timezone not in pytz.all_timezones:
             await interaction.response.send_message(
                 f"Sorry. I've never heard of the timezone {timezone}. "
@@ -83,11 +83,28 @@ class Birthday(GroupCog):
             )
             return
 
+        tz = ZoneInfo(timezone)
+        now = datetime.now(tz)
+        year = now.year
+
+        if month == Months.February and day == 29:
+            try:
+                birthday_this_year = datetime(year, month.value, day, tzinfo=tz)
+            except ValueError:
+                birthday_this_year = None
+
+            if birthday_this_year is None or birthday_this_year.date() <= now.date():
+                year = get_next_leap_year(year)
+        else:
+            birthday_this_year = datetime(year, month.value, day, tzinfo=tz)
+            if birthday_this_year.date() <= now.date():
+                year += 1
+
         record = {
             "username": interaction.user.name,
             "birthday": (
                 datetime.strptime(
-                    f"2020-{month.value:02d}-{day:02d} 00:00:00", "%Y-%m-%d %H:%M:%S"
+                    f"{year}-{month.value:02d}-{day:02d} 00:00:00", "%Y-%m-%d %H:%M:%S"
                 )
                 .replace(tzinfo=ZoneInfo(timezone))
                 .astimezone(ZoneInfo("UTC"))

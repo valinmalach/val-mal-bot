@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from xata import XataClient
 from xata.api_response import ApiResponse
 
-from send_discord_message import send_discord_message
+from helper import send_discord_message
 
 load_dotenv()
 
@@ -116,10 +116,6 @@ class Tasks(Cog):
             # TODO: Update user's birthday entry to next year
             # TODO: If user's birthday is on February 29th and it is not a leap year, do not update the birthday entry
             # TODO: If user's birthday is on February 29th and it is a leap year, update the birthday entry to the next leap year
-
-    @staticmethod
-    def _is_leap_year(year: int) -> bool:
-        return (year % 400 == 0) or (year % 100 != 0) and (year % 4 == 0)
 
 
 async def setup(bot: Bot):
