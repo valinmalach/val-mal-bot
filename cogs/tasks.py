@@ -117,7 +117,8 @@ class Tasks(Cog):
             # TODO: If user's birthday is on February 29th and it is not a leap year, do not update the birthday entry
             # TODO: If user's birthday is on February 29th and it is a leap year, update the birthday entry to the next leap year
 
-    def _is_leap_year(self, year: int) -> bool:
+    @staticmethod
+    def _is_leap_year(year: int) -> bool:
         return (year % 400 == 0) or (year % 100 != 0) and (year % 4 == 0)
 
 

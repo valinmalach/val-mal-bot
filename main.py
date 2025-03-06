@@ -52,8 +52,7 @@ class MyBot(Bot):
         await self.tree.sync(guild=MY_GUILD)
 
 
-intents = discord.Intents.all()
-bot = MyBot(command_prefix="$", intents=intents)
+bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 
 @bot.event
@@ -96,8 +95,8 @@ def get_hmac(secret: str, message: str) -> str:
     ).hexdigest()
 
 
-def verify_message(hmac_str: str, verifySignature: str) -> bool:
-    return hmac.compare_digest(hmac_str, verifySignature)
+def verify_message(hmac_str: str, verify_signature: str) -> bool:
+    return hmac.compare_digest(hmac_str, verify_signature)
 
 
 app = Quart(__name__)
@@ -138,7 +137,6 @@ async def twitch_webhook():
     )
     print("403: Forbidden. Signature does not match.")
     quart.abort(403)
-    return Response(status=403)
 
 
 @app.route("/health", methods=["GET"])

@@ -70,7 +70,7 @@ class Birthday(GroupCog):
         # TODO: Set birthday to be the next time it needs to be wished. i.e. if this year's birthday has passed, set it to next year. If it has not, set it to this year.
         # TODO: If the birthday is 29th February, set it to the next leap year. If this year is a leap year and the birthday has not yet passed, set it to this year.
         if timezone not in pytz.all_timezones:
-            await interaction.response.send_message(
+            await interaction.response().send_message(
                 f"Sorry. I've never heard of the timezone {timezone}. "
                 + "Have you tried using the autocomplete options provided? "
                 + "Because those are the only timezones I know of."
@@ -78,7 +78,7 @@ class Birthday(GroupCog):
             return
 
         if day > MAX_DAYS[month]:
-            await interaction.response.send_message(
+            await interaction.response().send_message(
                 f"{month.name} doesn't have that many days..."
             )
             return
@@ -96,20 +96,20 @@ class Birthday(GroupCog):
         }
         success = self._update_birthday(interaction.user, record)
         if not success:
-            await interaction.response.send_message(
+            await interaction.response().send_message(
                 "Sorry, it seems like I couldn't set your birthday...\n\n"
                 + "# <@389318636201967628> FIX MEEEE!!!"
             )
             return
 
         if month == Months.February and day == 29:
-            await interaction.response.send_message(
+            await interaction.response().send_message(
                 "That's an unfortunate birthday :(\n\n"
                 + "Don't worry! If it's not a leap year, I'll wish you on both the "
                 + "28th of February and the 1st of March!"
             )
         else:
-            await interaction.response.send_message(
+            await interaction.response().send_message(
                 "I've remembered your birthday! "
                 + "I'll wish you at midnight of your selected timezone!"
             )
@@ -141,27 +141,28 @@ class Birthday(GroupCog):
         }
         success = self._update_birthday(interaction.user, record)
         if not success:
-            await interaction.response.send_message(
+            await interaction.response().send_message(
                 "Oops, it seems like I couldn't forget your birthday...\n\n"
                 + "# <@389318636201967628> FIX MEEEE!!!"
             )
             return
 
         if existing_user.is_success() and existing_user.get("birthday"):
-            await interaction.response.send_message(
+            await interaction.response().send_message(
                 "I've removed your birthday! I won't wish you anymore!"
             )
             return
 
-        await interaction.response.send_message(
+        await interaction.response().send_message(
             "You had no birthday to remove. "
             + "Maybe try setting one first before asking me to remove it?"
         )
 
-    def _update_birthday(self, user: User, record: dict[str, str]) -> bool:
+    @staticmethod
+    def _update_birthday(user: User, record: dict[str, str]) -> bool:
         existing_user = xata_client.records().get("users", str(user.id))
         if existing_user.is_success():
-            resp = xata_client.records().update("users", user.id, record)
+            resp = xata_client.records().update("users", str(user.id), record)
         else:
             resp = xata_client.records().insert_with_id("users", str(user.id), record)
         return resp.is_success()
