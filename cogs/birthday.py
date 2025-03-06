@@ -9,8 +9,8 @@ from discord.ext.commands import Bot, GroupCog
 from dotenv import load_dotenv
 from xata import XataClient
 
-from constants import FOLLOWER_ROLE, MAX_DAYS, Months
-from helper import get_next_leap_year, update_birthday
+from constants import BOT_ADMIN_CHANNEL, FOLLOWER_ROLE, MAX_DAYS, Months
+from helper import get_next_leap_year, send_discord_message, update_birthday
 
 load_dotenv()
 
@@ -82,10 +82,15 @@ class Birthday(GroupCog):
             "isBirthdayLeap": month == Months.February and day == 29,
         }
         success = update_birthday(xata_client, str(interaction.user.id), record)
-        if not success:
+        if not success[0]:
             await interaction.response.send_message(
                 "Sorry, it seems like I couldn't set your birthday...\n\n"
                 + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
+            )
+            send_discord_message(
+                f"Failed to set birthday for {interaction.user.name}: {success[1]}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
             )
             return
 
@@ -119,24 +124,40 @@ class Birthday(GroupCog):
         self,
         interaction: Interaction,
     ):
-        existing_user = xata_client.records().get("users", str(interaction.user.id))
-
         record = {
             "username": interaction.user.name,
             "birthday": None,
             "isBirthdayLeap": False,
         }
         success = update_birthday(xata_client, str(interaction.user.id), record)
-        if not success:
+        if not success[0]:
             await interaction.response.send_message(
                 "Oops, it seems like I couldn't forget your birthday...\n\n"
                 + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
             )
+            send_discord_message(
+                f"Failed to remove birthday for {interaction.user.name}: {success[1]}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
+            )
             return
 
-        if existing_user.is_success() and existing_user.get("birthday"):
+        try:
+            existing_user = xata_client.records().get("users", str(interaction.user.id))
+            if existing_user.is_success() and existing_user.get("birthday"):
+                await interaction.response.send_message(
+                    "I've removed your birthday! I won't wish you anymore!"
+                )
+                return
+        except Exception as e:
             await interaction.response.send_message(
-                "I've removed your birthday! I won't wish you anymore!"
+                "Oops, it seems like I couldn't forget your birthday...\n\n"
+                + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
+            )
+            send_discord_message(
+                f"Failed to remove birthday for {interaction.user.name}: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
             )
             return
 

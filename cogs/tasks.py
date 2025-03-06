@@ -72,17 +72,24 @@ class Tasks(Cog):
 
         for post in posts:
             post_id = post.pop("id")
-            resp = xata_client.records().insert_with_id("bluesky", post_id, post)
-            if resp.is_success():
-                bluesky_role = self.guild.get_role(BLUESKY_ROLE)
+            try:
+                resp = xata_client.records().insert_with_id("bluesky", post_id, post)
+                if resp.is_success():
+                    bluesky_role = self.guild.get_role(BLUESKY_ROLE)
+                    await send_discord_message(
+                        f"{bluesky_role.mention}\n\n{post['url']}",
+                        self.bot,
+                        BLUESKY_CHANNEL,
+                    )
+                else:
+                    await send_discord_message(
+                        f"Failed to insert post {post_id} into database.",
+                        self.bot,
+                        BOT_ADMIN_CHANNEL,
+                    )
+            except Exception as e:
                 await send_discord_message(
-                    f"{bluesky_role.mention}\n\n{post['url']}",
-                    self.bot,
-                    BLUESKY_CHANNEL,
-                )
-            else:
-                await send_discord_message(
-                    f"Failed to insert post {post_id} into database.",
+                    f"Failed to insert post {post_id} into database: {e}",
                     self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
@@ -129,9 +136,9 @@ class Tasks(Cog):
                 "isBirthdayLeap": leap,
             }
             success = update_birthday(xata_client, user_id, updated_record)
-            if not success:
+            if not success[0]:
                 await send_discord_message(
-                    f"Failed to update birthday for {updated_record['username']}",
+                    f"Failed to update birthday for {updated_record['username']}: {success[1]}",
                     self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
