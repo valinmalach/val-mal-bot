@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from xata import XataClient
 from xata.api_response import ApiResponse
 
+from constants import BLUESKY_CHANNEL, BOT_ADMIN_CHANNEL, SHOUTOUTS_CHANNEL
 from helper import get_next_leap_year, send_discord_message, update_birthday
 
 load_dotenv()
@@ -69,13 +70,13 @@ class Tasks(Cog):
                 await send_discord_message(
                     f"<@&1345584502805626973>\n\n{post['url']}",
                     self.bot,
-                    1345582916050354369,  # bluesky announcement channel
+                    BLUESKY_CHANNEL,
                 )
             else:
                 await send_discord_message(
                     f"Failed to insert post {post_id} into database.",
                     self.bot,
-                    1346408909442781237,  # bot-admin channel
+                    BOT_ADMIN_CHANNEL,
                 )
 
     @tasks.loop(time=_quarter_hours)
@@ -103,7 +104,7 @@ class Tasks(Cog):
             await send_discord_message(
                 f"Happy Birthday <@{user_id}>!",
                 self.bot,
-                1291026077287710751,  # shoutouts channel
+                SHOUTOUTS_CHANNEL,
             )
             if record["isBirthdayLeap"]:
                 leap = True
@@ -123,7 +124,7 @@ class Tasks(Cog):
                 await send_discord_message(
                     f"Failed to update birthday for <@{updated_record['username']}>",
                     self.bot,
-                    1346408909442781237,  # bot-admin channel
+                    BOT_ADMIN_CHANNEL,
                 )
 
 

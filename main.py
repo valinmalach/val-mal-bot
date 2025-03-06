@@ -1,5 +1,7 @@
 import truststore
 
+from constants import BOT_ADMIN_CHANNEL, STREAM_ALERTS_CHANNEL
+
 truststore.inject_into_ssl()
 
 import asyncio
@@ -57,9 +59,7 @@ bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 @bot.event
 async def on_ready():
-    await send_discord_message(
-        "Started successfully!", bot, 1346408909442781237  # bot-admin channel
-    )
+    await send_discord_message("Started successfully!", bot, BOT_ADMIN_CHANNEL)
 
 
 async def main():
@@ -125,7 +125,7 @@ async def twitch_webhook():
                 "<@&1292348044888768605> Valin has gone live!\n"
                 + "Come join at https://www.twitch.tv/valinmalach",
                 bot,
-                1285276760044474461,  # stream-alerts channel
+                STREAM_ALERTS_CHANNEL,
             )
 
         return Response(status=200)
@@ -133,7 +133,7 @@ async def twitch_webhook():
     await send_discord_message(
         "403: Forbidden request on /webhook/twitch. Signature does not match.",
         bot,
-        1346408909442781237,  # bot-admin channel
+        BOT_ADMIN_CHANNEL,
     )
     print("403: Forbidden. Signature does not match.")
     quart.abort(403)
