@@ -85,20 +85,13 @@ class Tasks(Cog):
             .replace(second=0, microsecond=0)
             .strftime("%Y-%m-%dT%H:%M:%S.000Z")
         )
-        records = xata_client.data().query(
-            "users",
-            {"columns": ["id", "birthday"], "filter": {"birthday": now}},
-        )
+        records = xata_client.data().query("users", {"filter": {"birthday": now}})
         await self._process_birthday_records(records)
 
         while records.has_more_results():
             records = xata_client.data().query(
                 "users",
-                {
-                    "columns": ["id", "birthday", "isBirthdayLeap"],
-                    "filter": {"birthday": now},
-                    "page": {"after": records.get_cursor()},
-                },
+                {"filter": {"birthday": now}, "page": {"after": records.get_cursor()}},
             )
             await self._process_birthday_records(records)
 
@@ -125,7 +118,9 @@ class Tasks(Cog):
                 "birthday": next_birthday,
                 "isBirthdayLeap": leap,
             }
-            success = update_birthday(xata_client, user_id, updated_record)
+            success = update_birthday(
+                xata_client, self.bot.get_user(user_id), updated_record
+            )
             if not success:
                 await send_discord_message(
                     f"Failed to update birthday for <@{updated_record['username']}>",
