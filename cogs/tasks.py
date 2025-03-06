@@ -118,9 +118,9 @@ class Tasks(Cog):
                 "birthday": next_birthday,
                 "isBirthdayLeap": leap,
             }
-            success = update_birthday(
-                xata_client, user_id, updated_record
-            )
+            print("Updating birthday for", updated_record["username"])
+            success = update_birthday(xata_client, user_id, updated_record)
+            print(success)
             if not success:
                 await send_discord_message(
                     f"Failed to update birthday for <@{updated_record['username']}>",
