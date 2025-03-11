@@ -1,12 +1,5 @@
 import truststore
 
-from constants import (
-    BOT_ADMIN_CHANNEL,
-    GUILD_ID,
-    LIVE_ALERTS_ROLE,
-    STREAM_ALERTS_CHANNEL,
-)
-
 truststore.inject_into_ssl()
 
 import asyncio
@@ -28,6 +21,12 @@ from quart import Quart, request
 from werkzeug.datastructures import Headers
 from xata import XataClient
 
+from constants import (
+    BOT_ADMIN_CHANNEL,
+    GUILD_ID,
+    LIVE_ALERTS_ROLE,
+    STREAM_ALERTS_CHANNEL,
+)
 from helper import send_discord_message
 
 load_dotenv()
