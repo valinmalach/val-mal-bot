@@ -34,7 +34,6 @@ xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
 class Tasks(Cog):
     def __init__(self, bot: Bot):
         self.bot = bot
-        self.guild = self.bot.get_guild(GUILD_ID)
         self.check_posts.start()
         self.check_birthdays.start()
 
@@ -75,7 +74,7 @@ class Tasks(Cog):
             try:
                 resp = xata_client.records().insert_with_id("bluesky", post_id, post)
                 if resp.is_success():
-                    bluesky_role = self.guild.get_role(BLUESKY_ROLE)
+                    bluesky_role = self.bot.get_guild(GUILD_ID).get_role(BLUESKY_ROLE)
                     await send_discord_message(
                         f"{bluesky_role.mention}\n\n{post['url']}",
                         self.bot,
