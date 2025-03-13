@@ -74,9 +74,8 @@ class Tasks(Cog):
             try:
                 resp = xata_client.records().insert_with_id("bluesky", post_id, post)
                 if resp.is_success():
-                    bluesky_role = self.bot.get_guild(GUILD_ID).get_role(BLUESKY_ROLE)
                     await send_discord_message(
-                        f"{bluesky_role.mention}\n\n{post['url']}",
+                        f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
                         self.bot,
                         BLUESKY_CHANNEL,
                     )
