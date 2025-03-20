@@ -106,50 +106,43 @@ class Events(Cog):
 
     @Cog.listener()
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
-        member, role = self._get_member_role_from_payload(payload)
-        if not member or not role:
-            return
-
-        await self._toggle_role(member, role, True)
-
-        discriminator = get_discriminator(member)
-        url = get_pfp(member)
-        embed = (
-            Embed(
-                description=f"**{member.mention} was given the {role.mention} role**",
-                color=0x337FD5,
-                timestamp=datetime.now(),
-            )
-            .set_author(
-                name=f"{member.name} {discriminator}",
-                icon_url=url,
-            )
-            .set_footer(text=f"ID: {member.id}")
-        )
-        await send_embed(
-            embed,
-            self.bot,
-            AUDIT_LOGS_CHANNEL,
-        )
+        await self._toggle_role(payload, True)
 
     @Cog.listener()
     async def on_raw_reaction_remove(self, payload: RawReactionActionEvent):
-        member, role = self._get_member_role_from_payload(payload)
-        if not member or not role:
-            return
+        await self._toggle_role(payload, False)
 
-        await self._toggle_role(member, role, False)
+    @Cog.listener()
+    async def on_member_update(self, before: Member, after: Member):
+        # TODO: Add nickname changes, pfp changes, timeout given and timeout removals to audit logs.
+        # TODO: Give each audit log action its own function for neatness
+        discriminator = get_discriminator(after)
+        url = get_pfp(after)
 
-        discriminator = get_discriminator(member)
-        url = get_pfp(member)
+        roles_before, roles_after = before.roles, after.roles
+        roles_diff = list(set(roles_before) ^ set(roles_after))
+        if len(roles_diff):
+            await self._log_role_change(
+                after,
+                discriminator,
+                url,
+                roles_diff,
+                len(roles_after) > len(roles_before),
+            )
+
+    async def _log_role_change(
+        self, member: Member, discriminator: str, url: str, roles: list[Role], add: bool
+    ):
+        roles_str = " ".join([role.mention for role in roles])
+        message = f"**{member.mention} was {"given" if add else "removed from"} the role{"" if len(roles) == 1 else "s"} {roles_str}**"
         embed = (
             Embed(
-                description=f"**{member.mention} was removed from the {role.mention} role**",
+                description=message,
                 color=0x337FD5,
                 timestamp=datetime.now(),
             )
             .set_author(
-                name=f"{member.name} {discriminator}",
+                name=f"{member.name}{discriminator}",
                 icon_url=url,
             )
             .set_footer(text=f"ID: {member.id}")
@@ -180,7 +173,11 @@ class Events(Cog):
         role = discord.utils.get(guild.roles, name=role_name)
         return (member, role) if role else (None, None)
 
-    async def _toggle_role(self, member: Member, role: Role, add: bool):
+    async def _toggle_role(self, payload: RawReactionActionEvent, add: bool):
+        member, role = self._get_member_role_from_payload(payload)
+        if not member or not role:
+            return
+
         if add:
             await member.add_roles(role)
         else:

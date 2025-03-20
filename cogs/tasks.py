@@ -47,7 +47,6 @@ class Tasks(Cog):
             {"columns": ["date"], "sort": {"date": "desc"}, "page": {"size": 1}},
         )["records"][0]["date"]
 
-        # Get all posts, filter by author handle and last sync, and sort by indexed_at
         posts = sorted(
             [
                 feed.post
@@ -58,7 +57,6 @@ class Tasks(Cog):
             key=lambda post: post.indexed_at,
         )
 
-        # Build a list with each post's id, date, and URL
         posts = [
             {
                 "id": post.uri.split("/")[-1],
