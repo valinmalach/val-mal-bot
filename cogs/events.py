@@ -30,6 +30,12 @@ class Events(Cog):
         elif content == "plap":
             await message.channel.send("clank")
 
+        if (
+            message.author.id == 389318636201967628
+            and message.channel.id == 1346408909442781237
+        ):
+            await message.channel.send("fuck you")
+
     @Cog.listener()
     async def on_member_join(self, member: Member):
         await send_message(
