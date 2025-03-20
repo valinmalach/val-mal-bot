@@ -37,19 +37,19 @@ def update_birthday(
         return False, e
 
 
-@cache()
+@cache
 def is_leap(year: int) -> bool:
     return (year % 400 == 0) or (year % 100 != 0) and (year % 4 == 0)
 
 
-@cache()
+@cache
 def get_next_leap(year: int) -> int:
     while not is_leap(year):
         year += 1
     return year
 
 
-@cache()
+@cache
 def get_ordinal_suffix(n: int) -> str:
     if 10 <= n % 100 <= 13:
         return f"{n}th"
@@ -63,12 +63,12 @@ def get_ordinal_suffix(n: int) -> str:
     return f"{n}th"
 
 
-@cache()
+@cache
 def format_unit(value: int, unit: str) -> str:
     return f"{value} {f"{unit}s" if value != 1 else unit}"
 
 
-@cache()
+@cache
 def get_age(date_time: datetime) -> str:
     now = datetime.datetime.now(datetime.timezone.utc)
     age = relativedelta.relativedelta(now, date_time)
