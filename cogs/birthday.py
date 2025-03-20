@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from xata import XataClient
 
 from constants import BOT_ADMIN_CHANNEL, FOLLOWER_ROLE, MAX_DAYS, Months
-from helper import get_next_leap_year, send_discord_message, update_birthday
+from helper import get_next_leap, send_message, update_birthday
 
 load_dotenv()
 
@@ -63,7 +63,7 @@ class Birthday(GroupCog):
                 birthday_this_year = None
 
             if birthday_this_year is None or birthday_this_year <= now:
-                year = get_next_leap_year(year)
+                year = get_next_leap(year)
         else:
             birthday_this_year = datetime(year, month.value, day, tzinfo=tz)
             if birthday_this_year <= now:
@@ -87,7 +87,7 @@ class Birthday(GroupCog):
                 "Sorry, it seems like I couldn't set your birthday...\n\n"
                 + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
             )
-            send_discord_message(
+            send_message(
                 f"Failed to set birthday for {interaction.user.name}: {success[1]}",
                 self.bot,
                 BOT_ADMIN_CHANNEL,
@@ -165,7 +165,7 @@ class Birthday(GroupCog):
             "Oops, it seems like I couldn't forget your birthday...\n\n"
             + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
         )
-        send_discord_message(
+        send_message(
             f"Failed to remove birthday for {interaction.user.name}: {e}",
             self.bot,
             BOT_ADMIN_CHANNEL,

@@ -27,7 +27,7 @@ from constants import (
     LIVE_ALERTS_ROLE,
     STREAM_ALERTS_CHANNEL,
 )
-from helper import send_discord_message
+from helper import send_message
 
 load_dotenv()
 
@@ -63,7 +63,7 @@ bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 @bot.event
 async def on_ready():
-    await send_discord_message("Started successfully!", bot, BOT_ADMIN_CHANNEL)
+    await send_message("Started successfully!", bot, BOT_ADMIN_CHANNEL)
 
 
 async def main():
@@ -125,7 +125,7 @@ async def twitch_webhook():
 
     if verify_message(secret_hmac, headers[TWITCH_MESSAGE_SIGNATURE]):
         if body.get("subscription", {}).get("type", "") == "stream.online":
-            await send_discord_message(
+            await send_message(
                 f"<@&{LIVE_ALERTS_ROLE}> Valin has gone live!\n"
                 + "Come join at https://www.twitch.tv/valinmalach",
                 bot,
@@ -134,7 +134,7 @@ async def twitch_webhook():
 
         return ""
 
-    await send_discord_message(
+    await send_message(
         "403: Forbidden request on /webhook/twitch. Signature does not match.",
         bot,
         BOT_ADMIN_CHANNEL,

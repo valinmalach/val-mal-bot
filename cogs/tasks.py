@@ -14,7 +14,7 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     SHOUTOUTS_CHANNEL,
 )
-from helper import get_next_leap_year, send_discord_message, update_birthday
+from helper import get_next_leap, send_message, update_birthday
 
 load_dotenv()
 
@@ -73,19 +73,19 @@ class Tasks(Cog):
             try:
                 resp = xata_client.records().insert_with_id("bluesky", post_id, post)
                 if resp.is_success():
-                    await send_discord_message(
+                    await send_message(
                         f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
                         self.bot,
                         BLUESKY_CHANNEL,
                     )
                 else:
-                    await send_discord_message(
+                    await send_message(
                         f"Failed to insert post {post_id} into database.",
                         self.bot,
                         BOT_ADMIN_CHANNEL,
                     )
             except Exception as e:
-                await send_discord_message(
+                await send_message(
                     f"Failed to insert post {post_id} into database: {e}",
                     self.bot,
                     BOT_ADMIN_CHANNEL,
@@ -114,16 +114,14 @@ class Tasks(Cog):
         for record in birthdays_now:
             user_id = record["id"]
             user = self.bot.get_user(int(user_id))
-            await send_discord_message(
+            await send_message(
                 f"Happy Birthday {user.mention}!",
                 self.bot,
                 SHOUTOUTS_CHANNEL,
             )
             if record["isBirthdayLeap"]:
                 leap = True
-                next_birthday = (
-                    f"{get_next_leap_year(now.year)}{record['birthday'][4:]}"
-                )
+                next_birthday = f"{get_next_leap(now.year)}{record['birthday'][4:]}"
             else:
                 leap = False
                 next_birthday = f"{now.year + 1}{record['birthday'][4:]}"
@@ -134,7 +132,7 @@ class Tasks(Cog):
             }
             success = update_birthday(xata_client, user_id, updated_record)
             if not success[0]:
-                await send_discord_message(
+                await send_message(
                     f"Failed to update birthday for {updated_record['username']}: {success[1]}",
                     self.bot,
                     BOT_ADMIN_CHANNEL,

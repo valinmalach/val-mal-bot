@@ -2,17 +2,25 @@ import datetime
 from functools import cache
 
 from dateutil import relativedelta
-from discord import Embed
+from discord import Embed, Member
 from discord.ext.commands import Bot
 from xata import XataClient
 
 
-async def send_discord_message(message: str, bot: Bot, channel_id: int):
+async def send_message(message: str, bot: Bot, channel_id: int):
     await bot.get_channel(channel_id).send(message)
 
 
-async def send_discord_embed(embed: Embed, bot: Bot, channel_id: int):
+async def send_embed(embed: Embed, bot: Bot, channel_id: int):
     await bot.get_channel(channel_id).send(embed=embed)
+
+
+def get_pfp(member: Member) -> str:
+    return member.avatar.url if member.avatar else member.default_avatar.url
+
+
+def get_discriminator(member: Member) -> str:
+    return "" if member.discriminator == "0" else f"#{member.discriminator}"
 
 
 def update_birthday(
@@ -30,13 +38,13 @@ def update_birthday(
 
 
 @cache()
-def is_leap_year(year: int) -> bool:
+def is_leap(year: int) -> bool:
     return (year % 400 == 0) or (year % 100 != 0) and (year % 4 == 0)
 
 
 @cache()
-def get_next_leap_year(year: int) -> int:
-    while not is_leap_year(year):
+def get_next_leap(year: int) -> int:
+    while not is_leap(year):
         year += 1
     return year
 
