@@ -43,3 +43,31 @@ MAX_DAYS = {
     Months.November: 30,
     Months.December: 31,
 }
+
+
+MESSAGE_REACTION_ROLE_MAP = {
+    1291772906841571500: {"✅": "🙇Followers"},  # Rules message
+    1292348915257053367: {  # Ping roles message
+        "📢": "📢Announcements",
+        "🔴": "🔴Live Alerts",
+        "❗": "❗Ping Role",
+        "🦋": "🦋Bluesky",
+    },
+    1292349441763971123: {"🔞": "🔞NSFW Access"},  # NSFW Access role message
+    1292349494666465282: {  # Pronouns roles message
+        "🙋‍♂️": "🙋‍♂️He/Him",
+        "🙋‍♀️": "🙋‍♀️She/Her",
+        "🙋": "🙋They/Them",
+        "❓": "❓Other/Ask",
+    },
+    1292350341521739837: {  # Streamer, Gamer, Artist roles message
+        "📽️": "📽️Streamer",
+        "🎮": "🎮Gamer",
+        "🎨": "🎨Artist",
+    },
+    1292357707365351445: {  # DMs Open, Ask to DM, DMs Closed roles message
+        "🟩": "🟩DMs Open",
+        "🟨": "🟨Ask to DM",
+        "🟥": "🟥DMs Closed",
+    },
+}

@@ -12,7 +12,6 @@ from constants import (
     BLUESKY_CHANNEL,
     BLUESKY_ROLE,
     BOT_ADMIN_CHANNEL,
-    GUILD_ID,
     SHOUTOUTS_CHANNEL,
 )
 from helper import get_next_leap_year, send_discord_message, update_birthday
