@@ -1,3 +1,4 @@
+import random
 from datetime import datetime
 
 import discord
@@ -30,10 +31,7 @@ class Events(Cog):
         elif content == "plap":
             await message.channel.send("clank")
 
-        if (
-            message.author.id == 389318636201967628
-            and message.channel.id == 1346408909442781237
-        ):
+        if message.author.id == 1131782416260935810 and random.random() < 0.1:
             await message.channel.send("fuck you")
 
     @Cog.listener()
