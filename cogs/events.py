@@ -1,19 +1,23 @@
+import contextlib
 import random
 from datetime import datetime
 
 import discord
 from discord import (
+    DeletedReferencedMessage,
     Embed,
     Guild,
     Invite,
     Member,
     Message,
+    MessageReferenceType,
     RawBulkMessageDeleteEvent,
     RawMemberRemoveEvent,
     RawMessageDeleteEvent,
     RawMessageUpdateEvent,
     RawReactionActionEvent,
     Role,
+    TextChannel,
     User,
 )
 from discord.ext.commands import Bot, Cog, CommandError, Context
@@ -259,78 +263,41 @@ class Events(Cog):
         ):
             user_who_deleted = entry.user
 
+        channel = self.bot.get_channel(payload.channel_id)
+
         message = payload.cached_message
         if not message:
-            channel = self.bot.get_channel(payload.channel_id)
-            discriminator = get_discriminator(user_who_deleted)
-            url = get_pfp(user_who_deleted)
-            description = f"**Message deleted by {user_who_deleted.mention} in {channel.mention}**"
-            embed = (
-                Embed(
-                    description=description,
-                    color=0xFF470F,
-                    timestamp=datetime.now(),
-                )
-                .set_author(
-                    name=f"{user_who_deleted.name}{discriminator}",
-                    icon_url=url,
-                )
-                .add_field(
-                    name="**Message**",
-                    value="`Message not found in cache`",
-                    inline=False,
-                )
-                .set_footer(
-                    text=f"Deleter: {user_who_deleted.id} | Message ID: {payload.message_id}"
-                )
+            await self._log_deleted_missing_message(
+                payload.message_id, user_who_deleted, channel
             )
-            await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
             return
 
         author = message.author
         discriminator = get_discriminator(author)
         url = get_pfp(author)
 
-        try:
-            message_content = message.content
-        except KeyError:
-            message_content = "`Message content not found in cache`"
+        if message.reference and message.reference.type == MessageReferenceType.forward:
+            message_reference = message.reference.resolved
+            await self._log_forwarded_message_delete(
+                message_reference,
+                payload.message_id,
+                author,
+                user_who_deleted,
+                channel,
+                discriminator,
+                url,
+            )
+            return
 
-        channel = self.bot.get_channel(payload.channel_id)
-        description = f"**Message sent by {author.mention} deleted by {user_who_deleted.mention} in {channel.mention}**"
-        embed = (
-            Embed(
-                description=description,
-                color=0xFF470F,
-                timestamp=datetime.now(),
-            )
-            .set_author(
-                name=f"{author.name}{discriminator}",
-                icon_url=url,
-            )
-            .add_field(name="**Message**", value=f"{message_content}", inline=False)
-            .set_footer(text=f"Author: {author.id} | Message ID: {payload.message_id}")
+        await self._log_message_delete(
+            message,
+            payload.message_id,
+            author,
+            user_who_deleted,
+            channel,
+            discriminator,
+            url,
         )
-        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
-
-        if message.attachments:
-            for attachment in message.attachments:
-                embed = (
-                    Embed(
-                        description=f"**Attachment sent by {author.mention} deleted in {channel.mention}**",
-                        color=0xFF470F,
-                        timestamp=datetime.now(),
-                    )
-                    .set_author(
-                        name=f"{author.name}{discriminator}",
-                        icon_url=url,
-                    )
-                    .set_footer(
-                        text=f"Author: {author.id} | Message ID: {payload.message_id}"
-                    )
-                    .set_image(url=attachment.url)
-                )
-                await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
     @Cog.listener()
     async def on_raw_bulk_message_delete(self, payload: RawBulkMessageDeleteEvent):
@@ -555,6 +522,159 @@ class Events(Cog):
             self.bot,
             AUDIT_LOGS_CHANNEL,
         )
+
+    async def _log_deleted_missing_message(
+        self,
+        message_id: int,
+        user: User | Member,
+        channel: TextChannel,
+    ):
+        discriminator = get_discriminator(user)
+        url = get_pfp(user)
+        description = f"**Message deleted by {user.mention} in {channel.mention}**"
+        embed = (
+            Embed(
+                description=description,
+                color=0xFF470F,
+                timestamp=datetime.now(),
+            )
+            .set_author(
+                name=f"{user.name}{discriminator}",
+                icon_url=url,
+            )
+            .add_field(
+                name="**Message**",
+                value="`Message not found in cache`",
+                inline=False,
+            )
+            .set_footer(text=f"Deleter: {user.id} | Message ID: {message_id}")
+        )
+        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+
+    async def _log_forwarded_message_delete(
+        self,
+        message_reference: Message | DeletedReferencedMessage | None,
+        message_id: int,
+        author: User | Member,
+        user_who_deleted: User | Member,
+        channel: TextChannel,
+        discriminator: str,
+        url: str,
+    ):
+        try:
+            message_content = message_reference.content
+        except Exception:
+            message_content = "`Message content not found`"
+
+        description = f"**Forwarded message sent by {author.mention} deleted by {user_who_deleted.mention} in {channel.mention}**"
+        embed = (
+            Embed(
+                description=description,
+                color=0xFF470F,
+                timestamp=datetime.now(),
+            )
+            .set_author(
+                name=f"{author.name}{discriminator}",
+                icon_url=url,
+            )
+            .add_field(
+                name="**Forwarded Message**",
+                value=f"{message_content}",
+                inline=False,
+            )
+            .set_footer(text=f"Author: {author.id} | Message ID: {message_id}")
+        )
+        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+        with contextlib.suppress(Exception):
+            await self._log_forwarded_message_attachments_delete(
+                message_reference, message_id, author, channel, discriminator, url
+            )
+
+    async def _log_forwarded_message_attachments_delete(
+        self,
+        message: Message | None,
+        message_id: int,
+        author: User | Member,
+        channel: TextChannel,
+        discriminator: str,
+        url: str,
+    ):
+        if message and message.attachments:
+            for attachment in message.attachments:
+                embed = (
+                    Embed(
+                        description=f"**Attachment in message forwarded by {author.mention} deleted in {channel.mention}**",
+                        color=0xFF470F,
+                        timestamp=datetime.now(),
+                    )
+                    .set_author(
+                        name=f"{author.name}{discriminator}",
+                        icon_url=url,
+                    )
+                    .set_footer(text=f"Author: {author.id} | Message ID: {message_id}")
+                    .set_image(url=attachment.url)
+                )
+                await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+
+    async def _log_message_delete(
+        self,
+        message: Message,
+        message_id: int,
+        author: User | Member,
+        user_who_deleted: User | Member,
+        channel: TextChannel,
+        discriminator: str,
+        url: str,
+    ):
+        try:
+            message_content = message.content
+        except KeyError:
+            message_content = "`Message content not found in cache`"
+
+        description = f"**Message sent by {author.mention} deleted by {user_who_deleted.mention} in {channel.mention}**"
+        embed = (
+            Embed(
+                description=description,
+                color=0xFF470F,
+                timestamp=datetime.now(),
+            )
+            .set_author(
+                name=f"{author.name}{discriminator}",
+                icon_url=url,
+            )
+            .add_field(name="**Message**", value=f"{message_content}", inline=False)
+            .set_footer(text=f"Author: {author.id} | Message ID: {message_id}")
+        )
+        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+        await self._log_message_attachments_delete(
+            message, message_id, author, channel, discriminator, url
+        )
+
+    async def _log_message_attachments_delete(
+        self,
+        message: Message,
+        message_id: int,
+        author: User | Member,
+        channel: TextChannel,
+        discriminator: str,
+        url: str,
+    ):
+        if message.attachments:
+            for attachment in message.attachments:
+                embed = (
+                    Embed(
+                        description=f"**Attachment sent by {author.mention} deleted in {channel.mention}**",
+                        color=0xFF470F,
+                        timestamp=datetime.now(),
+                    )
+                    .set_author(
+                        name=f"{author.name}{discriminator}",
+                        icon_url=url,
+                    )
+                    .set_footer(text=f"Author: {author.id} | Message ID: {message_id}")
+                    .set_image(url=attachment.url)
+                )
+                await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
     def _get_member_role_from_payload(self, payload: RawReactionActionEvent):
         guild = self.bot.get_guild(payload.guild_id)
