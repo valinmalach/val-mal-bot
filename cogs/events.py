@@ -564,9 +564,12 @@ class Events(Cog):
                 name=f"{author.name}{discriminator}",
                 icon_url=url,
             )
-            .add_field(name="**Message**", value=f"{message_content}", inline=False)
             .set_footer(text=f"Author: {author.id} | Message ID: {message_id}")
         )
+        if message_content:
+            embed = embed.add_field(
+                name="**Message**", value=f"{message_content}", inline=False
+            )
         await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
         await self._log_message_attachments_delete(
             message, message_id, author, channel, discriminator, url
