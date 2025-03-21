@@ -2,7 +2,14 @@ import random
 from datetime import datetime
 
 import discord
-from discord import Embed, Member, Message, RawReactionActionEvent, Role
+from discord import (
+    Embed,
+    Member,
+    Message,
+    RawMessageUpdateEvent,
+    RawReactionActionEvent,
+    Role,
+)
 from discord.ext.commands import Bot, Cog, CommandError, Context
 
 from constants import AUDIT_LOGS_CHANNEL, MESSAGE_REACTION_ROLE_MAP, WELCOME_CHANNEL
@@ -120,21 +127,97 @@ class Events(Cog):
 
     @Cog.listener()
     async def on_member_update(self, before: Member, after: Member):
-        # TODO: Add nickname changes, pfp changes, timeout given and timeout removals to audit logs.
-        # TODO: Give each audit log action its own function for neatness
         discriminator = get_discriminator(after)
         url = get_pfp(after)
+
+        before_url = get_pfp(before)
+        if url != before_url:
+            await self._log_pfp_change(after, discriminator, url)
 
         roles_before, roles_after = before.roles, after.roles
         roles_diff = list(set(roles_before) ^ set(roles_after))
         if len(roles_diff):
+            add = len(roles_after) > len(roles_before)
             await self._log_role_change(
                 after,
                 discriminator,
                 url,
                 roles_diff,
-                len(roles_after) > len(roles_before),
+                add,
             )
+
+        if before.nick != after.nick:
+            before_nick = before.name if before.nick is None else before.nick
+            after_nick = after.name if after.nick is None else after.nick
+            await self._log_nickname_change(
+                after, discriminator, url, before_nick, after_nick
+            )
+
+        if (
+            before.timed_out_until is None or before.timed_out_until <= datetime.now()
+        ) and (
+            after.timed_out_until is not None and after.timed_out_until > datetime.now()
+        ):
+            await self._log_timeout(after, discriminator, url, after.timed_out_until)
+
+        elif (
+            before.timed_out_until is not None
+            and before.timed_out_until > datetime.now()
+        ) and (
+            after.timed_out_until is None or after.timed_out_until <= datetime.now()
+        ):
+            await self._log_untimeout(after, discriminator, url)
+
+    @Cog.listener()
+    async def on_raw_message_edit(self, payload: RawMessageUpdateEvent):
+        before = payload.cached_message
+        after = payload.message
+
+        discriminator = get_discriminator(after.author)
+        url = get_pfp(after.author)
+
+        if before and before.pinned != after.pinned:
+            await self._log_pin_change(after, discriminator, url)
+
+        try:
+            before_content = (
+                before.content if before else "`Old message content not found in cache`"
+            )
+            after_content = after.content
+        except KeyError:
+            message = f"Embed-only edit detected. Audit log not supported.\nMessage ID: {after.id}\nChannel: {after.channel.mention}\n[Jump to Message]({after.jump_url})"
+            send_message(
+                message,
+                self.bot,
+                AUDIT_LOGS_CHANNEL,
+            )
+            return
+
+        if before_content == after_content:
+            return
+
+        message = f"**Message edited in {after.channel.mention}** [Jump to Message]({after.jump_url})"
+        embed = (
+            Embed(
+                description=message,
+                color=0x337FD5,
+                timestamp=datetime.now(),
+            )
+            .set_author(
+                name=f"{after.author.name}{discriminator}",
+                icon_url=url,
+            )
+            .set_footer(text=f"User ID: {after.author.id}")
+            .add_field(name="**Before**", value=f"{before_content}", inline=False)
+            .add_field(name="**After**", value=f"{after_content}", inline=False)
+        )
+        await send_embed(
+            embed,
+            self.bot,
+            AUDIT_LOGS_CHANNEL,
+        )
+
+    # TODO: message delete, message bulk delete, member ban, member unban
 
     async def _log_role_change(
         self, member: Member, discriminator: str, url: str, roles: list[Role], add: bool
@@ -152,6 +235,112 @@ class Events(Cog):
                 icon_url=url,
             )
             .set_footer(text=f"ID: {member.id}")
+        )
+        await send_embed(
+            embed,
+            self.bot,
+            AUDIT_LOGS_CHANNEL,
+        )
+
+    async def _log_nickname_change(
+        self, member: Member, discriminator: str, url: str, before: str, after: str
+    ):
+        embed = (
+            Embed(
+                description=f"**{member.mention} changed their nickname**",
+                color=0x337FD5,
+                timestamp=datetime.now(),
+            )
+            .set_author(
+                name=f"{member.name}{discriminator}",
+                icon_url=url,
+            )
+            .set_footer(text=f"ID: {member.id}")
+            .add_field(name="**Before**", value=f"{before}", inline=False)
+            .add_field(name="**After**", value=f"{after}", inline=False)
+        )
+        await send_embed(
+            embed,
+            self.bot,
+            AUDIT_LOGS_CHANNEL,
+        )
+
+    async def _log_pfp_change(self, member: Member, discriminator: str, url: str):
+        embed = (
+            Embed(
+                description=f"**{member.mention} changed their profile picture**",
+                color=0x337FD5,
+                timestamp=datetime.now(),
+            )
+            .set_author(
+                name=f"{member.name}{discriminator}",
+                icon_url=url,
+            )
+            .set_thumbnail(
+                url=url,
+            )
+            .set_footer(text=f"ID: {member.id}")
+        )
+        await send_embed(
+            embed,
+            self.bot,
+            AUDIT_LOGS_CHANNEL,
+        )
+
+    async def _log_timeout(
+        self, member: Member, discriminator: str, url: str, timeout: datetime
+    ):
+        expiry = get_age(timeout)
+        embed = (
+            Embed(
+                description=f"**{member.mention} has been timed out**\nExpires in: {expiry}",
+                color=0x337FD5,
+                timestamp=datetime.datetime.now(),
+            )
+            .set_author(
+                name=f"{member.name}{discriminator}",
+                icon_url=url,
+            )
+            .set_footer(text=f"ID: {member.id}")
+        )
+        await send_embed(
+            embed,
+            self.bot,
+            AUDIT_LOGS_CHANNEL,
+        )
+
+    async def _log_untimeout(self, member: Member, discriminator: str, url: str):
+        embed = (
+            Embed(
+                description=f"**{member.mention}'s timeout has been removed**",
+                color=0x337FD5,
+                timestamp=datetime.now(),
+            )
+            .set_author(
+                name=f"{member.name}{discriminator}",
+                icon_url=url,
+            )
+            .set_footer(text=f"ID: {member.id}")
+        )
+        await send_embed(
+            embed,
+            self.bot,
+            AUDIT_LOGS_CHANNEL,
+        )
+
+    async def _log_message_pin(self, message: Message, discriminator: str, url: str):
+        description = f"**Message {"pinned" if message.pinned else "unpinned"} in {message.channel.mention}** [Jump to Message]({message.jump_url})"
+        embed = (
+            Embed(
+                description=description,
+                color=0x337FD5,
+                timestamp=datetime.now(),
+            )
+            .set_author(
+                name=f"{message.author.name}{discriminator}",
+                icon_url=url,
+            )
+            .set_footer(text=f"User ID: {message.author.id}")
         )
         await send_embed(
             embed,
