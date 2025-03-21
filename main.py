@@ -50,12 +50,8 @@ HMAC_PREFIX = "sha256="
 
 class MyBot(Bot):
 
-    def __init__(
-        self, *, command_prefix: str, intents: discord.Intents, max_messages: int = 1000
-    ):
-        super().__init__(
-            command_prefix=command_prefix, intents=intents, max_messages=max_messages
-        )
+    def __init__(self, *, command_prefix: str, intents: discord.Intents):
+        super().__init__(command_prefix=command_prefix, intents=intents)
         self.case_insensitive = True
 
     async def setup_hook(self):
@@ -63,7 +59,7 @@ class MyBot(Bot):
         await self.tree.sync(guild=MY_GUILD)
 
 
-bot = MyBot(command_prefix="$", intents=discord.Intents.all(), max_messages=1000000)
+bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 
 @bot.event
