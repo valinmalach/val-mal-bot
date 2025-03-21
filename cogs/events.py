@@ -4,11 +4,17 @@ from datetime import datetime
 import discord
 from discord import (
     Embed,
+    Guild,
+    Invite,
     Member,
     Message,
+    RawBulkMessageDeleteEvent,
+    RawMemberRemoveEvent,
+    RawMessageDeleteEvent,
     RawMessageUpdateEvent,
     RawReactionActionEvent,
     Role,
+    User,
 )
 from discord.ext.commands import Bot, Cog, CommandError, Context
 
@@ -81,7 +87,8 @@ class Events(Cog):
         )
 
     @Cog.listener()
-    async def on_member_remove(self, member: Member):
+    async def on_raw_member_remove(self, payload: RawMemberRemoveEvent):
+        member = payload.user
         await send_message(
             f"{member.mention} has left the server. Goodbye!", self.bot, WELCOME_CHANNEL
         )
@@ -217,7 +224,148 @@ class Events(Cog):
             AUDIT_LOGS_CHANNEL,
         )
 
-    # TODO: message delete, message bulk delete, member ban, member unban
+    @Cog.listener()
+    async def on_raw_message_delete(self, payload: RawMessageDeleteEvent):
+        message = payload.cached_message
+        author = message.author
+        discriminator = get_discriminator(author)
+        url = get_pfp(author)
+
+        try:
+            message_content = (
+                message.content if message else "`Message content not found in cache`"
+            )
+        except KeyError:
+            message_content = "`Message content not found in cache`"
+
+        guild = self.bot.get_guild(payload.guild_id)
+        async for entry in guild.audit_logs(
+            limit=1, action=discord.AuditLogAction.message_delete
+        ):
+            user_who_deleted = entry.user
+
+        channel = self.bot.get_channel(payload.channel_id)
+        description = f"**Message sent by {author.mention} deleted by {user_who_deleted} in {channel.mention}**\n{message_content}"
+        embed = (
+            Embed(
+                description=description,
+                color=0xFF470F,
+                timestamp=datetime.now(),
+            )
+            .set_author(
+                name=f"{author.name}{discriminator}",
+                icon_url=url,
+            )
+            .set_footer(text=f"Author: {author.id} | Message ID: {payload.message_id}")
+        )
+        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+
+        if message.attachments:
+            for attachment in message.attachments:
+                embed = (
+                    Embed(
+                        description=f"**Attachment sent by {author.mention} deleted in {channel.mention}**",
+                        color=0xFF470F,
+                        timestamp=datetime.now(),
+                    )
+                    .set_author(
+                        name=f"{author.name}{discriminator}",
+                        icon_url=url,
+                    )
+                    .set_footer(
+                        text=f"Author: {author.id} | Message ID: {payload.message_id}"
+                    )
+                    .set_image(url=attachment.url)
+                )
+                await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+
+    @Cog.listener()
+    async def on_raw_bulk_message_delete(self, payload: RawBulkMessageDeleteEvent):
+        guild = self.bot.get_guild(payload.guild_id)
+        description = f"**Bulk Delete in {self.bot.get_channel(payload.channel_id).mention}, {len(payload.message_ids)} messages deleted**"
+        embed = Embed(
+            description=description,
+            color=0x337FD5,
+            timestamp=datetime.now(),
+        ).set_author(
+            name=f"{guild.name}",
+            icon_url=guild.icon.url,
+        )
+        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+
+    @Cog.listener()
+    async def on_member_ban(self, guild: Guild, user: User | Member):
+        discriminator = get_discriminator(user)
+        url = get_pfp(user)
+
+        embed = (
+            Embed(
+                description=f"{user.mention} {user.name}{discriminator}",
+                color=0xFF470F,
+                timestamp=datetime.now(),
+            )
+            .set_author(
+                name="User Banned",
+                icon_url=url,
+            )
+            .set_thumbnail(
+                url=url,
+            )
+            .set_footer(text=f"ID: {user.id}")
+        )
+        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+
+    @Cog.listener()
+    async def on_member_unban(self, guild: Guild, user: User | Member):
+        discriminator = get_discriminator(user)
+        url = get_pfp(user)
+
+        embed = (
+            Embed(
+                description=f"{user.mention} {user.name}{discriminator}",
+                color=0x337FD5,
+                timestamp=datetime.now(),
+            )
+            .set_author(
+                name="User Unbanned",
+                icon_url=url,
+            )
+            .set_thumbnail(
+                url=url,
+            )
+            .set_footer(text=f"ID: {user.id}")
+        )
+        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+
+    @Cog.listener()
+    async def on_invite_create(self, invite: Invite):
+        guild = invite.guild
+        channel = invite.channel
+        expiry = get_age(invite.expires_at) if invite.expires_at else "Never"
+        description = f"**Invite [{invite.code}]({invite.url}) to {channel.mention} created by {invite.inviter.mention}**\nExpires in: {expiry}"
+        embed = Embed(
+            description=description,
+            color=0x337FD5,
+            timestamp=datetime.now(),
+        ).set_author(
+            name=f"{guild.name}",
+            icon_url=guild.icon.url,
+        )
+        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+
+    @Cog.listener()
+    async def on_invite_delete(self, invite: Invite):
+        guild = invite.guild
+        description = f"**Invite [{invite.code}]({invite.url}) deleted**"
+        embed = Embed(
+            description=description,
+            color=0xFF470F,
+            timestamp=datetime.now(),
+        ).set_author(
+            name=f"{guild.name}",
+            icon_url=guild.icon.url,
+        )
+        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
     async def _log_role_change(
         self, member: Member, discriminator: str, url: str, roles: list[Role], add: bool
