@@ -253,30 +253,51 @@ class Events(Cog):
 
     @Cog.listener()
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent):
-        message = payload.cached_message
-        author = message.author
-        discriminator = get_discriminator(author)
-        url = get_pfp(author)
-
-        print(message)
-        try:
-            message_content = (
-                message.content if message else "`Message content not found in cache`"
-            )
-            print(f"try: {message_content}")
-        except KeyError:
-            message_content = "`Message content not found in cache`"
-            print(f"except: {message_content}")
-
-        print("Is this hit?")
         guild = self.bot.get_guild(payload.guild_id)
         async for entry in guild.audit_logs(
             limit=1, action=discord.AuditLogAction.message_delete
         ):
             user_who_deleted = entry.user
 
+        message = payload.cached_message
+        if not message:
+            channel = self.bot.get_channel(payload.channel_id)
+            discriminator = get_discriminator(user_who_deleted)
+            url = get_pfp(user_who_deleted)
+            description = f"**Message deleted by {user_who_deleted.mention} in {channel.mention}**"
+            embed = (
+                Embed(
+                    description=description,
+                    color=0xFF470F,
+                    timestamp=datetime.now(),
+                )
+                .set_author(
+                    name=f"{user_who_deleted.name}{discriminator}",
+                    icon_url=url,
+                )
+                .add_field(
+                    name="**Message**",
+                    value="`Message not found in cache`",
+                    inline=False,
+                )
+                .set_footer(
+                    text=f"Deleter: {user_who_deleted.id} | Message ID: {payload.message_id}"
+                )
+            )
+            await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+            return
+
+        author = message.author
+        discriminator = get_discriminator(author)
+        url = get_pfp(author)
+
+        try:
+            message_content = message.content
+        except KeyError:
+            message_content = "`Message content not found in cache`"
+
         channel = self.bot.get_channel(payload.channel_id)
-        description = f"**Message sent by {author.mention} deleted by {user_who_deleted} in {channel.mention}**"
+        description = f"**Message sent by {author.mention} deleted by {user_who_deleted.mention} in {channel.mention}**"
         embed = (
             Embed(
                 description=description,
@@ -314,14 +335,21 @@ class Events(Cog):
     @Cog.listener()
     async def on_raw_bulk_message_delete(self, payload: RawBulkMessageDeleteEvent):
         guild = self.bot.get_guild(payload.guild_id)
+        async for entry in guild.audit_logs(
+            limit=1, action=discord.AuditLogAction.message_bulk_delete
+        ):
+            user_who_deleted = entry.user
+
         description = f"**Bulk Delete in {self.bot.get_channel(payload.channel_id).mention}, {len(payload.message_ids)} messages deleted**"
+        discriminator = get_discriminator(user_who_deleted)
+        url = get_pfp(user_who_deleted)
         embed = Embed(
             description=description,
             color=0x337FD5,
             timestamp=datetime.now(),
         ).set_author(
-            name=f"{guild.name}",
-            icon_url=guild.icon.url,
+            name=f"{user_who_deleted.name}{discriminator}",
+            icon_url=url,
         )
         await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
