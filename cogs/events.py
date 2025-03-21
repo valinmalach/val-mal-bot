@@ -32,7 +32,9 @@ class Events(Cog):
             await message.channel.send("clank")
 
         if message.author.id == 1131782416260935810 and random.random() < 0.1:
-            await message.channel.send("fuck you")
+            await message.reply(
+                "Fuck you, Weiss\n\nRegards, Valin", mention_author=True
+            )
 
     @Cog.listener()
     async def on_member_join(self, member: Member):
