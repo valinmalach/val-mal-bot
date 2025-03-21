@@ -51,14 +51,27 @@ class Events(Cog):
 
     @Cog.listener()
     async def on_member_join(self, member: Member):
-        await send_message(
-            f"{member.mention} has joined. Welcome!\nYou're the {get_ordinal_suffix(member.guild.member_count)} member!",
+        discriminator = get_discriminator(member)
+        url = get_pfp(member)
+        embed = (
+            Embed(
+                description=f"**Welcome to Malachar, {member.mention}**",
+                color=0x9B59B6,
+                timestamp=datetime.now(),
+            )
+            .set_author(
+                name=f"{member.name}{discriminator}",
+                icon_url=url,
+            )
+            .set_footer(text=f"{get_ordinal_suffix(member.guild.member_count)} member")
+            .set_image(url=url)
+        )
+        await send_embed(
+            embed,
             self.bot,
             WELCOME_CHANNEL,
         )
 
-        discriminator = get_discriminator(member)
-        url = get_pfp(member)
         age = get_age(member.created_at)
         embed = (
             Embed(
@@ -89,12 +102,26 @@ class Events(Cog):
     @Cog.listener()
     async def on_raw_member_remove(self, payload: RawMemberRemoveEvent):
         member = payload.user
-        await send_message(
-            f"{member.mention} has left the server. Goodbye!", self.bot, WELCOME_CHANNEL
-        )
-
         discriminator = get_discriminator(member)
         url = get_pfp(member)
+        embed = (
+            Embed(
+                description=f"**{member.mention} has left. Goodbye!**",
+                color=0x992D22,
+                timestamp=datetime.now(),
+            )
+            .set_author(
+                name=f"{member.name}{discriminator}",
+                icon_url=url,
+            )
+            .set_image(url=url)
+        )
+        await send_embed(
+            embed,
+            self.bot,
+            WELCOME_CHANNEL,
+        )
+
         triple_nl = "" if member.roles[1:] else "\n\n\n"
         embed = (
             Embed(
@@ -231,13 +258,17 @@ class Events(Cog):
         discriminator = get_discriminator(author)
         url = get_pfp(author)
 
+        print(message)
         try:
             message_content = (
                 message.content if message else "`Message content not found in cache`"
             )
+            print(f"try: {message_content}")
         except KeyError:
             message_content = "`Message content not found in cache`"
+            print(f"except: {message_content}")
 
+        print("Is this hit?")
         guild = self.bot.get_guild(payload.guild_id)
         async for entry in guild.audit_logs(
             limit=1, action=discord.AuditLogAction.message_delete
