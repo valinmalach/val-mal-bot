@@ -20,7 +20,7 @@ class Admin(Cog):
     @app_commands.commands.default_permissions(administrator=True)
     async def nuke(self, interaction: Interaction):
         await interaction.response.send_message("Nuking channel...")
-        await interaction.channel.purge(limit=1000000000)
+        await interaction.channel.purge(limit=1000000)
 
 
 async def setup(bot: Bot):

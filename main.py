@@ -63,7 +63,7 @@ class MyBot(Bot):
         await self.tree.sync(guild=MY_GUILD)
 
 
-bot = MyBot(command_prefix="$", intents=discord.Intents.all(), max_messages=1000000000)
+bot = MyBot(command_prefix="$", intents=discord.Intents.all(), max_messages=1000000)
 
 
 @bot.event
