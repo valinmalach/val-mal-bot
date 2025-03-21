@@ -276,7 +276,7 @@ class Events(Cog):
             user_who_deleted = entry.user
 
         channel = self.bot.get_channel(payload.channel_id)
-        description = f"**Message sent by {author.mention} deleted by {user_who_deleted} in {channel.mention}**\n{message_content}"
+        description = f"**Message sent by {author.mention} deleted by {user_who_deleted} in {channel.mention}**"
         embed = (
             Embed(
                 description=description,
@@ -287,6 +287,7 @@ class Events(Cog):
                 name=f"{author.name}{discriminator}",
                 icon_url=url,
             )
+            .add_field(name="**Message**", value=f"{message_content}", inline=False)
             .set_footer(text=f"Author: {author.id} | Message ID: {payload.message_id}")
         )
         await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
