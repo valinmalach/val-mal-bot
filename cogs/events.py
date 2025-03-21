@@ -215,7 +215,7 @@ class Events(Cog):
         url = get_pfp(after.author)
 
         if before and before.pinned != after.pinned:
-            await self._log_pin_change(after, discriminator, url)
+            await self._log_message_pin(after, discriminator, url)
 
         try:
             before_content = (
@@ -275,19 +275,6 @@ class Events(Cog):
         author = message.author
         discriminator = get_discriminator(author)
         url = get_pfp(author)
-
-        if message.reference and message.reference.type == MessageReferenceType.forward:
-            message_reference = message.reference.resolved
-            await self._log_forwarded_message_delete(
-                message_reference,
-                payload.message_id,
-                author,
-                user_who_deleted,
-                channel,
-                discriminator,
-                url,
-            )
-            return
 
         await self._log_message_delete(
             message,
@@ -550,71 +537,6 @@ class Events(Cog):
             .set_footer(text=f"Deleter: {user.id} | Message ID: {message_id}")
         )
         await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
-
-    async def _log_forwarded_message_delete(
-        self,
-        message_reference: Message | DeletedReferencedMessage | None,
-        message_id: int,
-        author: User | Member,
-        user_who_deleted: User | Member,
-        channel: TextChannel,
-        discriminator: str,
-        url: str,
-    ):
-        try:
-            message_content = message_reference.content
-        except Exception:
-            message_content = "`Message content not found`"
-
-        description = f"**Forwarded message sent by {author.mention} deleted by {user_who_deleted.mention} in {channel.mention}**"
-        embed = (
-            Embed(
-                description=description,
-                color=0xFF470F,
-                timestamp=datetime.now(),
-            )
-            .set_author(
-                name=f"{author.name}{discriminator}",
-                icon_url=url,
-            )
-            .add_field(
-                name="**Forwarded Message**",
-                value=f"{message_content}",
-                inline=False,
-            )
-            .set_footer(text=f"Author: {author.id} | Message ID: {message_id}")
-        )
-        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
-        with contextlib.suppress(Exception):
-            await self._log_forwarded_message_attachments_delete(
-                message_reference, message_id, author, channel, discriminator, url
-            )
-
-    async def _log_forwarded_message_attachments_delete(
-        self,
-        message: Message | None,
-        message_id: int,
-        author: User | Member,
-        channel: TextChannel,
-        discriminator: str,
-        url: str,
-    ):
-        if message and message.attachments:
-            for attachment in message.attachments:
-                embed = (
-                    Embed(
-                        description=f"**Attachment in message forwarded by {author.mention} deleted in {channel.mention}**",
-                        color=0xFF470F,
-                        timestamp=datetime.now(),
-                    )
-                    .set_author(
-                        name=f"{author.name}{discriminator}",
-                        icon_url=url,
-                    )
-                    .set_footer(text=f"Author: {author.id} | Message ID: {message_id}")
-                    .set_image(url=attachment.url)
-                )
-                await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
     async def _log_message_delete(
         self,
