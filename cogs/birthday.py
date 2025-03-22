@@ -85,7 +85,7 @@ class Birthday(GroupCog):
             }
             success = update_birthday(xata_client, str(interaction.user.id), record)
             if not success[0]:
-                self._set_birthday_failed(interaction, success[1])
+                await self._set_birthday_failed(interaction, success[1])
                 return
 
             if month == Months.February and day == 29:
@@ -126,12 +126,12 @@ class Birthday(GroupCog):
                     "users", str(interaction.user.id)
                 )
                 if not existing_user.is_success():
-                    self._forget_birthday_failed(
+                    await self._forget_birthday_failed(
                         interaction, existing_user.error_message
                     )
                     return
             except Exception as e:
-                self._forget_birthday_failed(interaction, e)
+                await self._forget_birthday_failed(interaction, e)
                 return
 
             record = {
@@ -141,7 +141,7 @@ class Birthday(GroupCog):
             }
             success = update_birthday(xata_client, str(interaction.user.id), record)
             if not success[0]:
-                self._forget_birthday_failed(interaction, success[1])
+                await self._forget_birthday_failed(interaction, success[1])
                 return
 
             try:
@@ -156,9 +156,9 @@ class Birthday(GroupCog):
                     + "Maybe try setting one first before asking me to remove it?"
                 )
             except Exception as e:
-                self._forget_birthday_failed(interaction, e)
+                await self._forget_birthday_failed(interaction, e)
         except Exception as e:
-            self._forget_birthday_failed(interaction, e)
+            await self._forget_birthday_failed(interaction, e)
 
     async def _set_birthday_failed(
         self, interaction: Interaction, e: Exception | str | None
