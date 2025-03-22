@@ -14,6 +14,7 @@ from discord.ext.commands.errors import (
     ExtensionAlreadyLoaded,
     ExtensionFailed,
     ExtensionNotFound,
+    ExtensionNotLoaded,
     NoEntryPointError,
 )
 from dotenv import load_dotenv
@@ -23,6 +24,7 @@ from xata import XataClient
 
 from constants import (
     BOT_ADMIN_CHANNEL,
+    COGS,
     GUILD_ID,
     LIVE_ALERTS_ROLE,
     STREAM_ALERTS_CHANNEL,
@@ -38,7 +40,7 @@ xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 MY_GUILD = discord.Object(id=GUILD_ID)
-COGS = ["cogs.admin", "cogs.birthday", "cogs.events", "cogs.tasks"]
+
 
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 
@@ -79,9 +81,11 @@ async def reload(interaction: discord.Interaction):
         for ext in COGS:
             try:
                 await bot.reload_extension(ext)
-            except Exception as err:
+            except ExtensionNotLoaded as e:
+                await bot.load_extension(ext)
+            except Exception as e:
                 await interaction.response.send_message(
-                    f"Something went wrong when loading extension {ext}: {err}"
+                    f"Something went wrong when loading extension {ext}: {e}"
                 )
         await interaction.response.send_message("Reloaded!")
     except Exception as e:
