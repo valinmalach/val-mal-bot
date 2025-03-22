@@ -78,14 +78,14 @@ async def reload(interaction: discord.Interaction):
         await process.wait()
         for ext in COGS:
             try:
-                bot.reload_extension(ext)
+                await bot.reload_extension(ext)
             except Exception as err:
                 await interaction.response.send_message(
                     f"Something went wrong when loading extension {ext}: {err}"
                 )
         await interaction.response.send_message("Reloaded!")
     except Exception as e:
-        send_message(f"Error reloading extensions: {e}", bot, BOT_ADMIN_CHANNEL)
+        await send_message(f"Error reloading extensions: {e}", bot, BOT_ADMIN_CHANNEL)
 
 
 async def main():
