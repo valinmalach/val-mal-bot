@@ -23,6 +23,7 @@ from constants import (
     AUDIT_LOGS_CHANNEL,
     BOT_ADMIN_CHANNEL,
     MESSAGE_REACTION_ROLE_MAP,
+    WEISS_ID,
     WELCOME_CHANNEL,
 )
 from helper import (
@@ -51,7 +52,7 @@ class Events(Cog):
             elif content == "plap":
                 await message.channel.send("clank")
 
-            if message.author.id == 1131782416260935810 and random.random() < 0.1:
+            if message.author.id == WEISS_ID and random.random() < 0.1:
                 await message.reply(
                     "Fuck you, Weiss\n\nRegards, Valin", mention_author=True
                 )
