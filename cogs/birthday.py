@@ -167,7 +167,7 @@ class Birthday(GroupCog):
             "Sorry, it seems like I couldn't set your birthday...\n\n"
             + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
         )
-        send_message(
+        await send_message(
             f"Failed to set birthday for {interaction.user.name}: {e}",
             self.bot,
             BOT_ADMIN_CHANNEL,
@@ -180,7 +180,7 @@ class Birthday(GroupCog):
             "Oops, it seems like I couldn't forget your birthday...\n\n"
             + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
         )
-        send_message(
+        await send_message(
             f"Failed to remove birthday for {interaction.user.name}: {e}",
             self.bot,
             BOT_ADMIN_CHANNEL,

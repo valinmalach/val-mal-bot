@@ -277,7 +277,7 @@ class Events(Cog):
                 after_content = after.content
             except KeyError:
                 message = f"Embed-only edit detected. Audit log not supported.\nMessage ID: {after.id}\nChannel: {after.channel.mention}\n[Jump to Message]({after.jump_url})"
-                send_message(
+                await send_message(
                     message,
                     self.bot,
                     AUDIT_LOGS_CHANNEL,
