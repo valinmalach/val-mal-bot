@@ -73,7 +73,7 @@ async def on_ready():
 @discord.app_commands.commands.default_permissions(administrator=True)
 async def reload(interaction: discord.Interaction):
     try:
-        interaction = await interaction.response.send_message("Reloading extensions...")
+        await interaction.response.send_message("Reloading extensions...")
         process = await asyncio.create_subprocess_exec(
             "powershell.exe", "-File", "C:\\val-mal-bot\\git_pull.ps1"
         )
@@ -84,10 +84,12 @@ async def reload(interaction: discord.Interaction):
             except ExtensionNotLoaded as e:
                 await bot.load_extension(ext)
             except Exception as e:
-                interaction = await interaction.response.send_message(
-                    f"Something went wrong when loading extension {ext}: {e}"
+                await send_message(
+                    f"Something went wrong when loading extension {ext}: {e}",
+                    bot,
+                    BOT_ADMIN_CHANNEL,
                 )
-        await interaction.response.send_message("Reloaded!")
+        await send_message("Reloaded!", bot, BOT_ADMIN_CHANNEL)
     except Exception as e:
         await send_message(f"Error reloading extensions: {e}", bot, BOT_ADMIN_CHANNEL)
 
