@@ -38,72 +38,68 @@ class Birthday(GroupCog):
         day: Range[int, 1, 31],
         timezone: str = "UTC",
     ):
-        if timezone not in pytz.all_timezones:
-            await interaction.response.send_message(
-                f"Sorry. I've never heard of the timezone {timezone}. "
-                + "Have you tried using the autocomplete options provided? "
-                + "Because those are the only timezones I know of."
-            )
-            return
-
-        if day > MAX_DAYS[month]:
-            await interaction.response.send_message(
-                f"{month.name} doesn't have that many days..."
-            )
-            return
-
-        tz = ZoneInfo(timezone)
-        now = datetime.now(tz).replace(second=0, microsecond=0)
-        year = now.year
-
-        if month == Months.February and day == 29:
-            try:
-                birthday_this_year = datetime(year, month.value, day, tzinfo=tz)
-            except ValueError:
-                birthday_this_year = None
-
-            if birthday_this_year is None or birthday_this_year <= now:
-                year = get_next_leap(year)
-        else:
-            birthday_this_year = datetime(year, month.value, day, tzinfo=tz)
-            if birthday_this_year <= now:
-                year += 1
-
-        record = {
-            "username": interaction.user.name,
-            "birthday": (
-                datetime.strptime(
-                    f"{year}-{month.value:02d}-{day:02d} 00:00:00", "%Y-%m-%d %H:%M:%S"
+        try:
+            if timezone not in pytz.all_timezones:
+                await interaction.response.send_message(
+                    f"Sorry. I've never heard of the timezone {timezone}. "
+                    + "Have you tried using the autocomplete options provided? "
+                    + "Because those are the only timezones I know of."
                 )
-                .replace(tzinfo=ZoneInfo(timezone))
-                .astimezone(ZoneInfo("UTC"))
-                .strftime("%Y-%m-%dT%H:%M:%S.000Z")
-            ),
-            "isBirthdayLeap": month == Months.February and day == 29,
-        }
-        success = update_birthday(xata_client, str(interaction.user.id), record)
-        if not success[0]:
-            await interaction.response.send_message(
-                "Sorry, it seems like I couldn't set your birthday...\n\n"
-                + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
-            )
-            send_message(
-                f"Failed to set birthday for {interaction.user.name}: {success[1]}",
-                self.bot,
-                BOT_ADMIN_CHANNEL,
-            )
-            return
+                return
 
-        if month == Months.February and day == 29:
-            await interaction.response.send_message(
-                "That's an unfortunate birthday 😦\n\n"
-                + "Ah well, looks like I'll only wish you every 4 years!"
-            )
-        else:
-            await interaction.response.send_message(
-                "I've remembered your birthday! "
-                + "I'll wish you at midnight of your selected timezone!"
-            )
+            if day > MAX_DAYS[month]:
+                await interaction.response.send_message(
+                    f"{month.name} doesn't have that many days..."
+                )
+                return
+
+            tz = ZoneInfo(timezone)
+            now = datetime.now(tz).replace(second=0, microsecond=0)
+            year = now.year
+
+            if month == Months.February and day == 29:
+                try:
+                    birthday_this_year = datetime(year, month.value, day, tzinfo=tz)
+                except ValueError:
+                    birthday_this_year = None
+
+                if birthday_this_year is None or birthday_this_year <= now:
+                    year = get_next_leap(year)
+            else:
+                birthday_this_year = datetime(year, month.value, day, tzinfo=tz)
+                if birthday_this_year <= now:
+                    year += 1
+
+            record = {
+                "username": interaction.user.name,
+                "birthday": (
+                    datetime.strptime(
+                        f"{year}-{month.value:02d}-{day:02d} 00:00:00",
+                        "%Y-%m-%d %H:%M:%S",
+                    )
+                    .replace(tzinfo=ZoneInfo(timezone))
+                    .astimezone(ZoneInfo("UTC"))
+                    .strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                ),
+                "isBirthdayLeap": month == Months.February and day == 29,
+            }
+            success = update_birthday(xata_client, str(interaction.user.id), record)
+            if not success[0]:
+                self._set_birthday_failed(interaction, success[1])
+                return
+
+            if month == Months.February and day == 29:
+                await interaction.response.send_message(
+                    "That's an unfortunate birthday 😦\n\n"
+                    + "Ah well, looks like I'll only wish you every 4 years!"
+                )
+            else:
+                await interaction.response.send_message(
+                    "I've remembered your birthday! "
+                    + "I'll wish you at midnight of your selected timezone!"
+                )
+        except Exception as e:
+            await self._set_birthday_failed(interaction, e)
 
     @set_birthday.autocomplete("timezone")
     async def timezone_autocomplete(
@@ -125,38 +121,57 @@ class Birthday(GroupCog):
         interaction: Interaction,
     ):
         try:
-            existing_user = xata_client.records().get("users", str(interaction.user.id))
-            if not existing_user.is_success():
-                self._forget_birthday_failed(interaction, existing_user.error_message)
-                return
-        except Exception as e:
-            self._forget_birthday_failed(interaction, e)
-            return
-
-        record = {
-            "username": interaction.user.name,
-            "birthday": None,
-            "isBirthdayLeap": None,
-        }
-        success = update_birthday(xata_client, str(interaction.user.id), record)
-        if not success[0]:
-            self._forget_birthday_failed(interaction, success[1])
-            return
-
-        try:
-            if existing_user.is_success() and existing_user.get("birthday"):
-                await interaction.response.send_message(
-                    "I've removed your birthday! I won't wish you anymore!"
+            try:
+                existing_user = xata_client.records().get(
+                    "users", str(interaction.user.id)
                 )
+                if not existing_user.is_success():
+                    self._forget_birthday_failed(
+                        interaction, existing_user.error_message
+                    )
+                    return
+            except Exception as e:
+                self._forget_birthday_failed(interaction, e)
                 return
 
-            await interaction.response.send_message(
-                "You had no birthday to remove. "
-                + "Maybe try setting one first before asking me to remove it?"
-            )
+            record = {
+                "username": interaction.user.name,
+                "birthday": None,
+                "isBirthdayLeap": None,
+            }
+            success = update_birthday(xata_client, str(interaction.user.id), record)
+            if not success[0]:
+                self._forget_birthday_failed(interaction, success[1])
+                return
+
+            try:
+                if existing_user.is_success() and existing_user.get("birthday"):
+                    await interaction.response.send_message(
+                        "I've removed your birthday! I won't wish you anymore!"
+                    )
+                    return
+
+                await interaction.response.send_message(
+                    "You had no birthday to remove. "
+                    + "Maybe try setting one first before asking me to remove it?"
+                )
+            except Exception as e:
+                self._forget_birthday_failed(interaction, e)
         except Exception as e:
             self._forget_birthday_failed(interaction, e)
-            return
+
+    async def _set_birthday_failed(
+        self, interaction: Interaction, e: Exception | str | None
+    ):
+        await interaction.response.send_message(
+            "Sorry, it seems like I couldn't set your birthday...\n\n"
+            + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
+        )
+        send_message(
+            f"Failed to set birthday for {interaction.user.name}: {e}",
+            self.bot,
+            BOT_ADMIN_CHANNEL,
+        )
 
     async def _forget_birthday_failed(
         self, interaction: Interaction, e: Exception | str | None
@@ -170,7 +185,6 @@ class Birthday(GroupCog):
             self.bot,
             BOT_ADMIN_CHANNEL,
         )
-        return
 
 
 async def setup(bot: Bot):

@@ -42,69 +42,83 @@ class Tasks(Cog):
 
     @tasks.loop(minutes=1)
     async def check_posts(self):
-        last_sync_date_time = xata_client.data().query(
-            "bluesky",
-            {"columns": ["date"], "sort": {"date": "desc"}, "page": {"size": 1}},
-        )["records"][0]["date"]
+        try:
+            last_sync_date_time = xata_client.data().query(
+                "bluesky",
+                {"columns": ["date"], "sort": {"date": "desc"}, "page": {"size": 1}},
+            )["records"][0]["date"]
 
-        posts = sorted(
-            [
-                feed.post
-                for feed in at_client.get_author_feed(actor=BLUESKY_LOGIN).feed
-                if feed.post.author.handle == BLUESKY_LOGIN
-                and feed.post.indexed_at > last_sync_date_time
-            ],
-            key=lambda post: post.indexed_at,
-        )
+            posts = sorted(
+                [
+                    feed.post
+                    for feed in at_client.get_author_feed(actor=BLUESKY_LOGIN).feed
+                    if feed.post.author.handle == BLUESKY_LOGIN
+                    and feed.post.indexed_at > last_sync_date_time
+                ],
+                key=lambda post: post.indexed_at,
+            )
 
-        posts = [
-            {
-                "id": post.uri.split("/")[-1],
-                "date": post.indexed_at,
-                "url": f"https://bsky.app/profile/valinmalach.bsky.social/post/{post.uri.split('/')[-1]}",
-            }
-            for post in posts
-        ]
+            posts = [
+                {
+                    "id": post.uri.split("/")[-1],
+                    "date": post.indexed_at,
+                    "url": f"https://bsky.app/profile/valinmalach.bsky.social/post/{post.uri.split('/')[-1]}",
+                }
+                for post in posts
+            ]
 
-        for post in posts:
-            post_id = post.pop("id")
-            try:
-                resp = xata_client.records().insert_with_id("bluesky", post_id, post)
-                if resp.is_success():
+            for post in posts:
+                post_id = post.pop("id")
+                try:
+                    resp = xata_client.records().insert_with_id("bluesky", post_id, post)
+                    if resp.is_success():
+                        await send_message(
+                            f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
+                            self.bot,
+                            BLUESKY_CHANNEL,
+                        )
+                    else:
+                        await send_message(
+                            f"Failed to insert post {post_id} into database.",
+                            self.bot,
+                            BOT_ADMIN_CHANNEL,
+                        )
+                except Exception as e:
                     await send_message(
-                        f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
-                        self.bot,
-                        BLUESKY_CHANNEL,
-                    )
-                else:
-                    await send_message(
-                        f"Failed to insert post {post_id} into database.",
+                        f"Failed to insert post {post_id} into database: {e}",
                         self.bot,
                         BOT_ADMIN_CHANNEL,
                     )
-            except Exception as e:
-                await send_message(
-                    f"Failed to insert post {post_id} into database: {e}",
-                    self.bot,
-                    BOT_ADMIN_CHANNEL,
-                )
+        except Exception as e:
+            await send_message(
+                f"Fatal error with Bluesky posts check: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
+            )
 
     @tasks.loop(time=_quarter_hours)
     async def check_birthdays(self):
-        now = (
-            datetime.datetime.now(datetime.timezone.utc)
-            .replace(second=0, microsecond=0)
-            .strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        )
-        records = xata_client.data().query("users", {"filter": {"birthday": now}})
-        await self._process_birthday_records(records)
-
-        while records.has_more_results():
-            records = xata_client.data().query(
-                "users",
-                {"filter": {"birthday": now}, "page": {"after": records.get_cursor()}},
+        try:
+            now = (
+                datetime.datetime.now(datetime.timezone.utc)
+                .replace(second=0, microsecond=0)
+                .strftime("%Y-%m-%dT%H:%M:%S.000Z")
             )
+            records = xata_client.data().query("users", {"filter": {"birthday": now}})
             await self._process_birthday_records(records)
+
+            while records.has_more_results():
+                records = xata_client.data().query(
+                    "users",
+                    {"filter": {"birthday": now}, "page": {"after": records.get_cursor()}},
+                )
+                await self._process_birthday_records(records)
+        except Exception as e:
+            await send_message(
+                f"Fatal error with birthday check: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
+            )
 
     async def _process_birthday_records(self, records: ApiResponse):
         now = datetime.datetime.now()

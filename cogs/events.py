@@ -1,16 +1,13 @@
-import contextlib
 import random
 from datetime import datetime
 
 import discord
 from discord import (
-    DeletedReferencedMessage,
     Embed,
     Guild,
     Invite,
     Member,
     Message,
-    MessageReferenceType,
     RawBulkMessageDeleteEvent,
     RawMemberRemoveEvent,
     RawMessageDeleteEvent,
@@ -22,7 +19,12 @@ from discord import (
 )
 from discord.ext.commands import Bot, Cog, CommandError, Context
 
-from constants import AUDIT_LOGS_CHANNEL, MESSAGE_REACTION_ROLE_MAP, WELCOME_CHANNEL
+from constants import (
+    AUDIT_LOGS_CHANNEL,
+    BOT_ADMIN_CHANNEL,
+    MESSAGE_REACTION_ROLE_MAP,
+    WELCOME_CHANNEL,
+)
 from helper import (
     get_age,
     get_discriminator,
@@ -39,116 +41,139 @@ class Events(Cog):
 
     @Cog.listener()
     async def on_message(self, message: Message):
-        if message.author == self.bot.user:
-            return
+        try:
+            if message.author == self.bot.user:
+                return
 
-        content = message.content.lower()
-        if content == "ping":
-            await message.channel.send("pong")
-        elif content == "plap":
-            await message.channel.send("clank")
+            content = message.content.lower()
+            if content == "ping":
+                await message.channel.send("pong")
+            elif content == "plap":
+                await message.channel.send("clank")
 
-        if message.author.id == 1131782416260935810 and random.random() < 0.1:
-            await message.reply(
-                "Fuck you, Weiss\n\nRegards, Valin", mention_author=True
+            if message.author.id == 1131782416260935810 and random.random() < 0.1:
+                await message.reply(
+                    "Fuck you, Weiss\n\nRegards, Valin", mention_author=True
+                )
+        except Exception as e:
+            await send_message(
+                f"Fatal error with on_message event: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
             )
 
     @Cog.listener()
     async def on_member_join(self, member: Member):
-        discriminator = get_discriminator(member)
-        url = get_pfp(member)
-        embed = (
-            Embed(
-                description=f"**Welcome to Malachar, {member.mention}**",
-                color=0x9B59B6,
-                timestamp=datetime.now(),
+        try:
+            discriminator = get_discriminator(member)
+            url = get_pfp(member)
+            embed = (
+                Embed(
+                    description=f"**Welcome to Malachar, {member.mention}**",
+                    color=0x9B59B6,
+                    timestamp=datetime.now(),
+                )
+                .set_author(
+                    name=f"{member.name}{discriminator}",
+                    icon_url=url,
+                )
+                .set_footer(
+                    text=f"{get_ordinal_suffix(member.guild.member_count)} member"
+                )
+                .set_image(url=url)
             )
-            .set_author(
-                name=f"{member.name}{discriminator}",
-                icon_url=url,
+            await send_embed(
+                embed,
+                self.bot,
+                WELCOME_CHANNEL,
             )
-            .set_footer(text=f"{get_ordinal_suffix(member.guild.member_count)} member")
-            .set_image(url=url)
-        )
-        await send_embed(
-            embed,
-            self.bot,
-            WELCOME_CHANNEL,
-        )
 
-        age = get_age(member.created_at)
-        embed = (
-            Embed(
-                description=f"{member.mention} {member.name}{discriminator}",
-                color=0x43B582,
-                timestamp=datetime.now(),
+            age = get_age(member.created_at)
+            embed = (
+                Embed(
+                    description=f"{member.mention} {member.name}{discriminator}",
+                    color=0x43B582,
+                    timestamp=datetime.now(),
+                )
+                .set_author(
+                    name="Member Joined",
+                    icon_url=url,
+                )
+                .set_thumbnail(
+                    url=url,
+                )
+                .add_field(
+                    name="**Account Age**",
+                    value=age,
+                    inline=False,
+                )
+                .set_footer(text=f"ID: {member.id}")
             )
-            .set_author(
-                name="Member Joined",
-                icon_url=url,
+            await send_embed(
+                embed,
+                self.bot,
+                AUDIT_LOGS_CHANNEL,
             )
-            .set_thumbnail(
-                url=url,
+        except Exception as e:
+            await send_message(
+                f"Fatal error with on_member_join event: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
             )
-            .add_field(
-                name="**Account Age**",
-                value=age,
-                inline=False,
-            )
-            .set_footer(text=f"ID: {member.id}")
-        )
-        await send_embed(
-            embed,
-            self.bot,
-            AUDIT_LOGS_CHANNEL,
-        )
 
     @Cog.listener()
     async def on_raw_member_remove(self, payload: RawMemberRemoveEvent):
-        member = payload.user
-        discriminator = get_discriminator(member)
-        url = get_pfp(member)
-        embed = (
-            Embed(
-                description=f"**{member.mention} has left. Goodbye!**",
-                color=0x992D22,
-                timestamp=datetime.now(),
+        try:
+            member = payload.user
+            discriminator = get_discriminator(member)
+            url = get_pfp(member)
+            embed = (
+                Embed(
+                    description=f"**{member.mention} has left. Goodbye!**",
+                    color=0x992D22,
+                    timestamp=datetime.now(),
+                )
+                .set_author(
+                    name=f"{member.name}{discriminator}",
+                    icon_url=url,
+                )
+                .set_image(url=url)
             )
-            .set_author(
-                name=f"{member.name}{discriminator}",
-                icon_url=url,
+            await send_embed(
+                embed,
+                self.bot,
+                WELCOME_CHANNEL,
             )
-            .set_image(url=url)
-        )
-        await send_embed(
-            embed,
-            self.bot,
-            WELCOME_CHANNEL,
-        )
 
-        triple_nl = "" if member.roles[1:] else "\n\n\n"
-        embed = (
-            Embed(
-                description=f"{member.mention} {member.name}{discriminator}{triple_nl}",
-                color=0xFF470F,
-                timestamp=datetime.now(),
+            triple_nl = "" if member.roles[1:] else "\n\n\n"
+            embed = (
+                Embed(
+                    description=f"{member.mention} {member.name}{discriminator}{triple_nl}",
+                    color=0xFF470F,
+                    timestamp=datetime.now(),
+                )
+                .set_author(
+                    name="Member Left",
+                    icon_url=url,
+                )
+                .set_thumbnail(
+                    url=url,
+                )
+                .set_footer(text=f"ID: {member.id}")
             )
-            .set_author(
-                name="Member Left",
-                icon_url=url,
+            if member.roles[1:]:
+                embed = embed.add_field(
+                    name="**Roles**",
+                    value=" ".join([f"{role.mention}" for role in member.roles[1:]]),
+                    inline=False,
+                )
+            await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+        except Exception as e:
+            await send_message(
+                f"Fatal error with on_raw_member_remove event: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
             )
-            .set_thumbnail(
-                url=url,
-            )
-            .set_footer(text=f"ID: {member.id}")
-        )
-        if member.roles[1:]:
-            embed = embed.add_field(
-                name="**Roles**",
-                value=" ".join([f"{role.mention}" for role in member.roles[1:]]),
-                inline=False,
-            )
-        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
     @Cog.listener()
     async def on_command_error(self, ctx: Context, error: CommandError):
@@ -157,229 +182,305 @@ class Events(Cog):
 
     @Cog.listener()
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
-        await self._toggle_role(payload, True)
+        try:
+            await self._toggle_role(payload, True)
+        except Exception as e:
+            await send_message(
+                f"Fatal error with on_raw_reaction_add event: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
+            )
 
     @Cog.listener()
     async def on_raw_reaction_remove(self, payload: RawReactionActionEvent):
-        await self._toggle_role(payload, False)
+        try:
+            await self._toggle_role(payload, False)
+        except Exception as e:
+            await send_message(
+                f"Fatal error with on_raw_reaction_remove event: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
+            )
 
     @Cog.listener()
     async def on_member_update(self, before: Member, after: Member):
-        discriminator = get_discriminator(after)
-        url = get_pfp(after)
+        try:
+            discriminator = get_discriminator(after)
+            url = get_pfp(after)
 
-        before_url = get_pfp(before)
-        if url != before_url:
-            await self._log_pfp_change(after, discriminator, url)
+            before_url = get_pfp(before)
+            if url != before_url:
+                await self._log_pfp_change(after, discriminator, url)
 
-        roles_before, roles_after = before.roles, after.roles
-        roles_diff = list(set(roles_before) ^ set(roles_after))
-        if len(roles_diff):
-            add = len(roles_after) > len(roles_before)
-            await self._log_role_change(
-                after,
-                discriminator,
-                url,
-                roles_diff,
-                add,
+            roles_before, roles_after = before.roles, after.roles
+            roles_diff = list(set(roles_before) ^ set(roles_after))
+            if len(roles_diff):
+                add = len(roles_after) > len(roles_before)
+                await self._log_role_change(
+                    after,
+                    discriminator,
+                    url,
+                    roles_diff,
+                    add,
+                )
+
+            if before.nick != after.nick:
+                before_nick = before.name if before.nick is None else before.nick
+                after_nick = after.name if after.nick is None else after.nick
+                await self._log_nickname_change(
+                    after, discriminator, url, before_nick, after_nick
+                )
+
+            if (
+                before.timed_out_until is None
+                or before.timed_out_until <= datetime.now()
+            ) and (
+                after.timed_out_until is not None
+                and after.timed_out_until > datetime.now()
+            ):
+                await self._log_timeout(
+                    after, discriminator, url, after.timed_out_until
+                )
+
+            elif (
+                before.timed_out_until is not None
+                and before.timed_out_until > datetime.now()
+            ) and (
+                after.timed_out_until is None or after.timed_out_until <= datetime.now()
+            ):
+                await self._log_untimeout(after, discriminator, url)
+        except Exception as e:
+            await send_message(
+                f"Fatal error with on_member_update event: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
             )
-
-        if before.nick != after.nick:
-            before_nick = before.name if before.nick is None else before.nick
-            after_nick = after.name if after.nick is None else after.nick
-            await self._log_nickname_change(
-                after, discriminator, url, before_nick, after_nick
-            )
-
-        if (
-            before.timed_out_until is None or before.timed_out_until <= datetime.now()
-        ) and (
-            after.timed_out_until is not None and after.timed_out_until > datetime.now()
-        ):
-            await self._log_timeout(after, discriminator, url, after.timed_out_until)
-
-        elif (
-            before.timed_out_until is not None
-            and before.timed_out_until > datetime.now()
-        ) and (
-            after.timed_out_until is None or after.timed_out_until <= datetime.now()
-        ):
-            await self._log_untimeout(after, discriminator, url)
 
     @Cog.listener()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent):
-        before = payload.cached_message
-        after = payload.message
-
-        discriminator = get_discriminator(after.author)
-        url = get_pfp(after.author)
-
-        if before and before.pinned != after.pinned:
-            await self._log_message_pin(after, discriminator, url)
-
         try:
-            before_content = (
-                before.content if before else "`Old message content not found in cache`"
+            before = payload.cached_message
+            after = payload.message
+
+            discriminator = get_discriminator(after.author)
+            url = get_pfp(after.author)
+
+            if before and before.pinned != after.pinned:
+                await self._log_message_pin(after, discriminator, url)
+
+            try:
+                before_content = (
+                    before.content
+                    if before
+                    else "`Old message content not found in cache`"
+                )
+                after_content = after.content
+            except KeyError:
+                message = f"Embed-only edit detected. Audit log not supported.\nMessage ID: {after.id}\nChannel: {after.channel.mention}\n[Jump to Message]({after.jump_url})"
+                send_message(
+                    message,
+                    self.bot,
+                    AUDIT_LOGS_CHANNEL,
+                )
+                return
+
+            if before_content == after_content:
+                return
+
+            message = f"**Message edited in {after.channel.mention}** [Jump to Message]({after.jump_url})"
+            embed = (
+                Embed(
+                    description=message,
+                    color=0x337FD5,
+                    timestamp=datetime.now(),
+                )
+                .set_author(
+                    name=f"{after.author.name}{discriminator}",
+                    icon_url=url,
+                )
+                .set_footer(text=f"User ID: {after.author.id}")
+                .add_field(name="**Before**", value=f"{before_content}", inline=False)
+                .add_field(name="**After**", value=f"{after_content}", inline=False)
             )
-            after_content = after.content
-        except KeyError:
-            message = f"Embed-only edit detected. Audit log not supported.\nMessage ID: {after.id}\nChannel: {after.channel.mention}\n[Jump to Message]({after.jump_url})"
-            send_message(
-                message,
+            await send_embed(
+                embed,
                 self.bot,
                 AUDIT_LOGS_CHANNEL,
             )
-            return
-
-        if before_content == after_content:
-            return
-
-        message = f"**Message edited in {after.channel.mention}** [Jump to Message]({after.jump_url})"
-        embed = (
-            Embed(
-                description=message,
-                color=0x337FD5,
-                timestamp=datetime.now(),
+        except Exception as e:
+            await send_message(
+                f"Fatal error with on_raw_message_edit event: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
             )
-            .set_author(
-                name=f"{after.author.name}{discriminator}",
-                icon_url=url,
-            )
-            .set_footer(text=f"User ID: {after.author.id}")
-            .add_field(name="**Before**", value=f"{before_content}", inline=False)
-            .add_field(name="**After**", value=f"{after_content}", inline=False)
-        )
-        await send_embed(
-            embed,
-            self.bot,
-            AUDIT_LOGS_CHANNEL,
-        )
 
     @Cog.listener()
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent):
-        guild = self.bot.get_guild(payload.guild_id)
-        async for entry in guild.audit_logs(
-            limit=1, action=discord.AuditLogAction.message_delete
-        ):
-            user_who_deleted = entry.user
+        try:
+            guild = self.bot.get_guild(payload.guild_id)
+            async for entry in guild.audit_logs(
+                limit=1, action=discord.AuditLogAction.message_delete
+            ):
+                user_who_deleted = entry.user
 
-        channel = self.bot.get_channel(payload.channel_id)
+            channel = self.bot.get_channel(payload.channel_id)
 
-        message = payload.cached_message
-        if not message:
-            await self._log_deleted_missing_message(
-                payload.message_id, user_who_deleted, channel
+            message = payload.cached_message
+            if not message:
+                await self._log_deleted_missing_message(
+                    payload.message_id, user_who_deleted, channel
+                )
+                return
+
+            author = message.author
+            discriminator = get_discriminator(author)
+            url = get_pfp(author)
+
+            await self._log_message_delete(
+                message,
+                payload.message_id,
+                author,
+                user_who_deleted,
+                channel,
+                discriminator,
+                url,
             )
-            return
-
-        author = message.author
-        discriminator = get_discriminator(author)
-        url = get_pfp(author)
-
-        await self._log_message_delete(
-            message,
-            payload.message_id,
-            author,
-            user_who_deleted,
-            channel,
-            discriminator,
-            url,
-        )
+        except Exception as e:
+            await send_message(
+                f"Fatal error with on_raw_message_delete event: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
+            )
 
     @Cog.listener()
     async def on_raw_bulk_message_delete(self, payload: RawBulkMessageDeleteEvent):
-        guild = self.bot.get_guild(payload.guild_id)
-        async for entry in guild.audit_logs(
-            limit=1, action=discord.AuditLogAction.message_bulk_delete
-        ):
-            user_who_deleted = entry.user
+        try:
+            guild = self.bot.get_guild(payload.guild_id)
+            async for entry in guild.audit_logs(
+                limit=1, action=discord.AuditLogAction.message_bulk_delete
+            ):
+                user_who_deleted = entry.user
 
-        description = f"**Bulk Delete in {self.bot.get_channel(payload.channel_id).mention}, {len(payload.message_ids)} messages deleted**"
-        discriminator = get_discriminator(user_who_deleted)
-        url = get_pfp(user_who_deleted)
-        embed = Embed(
-            description=description,
-            color=0x337FD5,
-            timestamp=datetime.now(),
-        ).set_author(
-            name=f"{user_who_deleted.name}{discriminator}",
-            icon_url=url,
-        )
-        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+            description = f"**Bulk Delete in {self.bot.get_channel(payload.channel_id).mention}, {len(payload.message_ids)} messages deleted**"
+            discriminator = get_discriminator(user_who_deleted)
+            url = get_pfp(user_who_deleted)
+            embed = Embed(
+                description=description,
+                color=0x337FD5,
+                timestamp=datetime.now(),
+            ).set_author(
+                name=f"{user_who_deleted.name}{discriminator}",
+                icon_url=url,
+            )
+            await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+        except Exception as e:
+            await send_message(
+                f"Fatal error with on_raw_bulk_message_delete event: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
+            )
 
     @Cog.listener()
     async def on_member_ban(self, guild: Guild, user: User | Member):
-        discriminator = get_discriminator(user)
-        url = get_pfp(user)
+        try:
+            discriminator = get_discriminator(user)
+            url = get_pfp(user)
 
-        embed = (
-            Embed(
-                description=f"{user.mention} {user.name}{discriminator}",
-                color=0xFF470F,
-                timestamp=datetime.now(),
+            embed = (
+                Embed(
+                    description=f"{user.mention} {user.name}{discriminator}",
+                    color=0xFF470F,
+                    timestamp=datetime.now(),
+                )
+                .set_author(
+                    name="User Banned",
+                    icon_url=url,
+                )
+                .set_thumbnail(
+                    url=url,
+                )
+                .set_footer(text=f"ID: {user.id}")
             )
-            .set_author(
-                name="User Banned",
-                icon_url=url,
+            await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+        except Exception as e:
+            await send_message(
+                f"Fatal error with on_member_ban event: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
             )
-            .set_thumbnail(
-                url=url,
-            )
-            .set_footer(text=f"ID: {user.id}")
-        )
-        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
     @Cog.listener()
     async def on_member_unban(self, guild: Guild, user: User | Member):
-        discriminator = get_discriminator(user)
-        url = get_pfp(user)
+        try:
+            discriminator = get_discriminator(user)
+            url = get_pfp(user)
 
-        embed = (
-            Embed(
-                description=f"{user.mention} {user.name}{discriminator}",
-                color=0x337FD5,
-                timestamp=datetime.now(),
+            embed = (
+                Embed(
+                    description=f"{user.mention} {user.name}{discriminator}",
+                    color=0x337FD5,
+                    timestamp=datetime.now(),
+                )
+                .set_author(
+                    name="User Unbanned",
+                    icon_url=url,
+                )
+                .set_thumbnail(
+                    url=url,
+                )
+                .set_footer(text=f"ID: {user.id}")
             )
-            .set_author(
-                name="User Unbanned",
-                icon_url=url,
+            await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+        except Exception as e:
+            await send_message(
+                f"Fatal error with on_member_unban event: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
             )
-            .set_thumbnail(
-                url=url,
-            )
-            .set_footer(text=f"ID: {user.id}")
-        )
-        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
     @Cog.listener()
     async def on_invite_create(self, invite: Invite):
-        guild = invite.guild
-        channel = invite.channel
-        expiry = get_age(invite.expires_at) if invite.expires_at else "Never"
-        description = f"**Invite [{invite.code}]({invite.url}) to {channel.mention} created by {invite.inviter.mention}**\nExpires in: {expiry}"
-        embed = Embed(
-            description=description,
-            color=0x337FD5,
-            timestamp=datetime.now(),
-        ).set_author(
-            name=f"{guild.name}",
-            icon_url=guild.icon.url,
-        )
-        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+        try:
+            guild = invite.guild
+            channel = invite.channel
+            expiry = get_age(invite.expires_at) if invite.expires_at else "Never"
+            description = f"**Invite [{invite.code}]({invite.url}) to {channel.mention} created by {invite.inviter.mention}**\nExpires in: {expiry}"
+            embed = Embed(
+                description=description,
+                color=0x337FD5,
+                timestamp=datetime.now(),
+            ).set_author(
+                name=f"{guild.name}",
+                icon_url=guild.icon.url,
+            )
+            await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+        except Exception as e:
+            await send_message(
+                f"Fatal error with on_invite_create event: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
+            )
 
     @Cog.listener()
     async def on_invite_delete(self, invite: Invite):
-        guild = invite.guild
-        description = f"**Invite [{invite.code}]({invite.url}) deleted**"
-        embed = Embed(
-            description=description,
-            color=0xFF470F,
-            timestamp=datetime.now(),
-        ).set_author(
-            name=f"{guild.name}",
-            icon_url=guild.icon.url,
-        )
-        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+        try:
+            guild = invite.guild
+            description = f"**Invite [{invite.code}]({invite.url}) deleted**"
+            embed = Embed(
+                description=description,
+                color=0xFF470F,
+                timestamp=datetime.now(),
+            ).set_author(
+                name=f"{guild.name}",
+                icon_url=guild.icon.url,
+            )
+            await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+        except Exception as e:
+            await send_message(
+                f"Fatal error with on_invite_delete event: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
+            )
 
     async def _log_role_change(
         self, member: Member, discriminator: str, url: str, roles: list[Role], add: bool
