@@ -67,7 +67,7 @@ async def on_ready():
     await send_message("Started successfully!", bot, BOT_ADMIN_CHANNEL)
 
 
-@discord.app_commands.command(description="Reload all extensions")
+@bot.tree.command(description="Reload all extensions")
 @discord.app_commands.commands.default_permissions(administrator=True)
 async def reload(interaction: discord.Interaction):
     try:
