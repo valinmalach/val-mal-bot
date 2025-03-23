@@ -43,10 +43,22 @@ class Tasks(Cog):
     @tasks.loop(minutes=1)
     async def check_posts(self):
         try:
-            last_sync_date_time = xata_client.data().query(
-                "bluesky",
-                {"columns": ["date"], "sort": {"date": "desc"}, "page": {"size": 1}},
-            )["records"][0]["date"]
+            try:
+                last_sync_date_time = xata_client.data().query(
+                    "bluesky",
+                    {
+                        "columns": ["date"],
+                        "sort": {"date": "desc"},
+                        "page": {"size": 1},
+                    },
+                )["records"][0]["date"]
+            except Exception as e:
+                await send_message(
+                    f"Failed to get last sync date time: {e}",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
+                return
 
             try:
                 author_feed = at_client.get_author_feed(actor=BLUESKY_LOGIN)
@@ -55,6 +67,7 @@ class Tasks(Cog):
                     f"Failed to get author feed: {e}", self.bot, BOT_ADMIN_CHANNEL
                 )
                 return
+
             posts = sorted(
                 [
                     feed.post
