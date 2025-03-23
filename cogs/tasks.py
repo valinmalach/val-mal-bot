@@ -48,10 +48,17 @@ class Tasks(Cog):
                 {"columns": ["date"], "sort": {"date": "desc"}, "page": {"size": 1}},
             )["records"][0]["date"]
 
+            try:
+                author_feed = at_client.get_author_feed(actor=BLUESKY_LOGIN)
+            except Exception as e:
+                await send_message(
+                    f"Failed to get author feed: {e}", self.bot, BOT_ADMIN_CHANNEL
+                )
+                return
             posts = sorted(
                 [
                     feed.post
-                    for feed in at_client.get_author_feed(actor=BLUESKY_LOGIN).feed
+                    for feed in author_feed.feed
                     if feed.post.author.handle == BLUESKY_LOGIN
                     and feed.post.indexed_at > last_sync_date_time
                 ],
@@ -70,7 +77,9 @@ class Tasks(Cog):
             for post in posts:
                 post_id = post.pop("id")
                 try:
-                    resp = xata_client.records().insert_with_id("bluesky", post_id, post)
+                    resp = xata_client.records().insert_with_id(
+                        "bluesky", post_id, post
+                    )
                     if resp.is_success():
                         await send_message(
                             f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
@@ -110,7 +119,10 @@ class Tasks(Cog):
             while records.has_more_results():
                 records = xata_client.data().query(
                     "users",
-                    {"filter": {"birthday": now}, "page": {"after": records.get_cursor()}},
+                    {
+                        "filter": {"birthday": now},
+                        "page": {"after": records.get_cursor()},
+                    },
                 )
                 await self._process_birthday_records(records)
         except Exception as e:
