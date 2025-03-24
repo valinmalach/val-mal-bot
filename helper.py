@@ -27,11 +27,7 @@ def update_birthday(
     xata_client: XataClient, user_id: str, record: dict[str, str]
 ) -> tuple[bool, Exception | None]:
     try:
-        existing_user = xata_client.records().get("users", user_id)
-        if existing_user.is_success():
-            resp = xata_client.records().update("users", user_id, record)
-        else:
-            resp = xata_client.records().insert_with_id("users", user_id, record)
+        resp = xata_client.records().upsert("users", user_id, record)
         return resp.is_success(), None
     except Exception as e:
         return False, e

@@ -90,7 +90,7 @@ class Tasks(Cog):
             for post in posts:
                 post_id = post.pop("id")
                 try:
-                    resp = xata_client.records().insert_with_id(
+                    resp = xata_client.records().upsert(
                         "bluesky", post_id, post
                     )
                     if resp.is_success():
