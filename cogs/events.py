@@ -1,3 +1,4 @@
+import os
 import random
 from datetime import datetime
 
@@ -18,6 +19,8 @@ from discord import (
     User,
 )
 from discord.ext.commands import Bot, Cog, CommandError, Context
+from dotenv import load_dotenv
+from xata import XataClient
 
 from constants import (
     AUDIT_LOGS_CHANNEL,
@@ -34,6 +37,13 @@ from helper import (
     send_embed,
     send_message,
 )
+
+load_dotenv()
+
+XATA_API_KEY = os.getenv("XATA_API_KEY")
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
 
 
 class Events(Cog):
@@ -115,6 +125,21 @@ class Events(Cog):
                 self.bot,
                 AUDIT_LOGS_CHANNEL,
             )
+
+            user = {
+                "username": member.name,
+                "birthday": None,
+                "isBirthdayLeap": None,
+            }
+            resp = xata_client.records().upsert(
+                "users", member.id, user
+            )
+            if not resp.is_success():
+                await send_message(
+                    f"Failed to insert user {member.name} ({member.id}) into database.",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
         except Exception as e:
             await send_message(
                 f"Fatal error with on_member_join event: {e}",
@@ -169,6 +194,19 @@ class Events(Cog):
                     inline=False,
                 )
             await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+
+            user = {
+                "username": member.name,
+                "birthday": None,
+                "isBirthdayLeap": None,
+            }
+            resp = xata_client.records().upsert("users", member.id, user)
+            if not resp.is_success():
+                await send_message(
+                    f"Failed to remove user {member.name} ({member.id}) from database.",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
         except Exception as e:
             await send_message(
                 f"Fatal error with on_raw_member_remove event: {e}",
