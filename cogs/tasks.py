@@ -54,7 +54,7 @@ class Tasks(Cog):
                 )["records"][0]["date"]
             except Exception as e:
                 await send_message(
-                    f"Failed to get last sync date time: {e}",
+                    f"Failed to get last sync date time: {type(e)} {e}",
                     self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
@@ -90,9 +90,7 @@ class Tasks(Cog):
             for post in posts:
                 post_id = post.pop("id")
                 try:
-                    resp = xata_client.records().upsert(
-                        "bluesky", post_id, post
-                    )
+                    resp = xata_client.records().upsert("bluesky", post_id, post)
                     if resp.is_success():
                         await send_message(
                             f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
