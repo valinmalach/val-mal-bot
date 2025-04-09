@@ -20,7 +20,6 @@ from discord.ext.commands.errors import (
 from dotenv import load_dotenv
 from quart import Quart, request
 from werkzeug.datastructures import Headers
-from xata import XataClient
 
 from constants import (
     BOT_ADMIN_CHANNEL,
@@ -32,11 +31,6 @@ from constants import (
 from helper import send_message
 
 load_dotenv()
-
-XATA_API_KEY = os.getenv("XATA_API_KEY")
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 MY_GUILD = discord.Object(id=GUILD_ID)
