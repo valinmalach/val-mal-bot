@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import os
 
@@ -5,6 +6,7 @@ from atproto import Client
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
 from dotenv import load_dotenv
+from requests.exceptions import ConnectionError
 from xata import XataClient
 from xata.api_response import ApiResponse
 
@@ -52,9 +54,9 @@ class Tasks(Cog):
                         "page": {"size": 1},
                     },
                 )["records"][0]["date"]
-            except Exception as e:
+            except ConnectionError as e:
                 await send_message(
-                    f"Failed to get last sync date time: {type(e)} {e}",
+                    f"Failed to get last sync date time: {e}",
                     self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
@@ -64,7 +66,9 @@ class Tasks(Cog):
                 author_feed = at_client.get_author_feed(actor=BLUESKY_LOGIN)
             except Exception as e:
                 await send_message(
-                    f"Failed to get author feed: {e}", self.bot, BOT_ADMIN_CHANNEL
+                    f"Failed to get author feed: {e}",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
                 )
                 return
 
@@ -124,18 +128,26 @@ class Tasks(Cog):
                 .replace(second=0, microsecond=0)
                 .strftime("%Y-%m-%dT%H:%M:%S.000Z")
             )
-            records = xata_client.data().query("users", {"filter": {"birthday": now}})
-            await self._process_birthday_records(records)
 
-            while records.has_more_results():
-                records = xata_client.data().query(
-                    "users",
-                    {
-                        "filter": {"birthday": now},
-                        "page": {"after": records.get_cursor()},
-                    },
-                )
-                await self._process_birthday_records(records)
+            while True:
+                try:
+                    records = xata_client.data().query(
+                        "users", {"filter": {"birthday": now}}
+                    )
+                    await self._process_birthday_records(records)
+
+                    while records.has_more_results():
+                        records = xata_client.data().query(
+                            "users",
+                            {
+                                "filter": {"birthday": now},
+                                "page": {"after": records.get_cursor()},
+                            },
+                        )
+                        await self._process_birthday_records(records)
+                    break
+                except ConnectionError as e:
+                    await asyncio.sleep(60)
         except Exception as e:
             await send_message(
                 f"Fatal error with birthday check: {e}",
