@@ -9,6 +9,7 @@ import os
 
 import discord
 import quart
+import sentry_sdk
 from discord.ext.commands import Bot
 from discord.ext.commands.errors import (
     ExtensionAlreadyLoaded,
@@ -19,6 +20,7 @@ from discord.ext.commands.errors import (
 )
 from dotenv import load_dotenv
 from quart import Quart, request
+from sentry_sdk.integrations.quart import QuartIntegration
 from werkzeug.datastructures import Headers
 
 from constants import (
@@ -31,6 +33,26 @@ from constants import (
 from helper import send_message
 
 load_dotenv()
+
+sentry_sdk.init(
+    dsn="https://8a7232f8683fae9b47c91b194053ed11@o4508900413865984.ingest.us.sentry.io/4508900418584576",
+    integrations=[QuartIntegration()],
+    # Add data like request headers and IP for users,
+    # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+    send_default_pii=True,
+    # Set traces_sample_rate to 1.0 to capture 100%
+    # of transactions for tracing.
+    traces_sample_rate=1.0,
+    # Set profile_session_sample_rate to 1.0 to profile 100%
+    # of profile sessions.
+    profile_session_sample_rate=1.0,
+    # Set profile_lifecycle to "trace" to automatically
+    # run the profiler on when there is an active transaction
+    profile_lifecycle="trace",
+)
+
+sentry_sdk.profiler.start_profiler()
+
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 MY_GUILD = discord.Object(id=GUILD_ID)
@@ -58,11 +80,15 @@ class MyBot(Bot):
 bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 
+@sentry_sdk.trace
+@sentry_sdk.monitor
 @bot.event
 async def on_ready():
     await send_message("Started successfully!", bot, BOT_ADMIN_CHANNEL)
 
 
+@sentry_sdk.trace
+@sentry_sdk.monitor
 @bot.tree.command(description="Reload all extensions")
 @discord.app_commands.commands.default_permissions(administrator=True)
 async def reload(interaction: discord.Interaction):
@@ -78,6 +104,7 @@ async def reload(interaction: discord.Interaction):
             except ExtensionNotLoaded as e:
                 await bot.load_extension(ext)
             except Exception as e:
+                sentry_sdk.capture_exception(e)
                 await send_message(
                     f"Something went wrong when loading extension {ext}: {e}",
                     bot,
@@ -85,9 +112,12 @@ async def reload(interaction: discord.Interaction):
                 )
         await send_message("Reloaded!", bot, BOT_ADMIN_CHANNEL)
     except Exception as e:
+        sentry_sdk.capture_exception(e)
         await send_message(f"Error reloading extensions: {e}", bot, BOT_ADMIN_CHANNEL)
 
 
+@sentry_sdk.trace
+@sentry_sdk.monitor
 async def main():
     try:
         bot.remove_command("help")
@@ -100,25 +130,33 @@ async def main():
                 NoEntryPointError,
                 ExtensionFailed,
             ) as e:
+                sentry_sdk.capture_exception(e)
                 print(f"Something went wrong when loading extension {ext}: {e}")
 
         loop = asyncio.get_event_loop()
         await bot.login(DISCORD_TOKEN)
         loop.create_task(bot.connect())
     except Exception as e:
+        sentry_sdk.capture_exception(e)
         print(f"Error connecting the bot: {e}")
 
 
+@sentry_sdk.trace
+@sentry_sdk.monitor
 def get_hmac_message(headers: Headers, body: str) -> str:
     return headers[TWITCH_MESSAGE_ID] + headers[TWITCH_MESSAGE_TIMESTAMP] + body
 
 
+@sentry_sdk.trace
+@sentry_sdk.monitor
 def get_hmac(secret: str, message: str) -> str:
     return hmac.new(
         secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
     ).hexdigest()
 
 
+@sentry_sdk.trace
+@sentry_sdk.monitor
 def verify_message(hmac_str: str, verify_signature: str) -> bool:
     return hmac.compare_digest(hmac_str, verify_signature)
 
@@ -163,6 +201,7 @@ async def twitch_webhook():
         print("403: Forbidden. Signature does not match.")
         quart.abort(403)
     except Exception as e:
+        sentry_sdk.capture_exception(e)
         await send_message(
             f"500: Internal server error on /webhook/twitch: {e}",
             bot,

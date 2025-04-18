@@ -3,6 +3,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import pytz
+import sentry_sdk
 from discord import Interaction, app_commands
 from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
@@ -24,6 +25,8 @@ class Birthday(GroupCog):
     def __init__(self, bot: Bot):
         self.bot = bot
 
+    @sentry_sdk.trace
+    @sentry_sdk.monitor
     @app_commands.command(name="set", description="Set your birthday")
     @app_commands.checks.has_role(FOLLOWER_ROLE)
     @app_commands.describe(
@@ -99,8 +102,11 @@ class Birthday(GroupCog):
                     + "I'll wish you at midnight of your selected timezone!"
                 )
         except Exception as e:
+            sentry_sdk.capture_exception(e)
             await self._set_birthday_failed(interaction, e)
 
+    @sentry_sdk.trace
+    @sentry_sdk.monitor
     @set_birthday.autocomplete("timezone")
     async def timezone_autocomplete(
         self, _: Interaction, current_input: str
@@ -112,6 +118,8 @@ class Birthday(GroupCog):
         ]
         return choices[:25]
 
+    @sentry_sdk.trace
+    @sentry_sdk.monitor
     @app_commands.command(
         name="remove", description="Removes your birthday, if it exists"
     )
@@ -131,6 +139,7 @@ class Birthday(GroupCog):
                     )
                     return
             except Exception as e:
+                sentry_sdk.capture_exception(e)
                 await self._forget_birthday_failed(interaction, e)
                 return
 
@@ -156,10 +165,14 @@ class Birthday(GroupCog):
                     + "Maybe try setting one first before asking me to remove it?"
                 )
             except Exception as e:
+                sentry_sdk.capture_exception(e)
                 await self._forget_birthday_failed(interaction, e)
         except Exception as e:
+            sentry_sdk.capture_exception(e)
             await self._forget_birthday_failed(interaction, e)
 
+    @sentry_sdk.trace
+    @sentry_sdk.monitor
     async def _set_birthday_failed(
         self, interaction: Interaction, e: Exception | str | None
     ):
@@ -173,6 +186,8 @@ class Birthday(GroupCog):
             BOT_ADMIN_CHANNEL,
         )
 
+    @sentry_sdk.trace
+    @sentry_sdk.monitor
     async def _forget_birthday_failed(
         self, interaction: Interaction, e: Exception | str | None
     ):

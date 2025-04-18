@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import os
 
+import sentry_sdk
 from atproto import Client
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
@@ -42,6 +43,8 @@ class Tasks(Cog):
         datetime.time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
     ]
 
+    @sentry_sdk.trace
+    @sentry_sdk.monitor
     @tasks.loop(minutes=1)
     async def check_posts(self):
         try:
@@ -55,6 +58,7 @@ class Tasks(Cog):
                     },
                 )["records"][0]["date"]
             except ConnectionError as e:
+                sentry_sdk.capture_exception(e)
                 await send_message(
                     f"Failed to get last sync date time: {e}",
                     self.bot,
@@ -65,6 +69,7 @@ class Tasks(Cog):
             try:
                 author_feed = at_client.get_author_feed(actor=BLUESKY_LOGIN)
             except Exception as e:
+                sentry_sdk.capture_exception(e)
                 await send_message(
                     f"Failed to get author feed: {e}",
                     self.bot,
@@ -108,18 +113,22 @@ class Tasks(Cog):
                             BOT_ADMIN_CHANNEL,
                         )
                 except Exception as e:
+                    sentry_sdk.capture_exception(e)
                     await send_message(
                         f"Failed to insert post {post_id} into database: {e}",
                         self.bot,
                         BOT_ADMIN_CHANNEL,
                     )
         except Exception as e:
+            sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with Bluesky posts check: {e}",
                 self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
+    @sentry_sdk.trace
+    @sentry_sdk.monitor
     @tasks.loop(time=_quarter_hours)
     async def check_birthdays(self):
         try:
@@ -149,12 +158,15 @@ class Tasks(Cog):
                 except ConnectionError as e:
                     await asyncio.sleep(60)
         except Exception as e:
+            sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with birthday check: {e}",
                 self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
+    @sentry_sdk.trace
+    @sentry_sdk.monitor
     async def _process_birthday_records(self, records: ApiResponse):
         now = datetime.datetime.now()
         birthdays_now = records["records"]
