@@ -108,7 +108,7 @@ class Tasks(Cog):
                         )
                     else:
                         await send_message(
-                            f"Failed to insert post {post_id} into database.",
+                            f"Failed to insert post {post_id} into database: {resp.error_message}",
                             self.bot,
                             BOT_ADMIN_CHANNEL,
                         )

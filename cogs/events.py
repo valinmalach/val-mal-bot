@@ -57,7 +57,6 @@ class Events(Cog):
     async def on_message(self, message: Message):
         try:
             message_obj = {
-                "id": message.id,
                 "contents": message.content,
                 "guild_id": message.guild.id,
                 "author_id": message.author.id,
@@ -68,11 +67,11 @@ class Events(Cog):
             }
             try:
                 resp = xata_client.records().upsert(
-                    "messages", str(message_obj["id"]), message_obj
+                    "messages", str(message.id), message_obj
                 )
                 if not resp.is_success():
                     await send_message(
-                        f"Failed to save message {message_obj['id']}",
+                        f"Failed to save message {message_obj['id']}: {resp.error_message}",
                         self.bot,
                         BOT_ADMIN_CHANNEL,
                     )
@@ -168,7 +167,7 @@ class Events(Cog):
             resp = xata_client.records().upsert("users", member.id, user)
             if not resp.is_success():
                 await send_message(
-                    f"Failed to insert user {member.name} ({member.id}) into database.",
+                    f"Failed to insert user {member.name} ({member.id}) into database: {resp.error_message}",
                     self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
@@ -238,7 +237,7 @@ class Events(Cog):
             resp = xata_client.records().upsert("users", member.id, user)
             if not resp.is_success():
                 await send_message(
-                    f"Failed to remove user {member.name} ({member.id}) from database.",
+                    f"Failed to remove user {member.name} ({member.id}) from database: {resp.error_message}",
                     self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
@@ -417,7 +416,6 @@ class Events(Cog):
 
             try:
                 after_message_obj = {
-                    "id": after.id,
                     "contents": after.content,
                     "guild_id": after.guild.id,
                     "author_id": after.author.id,
@@ -431,7 +429,7 @@ class Events(Cog):
                 )
                 if not resp.is_success():
                     await send_message(
-                        f"Failed to upsert message {after.id} in database.",
+                        f"Failed to upsert message {after.id} in database: {resp.error_message}",
                         self.bot,
                         BOT_ADMIN_CHANNEL,
                     )
@@ -488,7 +486,7 @@ class Events(Cog):
                 resp = xata_client.records().delete("messages", str(payload.message_id))
                 if not resp.is_success():
                     await send_message(
-                        f"Failed to delete message {payload.message_id} from database.",
+                        f"Failed to delete message {payload.message_id} from database: {resp.error_message}",
                         self.bot,
                         BOT_ADMIN_CHANNEL,
                     )
@@ -536,7 +534,7 @@ class Events(Cog):
                     resp = xata_client.records().delete("messages", str(message_id))
                     if not resp.is_success():
                         await send_message(
-                            f"Failed to delete message {message_id} from database.",
+                            f"Failed to delete message {message_id} from database: {resp.error_message}",
                             self.bot,
                             BOT_ADMIN_CHANNEL,
                         )
@@ -858,7 +856,7 @@ class Events(Cog):
             resp = xata_client.records().delete("messages", str(message_id))
             if not resp.is_success():
                 await send_message(
-                    f"Failed to delete message {message_id} from database.",
+                    f"Failed to delete message {message_id} from database: {resp.error_message}",
                     self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
