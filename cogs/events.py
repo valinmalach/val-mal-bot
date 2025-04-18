@@ -56,6 +56,34 @@ class Events(Cog):
     @Cog.listener()
     async def on_message(self, message: Message):
         try:
+            message_obj = {
+                "id": message.id,
+                "contents": message.content,
+                "guild_id": message.guild.id,
+                "author_id": message.author.id,
+                "channel_id": message.channel.id,
+                "attachment_urls": [
+                    attachment.url for attachment in message.attachments
+                ],
+            }
+            try:
+                resp = xata_client.records().upsert(
+                    "messages", str(message_obj["id"]), message_obj
+                )
+                if not resp.is_success():
+                    await send_message(
+                        f"Failed to save message {message_obj['id']}",
+                        self.bot,
+                        BOT_ADMIN_CHANNEL,
+                    )
+            except Exception as e:
+                sentry_sdk.capture_exception(e)
+                await send_message(
+                    f"Failed to save message {message_obj['id']}: {e}",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
+
             if message.author == self.bot.user:
                 return
 
@@ -329,11 +357,30 @@ class Events(Cog):
                 await self._log_message_pin(after, discriminator, url)
 
             try:
-                before_content = (
-                    before.content
-                    if before
-                    else "`Old message content not found in cache`"
-                )
+                if before:
+                    before_content = before.content
+                else:
+                    try:
+                        resp = xata_client.records().get("messages", str(after.id))
+                        if resp.is_success():
+                            before_content = resp.get(
+                                "contents",
+                                "`Message content not found in database or cache`",
+                            )
+                        else:
+                            before_content = (
+                                "`Message content not found in database or cache`"
+                            )
+                    except Exception as e:
+                        sentry_sdk.capture_exception(e)
+                        await send_message(
+                            f"Failed to get message {after.id} from database: {e}",
+                            self.bot,
+                            BOT_ADMIN_CHANNEL,
+                        )
+                        before_content = (
+                            "`Message content not found in database or cache`"
+                        )
                 after_content = after.content
             except KeyError:
                 message = f"Embed-only edit detected. Audit log not supported.\nMessage ID: {after.id}\nChannel: {after.channel.mention}\n[Jump to Message]({after.jump_url})"
@@ -367,6 +414,34 @@ class Events(Cog):
                 self.bot,
                 AUDIT_LOGS_CHANNEL,
             )
+
+            try:
+                after_message_obj = {
+                    "id": after.id,
+                    "contents": after.content,
+                    "guild_id": after.guild.id,
+                    "author_id": after.author.id,
+                    "channel_id": after.channel.id,
+                    "attachment_urls": [
+                        attachment.url for attachment in after.attachments
+                    ],
+                }
+                resp = xata_client.records().upsert(
+                    "messages", str(after.id), after_message_obj
+                )
+                if not resp.is_success():
+                    await send_message(
+                        f"Failed to upsert message {after.id} in database.",
+                        self.bot,
+                        BOT_ADMIN_CHANNEL,
+                    )
+            except Exception as e:
+                sentry_sdk.capture_exception(e)
+                await send_message(
+                    f"Failed to upsert message {after.id} in database: {e}",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
@@ -408,6 +483,22 @@ class Events(Cog):
                 discriminator,
                 url,
             )
+
+            try:
+                resp = xata_client.records().delete("messages", str(payload.message_id))
+                if not resp.is_success():
+                    await send_message(
+                        f"Failed to delete message {payload.message_id} from database.",
+                        self.bot,
+                        BOT_ADMIN_CHANNEL,
+                    )
+            except Exception as e:
+                sentry_sdk.capture_exception(e)
+                await send_message(
+                    f"Failed to delete message {payload.message_id} from database: {e}",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
@@ -439,6 +530,23 @@ class Events(Cog):
                 icon_url=url,
             )
             await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+
+            for message_id in payload.message_ids:
+                try:
+                    resp = xata_client.records().delete("messages", str(message_id))
+                    if not resp.is_success():
+                        await send_message(
+                            f"Failed to delete message {message_id} from database.",
+                            self.bot,
+                            BOT_ADMIN_CHANNEL,
+                        )
+                except Exception as e:
+                    sentry_sdk.capture_exception(e)
+                    await send_message(
+                        f"Failed to delete message {message_id} from database: {e}",
+                        self.bot,
+                        BOT_ADMIN_CHANNEL,
+                    )
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
@@ -710,6 +818,20 @@ class Events(Cog):
         user: User | Member,
         channel: TextChannel,
     ):
+        message_content = "`Message content not found in database or cache`"
+        try:
+            resp = xata_client.records().get("messages", str(message_id))
+            if resp.is_success():
+                message_content = resp.get(
+                    "contents", "`Message content not found in database or cache`"
+                )
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            await send_message(
+                f"Failed to get message {message_id} from database: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
+            )
         discriminator = get_discriminator(user)
         url = get_pfp(user)
         description = f"**Message deleted by {user.mention} in {channel.mention}**"
@@ -725,12 +847,28 @@ class Events(Cog):
             )
             .add_field(
                 name="**Message**",
-                value="`Message not found in cache`",
+                value=f"{message_content}",
                 inline=False,
             )
             .set_footer(text=f"Deleter: {user.id} | Message ID: {message_id}")
         )
         await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+
+        try:
+            resp = xata_client.records().delete("messages", str(message_id))
+            if not resp.is_success():
+                await send_message(
+                    f"Failed to delete message {message_id} from database.",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            await send_message(
+                f"Failed to delete message {message_id} from database: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
+            )
 
     @sentry_sdk.trace
     @sentry_sdk.monitor
@@ -747,7 +885,16 @@ class Events(Cog):
         try:
             message_content = message.content
         except KeyError:
-            message_content = "`Message content not found in cache`"
+            try:
+                resp = xata_client.records().get("messages", str(message_id))
+                if resp.is_success():
+                    message_content = resp.get(
+                        "contents", "`Message content not found in database or cache`"
+                    )
+                else:
+                    message_content = "`Message content not found in database or cache`"
+            except Exception as e:
+                message_content = "`Message content not found in database or cache`"
 
         description = f"**Message sent by {author.mention} deleted by {user_who_deleted.mention} in {channel.mention}**"
         embed = (
