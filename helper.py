@@ -49,7 +49,10 @@ def update_birthday(
 @sentry_sdk.monitor()
 def get_age(date_time: datetime) -> str:
     now = datetime.datetime.now(datetime.timezone.utc)
-    age = relativedelta.relativedelta(now, date_time)
+    if date_time <= now:
+        age = relativedelta.relativedelta(now, date_time)
+    else:
+        age = relativedelta.relativedelta(date_time, now)
     years, months, days, hours, minutes, seconds, microseconds = (
         age.years,
         age.months,
