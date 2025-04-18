@@ -80,15 +80,15 @@ class MyBot(Bot):
 bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 @bot.event
 async def on_ready():
     await send_message("Started successfully!", bot, BOT_ADMIN_CHANNEL)
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 @bot.tree.command(description="Reload all extensions")
 @discord.app_commands.commands.default_permissions(administrator=True)
 async def reload(interaction: discord.Interaction):
@@ -116,8 +116,8 @@ async def reload(interaction: discord.Interaction):
         await send_message(f"Error reloading extensions: {e}", bot, BOT_ADMIN_CHANNEL)
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 async def main():
     try:
         bot.remove_command("help")
@@ -141,22 +141,22 @@ async def main():
         print(f"Error connecting the bot: {e}")
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 def get_hmac_message(headers: Headers, body: str) -> str:
     return headers[TWITCH_MESSAGE_ID] + headers[TWITCH_MESSAGE_TIMESTAMP] + body
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 def get_hmac(secret: str, message: str) -> str:
     return hmac.new(
         secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
     ).hexdigest()
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 def verify_message(hmac_str: str, verify_signature: str) -> bool:
     return hmac.compare_digest(hmac_str, verify_signature)
 

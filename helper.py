@@ -8,32 +8,32 @@ from discord.ext.commands import Bot
 from xata import XataClient
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 async def send_message(message: str, bot: Bot, channel_id: int):
     await bot.get_channel(channel_id).send(message)
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 async def send_embed(embed: Embed, bot: Bot, channel_id: int):
     await bot.get_channel(channel_id).send(embed=embed)
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 def get_pfp(member: Member) -> str:
     return member.avatar.url if member.avatar else member.default_avatar.url
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 def get_discriminator(member: Member) -> str:
     return "" if member.discriminator == "0" else f"#{member.discriminator}"
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 def update_birthday(
     xata_client: XataClient, user_id: str, record: dict[str, str]
 ) -> tuple[bool, Exception | None]:
@@ -45,8 +45,8 @@ def update_birthday(
         return False, e
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 def get_age(date_time: datetime) -> str:
     now = datetime.datetime.now(datetime.timezone.utc)
     age = relativedelta.relativedelta(now, date_time)
@@ -82,15 +82,15 @@ def get_age(date_time: datetime) -> str:
     return ", ".join(parts)
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 @cache
 def is_leap(year: int) -> bool:
     return (year % 400 == 0) or (year % 100 != 0) and (year % 4 == 0)
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 @cache
 def get_next_leap(year: int) -> int:
     while not is_leap(year):
@@ -98,8 +98,8 @@ def get_next_leap(year: int) -> int:
     return year
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 @cache
 def get_ordinal_suffix(n: int) -> str:
     if 10 <= n % 100 <= 13:
@@ -114,8 +114,8 @@ def get_ordinal_suffix(n: int) -> str:
     return f"{n}th"
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 @cache
 def format_unit(value: int, unit: str) -> str:
     return f"{value} {f"{unit}s" if value != 1 else unit}"

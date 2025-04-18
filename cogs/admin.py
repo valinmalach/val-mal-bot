@@ -9,8 +9,8 @@ class Admin(Cog):
     def __init__(self, bot: Bot):
         self.bot = bot
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @app_commands.command(description="Restarts the bot")
     @app_commands.commands.default_permissions(administrator=True)
     async def restart(self, interaction: Interaction):
@@ -19,8 +19,8 @@ class Admin(Cog):
             "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
         )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @app_commands.command(description="Deletes all messages in the channel")
     @app_commands.commands.default_permissions(administrator=True)
     async def nuke(self, interaction: Interaction):

@@ -51,8 +51,8 @@ class Events(Cog):
     def __init__(self, bot: Bot):
         self.bot = bot
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @Cog.listener()
     async def on_message(self, message: Message):
         try:
@@ -104,8 +104,8 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @Cog.listener()
     async def on_member_join(self, member: Member):
         try:
@@ -179,8 +179,8 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @Cog.listener()
     async def on_raw_member_remove(self, payload: RawMemberRemoveEvent):
         try:
@@ -249,15 +249,15 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @Cog.listener()
     async def on_command_error(self, ctx: Context, error: CommandError):
         message = f"Command not found: {ctx.message.content}\nSent by: {ctx.author.mention} in {ctx.channel.mention}\n{error}"
         await send_message(message, self.bot, AUDIT_LOGS_CHANNEL)
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @Cog.listener()
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
         try:
@@ -270,8 +270,8 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @Cog.listener()
     async def on_raw_reaction_remove(self, payload: RawReactionActionEvent):
         try:
@@ -284,8 +284,8 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @Cog.listener()
     async def on_member_update(self, before: Member, after: Member):
         try:
@@ -341,8 +341,8 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @Cog.listener()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent):
         try:
@@ -448,8 +448,8 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @Cog.listener()
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent):
         try:
@@ -505,8 +505,8 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @Cog.listener()
     async def on_raw_bulk_message_delete(self, payload: RawBulkMessageDeleteEvent):
         try:
@@ -553,8 +553,8 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @Cog.listener()
     async def on_member_ban(self, guild: Guild, user: User | Member):
         try:
@@ -585,8 +585,8 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @Cog.listener()
     async def on_member_unban(self, guild: Guild, user: User | Member):
         try:
@@ -617,8 +617,8 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @Cog.listener()
     async def on_invite_create(self, invite: Invite):
         try:
@@ -643,8 +643,8 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     @Cog.listener()
     async def on_invite_delete(self, invite: Invite):
         try:
@@ -667,8 +667,8 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     async def _log_role_change(
         self, member: Member, discriminator: str, url: str, roles: list[Role], add: bool
     ):
@@ -692,8 +692,8 @@ class Events(Cog):
             AUDIT_LOGS_CHANNEL,
         )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     async def _log_nickname_change(
         self, member: Member, discriminator: str, url: str, before: str, after: str
     ):
@@ -717,8 +717,8 @@ class Events(Cog):
             AUDIT_LOGS_CHANNEL,
         )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     async def _log_pfp_change(self, member: Member, discriminator: str, url: str):
         embed = (
             Embed(
@@ -741,8 +741,8 @@ class Events(Cog):
             AUDIT_LOGS_CHANNEL,
         )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     async def _log_timeout(
         self, member: Member, discriminator: str, url: str, timeout: datetime
     ):
@@ -765,8 +765,8 @@ class Events(Cog):
             AUDIT_LOGS_CHANNEL,
         )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     async def _log_untimeout(self, member: Member, discriminator: str, url: str):
         embed = (
             Embed(
@@ -786,8 +786,8 @@ class Events(Cog):
             AUDIT_LOGS_CHANNEL,
         )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     async def _log_message_pin(self, message: Message, discriminator: str, url: str):
         description = f"**Message {"pinned" if message.pinned else "unpinned"} in {message.channel.mention}** [Jump to Message]({message.jump_url})"
         embed = (
@@ -808,8 +808,8 @@ class Events(Cog):
             AUDIT_LOGS_CHANNEL,
         )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     async def _log_deleted_missing_message(
         self,
         message_id: int,
@@ -868,8 +868,8 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     async def _log_message_delete(
         self,
         message: Message,
@@ -916,8 +916,8 @@ class Events(Cog):
             message, message_id, author, channel, discriminator, url
         )
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     async def _log_message_attachments_delete(
         self,
         message: Message,
@@ -944,8 +944,8 @@ class Events(Cog):
                 )
                 await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     def _get_member_role_from_payload(self, payload: RawReactionActionEvent):
         guild = self.bot.get_guild(payload.guild_id)
         if not guild:
@@ -966,8 +966,8 @@ class Events(Cog):
         role = discord.utils.get(guild.roles, name=role_name)
         return (member, role) if role else (None, None)
 
-    @sentry_sdk.trace()
-    @sentry_sdk.monitor
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     async def _toggle_role(self, payload: RawReactionActionEvent, add: bool):
         member, role = self._get_member_role_from_payload(payload)
         if not member or not role:
