@@ -51,9 +51,9 @@ class Events(Cog):
     def __init__(self, bot: Bot):
         self.bot = bot
 
+    @Cog.listener()
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @Cog.listener()
     async def on_message(self, message: Message):
         try:
             message_obj = {
@@ -104,9 +104,9 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @Cog.listener()
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @Cog.listener()
     async def on_member_join(self, member: Member):
         try:
             discriminator = get_discriminator(member)
@@ -179,9 +179,9 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @Cog.listener()
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @Cog.listener()
     async def on_raw_member_remove(self, payload: RawMemberRemoveEvent):
         try:
             member = payload.user
@@ -249,16 +249,16 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @Cog.listener()
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @Cog.listener()
     async def on_command_error(self, ctx: Context, error: CommandError):
         message = f"Command not found: {ctx.message.content}\nSent by: {ctx.author.mention} in {ctx.channel.mention}\n{error}"
         await send_message(message, self.bot, AUDIT_LOGS_CHANNEL)
 
+    @Cog.listener()
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @Cog.listener()
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
         try:
             await self._toggle_role(payload, True)
@@ -270,9 +270,9 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @Cog.listener()
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @Cog.listener()
     async def on_raw_reaction_remove(self, payload: RawReactionActionEvent):
         try:
             await self._toggle_role(payload, False)
@@ -284,9 +284,9 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @Cog.listener()
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @Cog.listener()
     async def on_member_update(self, before: Member, after: Member):
         try:
             discriminator = get_discriminator(after)
@@ -341,9 +341,9 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @Cog.listener()
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @Cog.listener()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent):
         try:
             before = payload.cached_message
@@ -448,9 +448,9 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @Cog.listener()
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @Cog.listener()
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent):
         try:
             guild = self.bot.get_guild(payload.guild_id)
@@ -505,9 +505,9 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @Cog.listener()
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @Cog.listener()
     async def on_raw_bulk_message_delete(self, payload: RawBulkMessageDeleteEvent):
         try:
             guild = self.bot.get_guild(payload.guild_id)
@@ -553,9 +553,9 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @Cog.listener()
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @Cog.listener()
     async def on_member_ban(self, guild: Guild, user: User | Member):
         try:
             discriminator = get_discriminator(user)
@@ -585,9 +585,9 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @Cog.listener()
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @Cog.listener()
     async def on_member_unban(self, guild: Guild, user: User | Member):
         try:
             discriminator = get_discriminator(user)
@@ -617,9 +617,9 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @Cog.listener()
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @Cog.listener()
     async def on_invite_create(self, invite: Invite):
         try:
             guild = invite.guild
@@ -643,9 +643,9 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @Cog.listener()
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @Cog.listener()
     async def on_invite_delete(self, invite: Invite):
         try:
             guild = invite.guild

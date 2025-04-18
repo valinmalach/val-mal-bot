@@ -25,8 +25,6 @@ class Birthday(GroupCog):
     def __init__(self, bot: Bot):
         self.bot = bot
 
-    @sentry_sdk.trace
-    @sentry_sdk.monitor()
     @app_commands.command(name="set", description="Set your birthday")
     @app_commands.checks.has_role(FOLLOWER_ROLE)
     @app_commands.describe(
@@ -34,6 +32,8 @@ class Birthday(GroupCog):
         day="The day of your birthday",
         timezone="Your timezone (Optional. If left blank, will default to GMT+0)",
     )
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     async def set_birthday(
         self,
         interaction: Interaction,
@@ -118,12 +118,12 @@ class Birthday(GroupCog):
         ]
         return choices[:25]
 
-    @sentry_sdk.trace
-    @sentry_sdk.monitor()
     @app_commands.command(
         name="remove", description="Removes your birthday, if it exists"
     )
     @app_commands.checks.has_role(FOLLOWER_ROLE)
+    @sentry_sdk.trace
+    @sentry_sdk.monitor()
     async def remove_birthday(
         self,
         interaction: Interaction,

@@ -80,17 +80,17 @@ class MyBot(Bot):
 bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 
+@bot.event
 @sentry_sdk.trace
 @sentry_sdk.monitor()
-@bot.event
 async def on_ready():
     await send_message("Started successfully!", bot, BOT_ADMIN_CHANNEL)
 
 
-@sentry_sdk.trace
-@sentry_sdk.monitor()
 @bot.tree.command(description="Reload all extensions")
 @discord.app_commands.commands.default_permissions(administrator=True)
+@sentry_sdk.trace
+@sentry_sdk.monitor()
 async def reload(interaction: discord.Interaction):
     try:
         await interaction.response.send_message("Reloading extensions...")
