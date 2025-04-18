@@ -56,6 +56,7 @@ MESSAGE_REACTION_ROLE_MAP = {
         "🔴": "🔴Live Alerts",
         "❗": "❗Ping Role",
         "🦋": "🦋Bluesky",
+        "🎁": "🎁Free Stuff",
     },
     1292349441763971123: {"🔞": "🔞NSFW Access"},  # NSFW Access role message
     1292349494666465282: {  # Pronouns roles message
