@@ -25,7 +25,7 @@ class Birthday(GroupCog):
     def __init__(self, bot: Bot):
         self.bot = bot
 
-    @sentry_sdk.trace
+    @sentry_sdk.trace()
     @sentry_sdk.monitor
     @app_commands.command(name="set", description="Set your birthday")
     @app_commands.checks.has_role(FOLLOWER_ROLE)
@@ -105,7 +105,7 @@ class Birthday(GroupCog):
             sentry_sdk.capture_exception(e)
             await self._set_birthday_failed(interaction, e)
 
-    @sentry_sdk.trace
+    @sentry_sdk.trace()
     @sentry_sdk.monitor
     @set_birthday.autocomplete("timezone")
     async def timezone_autocomplete(
@@ -118,7 +118,7 @@ class Birthday(GroupCog):
         ]
         return choices[:25]
 
-    @sentry_sdk.trace
+    @sentry_sdk.trace()
     @sentry_sdk.monitor
     @app_commands.command(
         name="remove", description="Removes your birthday, if it exists"
@@ -171,7 +171,7 @@ class Birthday(GroupCog):
             sentry_sdk.capture_exception(e)
             await self._forget_birthday_failed(interaction, e)
 
-    @sentry_sdk.trace
+    @sentry_sdk.trace()
     @sentry_sdk.monitor
     async def _set_birthday_failed(
         self, interaction: Interaction, e: Exception | str | None
@@ -186,7 +186,7 @@ class Birthday(GroupCog):
             BOT_ADMIN_CHANNEL,
         )
 
-    @sentry_sdk.trace
+    @sentry_sdk.trace()
     @sentry_sdk.monitor
     async def _forget_birthday_failed(
         self, interaction: Interaction, e: Exception | str | None
