@@ -11,8 +11,6 @@ class Admin(Cog):
 
     @app_commands.command(description="Restarts the bot")
     @app_commands.commands.default_permissions(administrator=True)
-    @sentry_sdk.trace
-    @sentry_sdk.monitor()
     async def restart(self, interaction: Interaction):
         await interaction.response.send_message("Restarting...")
         await asyncio.create_subprocess_exec(
@@ -21,7 +19,7 @@ class Admin(Cog):
 
     @app_commands.command(description="Deletes all messages in the channel")
     @app_commands.commands.default_permissions(administrator=True)
-    @sentry_sdk.trace
+    @sentry_sdk.trace()
     @sentry_sdk.monitor()
     async def nuke(self, interaction: Interaction):
         await interaction.response.send_message("Nuking channel...")

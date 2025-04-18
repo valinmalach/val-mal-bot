@@ -44,7 +44,7 @@ class Tasks(Cog):
     ]
 
     @tasks.loop(minutes=1)
-    @sentry_sdk.trace
+    @sentry_sdk.trace()
     @sentry_sdk.monitor()
     async def check_posts(self):
         try:
@@ -128,7 +128,7 @@ class Tasks(Cog):
             )
 
     @tasks.loop(time=_quarter_hours)
-    @sentry_sdk.trace
+    @sentry_sdk.trace()
     @sentry_sdk.monitor()
     async def check_birthdays(self):
         try:
@@ -165,7 +165,7 @@ class Tasks(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace
+    @sentry_sdk.trace()
     @sentry_sdk.monitor()
     async def _process_birthday_records(self, records: ApiResponse):
         now = datetime.datetime.now()
