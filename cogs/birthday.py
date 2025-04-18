@@ -105,9 +105,9 @@ class Birthday(GroupCog):
             sentry_sdk.capture_exception(e)
             await self._set_birthday_failed(interaction, e)
 
+    @set_birthday.autocomplete("timezone")
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @set_birthday.autocomplete("timezone")
     async def timezone_autocomplete(
         self, _: Interaction, current_input: str
     ) -> list[Choice[str]]:

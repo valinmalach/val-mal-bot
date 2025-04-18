@@ -43,9 +43,9 @@ class Tasks(Cog):
         datetime.time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
     ]
 
+    @tasks.loop(minutes=1)
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @tasks.loop(minutes=1)
     async def check_posts(self):
         try:
             try:
@@ -127,9 +127,9 @@ class Tasks(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @tasks.loop(time=_quarter_hours)
     @sentry_sdk.trace
     @sentry_sdk.monitor()
-    @tasks.loop(time=_quarter_hours)
     async def check_birthdays(self):
         try:
             now = (
