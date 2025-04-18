@@ -24,9 +24,6 @@ load_dotenv()
 BLUESKY_LOGIN = os.getenv("BLUESKY_LOGIN")
 BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_APP_PASSWORD")
 
-at_client = Client()
-at_client.login(BLUESKY_LOGIN, BLUESKY_APP_PASSWORD)
-
 XATA_API_KEY = os.getenv("XATA_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -67,6 +64,8 @@ class Tasks(Cog):
                 return
 
             try:
+                at_client = Client()
+                at_client.login(BLUESKY_LOGIN, BLUESKY_APP_PASSWORD)
                 author_feed = at_client.get_author_feed(actor=BLUESKY_LOGIN)
             except Exception as e:
                 sentry_sdk.capture_exception(e)
