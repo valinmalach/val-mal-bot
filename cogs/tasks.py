@@ -1,9 +1,12 @@
 import asyncio
 import datetime
+import logging
 import os
+from functools import wraps
 
 import sentry_sdk
 from atproto import Client
+from atproto_client import models
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
 from dotenv import load_dotenv
@@ -24,10 +27,65 @@ load_dotenv()
 BLUESKY_LOGIN = os.getenv("BLUESKY_LOGIN")
 BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_APP_PASSWORD")
 
+at_client = Client()
+at_client.login(BLUESKY_LOGIN, BLUESKY_APP_PASSWORD)
+
 XATA_API_KEY = os.getenv("XATA_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
+
+
+def with_retry(max_retries=3, retry_delay=2):
+    """Decorator for functions that should retry on failure with exponential backoff"""
+
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        # Last attempt failed, re-raise
+                        raise
+                    # Log the error and wait before retrying
+                    logging.warning(
+                        f"Attempt {attempt+1} failed: {e}. Retrying in {retry_delay} seconds..."
+                    )
+                    await asyncio.sleep(
+                        retry_delay * (2**attempt)
+                    )  # Exponential backoff
+
+        return wrapper
+
+    return decorator
+
+
+# Define a reconnect function
+async def reconnect_bluesky_client() -> Client:
+    """Reconnect to the Bluesky client and return a new client instance"""
+    global at_client
+    try:
+        at_client = Client()
+        at_client.login(BLUESKY_LOGIN, BLUESKY_APP_PASSWORD)
+        return at_client
+    except Exception as e:
+        logging.error(f"Failed to reconnect to Bluesky: {e}")
+        raise
+
+
+@with_retry(max_retries=3)
+async def get_author_feed(actor) -> models.AppBskyFeedGetAuthorFeed.Response:
+    """Get author feed with automatic reconnection on failure"""
+    global at_client
+    try:
+        return at_client.get_author_feed(actor=actor)
+    except Exception as e:
+        # Try to reconnect once within this function
+        logging.warning(f"Error getting author feed, attempting reconnection: {e}")
+        at_client = await reconnect_bluesky_client()
+        return at_client.get_author_feed(actor=actor)
 
 
 class Tasks(Cog):
@@ -45,6 +103,7 @@ class Tasks(Cog):
     @sentry_sdk.monitor()
     async def check_posts(self):
         try:
+            global at_client
             try:
                 last_sync_date_time = xata_client.data().query(
                     "bluesky",
@@ -64,9 +123,7 @@ class Tasks(Cog):
                 return
 
             try:
-                at_client = Client()
-                at_client.login(BLUESKY_LOGIN, BLUESKY_APP_PASSWORD)
-                author_feed = at_client.get_author_feed(actor=BLUESKY_LOGIN)
+                author_feed = await get_author_feed(BLUESKY_LOGIN)
             except Exception as e:
                 sentry_sdk.capture_exception(e)
                 await send_message(
