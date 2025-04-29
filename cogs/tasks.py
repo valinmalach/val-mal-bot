@@ -56,11 +56,6 @@ class Tasks(Cog):
                 )["records"][0]["date"]
             except ConnectionError as e:
                 sentry_sdk.capture_exception(e)
-                await send_message(
-                    f"Failed to get last sync date time: {e}",
-                    self.bot,
-                    BOT_ADMIN_CHANNEL,
-                )
                 return
 
             try:
@@ -69,11 +64,6 @@ class Tasks(Cog):
                 author_feed = at_client.get_author_feed(actor=BLUESKY_LOGIN)
             except Exception as e:
                 sentry_sdk.capture_exception(e)
-                await send_message(
-                    f"Failed to get author feed: {e}",
-                    self.bot,
-                    BOT_ADMIN_CHANNEL,
-                )
                 return
 
             posts = sorted(
