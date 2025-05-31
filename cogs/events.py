@@ -1,24 +1,32 @@
 import os
 import random
 from datetime import datetime
+from typing import Union
 
 import discord
 import sentry_sdk
 from discord import (
+    CategoryChannel,
     Embed,
+    ForumChannel,
     Guild,
     Invite,
     Member,
     Message,
+    Object,
     RawBulkMessageDeleteEvent,
     RawMemberRemoveEvent,
     RawMessageDeleteEvent,
     RawMessageUpdateEvent,
     RawReactionActionEvent,
     Role,
+    StageChannel,
     TextChannel,
+    Thread,
     User,
+    VoiceChannel,
 )
+from discord.abc import PrivateChannel
 from discord.ext.commands import Bot, Cog, CommandError, Context
 from dotenv import load_dotenv
 from xata import XataClient
@@ -26,12 +34,15 @@ from xata import XataClient
 from constants import (
     AUDIT_LOGS_CHANNEL,
     BOT_ADMIN_CHANNEL,
+    DEFAULT_MISSING_CONTENT,
+    GUILD_ID,
     MESSAGE_REACTION_ROLE_MAP,
     WEISS_ID,
     WELCOME_CHANNEL,
 )
 from helper import (
     get_age,
+    get_channel_mention,
     get_discriminator,
     get_ordinal_suffix,
     get_pfp,
@@ -44,7 +55,10 @@ load_dotenv()
 XATA_API_KEY = os.getenv("XATA_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
+if not XATA_API_KEY or not DATABASE_URL:
+    xata_client = None
+else:
+    xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
 
 
 class Events(Cog):
@@ -53,35 +67,43 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def on_message(self, message: Message):
         try:
-            message_obj = {
-                "contents": message.content,
-                "guild_id": message.guild.id,
-                "author_id": message.author.id,
-                "channel_id": message.channel.id,
-                "attachment_urls": [
-                    attachment.url for attachment in message.attachments
-                ],
-            }
-            try:
-                resp = xata_client.records().upsert(
-                    "messages", str(message.id), message_obj
-                )
-                if not resp.is_success():
-                    await send_message(
-                        f"Failed to save message {message_obj['id']}: {resp.error_message}",
-                        self.bot,
-                        BOT_ADMIN_CHANNEL,
-                    )
-            except Exception as e:
-                sentry_sdk.capture_exception(e)
+            if xata_client is None:
                 await send_message(
-                    f"Failed to save message {message_obj['id']}: {e}",
+                    f"Xata client is not initialized. Skipping saving message to db: {message.id}",
                     self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
+            else:
+                guild = message.guild
+                guild_id = GUILD_ID if guild is None else guild.id
+                message_obj = {
+                    "contents": message.content,
+                    "guild_id": guild_id,
+                    "author_id": message.author.id,
+                    "channel_id": message.channel.id,
+                    "attachment_urls": [
+                        attachment.url for attachment in message.attachments
+                    ],
+                }
+                try:
+                    resp = xata_client.records().upsert(
+                        "messages", str(message.id), message_obj
+                    )
+                    if not resp.is_success():
+                        await send_message(
+                            f"Failed to save message {message_obj['id']}: {resp.error_message}",
+                            self.bot,
+                            BOT_ADMIN_CHANNEL,
+                        )
+                except Exception as e:
+                    sentry_sdk.capture_exception(e)
+                    await send_message(
+                        f"Failed to save message {message_obj['id']}: {e}",
+                        self.bot,
+                        BOT_ADMIN_CHANNEL,
+                    )
 
             if message.author == self.bot.user:
                 return
@@ -106,7 +128,6 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def on_member_join(self, member: Member):
         try:
             discriminator = get_discriminator(member)
@@ -159,12 +180,19 @@ class Events(Cog):
                 AUDIT_LOGS_CHANNEL,
             )
 
+            if xata_client is None:
+                await send_message(
+                    f"Xata client is not initialized. Skipping insert member into db: {member.id}",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
+                return
             user = {
                 "username": member.name,
                 "birthday": None,
                 "isBirthdayLeap": None,
             }
-            resp = xata_client.records().upsert("users", member.id, user)
+            resp = xata_client.records().upsert("users", str(member.id), user)
             if not resp.is_success():
                 await send_message(
                     f"Failed to insert user {member.name} ({member.id}) into database: {resp.error_message}",
@@ -181,7 +209,6 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def on_raw_member_remove(self, payload: RawMemberRemoveEvent):
         try:
             member = payload.user
@@ -205,7 +232,9 @@ class Events(Cog):
                 WELCOME_CHANNEL,
             )
 
-            triple_nl = "" if member.roles[1:] else "\n\n\n"
+            triple_nl = (
+                "" if isinstance(member, Member) and member.roles[1:] else "\n\n\n"
+            )
             embed = (
                 Embed(
                     description=f"{member.mention} {member.name}{discriminator}{triple_nl}",
@@ -221,7 +250,7 @@ class Events(Cog):
                 )
                 .set_footer(text=f"ID: {member.id}")
             )
-            if member.roles[1:]:
+            if isinstance(member, Member) and member.roles[1:]:
                 embed = embed.add_field(
                     name="**Roles**",
                     value=" ".join([f"{role.mention}" for role in member.roles[1:]]),
@@ -229,12 +258,19 @@ class Events(Cog):
                 )
             await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
+            if xata_client is None:
+                await send_message(
+                    f"Xata client is not initialized. Skipping remove member from db: {member.id}",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
+                return
             user = {
                 "username": member.name,
                 "birthday": None,
                 "isBirthdayLeap": None,
             }
-            resp = xata_client.records().upsert("users", member.id, user)
+            resp = xata_client.records().upsert("users", str(member.id), user)
             if not resp.is_success():
                 await send_message(
                     f"Failed to remove user {member.name} ({member.id}) from database: {resp.error_message}",
@@ -251,14 +287,13 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def on_command_error(self, ctx: Context, error: CommandError):
-        message = f"Command not found: {ctx.message.content}\nSent by: {ctx.author.mention} in {ctx.channel.mention}\n{error}"
+        channel_mention = get_channel_mention(ctx.channel)
+        message = f"Command not found: {ctx.message.content}\nSent by: {ctx.author.mention} in {channel_mention}\n{error}"
         await send_message(message, self.bot, AUDIT_LOGS_CHANNEL)
 
     @Cog.listener()
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
         try:
             await self._toggle_role(payload, True)
@@ -272,7 +307,6 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def on_raw_reaction_remove(self, payload: RawReactionActionEvent):
         try:
             await self._toggle_role(payload, False)
@@ -286,7 +320,6 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def on_member_update(self, before: Member, after: Member):
         try:
             discriminator = get_discriminator(after)
@@ -343,7 +376,6 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent):
         try:
             before = payload.cached_message
@@ -355,34 +387,17 @@ class Events(Cog):
             if before and before.pinned != after.pinned:
                 await self._log_message_pin(after, discriminator, url)
 
+            channel_mention = get_channel_mention(after.channel)
+
             try:
                 if before:
                     before_content = before.content
                 else:
-                    try:
-                        resp = xata_client.records().get("messages", str(after.id))
-                        if resp.is_success():
-                            before_content = resp.get(
-                                "contents",
-                                "`Message content not found in database or cache`",
-                            )
-                        else:
-                            before_content = (
-                                "`Message content not found in database or cache`"
-                            )
-                    except Exception as e:
-                        sentry_sdk.capture_exception(e)
-                        await send_message(
-                            f"Failed to get message {after.id} from database: {e}",
-                            self.bot,
-                            BOT_ADMIN_CHANNEL,
-                        )
-                        before_content = (
-                            "`Message content not found in database or cache`"
-                        )
+                    before_content = self._get_message_content_from_db(after.id)
+
                 after_content = after.content
             except KeyError:
-                message = f"Embed-only edit detected. Audit log not supported.\nMessage ID: {after.id}\nChannel: {after.channel.mention}\n[Jump to Message]({after.jump_url})"
+                message = f"Embed-only edit detected. Audit log not supported.\nMessage ID: {after.id}\nChannel: {channel_mention}\n[Jump to Message]({after.jump_url})"
                 await send_message(
                     message,
                     self.bot,
@@ -393,7 +408,7 @@ class Events(Cog):
             if before_content == after_content:
                 return
 
-            message = f"**Message edited in {after.channel.mention}** [Jump to Message]({after.jump_url})"
+            message = f"**Message edited in {channel_mention}** [Jump to Message]({after.jump_url})"
             embed = (
                 Embed(
                     description=message,
@@ -415,9 +430,18 @@ class Events(Cog):
             )
 
             try:
+                if xata_client is None:
+                    await send_message(
+                        f"Xata client is not initialized. Skipping upsert message in db: {after.id}",
+                        self.bot,
+                        BOT_ADMIN_CHANNEL,
+                    )
+                    return
+                guild = after.guild
+                guild_id = GUILD_ID if guild is None else guild.id
                 after_message_obj = {
                     "contents": after.content,
-                    "guild_id": after.guild.id,
+                    "guild_id": guild_id,
                     "author_id": after.author.id,
                     "channel_id": after.channel.id,
                     "attachment_urls": [
@@ -450,14 +474,16 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent):
         try:
-            guild = self.bot.get_guild(payload.guild_id)
-            async for entry in guild.audit_logs(
-                limit=1, action=discord.AuditLogAction.message_delete
-            ):
-                user_who_deleted = entry.user
+            user_who_deleted = None
+            if payload.guild_id is not None:
+                guild = self.bot.get_guild(payload.guild_id)
+                if guild is not None:
+                    async for entry in guild.audit_logs(
+                        limit=1, action=discord.AuditLogAction.message_delete
+                    ):
+                        user_who_deleted = entry.user
 
             channel = self.bot.get_channel(payload.channel_id)
 
@@ -483,6 +509,13 @@ class Events(Cog):
             )
 
             try:
+                if xata_client is None:
+                    await send_message(
+                        f"Xata client is not initialized. Skipping delete message from db: {payload.message_id}",
+                        self.bot,
+                        BOT_ADMIN_CHANNEL,
+                    )
+                    return
                 resp = xata_client.records().delete("messages", str(payload.message_id))
                 if not resp.is_success():
                     await send_message(
@@ -507,28 +540,48 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def on_raw_bulk_message_delete(self, payload: RawBulkMessageDeleteEvent):
         try:
-            guild = self.bot.get_guild(payload.guild_id)
-            async for entry in guild.audit_logs(
-                limit=1, action=discord.AuditLogAction.message_bulk_delete
-            ):
-                user_who_deleted = entry.user
+            user_who_deleted = None
+            if payload.guild_id is not None:
+                guild = self.bot.get_guild(payload.guild_id)
+                if guild is not None:
+                    async for entry in guild.audit_logs(
+                        limit=1, action=discord.AuditLogAction.message_bulk_delete
+                    ):
+                        user_who_deleted = entry.user
 
-            description = f"**Bulk Delete in {self.bot.get_channel(payload.channel_id).mention}, {len(payload.message_ids)} messages deleted**"
-            discriminator = get_discriminator(user_who_deleted)
-            url = get_pfp(user_who_deleted)
+            channel_mention = get_channel_mention(
+                self.bot.get_channel(payload.channel_id)
+            )
+            description = f"**Bulk Delete in {channel_mention}, {len(payload.message_ids)} messages deleted**"
+
+            if user_who_deleted is None:
+                discriminator = ""
+                url = None
+                user_who_deleted_name = "Unknown User"
+            else:
+                discriminator = get_discriminator(user_who_deleted)
+                url = get_pfp(user_who_deleted)
+                user_who_deleted_name = user_who_deleted.name
+
             embed = Embed(
                 description=description,
                 color=0x337FD5,
                 timestamp=datetime.now(),
             ).set_author(
-                name=f"{user_who_deleted.name}{discriminator}",
+                name=f"{user_who_deleted_name}{discriminator}",
                 icon_url=url,
             )
             await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
+            if xata_client is None:
+                await send_message(
+                    f"Xata client is not initialized. Skipping delete messages from db: {payload.message_ids}",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
+                return
             for message_id in payload.message_ids:
                 try:
                     resp = xata_client.records().delete("messages", str(message_id))
@@ -555,7 +608,6 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def on_member_ban(self, guild: Guild, user: User | Member):
         try:
             discriminator = get_discriminator(user)
@@ -587,7 +639,6 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def on_member_unban(self, guild: Guild, user: User | Member):
         try:
             discriminator = get_discriminator(user)
@@ -619,20 +670,30 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def on_invite_create(self, invite: Invite):
         try:
             guild = invite.guild
-            channel = invite.channel
+            guild_name = (
+                guild.name
+                if guild and not isinstance(guild, Object)
+                else "Unknown Guild"
+            )
+            guild_icon = (
+                guild.icon.url
+                if guild and not isinstance(guild, Object) and guild.icon
+                else None
+            )
+            channel_mention = get_channel_mention(invite.channel) # type: ignore
+            inviter_mention = f" by {invite.inviter.mention}" if invite.inviter else ""
             expiry = get_age(invite.expires_at) if invite.expires_at else "Never"
-            description = f"**Invite [{invite.code}]({invite.url}) to {channel.mention} created by {invite.inviter.mention}**\nExpires in: {expiry}"
+            description = f"**Invite [{invite.code}]({invite.url}) to {channel_mention} created by {inviter_mention}**\nExpires in: {expiry}"
             embed = Embed(
                 description=description,
                 color=0x337FD5,
                 timestamp=datetime.now(),
             ).set_author(
-                name=f"{guild.name}",
-                icon_url=guild.icon.url,
+                name=f"{guild_name}",
+                icon_url=guild_icon,
             )
             await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
         except Exception as e:
@@ -645,18 +706,27 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def on_invite_delete(self, invite: Invite):
         try:
             guild = invite.guild
+            guild_name = (
+                guild.name
+                if guild and not isinstance(guild, Object)
+                else "Unknown Guild"
+            )
+            guild_icon = (
+                guild.icon.url
+                if guild and not isinstance(guild, Object) and guild.icon
+                else None
+            )
             description = f"**Invite [{invite.code}]({invite.url}) deleted**"
             embed = Embed(
                 description=description,
                 color=0xFF470F,
                 timestamp=datetime.now(),
             ).set_author(
-                name=f"{guild.name}",
-                icon_url=guild.icon.url,
+                name=f"{guild_name}",
+                icon_url=guild_icon,
             )
             await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
         except Exception as e:
@@ -668,7 +738,28 @@ class Events(Cog):
             )
 
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
+    async def _get_message_content_from_db(self, message_id: int) -> str:
+        if xata_client is None:
+            await send_message(
+                f"Xata client is not initialized. Skipping get message from db: {message_id}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
+            )
+            return DEFAULT_MISSING_CONTENT
+        try:
+            resp = xata_client.records().get("messages", str(message_id))
+            if resp.is_success():
+                return resp.get("contents", DEFAULT_MISSING_CONTENT)
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            await send_message(
+                f"Failed to get message {message_id} from database: {e}",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
+            )
+        return DEFAULT_MISSING_CONTENT
+
+    @sentry_sdk.trace()
     async def _log_role_change(
         self, member: Member, discriminator: str, url: str, roles: list[Role], add: bool
     ):
@@ -693,7 +784,6 @@ class Events(Cog):
         )
 
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def _log_nickname_change(
         self, member: Member, discriminator: str, url: str, before: str, after: str
     ):
@@ -718,7 +808,6 @@ class Events(Cog):
         )
 
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def _log_pfp_change(self, member: Member, discriminator: str, url: str):
         embed = (
             Embed(
@@ -742,7 +831,6 @@ class Events(Cog):
         )
 
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def _log_timeout(
         self, member: Member, discriminator: str, url: str, timeout: datetime
     ):
@@ -751,7 +839,7 @@ class Events(Cog):
             Embed(
                 description=f"**{member.mention} has been timed out**\nExpires in: {expiry}",
                 color=0x337FD5,
-                timestamp=datetime.datetime.now(),
+                timestamp=datetime.now(),
             )
             .set_author(
                 name=f"{member.name}{discriminator}",
@@ -766,7 +854,6 @@ class Events(Cog):
         )
 
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def _log_untimeout(self, member: Member, discriminator: str, url: str):
         embed = (
             Embed(
@@ -787,9 +874,9 @@ class Events(Cog):
         )
 
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def _log_message_pin(self, message: Message, discriminator: str, url: str):
-        description = f"**Message {"pinned" if message.pinned else "unpinned"} in {message.channel.mention}** [Jump to Message]({message.jump_url})"
+        channel_mention = get_channel_mention(message.channel)
+        description = f"**Message {"pinned" if message.pinned else "unpinned"} in {channel_mention}** [Jump to Message]({message.jump_url})"
         embed = (
             Embed(
                 description=description,
@@ -809,30 +896,38 @@ class Events(Cog):
         )
 
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def _log_deleted_missing_message(
         self,
         message_id: int,
-        user: User | Member,
-        channel: TextChannel,
+        user: User | Member | None,
+        channel: (
+            VoiceChannel
+            | StageChannel
+            | ForumChannel
+            | TextChannel
+            | CategoryChannel
+            | Thread
+            | PrivateChannel
+            | None
+        ),
     ):
-        message_content = "`Message content not found in database or cache`"
-        try:
-            resp = xata_client.records().get("messages", str(message_id))
-            if resp.is_success():
-                message_content = resp.get(
-                    "contents", "`Message content not found in database or cache`"
-                )
-        except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Failed to get message {message_id} from database: {e}",
-                self.bot,
-                BOT_ADMIN_CHANNEL,
-            )
-        discriminator = get_discriminator(user)
-        url = get_pfp(user)
-        description = f"**Message deleted by {user.mention} in {channel.mention}**"
+        message_content = self._get_message_content_from_db(message_id)
+
+        if user is None:
+            discriminator = ""
+            url = None
+            user_mention = "Unknown User"
+            user_name = "Unknown User"
+            user_id = "Unknown ID"
+        else:
+            discriminator = get_discriminator(user)
+            url = get_pfp(user)
+            user_mention = user.mention
+            user_name = user.name
+            user_id = user.id
+
+        channel_mention = get_channel_mention(channel)
+        description = f"**Message deleted by {user_mention} in {channel_mention}**"
         embed = (
             Embed(
                 description=description,
@@ -840,7 +935,7 @@ class Events(Cog):
                 timestamp=datetime.now(),
             )
             .set_author(
-                name=f"{user.name}{discriminator}",
+                name=f"{user_name}{discriminator}",
                 icon_url=url,
             )
             .add_field(
@@ -848,11 +943,18 @@ class Events(Cog):
                 value=f"{message_content}",
                 inline=False,
             )
-            .set_footer(text=f"Deleter: {user.id} | Message ID: {message_id}")
+            .set_footer(text=f"Deleter: {user_id} | Message ID: {message_id}")
         )
         await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
         try:
+            if xata_client is None:
+                await send_message(
+                    f"Xata client is not initialized. Skipping delete message from db: {message_id}",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
+                return
             resp = xata_client.records().delete("messages", str(message_id))
             if not resp.is_success():
                 await send_message(
@@ -869,32 +971,26 @@ class Events(Cog):
             )
 
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def _log_message_delete(
         self,
         message: Message,
         message_id: int,
         author: User | Member,
-        user_who_deleted: User | Member,
-        channel: TextChannel,
+        user_who_deleted: User | Member | None,
+        channel: VoiceChannel | StageChannel | ForumChannel | TextChannel | CategoryChannel | Thread | PrivateChannel | None,
         discriminator: str,
         url: str,
     ):
         try:
             message_content = message.content
         except KeyError:
-            try:
-                resp = xata_client.records().get("messages", str(message_id))
-                if resp.is_success():
-                    message_content = resp.get(
-                        "contents", "`Message content not found in database or cache`"
-                    )
-                else:
-                    message_content = "`Message content not found in database or cache`"
-            except Exception as e:
-                message_content = "`Message content not found in database or cache`"
+            message_content = self._get_message_content_from_db(message_id)
 
-        description = f"**Message sent by {author.mention} deleted by {user_who_deleted.mention} in {channel.mention}**"
+        user_who_deleted_mention = (
+            "" if user_who_deleted is None else f" by {user_who_deleted.mention}"
+        )
+        channel_mention = get_channel_mention(channel)
+        description = f"**Message sent by {author.mention} deleted{user_who_deleted_mention} in {channel_mention}**"
         embed = (
             Embed(
                 description=description,
@@ -917,21 +1013,21 @@ class Events(Cog):
         )
 
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def _log_message_attachments_delete(
         self,
         message: Message,
         message_id: int,
         author: User | Member,
-        channel: TextChannel,
+        channel: VoiceChannel | StageChannel | ForumChannel | TextChannel | CategoryChannel | Thread | PrivateChannel | None,
         discriminator: str,
         url: str,
     ):
         if message.attachments:
+            channel_mention = get_channel_mention(channel)
             for attachment in message.attachments:
                 embed = (
                     Embed(
-                        description=f"**Attachment sent by {author.mention} deleted in {channel.mention}**",
+                        description=f"**Attachment sent by {author.mention} deleted in {channel_mention}**",
                         color=0xFF470F,
                         timestamp=datetime.now(),
                     )
@@ -945,8 +1041,10 @@ class Events(Cog):
                 await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     def _get_member_role_from_payload(self, payload: RawReactionActionEvent):
+        if not payload.guild_id:
+            return None, None
+
         guild = self.bot.get_guild(payload.guild_id)
         if not guild:
             return None, None
@@ -967,7 +1065,6 @@ class Events(Cog):
         return (member, role) if role else (None, None)
 
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def _toggle_role(self, payload: RawReactionActionEvent, add: bool):
         member, role = self._get_member_role_from_payload(payload)
         if not member or not role:

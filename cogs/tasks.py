@@ -27,7 +27,10 @@ BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_APP_PASSWORD")
 XATA_API_KEY = os.getenv("XATA_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
+if not XATA_API_KEY or not DATABASE_URL:
+    xata_client = None
+else:
+    xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
 
 
 class Tasks(Cog):
@@ -42,9 +45,22 @@ class Tasks(Cog):
 
     @tasks.loop(minutes=1)
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
-    async def check_posts(self):
+    async def check_posts(self) -> None:
         try:
+            if xata_client is None:
+                await send_message(
+                    "Xata client is not initialized. Skipping Bluesky posts check.",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
+                return
+            if not BLUESKY_LOGIN or not BLUESKY_APP_PASSWORD:
+                await send_message(
+                    "Bluesky credentials are not set. Skipping Bluesky post check.",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
+                return
             try:
                 last_sync_date_time = xata_client.data().query(
                     "bluesky",
@@ -118,9 +134,15 @@ class Tasks(Cog):
 
     @tasks.loop(time=_quarter_hours)
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
-    async def check_birthdays(self):
+    async def check_birthdays(self) -> None:
         try:
+            if xata_client is None:
+                await send_message(
+                    "Xata client is not initialized. Skipping birthday check.",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
+                return
             now = (
                 datetime.datetime.now(datetime.timezone.utc)
                 .replace(second=0, microsecond=0)
@@ -155,13 +177,29 @@ class Tasks(Cog):
             )
 
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
-    async def _process_birthday_records(self, records: ApiResponse):
+    async def _process_birthday_records(self, records: ApiResponse) -> None:
+        if xata_client is None:
+            await send_message(
+                "Xata client is not initialized. Skipping birthday record processing.",
+                self.bot,
+                BOT_ADMIN_CHANNEL,
+            )
+            return
         now = datetime.datetime.now()
         birthdays_now = records["records"]
         for record in birthdays_now:
             user_id = record["id"]
             user = self.bot.get_user(int(user_id))
+            if user is None:
+                sentry_sdk.capture_message(
+                    f"User with ID {user_id} not found."
+                )
+                await send_message(
+                    f"_process_birthday_records: User with ID {user_id} not found.",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
+                continue
             await send_message(
                 f"Happy Birthday {user.mention}!",
                 self.bot,
@@ -187,5 +225,5 @@ class Tasks(Cog):
                 )
 
 
-async def setup(bot: Bot):
+async def setup(bot: Bot) -> None:
     await bot.add_cog(Tasks(bot))

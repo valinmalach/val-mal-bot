@@ -10,7 +10,7 @@ from discord.ext.commands import Bot, GroupCog
 from dotenv import load_dotenv
 from xata import XataClient
 
-from constants import BOT_ADMIN_CHANNEL, FOLLOWER_ROLE, MAX_DAYS, Months
+from constants import BOT_ADMIN_CHANNEL, FOLLOWER_ROLE, MAX_DAYS, OWNER_ID, Months
 from helper import get_next_leap, send_message, update_birthday
 
 load_dotenv()
@@ -18,7 +18,10 @@ load_dotenv()
 XATA_API_KEY = os.getenv("XATA_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
+if not XATA_API_KEY or not DATABASE_URL:
+    xata_client = None
+else:
+    xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
 
 
 class Birthday(GroupCog):
@@ -33,7 +36,6 @@ class Birthday(GroupCog):
         timezone="Your timezone (Optional. If left blank, will default to GMT+0)",
     )
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def set_birthday(
         self,
         interaction: Interaction,
@@ -107,7 +109,6 @@ class Birthday(GroupCog):
 
     @set_birthday.autocomplete("timezone")
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def timezone_autocomplete(
         self, _: Interaction, current_input: str
     ) -> list[Choice[str]]:
@@ -123,12 +124,16 @@ class Birthday(GroupCog):
     )
     @app_commands.checks.has_role(FOLLOWER_ROLE)
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def remove_birthday(
         self,
         interaction: Interaction,
     ):
         try:
+            if xata_client is None:
+                await self._forget_birthday_failed(
+                    interaction, "Xata client is not initialized."
+                )
+                return
             try:
                 existing_user = xata_client.records().get(
                     "users", str(interaction.user.id)
@@ -172,13 +177,17 @@ class Birthday(GroupCog):
             await self._forget_birthday_failed(interaction, e)
 
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def _set_birthday_failed(
         self, interaction: Interaction, e: Exception | str | None
     ):
+        mention = (
+            interaction.guild.owner.mention
+            if interaction.guild and interaction.guild.owner
+            else f"<@{OWNER_ID}>"
+        )
         await interaction.response.send_message(
             "Sorry, it seems like I couldn't set your birthday...\n\n"
-            + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
+            + f"# {mention} FIX MEEEE!!!"
         )
         await send_message(
             f"Failed to set birthday for {interaction.user.name}: {e}",
@@ -187,13 +196,17 @@ class Birthday(GroupCog):
         )
 
     @sentry_sdk.trace()
-    @sentry_sdk.monitor()
     async def _forget_birthday_failed(
         self, interaction: Interaction, e: Exception | str | None
     ):
+        mention = (
+            interaction.guild.owner.mention
+            if interaction.guild and interaction.guild.owner
+            else f"<@{OWNER_ID}>"
+        )
         await interaction.response.send_message(
             "Oops, it seems like I couldn't forget your birthday...\n\n"
-            + f"# {interaction.guild.owner.mention} FIX MEEEE!!!"
+            + f"# {mention} FIX MEEEE!!!"
         )
         await send_message(
             f"Failed to remove birthday for {interaction.user.name}: {e}",

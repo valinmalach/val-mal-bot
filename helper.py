@@ -1,43 +1,73 @@
-import datetime
+import hashlib
+import hmac
+from datetime import datetime, timezone
 from functools import cache
+from typing import Optional, Union
 
 import sentry_sdk
 from dateutil import relativedelta
-from discord import Embed, Member
+from dateutil.parser import isoparse
+from discord import (
+    CategoryChannel,
+    DMChannel,
+    Embed,
+    ForumChannel,
+    GroupChannel,
+    Member,
+    Object,
+    PartialInviteChannel,
+    PartialMessageable,
+    StageChannel,
+    TextChannel,
+    Thread,
+    User,
+    VoiceChannel,
+)
+from discord.abc import PrivateChannel
 from discord.ext.commands import Bot
 from xata import XataClient
+from discord.ui import View
 
 
 @sentry_sdk.trace()
-@sentry_sdk.monitor()
-async def send_message(message: str, bot: Bot, channel_id: int):
-    await bot.get_channel(channel_id).send(message)
+async def send_message(message: str, bot: Bot, channel_id: int) -> Optional[int]:
+    channel = bot.get_channel(channel_id)
+    if channel is None or isinstance(
+        channel, (ForumChannel, CategoryChannel, PrivateChannel)
+    ):
+        return None
+    return (await channel.send(message)).id
 
 
 @sentry_sdk.trace()
-@sentry_sdk.monitor()
-async def send_embed(embed: Embed, bot: Bot, channel_id: int):
-    await bot.get_channel(channel_id).send(embed=embed)
+async def send_embed(embed: Embed, bot: Bot, channel_id: int, view: Optional[View] = None) -> Optional[int]:
+    channel = bot.get_channel(channel_id)
+    if channel is None or isinstance(
+        channel, (ForumChannel, CategoryChannel, PrivateChannel)
+    ):
+        return None
+    if view:
+        return (await channel.send(embed=embed, view=view)).id
+    return (await channel.send(embed=embed)).id
 
 
 @sentry_sdk.trace()
-@sentry_sdk.monitor()
-def get_pfp(member: Member) -> str:
+def get_pfp(member: User | Member) -> str:
     return member.avatar.url if member.avatar else member.default_avatar.url
 
 
 @sentry_sdk.trace()
-@sentry_sdk.monitor()
-def get_discriminator(member: Member) -> str:
+def get_discriminator(member: User | Member) -> str:
     return "" if member.discriminator == "0" else f"#{member.discriminator}"
 
 
 @sentry_sdk.trace()
-@sentry_sdk.monitor()
 def update_birthday(
-    xata_client: XataClient, user_id: str, record: dict[str, str]
+    xata_client: XataClient | None, user_id: str, record: dict[str, str]
 ) -> tuple[bool, Exception | None]:
     try:
+        if xata_client is None:
+            return False, Exception("Xata client is not initialized.")
         resp = xata_client.records().upsert("users", user_id, record)
         return resp.is_success(), None
     except Exception as e:
@@ -46,9 +76,37 @@ def update_birthday(
 
 
 @sentry_sdk.trace()
-@sentry_sdk.monitor()
+def get_channel_mention(
+    channel: (
+        VoiceChannel
+        | StageChannel
+        | ForumChannel
+        | TextChannel
+        | CategoryChannel
+        | PartialInviteChannel
+        | DMChannel
+        | PartialMessageable
+        | GroupChannel
+        | Thread
+        | PrivateChannel
+        | Object
+        | None
+    ),
+) -> str:
+    if channel is None or isinstance(channel, Object):
+        return "Unknown Channel"
+    if isinstance(channel, GroupChannel):
+        return f"{channel.name}"
+    if isinstance(channel, DMChannel):
+        return "a DM"
+    if isinstance(channel, PrivateChannel):
+        return "a private channel"
+    return f"{channel.mention}"
+
+
+@sentry_sdk.trace()
 def get_age(date_time: datetime) -> str:
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.now(timezone.utc)
     if date_time <= now:
         age = relativedelta.relativedelta(now, date_time)
     else:
@@ -86,14 +144,12 @@ def get_age(date_time: datetime) -> str:
 
 
 @sentry_sdk.trace()
-@sentry_sdk.monitor()
 @cache
 def is_leap(year: int) -> bool:
     return (year % 400 == 0) or (year % 100 != 0) and (year % 4 == 0)
 
 
 @sentry_sdk.trace()
-@sentry_sdk.monitor()
 @cache
 def get_next_leap(year: int) -> int:
     while not is_leap(year):
@@ -102,7 +158,6 @@ def get_next_leap(year: int) -> int:
 
 
 @sentry_sdk.trace()
-@sentry_sdk.monitor()
 @cache
 def get_ordinal_suffix(n: int) -> str:
     if 10 <= n % 100 <= 13:
@@ -118,7 +173,38 @@ def get_ordinal_suffix(n: int) -> str:
 
 
 @sentry_sdk.trace()
-@sentry_sdk.monitor()
 @cache
 def format_unit(value: int, unit: str) -> str:
     return f"{value} {f'{unit}s' if value != 1 else unit}"
+
+
+@sentry_sdk.trace()
+@cache
+def get_hmac_message(
+    twitch_message_id: str, twitch_message_timestamp: str, body: str
+) -> str:
+    return twitch_message_id + twitch_message_timestamp + body
+
+
+@sentry_sdk.trace()
+@cache
+def get_hmac(secret: str, message: str) -> str:
+    return hmac.new(
+        secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+
+
+@sentry_sdk.trace()
+@cache
+def verify_message(hmac_str: str, verify_signature: str) -> bool:
+    return hmac.compare_digest(hmac_str, verify_signature)
+
+
+@sentry_sdk.trace()
+@cache
+def parse_rfc3339(date_str: str) -> datetime:
+    """
+    Parse an RFC3339 / ISO-8601 timestamp (e.g. '2025-05-31T12:34:56Z')
+    and return a timezone-aware datetime.
+    """
+    return isoparse(date_str)

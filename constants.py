@@ -13,9 +13,12 @@ BLUESKY_ROLE = 1345584502805626973
 FOLLOWER_ROLE = 1291769015190032435
 LIVE_ALERTS_ROLE = 1292348044888768605
 
+OWNER_ID = 389318636201967628
 WEISS_ID = 1131782416260935810
 
 COGS = ["cogs.admin", "cogs.birthday", "cogs.events", "cogs.tasks"]
+
+DEFAULT_MISSING_CONTENT = "`Message content not found in database or cache`"
 
 
 class Months(Enum):

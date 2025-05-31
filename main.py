@@ -1,10 +1,10 @@
+from typing import Any
+
 import truststore
 
 truststore.inject_into_ssl()
 
 import asyncio
-import hashlib
-import hmac
 import os
 
 import discord
@@ -19,9 +19,8 @@ from discord.ext.commands.errors import (
     NoEntryPointError,
 )
 from dotenv import load_dotenv
-from quart import Quart, request
+from quart import Quart, ResponseReturnValue, request
 from sentry_sdk.integrations.quart import QuartIntegration
-from werkzeug.datastructures import Headers
 
 from constants import (
     BOT_ADMIN_CHANNEL,
@@ -30,7 +29,8 @@ from constants import (
     LIVE_ALERTS_ROLE,
     STREAM_ALERTS_CHANNEL,
 )
-from helper import send_message
+from helper import get_hmac, get_hmac_message, send_message, verify_message
+from models.stream_online_event_sub import StreamOnlineEventSub
 
 load_dotenv()
 
@@ -51,7 +51,7 @@ sentry_sdk.init(
     profile_lifecycle="trace",
 )
 
-sentry_sdk.profiler.start_profiler()
+sentry_sdk.profiler.start_profiler()  # type: ignore
 
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -68,11 +68,11 @@ HMAC_PREFIX = "sha256="
 
 
 class MyBot(Bot):
-    def __init__(self, *, command_prefix: str, intents: discord.Intents):
+    def __init__(self, *, command_prefix: str, intents: discord.Intents) -> None:
         super().__init__(command_prefix=command_prefix, intents=intents)
         self.case_insensitive = True
 
-    async def setup_hook(self):
+    async def setup_hook(self) -> None:
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
 
@@ -82,15 +82,13 @@ bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 @bot.event
 @sentry_sdk.trace()
-@sentry_sdk.monitor()
-async def on_ready():
+async def on_ready() -> None:
     await send_message("Started successfully!", bot, BOT_ADMIN_CHANNEL)
 
 
 @bot.tree.command(description="Reload all extensions")
 @discord.app_commands.commands.default_permissions(administrator=True)
 @sentry_sdk.trace()
-@sentry_sdk.monitor()
 async def reload(interaction: discord.Interaction):
     try:
         await interaction.response.send_message("Reloading extensions...")
@@ -117,9 +115,10 @@ async def reload(interaction: discord.Interaction):
 
 
 @sentry_sdk.trace()
-@sentry_sdk.monitor()
 async def main():
     try:
+        if not DISCORD_TOKEN:
+            raise ValueError("DISCORD_TOKEN is not set in the environment variables.")
         bot.remove_command("help")
         for ext in COGS:
             try:
@@ -141,26 +140,6 @@ async def main():
         print(f"Error connecting the bot: {e}")
 
 
-@sentry_sdk.trace()
-@sentry_sdk.monitor()
-def get_hmac_message(headers: Headers, body: str) -> str:
-    return headers[TWITCH_MESSAGE_ID] + headers[TWITCH_MESSAGE_TIMESTAMP] + body
-
-
-@sentry_sdk.trace()
-@sentry_sdk.monitor()
-def get_hmac(secret: str, message: str) -> str:
-    return hmac.new(
-        secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
-    ).hexdigest()
-
-
-@sentry_sdk.trace()
-@sentry_sdk.monitor()
-def verify_message(hmac_str: str, verify_signature: str) -> bool:
-    return hmac.compare_digest(hmac_str, verify_signature)
-
-
 app = Quart(__name__)
 
 
@@ -170,20 +149,26 @@ async def before_serving():
 
 
 @app.route("/webhook/twitch", methods=["POST"])
-async def twitch_webhook():
+async def twitch_webhook() -> ResponseReturnValue:
     try:
         headers = request.headers
-        body_str = await request.get_data(as_text=True)
-        body: dict[str, str | dict[str, str]] = await request.get_json()
+        body: dict[str, Any] = await request.get_json()
 
         if headers.get(TWITCH_MESSAGE_TYPE) == "webhook_callback_verification":
-            return body["challenge"]
+            return body.get("challenge", "") or ""
 
-        message = get_hmac_message(headers, body_str)
+        twitch_message_id = headers.get(TWITCH_MESSAGE_ID, "")
+        twitch_message_timestamp = headers.get(TWITCH_MESSAGE_TIMESTAMP, "")
+        body_str = await request.get_data(as_text=True)
+        message = get_hmac_message(
+            twitch_message_id, twitch_message_timestamp, body_str
+        )
         secret_hmac = HMAC_PREFIX + get_hmac(TWITCH_WEBHOOK_SECRET, message)
 
-        if verify_message(secret_hmac, headers[TWITCH_MESSAGE_SIGNATURE]):
-            if body.get("subscription", {}).get("type", "") == "stream.online":
+        twitch_message_signature = headers.get(TWITCH_MESSAGE_SIGNATURE, "")
+        if verify_message(secret_hmac, twitch_message_signature):
+            event_sub = StreamOnlineEventSub.model_validate(body)
+            if event_sub.subscription.type == "stream.online":
                 await send_message(
                     f"<@&{LIVE_ALERTS_ROLE}> Valin has gone live!\n"
                     + "Come join at https://www.twitch.tv/valinmalach",
