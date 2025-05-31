@@ -163,3 +163,4 @@ xata_init.py
 test.py
 setup.cfg
 upgrade_pip_packages.py
+*.code-workspace
