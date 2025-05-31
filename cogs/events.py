@@ -1,7 +1,6 @@
 import os
 import random
 from datetime import datetime
-from typing import Union
 
 import discord
 import sentry_sdk
@@ -62,12 +61,12 @@ else:
 
 
 class Events(Cog):
-    def __init__(self, bot: Bot):
+    def __init__(self, bot: Bot) -> None:
         self.bot = bot
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_message(self, message: Message):
+    async def on_message(self, message: Message) -> None:
         try:
             if xata_client is None:
                 await send_message(
@@ -128,7 +127,7 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_member_join(self, member: Member):
+    async def on_member_join(self, member: Member) -> None:
         try:
             discriminator = get_discriminator(member)
             url = get_pfp(member)
@@ -209,7 +208,7 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_raw_member_remove(self, payload: RawMemberRemoveEvent):
+    async def on_raw_member_remove(self, payload: RawMemberRemoveEvent) -> None:
         try:
             member = payload.user
             discriminator = get_discriminator(member)
@@ -287,14 +286,14 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_command_error(self, ctx: Context, error: CommandError):
+    async def on_command_error(self, ctx: Context, error: CommandError) -> None:
         channel_mention = get_channel_mention(ctx.channel)
         message = f"Command not found: {ctx.message.content}\nSent by: {ctx.author.mention} in {channel_mention}\n{error}"
         await send_message(message, self.bot, AUDIT_LOGS_CHANNEL)
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
+    async def on_raw_reaction_add(self, payload: RawReactionActionEvent) -> None:
         try:
             await self._toggle_role(payload, True)
         except Exception as e:
@@ -307,7 +306,7 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_raw_reaction_remove(self, payload: RawReactionActionEvent):
+    async def on_raw_reaction_remove(self, payload: RawReactionActionEvent) -> None:
         try:
             await self._toggle_role(payload, False)
         except Exception as e:
@@ -320,7 +319,7 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_member_update(self, before: Member, after: Member):
+    async def on_member_update(self, before: Member, after: Member) -> None:
         try:
             discriminator = get_discriminator(after)
             url = get_pfp(after)
@@ -376,7 +375,7 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_raw_message_edit(self, payload: RawMessageUpdateEvent):
+    async def on_raw_message_edit(self, payload: RawMessageUpdateEvent) -> None:
         try:
             before = payload.cached_message
             after = payload.message
@@ -474,7 +473,7 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_raw_message_delete(self, payload: RawMessageDeleteEvent):
+    async def on_raw_message_delete(self, payload: RawMessageDeleteEvent) -> None:
         try:
             user_who_deleted = None
             if payload.guild_id is not None:
@@ -540,7 +539,7 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_raw_bulk_message_delete(self, payload: RawBulkMessageDeleteEvent):
+    async def on_raw_bulk_message_delete(self, payload: RawBulkMessageDeleteEvent) -> None:
         try:
             user_who_deleted = None
             if payload.guild_id is not None:
@@ -608,7 +607,7 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_member_ban(self, guild: Guild, user: User | Member):
+    async def on_member_ban(self, guild: Guild, user: User | Member) -> None:
         try:
             discriminator = get_discriminator(user)
             url = get_pfp(user)
@@ -639,7 +638,7 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_member_unban(self, guild: Guild, user: User | Member):
+    async def on_member_unban(self, guild: Guild, user: User | Member) -> None:
         try:
             discriminator = get_discriminator(user)
             url = get_pfp(user)
@@ -670,7 +669,7 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_invite_create(self, invite: Invite):
+    async def on_invite_create(self, invite: Invite) -> None:
         try:
             guild = invite.guild
             guild_name = (
@@ -683,7 +682,7 @@ class Events(Cog):
                 if guild and not isinstance(guild, Object) and guild.icon
                 else None
             )
-            channel_mention = get_channel_mention(invite.channel) # type: ignore
+            channel_mention = get_channel_mention(invite.channel)
             inviter_mention = f" by {invite.inviter.mention}" if invite.inviter else ""
             expiry = get_age(invite.expires_at) if invite.expires_at else "Never"
             description = f"**Invite [{invite.code}]({invite.url}) to {channel_mention} created by {inviter_mention}**\nExpires in: {expiry}"
@@ -706,7 +705,7 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_invite_delete(self, invite: Invite):
+    async def on_invite_delete(self, invite: Invite) -> None:
         try:
             guild = invite.guild
             guild_name = (
@@ -762,7 +761,7 @@ class Events(Cog):
     @sentry_sdk.trace()
     async def _log_role_change(
         self, member: Member, discriminator: str, url: str, roles: list[Role], add: bool
-    ):
+    ) -> None:
         roles_str = " ".join([role.mention for role in roles])
         message = f"**{member.mention} was {"given" if add else "removed from"} the role{"" if len(roles) == 1 else "s"} {roles_str}**"
         embed = (
@@ -786,7 +785,7 @@ class Events(Cog):
     @sentry_sdk.trace()
     async def _log_nickname_change(
         self, member: Member, discriminator: str, url: str, before: str, after: str
-    ):
+    ) -> None:
         embed = (
             Embed(
                 description=f"**{member.mention} changed their nickname**",
@@ -808,7 +807,7 @@ class Events(Cog):
         )
 
     @sentry_sdk.trace()
-    async def _log_pfp_change(self, member: Member, discriminator: str, url: str):
+    async def _log_pfp_change(self, member: Member, discriminator: str, url: str) -> None:
         embed = (
             Embed(
                 description=f"**{member.mention} changed their profile picture**",
@@ -833,7 +832,7 @@ class Events(Cog):
     @sentry_sdk.trace()
     async def _log_timeout(
         self, member: Member, discriminator: str, url: str, timeout: datetime
-    ):
+    ) -> None:
         expiry = get_age(timeout)
         embed = (
             Embed(
@@ -854,7 +853,7 @@ class Events(Cog):
         )
 
     @sentry_sdk.trace()
-    async def _log_untimeout(self, member: Member, discriminator: str, url: str):
+    async def _log_untimeout(self, member: Member, discriminator: str, url: str) -> None:
         embed = (
             Embed(
                 description=f"**{member.mention}'s timeout has been removed**",
@@ -874,7 +873,7 @@ class Events(Cog):
         )
 
     @sentry_sdk.trace()
-    async def _log_message_pin(self, message: Message, discriminator: str, url: str):
+    async def _log_message_pin(self, message: Message, discriminator: str, url: str) -> None:
         channel_mention = get_channel_mention(message.channel)
         description = f"**Message {"pinned" if message.pinned else "unpinned"} in {channel_mention}** [Jump to Message]({message.jump_url})"
         embed = (
@@ -910,7 +909,7 @@ class Events(Cog):
             | PrivateChannel
             | None
         ),
-    ):
+    ) -> None:
         message_content = self._get_message_content_from_db(message_id)
 
         if user is None:
@@ -980,7 +979,7 @@ class Events(Cog):
         channel: VoiceChannel | StageChannel | ForumChannel | TextChannel | CategoryChannel | Thread | PrivateChannel | None,
         discriminator: str,
         url: str,
-    ):
+    ) -> None:
         try:
             message_content = message.content
         except KeyError:
@@ -1021,7 +1020,7 @@ class Events(Cog):
         channel: VoiceChannel | StageChannel | ForumChannel | TextChannel | CategoryChannel | Thread | PrivateChannel | None,
         discriminator: str,
         url: str,
-    ):
+    ) -> None:
         if message.attachments:
             channel_mention = get_channel_mention(channel)
             for attachment in message.attachments:
@@ -1041,7 +1040,7 @@ class Events(Cog):
                 await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
     @sentry_sdk.trace()
-    def _get_member_role_from_payload(self, payload: RawReactionActionEvent):
+    def _get_member_role_from_payload(self, payload: RawReactionActionEvent) -> tuple[Member | None, Role | None]:
         if not payload.guild_id:
             return None, None
 
@@ -1065,7 +1064,7 @@ class Events(Cog):
         return (member, role) if role else (None, None)
 
     @sentry_sdk.trace()
-    async def _toggle_role(self, payload: RawReactionActionEvent, add: bool):
+    async def _toggle_role(self, payload: RawReactionActionEvent, add: bool) -> None:
         member, role = self._get_member_role_from_payload(payload)
         if not member or not role:
             return
@@ -1076,5 +1075,5 @@ class Events(Cog):
             await member.remove_roles(role)
 
 
-async def setup(bot: Bot):
+async def setup(bot: Bot) -> None:
     await bot.add_cog(Events(bot))

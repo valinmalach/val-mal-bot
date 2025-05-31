@@ -2,7 +2,7 @@ import hashlib
 import hmac
 from datetime import datetime, timezone
 from functools import cache
-from typing import Optional, Union
+from typing import Optional
 
 import sentry_sdk
 from dateutil import relativedelta
@@ -23,10 +23,10 @@ from discord import (
     User,
     VoiceChannel,
 )
-from discord.abc import PrivateChannel
+from discord.abc import GuildChannel, PrivateChannel
 from discord.ext.commands import Bot
-from xata import XataClient
 from discord.ui import View
+from xata import XataClient
 
 
 @sentry_sdk.trace()
@@ -40,7 +40,9 @@ async def send_message(message: str, bot: Bot, channel_id: int) -> Optional[int]
 
 
 @sentry_sdk.trace()
-async def send_embed(embed: Embed, bot: Bot, channel_id: int, view: Optional[View] = None) -> Optional[int]:
+async def send_embed(
+    embed: Embed, bot: Bot, channel_id: int, view: Optional[View] = None
+) -> Optional[int]:
     channel = bot.get_channel(channel_id)
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
@@ -89,6 +91,7 @@ def get_channel_mention(
         | GroupChannel
         | Thread
         | PrivateChannel
+        | GuildChannel
         | Object
         | None
     ),

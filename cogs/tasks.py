@@ -34,7 +34,7 @@ else:
 
 
 class Tasks(Cog):
-    def __init__(self, bot: Bot):
+    def __init__(self, bot: Bot) -> None:
         self.bot = bot
         self.check_posts.start()
         self.check_birthdays.start()

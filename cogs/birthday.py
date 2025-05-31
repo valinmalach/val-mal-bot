@@ -25,7 +25,7 @@ else:
 
 
 class Birthday(GroupCog):
-    def __init__(self, bot: Bot):
+    def __init__(self, bot: Bot) -> None:
         self.bot = bot
 
     @app_commands.command(name="set", description="Set your birthday")
@@ -42,7 +42,7 @@ class Birthday(GroupCog):
         month: Months,
         day: Range[int, 1, 31],
         timezone: str = "UTC",
-    ):
+    ) -> None:
         try:
             if timezone not in pytz.all_timezones:
                 await interaction.response.send_message(
@@ -127,7 +127,7 @@ class Birthday(GroupCog):
     async def remove_birthday(
         self,
         interaction: Interaction,
-    ):
+    ) -> None:
         try:
             if xata_client is None:
                 await self._forget_birthday_failed(
@@ -179,7 +179,7 @@ class Birthday(GroupCog):
     @sentry_sdk.trace()
     async def _set_birthday_failed(
         self, interaction: Interaction, e: Exception | str | None
-    ):
+    ) -> None:
         mention = (
             interaction.guild.owner.mention
             if interaction.guild and interaction.guild.owner
@@ -198,7 +198,7 @@ class Birthday(GroupCog):
     @sentry_sdk.trace()
     async def _forget_birthday_failed(
         self, interaction: Interaction, e: Exception | str | None
-    ):
+    ) -> None:
         mention = (
             interaction.guild.owner.mention
             if interaction.guild and interaction.guild.owner
@@ -215,5 +215,5 @@ class Birthday(GroupCog):
         )
 
 
-async def setup(bot: Bot):
+async def setup(bot: Bot) -> None:
     await bot.add_cog(Birthday(bot))
