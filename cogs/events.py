@@ -392,7 +392,7 @@ class Events(Cog):
                 if before:
                     before_content = before.content
                 else:
-                    before_content = self._get_message_content_from_db(after.id)
+                    before_content = await self._get_message_content_from_db(after.id)
 
                 after_content = after.content
             except KeyError:
@@ -910,7 +910,7 @@ class Events(Cog):
             | None
         ),
     ) -> None:
-        message_content = self._get_message_content_from_db(message_id)
+        message_content = await self._get_message_content_from_db(message_id)
 
         if user is None:
             discriminator = ""
@@ -983,7 +983,7 @@ class Events(Cog):
         try:
             message_content = message.content
         except KeyError:
-            message_content = self._get_message_content_from_db(message_id)
+            message_content = await self._get_message_content_from_db(message_id)
 
         user_who_deleted_mention = (
             "" if user_who_deleted is None else f" by {user_who_deleted.mention}"
