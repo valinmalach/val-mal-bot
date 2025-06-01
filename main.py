@@ -137,7 +137,7 @@ async def get_user(id: str) -> Optional[UserInfo]:
     if not access_token:
         refresh_success = await refresh_access_token()
         if not refresh_success:
-            return None
+            return
 
     url = f"https://api.twitch.tv/helix/users?id={id}"
     headers = {
@@ -150,13 +150,13 @@ async def get_user(id: str) -> Optional[UserInfo]:
             headers["Authorization"] = f"Bearer {access_token}"
             response = requests.get(url, headers=headers)
         else:
-            return None
+            return
     if response.status_code != 200:
         await send_message(
             f"Failed to fetch user info: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
         )
-        return None
+        return
     user_info_response = UserInfoResponse.model_validate(response.json())
     return user_info_response.data[0] if user_info_response.data else None
 
@@ -167,7 +167,7 @@ async def get_channel(id: str) -> Optional[ChannelInfo]:
     if not access_token:
         refresh_success = await refresh_access_token()
         if not refresh_success:
-            return None
+            return
 
     url = f"https://api.twitch.tv/helix/channels?broadcaster_id={id}"
     headers = {
@@ -180,13 +180,13 @@ async def get_channel(id: str) -> Optional[ChannelInfo]:
             headers["Authorization"] = f"Bearer {access_token}"
             response = requests.get(url, headers=headers)
         else:
-            return None
+            return
     if response.status_code != 200:
         await send_message(
             f"Failed to fetch channel info: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
         )
-        return None
+        return
     channel_info_response = ChannelInfoResponse.model_validate(response.json())
     return channel_info_response.data[0] if channel_info_response.data else None
 
@@ -197,7 +197,7 @@ async def get_stream_info(broadcaster_id: str) -> Optional[StreamInfo]:
     if not access_token:
         refresh_success = await refresh_access_token()
         if not refresh_success:
-            return None
+            return
 
     url = f"https://api.twitch.tv/helix/streams?user_id={broadcaster_id}"
     headers = {
@@ -210,13 +210,13 @@ async def get_stream_info(broadcaster_id: str) -> Optional[StreamInfo]:
             headers["Authorization"] = f"Bearer {access_token}"
             response = requests.get(url, headers=headers)
         else:
-            return None
+            return
     if response.status_code != 200:
         await send_message(
             f"Failed to fetch stream info: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
         )
-        return None
+        return
     stream_info_response = StreamInfoResponse.model_validate(response.json())
     return stream_info_response.data[0] if stream_info_response.data else None
 

@@ -36,7 +36,7 @@ async def send_message(message: str, channel_id: int) -> Optional[int]:
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
     ):
-        return None
+        return
     return (await channel.send(message)).id
 
 
@@ -48,7 +48,7 @@ async def send_embed(
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
     ):
-        return None
+        return
     if view:
         return (await channel.send(embed=embed, view=view)).id
     return (await channel.send(embed=embed)).id
