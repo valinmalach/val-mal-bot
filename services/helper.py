@@ -26,8 +26,7 @@ from discord import (
 from discord.abc import GuildChannel, PrivateChannel
 from discord.ui import View
 
-from init.bot_init import bot
-from init.xata_init import xata_client
+from init import bot, xata_client
 
 
 @sentry_sdk.trace()

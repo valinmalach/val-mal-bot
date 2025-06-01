@@ -8,8 +8,8 @@ from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
 
 from constants import BOT_ADMIN_CHANNEL, FOLLOWER_ROLE, MAX_DAYS, OWNER_ID, Months
-from init.xata_init import xata_client
-from services.helper import get_next_leap, send_message, update_birthday
+from init import xata_client
+from services import get_next_leap, send_message, update_birthday
 
 
 class Birthday(GroupCog):

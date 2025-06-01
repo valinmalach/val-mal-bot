@@ -36,8 +36,8 @@ from constants import (
     WEISS_ID,
     WELCOME_CHANNEL,
 )
-from init.xata_init import xata_client
-from services.helper import (
+from init import xata_client
+from services import (
     get_age,
     get_channel_mention,
     get_discriminator,

@@ -16,8 +16,8 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     SHOUTOUTS_CHANNEL,
 )
-from init.xata_init import xata_client
-from services.helper import get_next_leap, send_message, update_birthday
+from init import xata_client
+from services import get_next_leap, send_message, update_birthday
 
 load_dotenv()
 
