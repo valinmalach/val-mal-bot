@@ -191,9 +191,7 @@ class Tasks(Cog):
             user_id = record["id"]
             user = self.bot.get_user(int(user_id))
             if user is None:
-                sentry_sdk.capture_message(
-                    f"User with ID {user_id} not found."
-                )
+                sentry_sdk.capture_message(f"User with ID {user_id} not found.")
                 await send_message(
                     f"_process_birthday_records: User with ID {user_id} not found.",
                     self.bot,

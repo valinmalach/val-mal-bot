@@ -157,11 +157,11 @@ def get_age(date_time: datetime) -> str:
         if days := days % 7:
             parts.append(format_unit(days, "day"))
         if hours:
-            parts.append(format_unit(hours, "hr"))
+            parts.append(format_unit(hours, "hour"))
         if minutes:
-            parts.append(format_unit(minutes, "min"))
+            parts.append(format_unit(minutes, "minute"))
         if seconds or not parts:
-            parts.append(format_unit(seconds, "sec"))
+            parts.append(format_unit(seconds, "second"))
     return ", ".join(parts)
 
 
