@@ -539,7 +539,9 @@ class Events(Cog):
 
     @Cog.listener()
     @sentry_sdk.trace()
-    async def on_raw_bulk_message_delete(self, payload: RawBulkMessageDeleteEvent) -> None:
+    async def on_raw_bulk_message_delete(
+        self, payload: RawBulkMessageDeleteEvent
+    ) -> None:
         try:
             user_who_deleted = None
             if payload.guild_id is not None:
@@ -684,8 +686,12 @@ class Events(Cog):
             )
             channel_mention = get_channel_mention(invite.channel)
             inviter_mention = f" by {invite.inviter.mention}" if invite.inviter else ""
-            expiry = get_age(invite.expires_at) if invite.expires_at else "Never"
-            description = f"**Invite [{invite.code}]({invite.url}) to {channel_mention} created by {inviter_mention}**\nExpires in: {expiry}"
+            expiry = (
+                f"<t:{int(invite.expires_at.timestamp())}:R>"
+                if invite.expires_at
+                else "Never"
+            )
+            description = f"**Invite [{invite.code}]({invite.url}) to {channel_mention} created by {inviter_mention}**\nExpires: {expiry}"
             embed = Embed(
                 description=description,
                 color=0x337FD5,
@@ -807,7 +813,9 @@ class Events(Cog):
         )
 
     @sentry_sdk.trace()
-    async def _log_pfp_change(self, member: Member, discriminator: str, url: str) -> None:
+    async def _log_pfp_change(
+        self, member: Member, discriminator: str, url: str
+    ) -> None:
         embed = (
             Embed(
                 description=f"**{member.mention} changed their profile picture**",
@@ -833,10 +841,10 @@ class Events(Cog):
     async def _log_timeout(
         self, member: Member, discriminator: str, url: str, timeout: datetime
     ) -> None:
-        expiry = get_age(timeout)
+        expiry = f"<t:{int(timeout.timestamp())}:R>"
         embed = (
             Embed(
-                description=f"**{member.mention} has been timed out**\nExpires in: {expiry}",
+                description=f"**{member.mention} has been timed out**\nExpires {expiry}",
                 color=0x337FD5,
                 timestamp=datetime.now(),
             )
@@ -853,7 +861,9 @@ class Events(Cog):
         )
 
     @sentry_sdk.trace()
-    async def _log_untimeout(self, member: Member, discriminator: str, url: str) -> None:
+    async def _log_untimeout(
+        self, member: Member, discriminator: str, url: str
+    ) -> None:
         embed = (
             Embed(
                 description=f"**{member.mention}'s timeout has been removed**",
@@ -873,7 +883,9 @@ class Events(Cog):
         )
 
     @sentry_sdk.trace()
-    async def _log_message_pin(self, message: Message, discriminator: str, url: str) -> None:
+    async def _log_message_pin(
+        self, message: Message, discriminator: str, url: str
+    ) -> None:
         channel_mention = get_channel_mention(message.channel)
         description = f"**Message {"pinned" if message.pinned else "unpinned"} in {channel_mention}** [Jump to Message]({message.jump_url})"
         embed = (
@@ -976,7 +988,16 @@ class Events(Cog):
         message_id: int,
         author: User | Member,
         user_who_deleted: User | Member | None,
-        channel: VoiceChannel | StageChannel | ForumChannel | TextChannel | CategoryChannel | Thread | PrivateChannel | None,
+        channel: (
+            VoiceChannel
+            | StageChannel
+            | ForumChannel
+            | TextChannel
+            | CategoryChannel
+            | Thread
+            | PrivateChannel
+            | None
+        ),
         discriminator: str,
         url: str,
     ) -> None:
@@ -1017,7 +1038,16 @@ class Events(Cog):
         message: Message,
         message_id: int,
         author: User | Member,
-        channel: VoiceChannel | StageChannel | ForumChannel | TextChannel | CategoryChannel | Thread | PrivateChannel | None,
+        channel: (
+            VoiceChannel
+            | StageChannel
+            | ForumChannel
+            | TextChannel
+            | CategoryChannel
+            | Thread
+            | PrivateChannel
+            | None
+        ),
         discriminator: str,
         url: str,
     ) -> None:
@@ -1040,7 +1070,9 @@ class Events(Cog):
                 await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
     @sentry_sdk.trace()
-    def _get_member_role_from_payload(self, payload: RawReactionActionEvent) -> tuple[Member | None, Role | None]:
+    def _get_member_role_from_payload(
+        self, payload: RawReactionActionEvent
+    ) -> tuple[Member | None, Role | None]:
         if not payload.guild_id:
             return None, None
 
