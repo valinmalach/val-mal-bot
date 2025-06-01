@@ -54,6 +54,25 @@ async def send_embed(
 
 
 @sentry_sdk.trace()
+async def edit_embed(
+    message_id: int,
+    embed: Embed,
+    bot: Bot,
+    channel_id: int,
+    view: Optional[View] = None,
+) -> None:
+    channel = bot.get_channel(channel_id)
+    if channel is None or isinstance(
+        channel, (ForumChannel, CategoryChannel, PrivateChannel)
+    ):
+        return
+    message = await channel.fetch_message(message_id)
+    if view:
+        await message.edit(embed=embed, view=view)
+    await message.edit(embed=embed)
+
+
+@sentry_sdk.trace()
 def get_pfp(member: User | Member) -> str:
     return member.avatar.url if member.avatar else member.default_avatar.url
 
