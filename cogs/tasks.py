@@ -16,8 +16,8 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     SHOUTOUTS_CHANNEL,
 )
-from helper import get_next_leap, send_message, update_birthday
-from xata_init import xata_client
+from init.xata_init import xata_client
+from services.helper import get_next_leap, send_message, update_birthday
 
 load_dotenv()
 
@@ -42,7 +42,6 @@ class Tasks(Cog):
             if not BLUESKY_LOGIN or not BLUESKY_APP_PASSWORD:
                 await send_message(
                     "Bluesky credentials are not set. Skipping Bluesky post check.",
-                    self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
                 return
@@ -93,27 +92,23 @@ class Tasks(Cog):
                     if resp.is_success():
                         await send_message(
                             f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
-                            self.bot,
                             BLUESKY_CHANNEL,
                         )
                     else:
                         await send_message(
                             f"Failed to insert post {post_id} into database: {resp.error_message}",
-                            self.bot,
                             BOT_ADMIN_CHANNEL,
                         )
                 except Exception as e:
                     sentry_sdk.capture_exception(e)
                     await send_message(
                         f"Failed to insert post {post_id} into database: {e}",
-                        self.bot,
                         BOT_ADMIN_CHANNEL,
                     )
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with Bluesky posts check: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -150,7 +145,6 @@ class Tasks(Cog):
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with birthday check: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -165,13 +159,11 @@ class Tasks(Cog):
                 sentry_sdk.capture_message(f"User with ID {user_id} not found.")
                 await send_message(
                     f"_process_birthday_records: User with ID {user_id} not found.",
-                    self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
                 continue
             await send_message(
                 f"Happy Birthday {user.mention}!",
-                self.bot,
                 SHOUTOUTS_CHANNEL,
             )
             if record["isBirthdayLeap"]:
@@ -185,11 +177,10 @@ class Tasks(Cog):
                 "birthday": next_birthday,
                 "isBirthdayLeap": leap,
             }
-            success = update_birthday(xata_client, user_id, updated_record)
+            success = update_birthday(user_id, updated_record)
             if not success[0]:
                 await send_message(
                     f"Failed to update birthday for {updated_record['username']}: {success[1]}",
-                    self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
 

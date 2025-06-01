@@ -8,8 +8,8 @@ from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
 
 from constants import BOT_ADMIN_CHANNEL, FOLLOWER_ROLE, MAX_DAYS, OWNER_ID, Months
-from helper import get_next_leap, send_message, update_birthday
-from xata_init import xata_client
+from init.xata_init import xata_client
+from services.helper import get_next_leap, send_message, update_birthday
 
 
 class Birthday(GroupCog):
@@ -76,7 +76,7 @@ class Birthday(GroupCog):
                 ),
                 "isBirthdayLeap": month == Months.February and day == 29,
             }
-            success = update_birthday(xata_client, str(interaction.user.id), record)
+            success = update_birthday(str(interaction.user.id), record)
             if not success[0]:
                 await self._set_birthday_failed(interaction, success[1])
                 return
@@ -136,7 +136,7 @@ class Birthday(GroupCog):
                 "birthday": None,
                 "isBirthdayLeap": None,
             }
-            success = update_birthday(xata_client, str(interaction.user.id), record)
+            success = update_birthday(str(interaction.user.id), record)
             if not success[0]:
                 await self._forget_birthday_failed(interaction, success[1])
                 return
@@ -174,7 +174,6 @@ class Birthday(GroupCog):
         )
         await send_message(
             f"Failed to set birthday for {interaction.user.name}: {e}",
-            self.bot,
             BOT_ADMIN_CHANNEL,
         )
 
@@ -193,7 +192,6 @@ class Birthday(GroupCog):
         )
         await send_message(
             f"Failed to remove birthday for {interaction.user.name}: {e}",
-            self.bot,
             BOT_ADMIN_CHANNEL,
         )
 

@@ -24,13 +24,14 @@ from discord import (
     VoiceChannel,
 )
 from discord.abc import GuildChannel, PrivateChannel
-from discord.ext.commands import Bot
 from discord.ui import View
-from xata import XataClient
+
+from init.bot_init import bot
+from init.xata_init import xata_client
 
 
 @sentry_sdk.trace()
-async def send_message(message: str, bot: Bot, channel_id: int) -> Optional[int]:
+async def send_message(message: str, channel_id: int) -> Optional[int]:
     channel = bot.get_channel(channel_id)
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
@@ -41,7 +42,7 @@ async def send_message(message: str, bot: Bot, channel_id: int) -> Optional[int]
 
 @sentry_sdk.trace()
 async def send_embed(
-    embed: Embed, bot: Bot, channel_id: int, view: Optional[View] = None
+    embed: Embed, channel_id: int, view: Optional[View] = None
 ) -> Optional[int]:
     channel = bot.get_channel(channel_id)
     if channel is None or isinstance(
@@ -57,7 +58,6 @@ async def send_embed(
 async def edit_embed(
     message_id: int,
     embed: Embed,
-    bot: Bot,
     channel_id: int,
     view: Optional[View] = None,
 ) -> None:
@@ -84,7 +84,7 @@ def get_discriminator(member: User | Member) -> str:
 
 @sentry_sdk.trace()
 def update_birthday(
-    xata_client: XataClient, user_id: str, record: dict[str, str]
+    user_id: str, record: dict[str, str]
 ) -> tuple[bool, Exception | None]:
     try:
         resp = xata_client.records().upsert("users", user_id, record)

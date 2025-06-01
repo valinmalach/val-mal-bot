@@ -36,7 +36,8 @@ from constants import (
     WEISS_ID,
     WELCOME_CHANNEL,
 )
-from helper import (
+from init.xata_init import xata_client
+from services.helper import (
     get_age,
     get_channel_mention,
     get_discriminator,
@@ -45,7 +46,6 @@ from helper import (
     send_embed,
     send_message,
 )
-from xata_init import xata_client
 
 
 class Events(Cog):
@@ -74,14 +74,12 @@ class Events(Cog):
                 if not resp.is_success():
                     await send_message(
                         f"Failed to save message {message_obj['id']}: {resp.error_message}",
-                        self.bot,
                         BOT_ADMIN_CHANNEL,
                     )
             except Exception as e:
                 sentry_sdk.capture_exception(e)
                 await send_message(
                     f"Failed to save message {message_obj['id']}: {e}",
-                    self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
 
@@ -102,7 +100,6 @@ class Events(Cog):
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with on_message event: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -129,7 +126,6 @@ class Events(Cog):
             )
             await send_embed(
                 embed,
-                self.bot,
                 WELCOME_CHANNEL,
             )
 
@@ -156,7 +152,6 @@ class Events(Cog):
             )
             await send_embed(
                 embed,
-                self.bot,
                 AUDIT_LOGS_CHANNEL,
             )
 
@@ -169,14 +164,12 @@ class Events(Cog):
             if not resp.is_success():
                 await send_message(
                     f"Failed to insert user {member.name} ({member.id}) into database: {resp.error_message}",
-                    self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with on_member_join event: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -201,7 +194,6 @@ class Events(Cog):
             )
             await send_embed(
                 embed,
-                self.bot,
                 WELCOME_CHANNEL,
             )
 
@@ -229,7 +221,7 @@ class Events(Cog):
                     value=" ".join([f"{role.mention}" for role in member.roles[1:]]),
                     inline=False,
                 )
-            await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+            await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
             user = {
                 "username": member.name,
@@ -240,14 +232,12 @@ class Events(Cog):
             if not resp.is_success():
                 await send_message(
                     f"Failed to remove user {member.name} ({member.id}) from database: {resp.error_message}",
-                    self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with on_raw_member_remove event: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -256,7 +246,7 @@ class Events(Cog):
     async def on_command_error(self, ctx: Context, error: CommandError) -> None:
         channel_mention = get_channel_mention(ctx.channel)
         message = f"Command not found: {ctx.message.content}\nSent by: {ctx.author.mention} in {channel_mention}\n{error}"
-        await send_message(message, self.bot, AUDIT_LOGS_CHANNEL)
+        await send_message(message, AUDIT_LOGS_CHANNEL)
 
     @Cog.listener()
     @sentry_sdk.trace()
@@ -267,7 +257,6 @@ class Events(Cog):
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with on_raw_reaction_add event: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -280,7 +269,6 @@ class Events(Cog):
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with on_raw_reaction_remove event: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -336,7 +324,6 @@ class Events(Cog):
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with on_member_update event: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -366,7 +353,6 @@ class Events(Cog):
                 message = f"Embed-only edit detected. Audit log not supported.\nMessage ID: {after.id}\nChannel: {channel_mention}\n[Jump to Message]({after.jump_url})"
                 await send_message(
                     message,
-                    self.bot,
                     AUDIT_LOGS_CHANNEL,
                 )
                 return
@@ -391,7 +377,6 @@ class Events(Cog):
             )
             await send_embed(
                 embed,
-                self.bot,
                 AUDIT_LOGS_CHANNEL,
             )
 
@@ -413,21 +398,18 @@ class Events(Cog):
                 if not resp.is_success():
                     await send_message(
                         f"Failed to upsert message {after.id} in database: {resp.error_message}",
-                        self.bot,
                         BOT_ADMIN_CHANNEL,
                     )
             except Exception as e:
                 sentry_sdk.capture_exception(e)
                 await send_message(
                     f"Failed to upsert message {after.id} in database: {e}",
-                    self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with on_raw_message_edit event: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -472,21 +454,18 @@ class Events(Cog):
                 if not resp.is_success():
                     await send_message(
                         f"Failed to delete message {payload.message_id} from database: {resp.error_message}",
-                        self.bot,
                         BOT_ADMIN_CHANNEL,
                     )
             except Exception as e:
                 sentry_sdk.capture_exception(e)
                 await send_message(
                     f"Failed to delete message {payload.message_id} from database: {e}",
-                    self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with on_raw_message_delete event: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -527,7 +506,7 @@ class Events(Cog):
                 name=f"{user_who_deleted_name}{discriminator}",
                 icon_url=url,
             )
-            await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+            await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
             for message_id in payload.message_ids:
                 try:
@@ -535,21 +514,18 @@ class Events(Cog):
                     if not resp.is_success():
                         await send_message(
                             f"Failed to delete message {message_id} from database: {resp.error_message}",
-                            self.bot,
                             BOT_ADMIN_CHANNEL,
                         )
                 except Exception as e:
                     sentry_sdk.capture_exception(e)
                     await send_message(
                         f"Failed to delete message {message_id} from database: {e}",
-                        self.bot,
                         BOT_ADMIN_CHANNEL,
                     )
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with on_raw_bulk_message_delete event: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -575,12 +551,11 @@ class Events(Cog):
                 )
                 .set_footer(text=f"ID: {user.id}")
             )
-            await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+            await send_embed(embed, AUDIT_LOGS_CHANNEL)
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with on_member_ban event: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -606,12 +581,11 @@ class Events(Cog):
                 )
                 .set_footer(text=f"ID: {user.id}")
             )
-            await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+            await send_embed(embed, AUDIT_LOGS_CHANNEL)
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with on_member_unban event: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -646,12 +620,11 @@ class Events(Cog):
                 name=f"{guild_name}",
                 icon_url=guild_icon,
             )
-            await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+            await send_embed(embed, AUDIT_LOGS_CHANNEL)
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with on_invite_create event: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -679,12 +652,11 @@ class Events(Cog):
                 name=f"{guild_name}",
                 icon_url=guild_icon,
             )
-            await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+            await send_embed(embed, AUDIT_LOGS_CHANNEL)
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with on_invite_delete event: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -698,7 +670,6 @@ class Events(Cog):
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Failed to get message {message_id} from database: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
         return DEFAULT_MISSING_CONTENT
@@ -723,7 +694,6 @@ class Events(Cog):
         )
         await send_embed(
             embed,
-            self.bot,
             AUDIT_LOGS_CHANNEL,
         )
 
@@ -747,7 +717,6 @@ class Events(Cog):
         )
         await send_embed(
             embed,
-            self.bot,
             AUDIT_LOGS_CHANNEL,
         )
 
@@ -772,7 +741,6 @@ class Events(Cog):
         )
         await send_embed(
             embed,
-            self.bot,
             AUDIT_LOGS_CHANNEL,
         )
 
@@ -795,7 +763,6 @@ class Events(Cog):
         )
         await send_embed(
             embed,
-            self.bot,
             AUDIT_LOGS_CHANNEL,
         )
 
@@ -817,7 +784,6 @@ class Events(Cog):
         )
         await send_embed(
             embed,
-            self.bot,
             AUDIT_LOGS_CHANNEL,
         )
 
@@ -841,7 +807,6 @@ class Events(Cog):
         )
         await send_embed(
             embed,
-            self.bot,
             AUDIT_LOGS_CHANNEL,
         )
 
@@ -895,21 +860,19 @@ class Events(Cog):
             )
             .set_footer(text=f"Deleter: {user_id} | Message ID: {message_id}")
         )
-        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+        await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
         try:
             resp = xata_client.records().delete("messages", str(message_id))
             if not resp.is_success():
                 await send_message(
                     f"Failed to delete message {message_id} from database: {resp.error_message}",
-                    self.bot,
                     BOT_ADMIN_CHANNEL,
                 )
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Failed to delete message {message_id} from database: {e}",
-                self.bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -959,7 +922,7 @@ class Events(Cog):
             embed = embed.add_field(
                 name="**Message**", value=f"{message_content}", inline=False
             )
-        await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+        await send_embed(embed, AUDIT_LOGS_CHANNEL)
         await self._log_message_attachments_delete(
             message, message_id, author, channel, discriminator, url
         )
@@ -999,7 +962,7 @@ class Events(Cog):
                     .set_footer(text=f"Author: {author.id} | Message ID: {message_id}")
                     .set_image(url=attachment.url)
                 )
-                await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
+                await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
     @sentry_sdk.trace()
     def _get_member_role_from_payload(

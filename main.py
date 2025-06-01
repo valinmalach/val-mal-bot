@@ -11,12 +11,10 @@ import discord
 import quart
 import requests
 import sentry_sdk
-from discord.ext.commands import Bot
 from discord.ext.commands.errors import (
     ExtensionAlreadyLoaded,
     ExtensionFailed,
     ExtensionNotFound,
-    ExtensionNotLoaded,
     NoEntryPointError,
 )
 from discord.ui import View
@@ -27,7 +25,6 @@ from sentry_sdk.integrations.quart import QuartIntegration
 from constants import (
     BOT_ADMIN_CHANNEL,
     COGS,
-    GUILD_ID,
     HMAC_PREFIX,
     LIVE_ALERTS_ROLE,
     STREAM_ALERTS_CHANNEL,
@@ -36,7 +33,15 @@ from constants import (
     TWITCH_MESSAGE_TIMESTAMP,
     TWITCH_MESSAGE_TYPE,
 )
-from helper import (
+from init.bot_init import bot
+from init.xata_init import xata_client
+from models.auth_response import AuthResponse
+from models.channel import ChannelInfo, ChannelInfoResponse
+from models.stream_info import StreamInfo, StreamInfoResponse
+from models.stream_offline_event_sub import StreamOfflineEventSub
+from models.stream_online_event_sub import StreamOnlineEventSub
+from models.user import UserInfo, UserInfoResponse
+from services.helper import (
     edit_embed,
     get_age,
     get_hmac,
@@ -46,13 +51,6 @@ from helper import (
     send_message,
     verify_message,
 )
-from models.auth_response import AuthResponse
-from models.channel import ChannelInfo, ChannelInfoResponse
-from models.stream_info import StreamInfo, StreamInfoResponse
-from models.stream_offline_event_sub import StreamOfflineEventSub
-from models.stream_online_event_sub import StreamOnlineEventSub
-from models.user import UserInfo, UserInfoResponse
-from xata_init import xata_client
 
 load_dotenv()
 
@@ -75,63 +73,13 @@ sentry_sdk.init(
 
 sentry_sdk.profiler.start_profiler()  # type: ignore
 
-
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-MY_GUILD = discord.Object(id=GUILD_ID)
-
 
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 access_token = ""
-
-
-class MyBot(Bot):
-    def __init__(self, *, command_prefix: str, intents: discord.Intents) -> None:
-        super().__init__(command_prefix=command_prefix, intents=intents)
-        self.case_insensitive = True
-
-    async def setup_hook(self) -> None:
-        self.tree.copy_global_to(guild=MY_GUILD)
-        await self.tree.sync(guild=MY_GUILD)
-
-
-bot = MyBot(command_prefix="$", intents=discord.Intents.all())
-
-
-@bot.event
-@sentry_sdk.trace()
-async def on_ready() -> None:
-    await send_message("Started successfully!", bot, BOT_ADMIN_CHANNEL)
-
-
-@bot.tree.command(description="Reload all extensions")
-@discord.app_commands.commands.default_permissions(administrator=True)
-@sentry_sdk.trace()
-async def reload(interaction: discord.Interaction) -> None:
-    try:
-        await interaction.response.send_message("Reloading extensions...")
-        process = await asyncio.create_subprocess_exec(
-            "powershell.exe", "-File", "C:\\val-mal-bot\\git_pull.ps1"
-        )
-        await process.wait()
-        for ext in COGS:
-            try:
-                await bot.reload_extension(ext)
-            except ExtensionNotLoaded as e:
-                await bot.load_extension(ext)
-            except Exception as e:
-                sentry_sdk.capture_exception(e)
-                await send_message(
-                    f"Something went wrong when loading extension {ext}: {e}",
-                    bot,
-                    BOT_ADMIN_CHANNEL,
-                )
-        await send_message("Reloaded!", bot, BOT_ADMIN_CHANNEL)
-    except Exception as e:
-        sentry_sdk.capture_exception(e)
-        await send_message(f"Error reloading extensions: {e}", bot, BOT_ADMIN_CHANNEL)
 
 
 @sentry_sdk.trace()
@@ -169,7 +117,6 @@ async def refresh_access_token() -> bool:
     if response.status_code != 200:
         await send_message(
             f"Failed to refresh access token: {response.status_code} {response.text}",
-            bot,
             BOT_ADMIN_CHANNEL,
         )
         return False
@@ -179,7 +126,7 @@ async def refresh_access_token() -> bool:
         return True
     else:
         await send_message(
-            f"Unexpected token type: {auth_response.token_type}", bot, BOT_ADMIN_CHANNEL
+            f"Unexpected token type: {auth_response.token_type}", BOT_ADMIN_CHANNEL
         )
         return False
 
@@ -207,7 +154,6 @@ async def get_user(id: str) -> Optional[UserInfo]:
     if response.status_code != 200:
         await send_message(
             f"Failed to fetch user info: {response.status_code} {response.text}",
-            bot,
             BOT_ADMIN_CHANNEL,
         )
         return None
@@ -238,7 +184,6 @@ async def get_channel(id: str) -> Optional[ChannelInfo]:
     if response.status_code != 200:
         await send_message(
             f"Failed to fetch channel info: {response.status_code} {response.text}",
-            bot,
             BOT_ADMIN_CHANNEL,
         )
         return None
@@ -269,7 +214,6 @@ async def get_stream_info(broadcaster_id: str) -> Optional[StreamInfo]:
     if response.status_code != 200:
         await send_message(
             f"Failed to fetch stream info: {response.status_code} {response.text}",
-            bot,
             BOT_ADMIN_CHANNEL,
         )
         return None
@@ -323,7 +267,7 @@ async def update_alert(broadcaster_id: str, channel_id: int, message_id: int) ->
                     label="Watch Stream", style=discord.ButtonStyle.link, url=url
                 )
             )
-            await edit_embed(message_id, embed, bot, channel_id, view)
+            await edit_embed(message_id, embed, channel_id, view)
             await asyncio.sleep(60)
             alert = xata_client.records().get("live_alerts", broadcaster_id)
             stream_info = await get_stream_info(broadcaster_id)
@@ -332,7 +276,6 @@ async def update_alert(broadcaster_id: str, channel_id: int, message_id: int) ->
         sentry_sdk.capture_exception(e)
         await send_message(
             f"Failed to update live alert message: {e}",
-            bot,
             BOT_ADMIN_CHANNEL,
         )
 
@@ -366,7 +309,6 @@ async def twitch_webhook() -> ResponseReturnValue:
         if not verify_message(secret_hmac, twitch_message_signature):
             await send_message(
                 "403: Forbidden request on /webhook/twitch. Signature does not match.",
-                bot,
                 BOT_ADMIN_CHANNEL,
             )
             print("403: Forbidden. Signature does not match.")
@@ -376,7 +318,6 @@ async def twitch_webhook() -> ResponseReturnValue:
         if event_sub.subscription.type != "stream.online":
             await send_message(
                 "400: Bad request on /webhook/twitch. Invalid subscription type.",
-                bot,
                 BOT_ADMIN_CHANNEL,
             )
             print("400: Bad request. Invalid subscription type.")
@@ -390,12 +331,10 @@ async def twitch_webhook() -> ResponseReturnValue:
             await send_message(
                 f"<@&{LIVE_ALERTS_ROLE}> Valin has gone live!\n"
                 + f"Come join at {url}",
-                bot,
                 STREAM_ALERTS_CHANNEL,
             )
             await send_message(
                 "Failed to fetch stream info for the online event.",
-                bot,
                 BOT_ADMIN_CHANNEL,
             )
             return ""
@@ -432,11 +371,10 @@ async def twitch_webhook() -> ResponseReturnValue:
                 label="Watch Stream", style=discord.ButtonStyle.link, url=url
             )
         )
-        message_id = await send_embed(embed, bot, STREAM_ALERTS_CHANNEL, view)
+        message_id = await send_embed(embed, STREAM_ALERTS_CHANNEL, view)
         if message_id is None:
             await send_message(
                 f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {STREAM_ALERTS_CHANNEL}",
-                bot,
                 BOT_ADMIN_CHANNEL,
             )
             return ""
@@ -454,7 +392,6 @@ async def twitch_webhook() -> ResponseReturnValue:
         else:
             await send_message(
                 f"Failed to insert live alert message into database\nbroadcaster_id: {broadcaster_id}\nchannel_id: {STREAM_ALERTS_CHANNEL}\n message_id: {message_id}\n\n{resp.error_message}",
-                bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -463,7 +400,6 @@ async def twitch_webhook() -> ResponseReturnValue:
         sentry_sdk.capture_exception(e)
         await send_message(
             f"500: Internal server error on /webhook/twitch: {e}",
-            bot,
             BOT_ADMIN_CHANNEL,
         )
         print(f"500: Internal server error: {e}")
@@ -491,7 +427,6 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
         if not verify_message(secret_hmac, twitch_message_signature):
             await send_message(
                 "403: Forbidden request on /webhook/twitch/offline. Signature does not match.",
-                bot,
                 BOT_ADMIN_CHANNEL,
             )
             print("403: Forbidden. Signature does not match.")
@@ -501,7 +436,6 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
         if event_sub.subscription.type != "stream.offline":
             await send_message(
                 "400: Bad request on /webhook/twitch/offline. Invalid subscription type.",
-                bot,
                 BOT_ADMIN_CHANNEL,
             )
             print("400: Bad request. Invalid subscription type.")
@@ -515,7 +449,6 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
         if not alert.is_success():
             await send_message(
                 f"Failed to fetch live alert for {broadcaster_id}: {alert.error_message}",
-                bot,
                 BOT_ADMIN_CHANNEL,
             )
             return ""
@@ -555,13 +488,12 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
             embed = embed.set_footer(
                 text=f"Online for {age} | Offline at",
             )
-        await edit_embed(message_id, embed, bot, channel_id)
+        await edit_embed(message_id, embed, channel_id)
 
         resp = xata_client.records().delete("live_alerts", broadcaster_id)
         if not resp.is_success():
             await send_message(
                 f"Failed to delete live alert for {broadcaster_id}: {resp.error_message}",
-                bot,
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -570,7 +502,6 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
         sentry_sdk.capture_exception(e)
         await send_message(
             f"500: Internal server error on /webhook/twitch/offline: {e}",
-            bot,
             BOT_ADMIN_CHANNEL,
         )
         print(f"500: Internal server error: {e}")
