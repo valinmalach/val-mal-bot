@@ -1,4 +1,3 @@
-import os
 import random
 from datetime import datetime
 
@@ -27,8 +26,6 @@ from discord import (
 )
 from discord.abc import PrivateChannel
 from discord.ext.commands import Bot, Cog, CommandError, Context
-from dotenv import load_dotenv
-from xata import XataClient
 
 from constants import (
     AUDIT_LOGS_CHANNEL,
@@ -48,16 +45,7 @@ from helper import (
     send_embed,
     send_message,
 )
-
-load_dotenv()
-
-XATA_API_KEY = os.getenv("XATA_API_KEY")
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not XATA_API_KEY or not DATABASE_URL:
-    xata_client = None
-else:
-    xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
+from xata_init import xata_client
 
 
 class Events(Cog):
@@ -68,41 +56,34 @@ class Events(Cog):
     @sentry_sdk.trace()
     async def on_message(self, message: Message) -> None:
         try:
-            if xata_client is None:
-                await send_message(
-                    f"Xata client is not initialized. Skipping saving message to db: {message.id}",
-                    self.bot,
-                    BOT_ADMIN_CHANNEL,
+            guild = message.guild
+            guild_id = GUILD_ID if guild is None else guild.id
+            message_obj = {
+                "contents": message.content,
+                "guild_id": guild_id,
+                "author_id": message.author.id,
+                "channel_id": message.channel.id,
+                "attachment_urls": [
+                    attachment.url for attachment in message.attachments
+                ],
+            }
+            try:
+                resp = xata_client.records().upsert(
+                    "messages", str(message.id), message_obj
                 )
-            else:
-                guild = message.guild
-                guild_id = GUILD_ID if guild is None else guild.id
-                message_obj = {
-                    "contents": message.content,
-                    "guild_id": guild_id,
-                    "author_id": message.author.id,
-                    "channel_id": message.channel.id,
-                    "attachment_urls": [
-                        attachment.url for attachment in message.attachments
-                    ],
-                }
-                try:
-                    resp = xata_client.records().upsert(
-                        "messages", str(message.id), message_obj
-                    )
-                    if not resp.is_success():
-                        await send_message(
-                            f"Failed to save message {message_obj['id']}: {resp.error_message}",
-                            self.bot,
-                            BOT_ADMIN_CHANNEL,
-                        )
-                except Exception as e:
-                    sentry_sdk.capture_exception(e)
+                if not resp.is_success():
                     await send_message(
-                        f"Failed to save message {message_obj['id']}: {e}",
+                        f"Failed to save message {message_obj['id']}: {resp.error_message}",
                         self.bot,
                         BOT_ADMIN_CHANNEL,
                     )
+            except Exception as e:
+                sentry_sdk.capture_exception(e)
+                await send_message(
+                    f"Failed to save message {message_obj['id']}: {e}",
+                    self.bot,
+                    BOT_ADMIN_CHANNEL,
+                )
 
             if message.author == self.bot.user:
                 return
@@ -179,13 +160,6 @@ class Events(Cog):
                 AUDIT_LOGS_CHANNEL,
             )
 
-            if xata_client is None:
-                await send_message(
-                    f"Xata client is not initialized. Skipping insert member into db: {member.id}",
-                    self.bot,
-                    BOT_ADMIN_CHANNEL,
-                )
-                return
             user = {
                 "username": member.name,
                 "birthday": None,
@@ -257,13 +231,6 @@ class Events(Cog):
                 )
             await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
-            if xata_client is None:
-                await send_message(
-                    f"Xata client is not initialized. Skipping remove member from db: {member.id}",
-                    self.bot,
-                    BOT_ADMIN_CHANNEL,
-                )
-                return
             user = {
                 "username": member.name,
                 "birthday": None,
@@ -429,13 +396,6 @@ class Events(Cog):
             )
 
             try:
-                if xata_client is None:
-                    await send_message(
-                        f"Xata client is not initialized. Skipping upsert message in db: {after.id}",
-                        self.bot,
-                        BOT_ADMIN_CHANNEL,
-                    )
-                    return
                 guild = after.guild
                 guild_id = GUILD_ID if guild is None else guild.id
                 after_message_obj = {
@@ -508,13 +468,6 @@ class Events(Cog):
             )
 
             try:
-                if xata_client is None:
-                    await send_message(
-                        f"Xata client is not initialized. Skipping delete message from db: {payload.message_id}",
-                        self.bot,
-                        BOT_ADMIN_CHANNEL,
-                    )
-                    return
                 resp = xata_client.records().delete("messages", str(payload.message_id))
                 if not resp.is_success():
                     await send_message(
@@ -576,13 +529,6 @@ class Events(Cog):
             )
             await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
-            if xata_client is None:
-                await send_message(
-                    f"Xata client is not initialized. Skipping delete messages from db: {payload.message_ids}",
-                    self.bot,
-                    BOT_ADMIN_CHANNEL,
-                )
-                return
             for message_id in payload.message_ids:
                 try:
                     resp = xata_client.records().delete("messages", str(message_id))
@@ -744,13 +690,6 @@ class Events(Cog):
 
     @sentry_sdk.trace()
     async def _get_message_content_from_db(self, message_id: int) -> str:
-        if xata_client is None:
-            await send_message(
-                f"Xata client is not initialized. Skipping get message from db: {message_id}",
-                self.bot,
-                BOT_ADMIN_CHANNEL,
-            )
-            return DEFAULT_MISSING_CONTENT
         try:
             resp = xata_client.records().get("messages", str(message_id))
             if resp.is_success():
@@ -959,13 +898,6 @@ class Events(Cog):
         await send_embed(embed, self.bot, AUDIT_LOGS_CHANNEL)
 
         try:
-            if xata_client is None:
-                await send_message(
-                    f"Xata client is not initialized. Skipping delete message from db: {message_id}",
-                    self.bot,
-                    BOT_ADMIN_CHANNEL,
-                )
-                return
             resp = xata_client.records().delete("messages", str(message_id))
             if not resp.is_success():
                 await send_message(

@@ -23,14 +23,18 @@ from discord.ui import View
 from dotenv import load_dotenv
 from quart import Quart, ResponseReturnValue, request
 from sentry_sdk.integrations.quart import QuartIntegration
-from xata import XataClient
 
 from constants import (
     BOT_ADMIN_CHANNEL,
     COGS,
     GUILD_ID,
+    HMAC_PREFIX,
     LIVE_ALERTS_ROLE,
     STREAM_ALERTS_CHANNEL,
+    TWITCH_MESSAGE_ID,
+    TWITCH_MESSAGE_SIGNATURE,
+    TWITCH_MESSAGE_TIMESTAMP,
+    TWITCH_MESSAGE_TYPE,
 )
 from helper import (
     edit_embed,
@@ -48,6 +52,7 @@ from models.stream_info import StreamInfo, StreamInfoResponse
 from models.stream_offline_event_sub import StreamOfflineEventSub
 from models.stream_online_event_sub import StreamOnlineEventSub
 from models.user import UserInfo, UserInfoResponse
+from xata_init import xata_client
 
 load_dotenv()
 
@@ -77,23 +82,9 @@ MY_GUILD = discord.Object(id=GUILD_ID)
 
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 
-TWITCH_MESSAGE_ID = "Twitch-Eventsub-Message-Id"
-TWITCH_MESSAGE_TYPE = "Twitch-Eventsub-Message-Type"
-TWITCH_MESSAGE_TIMESTAMP = "Twitch-Eventsub-Message-Timestamp"
-TWITCH_MESSAGE_SIGNATURE = "Twitch-Eventsub-Message-Signature"
-HMAC_PREFIX = "sha256="
-
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 access_token = ""
-
-XATA_API_KEY = os.getenv("XATA_API_KEY")
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not XATA_API_KEY or not DATABASE_URL:
-    xata_client = None
-else:
-    xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
 
 
 class MyBot(Bot):
@@ -288,13 +279,6 @@ async def get_stream_info(broadcaster_id: str) -> Optional[StreamInfo]:
 
 @sentry_sdk.trace()
 async def update_alert(broadcaster_id: str, channel_id: int, message_id: int) -> None:
-    if xata_client is None:
-        await send_message(
-            "Xata client is not initialized. Skipping live alert update.",
-            bot,
-            BOT_ADMIN_CHANNEL,
-        )
-        return
     try:
         alert = xata_client.records().get("live_alerts", broadcaster_id)
         stream_info = await get_stream_info(broadcaster_id)
@@ -449,13 +433,6 @@ async def twitch_webhook() -> ResponseReturnValue:
             )
         )
         message_id = await send_embed(embed, bot, STREAM_ALERTS_CHANNEL, view)
-        if xata_client is None:
-            await send_message(
-                f"Xata client is not initialized. Skipping live alert insert\nbroadcaster_id: {broadcaster_id}\nchannel_id: {STREAM_ALERTS_CHANNEL}\n message_id: {message_id}",
-                bot,
-                BOT_ADMIN_CHANNEL,
-            )
-            return ""
         if message_id is None:
             await send_message(
                 f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {STREAM_ALERTS_CHANNEL}",
@@ -529,14 +506,6 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
             )
             print("400: Bad request. Invalid subscription type.")
             quart.abort(400)
-
-        if xata_client is None:
-            await send_message(
-                "Xata client is not initialized. Skipping live alert update.",
-                bot,
-                BOT_ADMIN_CHANNEL,
-            )
-            return ""
 
         broadcaster_id = event_sub.event.broadcaster_user_id
         user_info = await get_user(broadcaster_id)

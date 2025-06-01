@@ -84,11 +84,9 @@ def get_discriminator(member: User | Member) -> str:
 
 @sentry_sdk.trace()
 def update_birthday(
-    xata_client: XataClient | None, user_id: str, record: dict[str, str]
+    xata_client: XataClient, user_id: str, record: dict[str, str]
 ) -> tuple[bool, Exception | None]:
     try:
-        if xata_client is None:
-            return False, Exception("Xata client is not initialized.")
         resp = xata_client.records().upsert("users", user_id, record)
         return resp.is_success(), None
     except Exception as e:

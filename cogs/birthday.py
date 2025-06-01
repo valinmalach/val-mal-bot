@@ -1,4 +1,3 @@
-import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -7,21 +6,10 @@ import sentry_sdk
 from discord import Interaction, app_commands
 from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
-from dotenv import load_dotenv
-from xata import XataClient
 
 from constants import BOT_ADMIN_CHANNEL, FOLLOWER_ROLE, MAX_DAYS, OWNER_ID, Months
 from helper import get_next_leap, send_message, update_birthday
-
-load_dotenv()
-
-XATA_API_KEY = os.getenv("XATA_API_KEY")
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not XATA_API_KEY or not DATABASE_URL:
-    xata_client = None
-else:
-    xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
+from xata_init import xata_client
 
 
 class Birthday(GroupCog):
@@ -129,11 +117,6 @@ class Birthday(GroupCog):
         interaction: Interaction,
     ) -> None:
         try:
-            if xata_client is None:
-                await self._forget_birthday_failed(
-                    interaction, "Xata client is not initialized."
-                )
-                return
             try:
                 existing_user = xata_client.records().get(
                     "users", str(interaction.user.id)

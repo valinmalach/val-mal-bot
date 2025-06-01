@@ -8,7 +8,6 @@ from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
 from dotenv import load_dotenv
 from requests.exceptions import ConnectionError
-from xata import XataClient
 from xata.api_response import ApiResponse
 
 from constants import (
@@ -18,19 +17,12 @@ from constants import (
     SHOUTOUTS_CHANNEL,
 )
 from helper import get_next_leap, send_message, update_birthday
+from xata_init import xata_client
 
 load_dotenv()
 
 BLUESKY_LOGIN = os.getenv("BLUESKY_LOGIN")
 BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_APP_PASSWORD")
-
-XATA_API_KEY = os.getenv("XATA_API_KEY")
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not XATA_API_KEY or not DATABASE_URL:
-    xata_client = None
-else:
-    xata_client = XataClient(api_key=XATA_API_KEY, db_url=DATABASE_URL)
 
 
 class Tasks(Cog):
@@ -47,13 +39,6 @@ class Tasks(Cog):
     @sentry_sdk.trace()
     async def check_posts(self) -> None:
         try:
-            if xata_client is None:
-                await send_message(
-                    "Xata client is not initialized. Skipping Bluesky posts check.",
-                    self.bot,
-                    BOT_ADMIN_CHANNEL,
-                )
-                return
             if not BLUESKY_LOGIN or not BLUESKY_APP_PASSWORD:
                 await send_message(
                     "Bluesky credentials are not set. Skipping Bluesky post check.",
@@ -136,13 +121,6 @@ class Tasks(Cog):
     @sentry_sdk.trace()
     async def check_birthdays(self) -> None:
         try:
-            if xata_client is None:
-                await send_message(
-                    "Xata client is not initialized. Skipping birthday check.",
-                    self.bot,
-                    BOT_ADMIN_CHANNEL,
-                )
-                return
             now = (
                 datetime.datetime.now(datetime.timezone.utc)
                 .replace(second=0, microsecond=0)
@@ -178,13 +156,6 @@ class Tasks(Cog):
 
     @sentry_sdk.trace()
     async def _process_birthday_records(self, records: ApiResponse) -> None:
-        if xata_client is None:
-            await send_message(
-                "Xata client is not initialized. Skipping birthday record processing.",
-                self.bot,
-                BOT_ADMIN_CHANNEL,
-            )
-            return
         now = datetime.datetime.now()
         birthdays_now = records["records"]
         for record in birthdays_now:
