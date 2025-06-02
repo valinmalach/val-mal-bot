@@ -74,7 +74,7 @@ RULES_EMBED = (
     )
     .add_field(
         name="",
-        value="* Speaking of <#{RANTING_CHANNEL}>, spoiler when necessary. Especially any topics that might even be remotely triggering. If you are unsure, just spoiler it. There's no harm in spoilering.",
+        value=f"* Speaking of <#{RANTING_CHANNEL}>, spoiler when necessary. Especially any topics that might even be remotely triggering. If you are unsure, just spoiler it. There's no harm in spoilering.",
         inline=False,
     )
     .add_field(
