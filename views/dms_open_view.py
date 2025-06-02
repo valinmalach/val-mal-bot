@@ -45,7 +45,7 @@ DMS_OPEN_EMBED = (
     )
     .add_field(
         name="",
-        value=f"**<@&{DMS_CLOSED_ROLE}>*",
+        value=f"**<@&{DMS_CLOSED_ROLE}>**",
         inline=False,
     )
 )
