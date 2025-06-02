@@ -11,6 +11,10 @@ GUILD_ID = 813237030385090580
 AUDIT_LOGS_CHANNEL = 1291775826655707166
 BLUESKY_CHANNEL = 1345582916050354369
 BOT_ADMIN_CHANNEL = 1346408909442781237
+FOOD_CHANNEL = 1291026325045248101
+PETS_CHANNEL = 1291027524947546164
+PROMO_CHANNEL = 1378917167336001606
+RANTING_CHANNEL = 1291026750947590266
 ROLES_CHANNEL = 1285277373167570946
 RULES_CHANNEL = 1285275553611517963
 SHOUTOUTS_CHANNEL = 1291026077287710751
@@ -60,30 +64,28 @@ MAX_DAYS = {
 }
 
 
-MESSAGE_REACTION_ROLE_MAP = {
-    1291772906841571500: {"✅": "🙇Followers"},  # Rules message
-    1292348915257053367: {  # Ping roles message
-        "📢": "📢Announcements",
-        "🔴": "🔴Live Alerts",
-        "❗": "❗Ping Role",
-        "🦋": "🦋Bluesky",
-        "🎁": "🎁Free Stuff",
-    },
-    1292349441763971123: {"🔞": "🔞NSFW Access"},  # NSFW Access role message
-    1292349494666465282: {  # Pronouns roles message
-        "🙋‍♂️": "🙋‍♂️He/Him",
-        "🙋‍♀️": "🙋‍♀️She/Her",
-        "🙋": "🙋They/Them",
-        "❓": "❓Other/Ask",
-    },
-    1292350341521739837: {  # Streamer, Gamer, Artist roles message
-        "📽️": "📽️Streamer",
-        "🎮": "🎮Gamer",
-        "🎨": "🎨Artist",
-    },
-    1292357707365351445: {  # DMs Open, Ask to DM, DMs Closed roles message
-        "🟩": "🟩DMs Open",
-        "🟨": "🟨Ask to DM",
-        "🟥": "🟥DMs Closed",
-    },
+EMOJI_ROLE_MAP = {
+    # Rules
+    "✅": "🙇Followers",
+    # Ping Roles
+    "📢": "📢Announcements",
+    "🔴": "🔴Live Alerts",
+    "❗": "❗Ping Role",
+    "🦋": "🦋Bluesky",
+    "🎁": "🎁Free Stuff",
+    # NSFW Access
+    "🔞": "🔞NSFW Access",
+    # Pronouns
+    "🙋‍♂️": "🙋‍♂️He/Him",
+    "🙋‍♀️": "🙋‍♀️She/Her",
+    "🙋": "🙋They/Them",
+    "❓": "❓Other/Ask",
+    # Other Roles
+    "📽️": "📽️Streamer",
+    "🎮": "🎮Gamer",
+    "🎨": "🎨Artist",
+    # DMs Open?
+    "🟩": "🟩DMs Open",
+    "🟨": "🟨Ask to DM",
+    "🟥": "🟥DMs Closed",
 }

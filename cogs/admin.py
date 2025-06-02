@@ -11,6 +11,23 @@ from discord import (
 )
 from discord.ext.commands import Bot, Cog
 
+from constants import ROLES_CHANNEL, RULES_CHANNEL
+from services.helper import send_embed
+from views import (
+    DMS_OPEN_EMBED,
+    NSFW_ACCESS_EMBED,
+    OTHER_ROLES_EMBED,
+    PING_ROLES_EMBED,
+    PRONOUN_ROLES_EMBED,
+    RULES_EMBED,
+    DMsOpenView,
+    NSFWAccessView,
+    OtherRolesView,
+    PingRolesView,
+    PronounRolesView,
+    RulesView,
+)
+
 
 class Admin(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -35,6 +52,41 @@ class Admin(Cog):
             return
         await interaction.response.send_message("Nuking channel...")
         await interaction.channel.purge(limit=100000)
+
+    @app_commands.command(description="Sends the rules embed to the rules channel")
+    @app_commands.commands.default_permissions(administrator=True)
+    async def rules(self, interaction: Interaction) -> None:
+        embed = RULES_EMBED
+        view = RulesView()
+
+        await send_embed(
+            embed,
+            RULES_CHANNEL,
+            view,
+        )
+        await interaction.response.send_message("Rules embed send to rules channel!")
+
+    @app_commands.command(description="Sends the roles embeds to the roles channel")
+    @app_commands.commands.default_permissions(administrator=True)
+    async def roles(self, interaction: Interaction) -> None:
+        embeds = [
+            PING_ROLES_EMBED,
+            NSFW_ACCESS_EMBED,
+            PRONOUN_ROLES_EMBED,
+            OTHER_ROLES_EMBED,
+            DMS_OPEN_EMBED,
+        ]
+        views = [
+            PingRolesView(),
+            NSFWAccessView(),
+            PronounRolesView(),
+            OtherRolesView(),
+            DMsOpenView(),
+        ]
+
+        for embed, view in zip(embeds, views):
+            await send_embed(embed, ROLES_CHANNEL, view)
+        await interaction.response.send_message("Roles embeds send to roles channel!")
 
 
 async def setup(bot: Bot) -> None:

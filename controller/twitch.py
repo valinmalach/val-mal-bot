@@ -25,14 +25,17 @@ from models import StreamOfflineEventSub, StreamOnlineEventSub
 from services import (
     edit_embed,
     get_age,
+    get_channel,
     get_hmac,
     get_hmac_message,
+    get_stream_info,
+    get_user,
     parse_rfc3339,
     send_embed,
     send_message,
+    update_alert,
     verify_message,
 )
-from services.twitch_service import get_channel, get_stream_info, get_user, update_alert
 
 load_dotenv()
 

@@ -16,7 +16,6 @@ from discord import (
     RawMemberRemoveEvent,
     RawMessageDeleteEvent,
     RawMessageUpdateEvent,
-    RawReactionActionEvent,
     Role,
     StageChannel,
     TextChannel,
@@ -32,7 +31,6 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     DEFAULT_MISSING_CONTENT,
     GUILD_ID,
-    MESSAGE_REACTION_ROLE_MAP,
     WEISS_ID,
     WELCOME_CHANNEL,
 )
@@ -247,30 +245,6 @@ class Events(Cog):
         channel_mention = get_channel_mention(ctx.channel)
         message = f"Command not found: {ctx.message.content}\nSent by: {ctx.author.mention} in {channel_mention}\n{error}"
         await send_message(message, AUDIT_LOGS_CHANNEL)
-
-    @Cog.listener()
-    @sentry_sdk.trace()
-    async def on_raw_reaction_add(self, payload: RawReactionActionEvent) -> None:
-        try:
-            await self._toggle_role(payload, True)
-        except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with on_raw_reaction_add event: {e}",
-                BOT_ADMIN_CHANNEL,
-            )
-
-    @Cog.listener()
-    @sentry_sdk.trace()
-    async def on_raw_reaction_remove(self, payload: RawReactionActionEvent) -> None:
-        try:
-            await self._toggle_role(payload, False)
-        except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with on_raw_reaction_remove event: {e}",
-                BOT_ADMIN_CHANNEL,
-            )
 
     @Cog.listener()
     @sentry_sdk.trace()
@@ -963,43 +937,6 @@ class Events(Cog):
                     .set_image(url=attachment.url)
                 )
                 await send_embed(embed, AUDIT_LOGS_CHANNEL)
-
-    @sentry_sdk.trace()
-    def _get_member_role_from_payload(
-        self, payload: RawReactionActionEvent
-    ) -> tuple[Member | None, Role | None]:
-        if not payload.guild_id:
-            return None, None
-
-        guild = self.bot.get_guild(payload.guild_id)
-        if not guild:
-            return None, None
-
-        member = guild.get_member(payload.user_id)
-        if not member:
-            return None, None
-
-        role_map = MESSAGE_REACTION_ROLE_MAP.get(payload.message_id)
-        if not role_map:
-            return None, None
-
-        role_name = role_map.get(payload.emoji.name)
-        if not role_name:
-            return None, None
-
-        role = discord.utils.get(guild.roles, name=role_name)
-        return (member, role) if role else (None, None)
-
-    @sentry_sdk.trace()
-    async def _toggle_role(self, payload: RawReactionActionEvent, add: bool) -> None:
-        member, role = self._get_member_role_from_payload(payload)
-        if not member or not role:
-            return
-
-        if add:
-            await member.add_roles(role)
-        else:
-            await member.remove_roles(role)
 
 
 async def setup(bot: Bot) -> None:

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from functools import cache
 from typing import Optional
 
+import discord
 import sentry_sdk
 from dateutil import relativedelta
 from dateutil.parser import isoparse
@@ -13,10 +14,13 @@ from discord import (
     Embed,
     ForumChannel,
     GroupChannel,
+    Interaction,
     Member,
     Object,
+    PartialEmoji,
     PartialInviteChannel,
     PartialMessageable,
+    Role,
     StageChannel,
     TextChannel,
     Thread,
@@ -24,8 +28,9 @@ from discord import (
     VoiceChannel,
 )
 from discord.abc import GuildChannel, PrivateChannel
-from discord.ui import View
+from discord.ui import Button, View
 
+from constants import EMOJI_ROLE_MAP
 from init import bot, xata_client
 
 
@@ -36,7 +41,7 @@ async def send_message(message: str, channel_id: int) -> Optional[int]:
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
     ):
         return
-    return (await channel.send(message)).id
+    return (await channel.send(message, silent=True)).id
 
 
 @sentry_sdk.trace()
@@ -49,8 +54,8 @@ async def send_embed(
     ):
         return
     if view:
-        return (await channel.send(embed=embed, view=view)).id
-    return (await channel.send(embed=embed)).id
+        return (await channel.send(embed=embed, view=view, silent=True)).id
+    return (await channel.send(embed=embed, silent=True)).id
 
 
 @sentry_sdk.trace()
@@ -227,3 +232,74 @@ def parse_rfc3339(date_str: str) -> datetime:
     and return a timezone-aware datetime.
     """
     return isoparse(date_str)
+
+
+@sentry_sdk.trace()
+def get_member_role(
+    guild_id: int, user_id: int, emoji: PartialEmoji
+) -> tuple[Member | None, Role | None]:
+    guild = bot.get_guild(guild_id)
+    if not guild:
+        return None, None
+
+    member = guild.get_member(user_id)
+    if not member:
+        return None, None
+
+    role_name = EMOJI_ROLE_MAP.get(emoji.name)
+    if not role_name:
+        return None, None
+
+    role = discord.utils.get(guild.roles, name=role_name)
+    return (member, role) if role else (None, None)
+
+
+@sentry_sdk.trace()
+async def toggle_role(
+    guild_id: int, user_id: int, emoji: PartialEmoji
+) -> Optional[tuple[bool, Role]]:
+    member, role = get_member_role(guild_id, user_id, emoji)
+    if not member or not role:
+        return
+
+    if member.get_role(role.id) is None:
+        await member.add_roles(role)
+        return True, role
+    else:
+        await member.remove_roles(role)
+        return False, role
+
+
+@sentry_sdk.trace()
+async def roles_button_pressed(interaction: Interaction, button: Button) -> None:
+    guild_id = interaction.guild_id
+    member_id = interaction.user.id
+    emoji = button.emoji
+    if not guild_id or not emoji:
+        await interaction.response.send_message(
+            "An error has occurred. Contact an admin.",
+            ephemeral=True,
+            silent=True,
+        )
+        return
+    res = await toggle_role(guild_id, member_id, emoji)
+    if res is None:
+        await interaction.response.send_message(
+            "An error has occured. Contact an admin.",
+            ephemeral=True,
+            silent=True,
+        )
+        return
+    success, role = res
+    if not success:
+        await interaction.response.send_message(
+            f"Your {role.mention} role has been removed.",
+            ephemeral=True,
+            silent=True,
+        )
+        return
+    await interaction.response.send_message(
+        f"You have received the {role.mention} role.",
+        ephemeral=True,
+        silent=True,
+    )
