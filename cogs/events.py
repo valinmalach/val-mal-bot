@@ -334,6 +334,17 @@ class Events(Cog):
             if before_content == after_content:
                 return
 
+            before_content = (
+                f"{before_content[:1021]}..."
+                if len(before_content) > 1024
+                else before_content
+            )
+            after_content = (
+                f"{after_content[:1021]}..."
+                if len(after_content) > 1024
+                else after_content
+            )
+
             message = f"**Message edited in {channel_mention}** [Jump to Message]({after.jump_url})"
             embed = (
                 Embed(
@@ -893,6 +904,11 @@ class Events(Cog):
             .set_footer(text=f"Author: {author.id} | Message ID: {message_id}")
         )
         if message_content:
+            message_content = (
+                f"{message_content[:1021]}..."
+                if len(message_content) > 1024
+                else message_content
+            )
             embed = embed.add_field(
                 name="**Message**", value=f"{message_content}", inline=False
             )
