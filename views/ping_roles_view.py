@@ -41,7 +41,7 @@ class PingRolesView(View):
 
 PING_ROLES_EMBED = (
     discord.Embed(
-        title="# Ping Roles",
+        title="Ping Roles",
         color=discord.Color.dark_blue(),
     )
     .add_field(

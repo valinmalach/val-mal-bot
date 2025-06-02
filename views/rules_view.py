@@ -23,7 +23,7 @@ class RulesView(View):
 
 RULES_EMBED = (
     discord.Embed(
-        title="## Server Rules",
+        title="Server Rules",
         description="Please read and follow the server rules:",
         color=discord.Color.dark_blue(),
     )

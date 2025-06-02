@@ -30,7 +30,7 @@ class DMsOpenView(View):
 
 DMS_OPEN_EMBED = (
     discord.Embed(
-        title="# DMs Open?",
+        title="DMs Open?",
         color=discord.Color.dark_blue(),
     )
     .add_field(

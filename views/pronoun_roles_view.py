@@ -29,7 +29,7 @@ class PronounRolesView(View):
 
 PRONOUN_ROLES_EMBED = (
     discord.Embed(
-        title="# Pronouns",
+        title="Pronouns",
         color=discord.Color.dark_blue(),
     )
     .add_field(
