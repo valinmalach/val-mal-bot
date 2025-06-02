@@ -25,7 +25,7 @@ class OtherRolesView(View):
 
 OTHER_ROLES_EMBED = (
     discord.Embed(
-        title="Other Roles",
+        title="# Other Roles",
         color=discord.Color.dark_blue(),
     )
     .add_field(
