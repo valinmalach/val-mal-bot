@@ -16,7 +16,11 @@ class NSFWAccessView(View):
 
 
 NSFW_ACCESS_EMBED = discord.Embed(
-    title="",
-    description=f"## <@&{NSFW_ACCESS_ROLE}>",
+    title="NSFW Access",
+    description="",
     color=discord.Color.dark_blue(),
+).add_field(
+    name="",
+    value=f"<@&{NSFW_ACCESS_ROLE}>",
+    inline=False,
 )
