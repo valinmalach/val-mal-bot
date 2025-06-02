@@ -16,25 +16,25 @@ class PingRolesView(View):
     def __init__(self) -> None:
         super().__init__(timeout=None)
 
-    @discord.ui.button(emoji="📢")
+    @discord.ui.button(emoji="📢", custom_id="announcements_role")
     async def announcements_role(
         self, interaction: Interaction, button: Button
     ) -> None:
         await roles_button_pressed(interaction, button)
 
-    @discord.ui.button(emoji="🔴")
+    @discord.ui.button(emoji="🔴", custom_id="live_alert_role")
     async def live_alert_role(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 
-    @discord.ui.button(emoji="❗")
+    @discord.ui.button(emoji="❗", custom_id="ping_role")
     async def general_ping_role(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 
-    @discord.ui.button(emoji="🦋")
+    @discord.ui.button(emoji="🦋", custom_id="bluesky_role")
     async def bluesky_role(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 
-    @discord.ui.button(emoji="🎁")
+    @discord.ui.button(emoji="🎁", custom_id="free_stuff_role")
     async def free_stuff_role(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 

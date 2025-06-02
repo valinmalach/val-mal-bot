@@ -15,15 +15,15 @@ class DMsOpenView(View):
     def __init__(self) -> None:
         super().__init__(timeout=None)
 
-    @discord.ui.button(emoji="🟩")
+    @discord.ui.button(emoji="🟩", custom_id="dms_open")
     async def dms_open(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 
-    @discord.ui.button(emoji="🟨")
+    @discord.ui.button(emoji="🟨", custom_id="ask_to_dm")
     async def ask_to_dm(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 
-    @discord.ui.button(emoji="🟥")
+    @discord.ui.button(emoji="🟥", custom_id="dms_closed")
     async def dms_closed(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 

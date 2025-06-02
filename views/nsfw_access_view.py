@@ -10,7 +10,7 @@ class NSFWAccessView(View):
     def __init__(self) -> None:
         super().__init__(timeout=None)
 
-    @discord.ui.button(emoji="🔞")
+    @discord.ui.button(emoji="🔞", custom_id="nsfw_access")
     async def nsfw_access(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 

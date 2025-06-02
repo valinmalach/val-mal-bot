@@ -10,19 +10,19 @@ class PronounRolesView(View):
     def __init__(self) -> None:
         super().__init__(timeout=None)
 
-    @discord.ui.button(emoji="🙋‍♂️")
+    @discord.ui.button(emoji="🙋‍♂️", custom_id="he_him_role")
     async def he_him(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 
-    @discord.ui.button(emoji="🙋‍♀️")
+    @discord.ui.button(emoji="🙋‍♀️", custom_id="she_her_role")
     async def she_her(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 
-    @discord.ui.button(emoji="🙋")
+    @discord.ui.button(emoji="🙋", custom_id="they_them_role")
     async def they_them(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 
-    @discord.ui.button(emoji="❓")
+    @discord.ui.button(emoji="❓", custom_id="other_ask_role")
     async def other_ask(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 

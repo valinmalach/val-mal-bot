@@ -16,7 +16,7 @@ class RulesView(View):
     def __init__(self) -> None:
         super().__init__(timeout=None)
 
-    @discord.ui.button(emoji="✅")
+    @discord.ui.button(emoji="✅", custom_id="accept_rules")
     async def accept_rules(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 

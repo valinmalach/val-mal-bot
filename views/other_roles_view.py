@@ -10,15 +10,15 @@ class OtherRolesView(View):
     def __init__(self) -> None:
         super().__init__(timeout=None)
 
-    @discord.ui.button(emoji="📽️")
+    @discord.ui.button(emoji="📽️", custom_id="streamer_role")
     async def streamer_role(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 
-    @discord.ui.button(emoji="🎮")
+    @discord.ui.button(emoji="🎮", custom_id="gamer_role")
     async def gamer_role(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 
-    @discord.ui.button(emoji="🎨")
+    @discord.ui.button(emoji="🎨", custom_id="artist_role")
     async def artist_role(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 
