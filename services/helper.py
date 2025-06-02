@@ -41,7 +41,7 @@ async def send_message(message: str, channel_id: int) -> Optional[int]:
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
     ):
         return
-    return (await channel.send(message, silent=True)).id
+    return (await channel.send(message)).id
 
 
 @sentry_sdk.trace()
@@ -54,8 +54,8 @@ async def send_embed(
     ):
         return
     if view:
-        return (await channel.send(embed=embed, view=view, silent=True)).id
-    return (await channel.send(embed=embed, silent=True)).id
+        return (await channel.send(embed=embed, view=view)).id
+    return (await channel.send(embed=embed)).id
 
 
 @sentry_sdk.trace()
