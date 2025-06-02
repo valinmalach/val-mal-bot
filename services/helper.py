@@ -279,7 +279,6 @@ async def roles_button_pressed(interaction: Interaction, button: Button) -> None
         await interaction.response.send_message(
             "An error has occurred. Contact an admin.",
             ephemeral=True,
-            silent=True,
         )
         return
     res = await toggle_role(guild_id, member_id, emoji)
@@ -287,7 +286,6 @@ async def roles_button_pressed(interaction: Interaction, button: Button) -> None
         await interaction.response.send_message(
             "An error has occured. Contact an admin.",
             ephemeral=True,
-            silent=True,
         )
         return
     success, role = res
@@ -295,11 +293,9 @@ async def roles_button_pressed(interaction: Interaction, button: Button) -> None
         await interaction.response.send_message(
             f"Your {role.mention} role has been removed.",
             ephemeral=True,
-            silent=True,
         )
         return
     await interaction.response.send_message(
         f"You have received the {role.mention} role.",
         ephemeral=True,
-        silent=True,
     )
