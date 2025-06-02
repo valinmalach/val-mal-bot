@@ -2,6 +2,7 @@ import discord
 from discord import Interaction
 from discord.ui import Button, View
 
+from constants import ARTIST_ROLE, GAMER_ROLE, STREAMER_ROLE
 from services import roles_button_pressed
 
 
@@ -28,17 +29,17 @@ OTHER_ROLES_EMBED = (
         color=discord.Color.dark_blue(),
     )
     .add_field(
-        name="📽️Streamer",
+        name=f"<@&{STREAMER_ROLE}>",
         value="",
         inline=False,
     )
     .add_field(
-        name="🎮Gamer",
+        name=f"<@&{GAMER_ROLE}>",
         value="",
         inline=False,
     )
     .add_field(
-        name="🎨Artist",
+        name=f"<@&{ARTIST_ROLE}>",
         value="",
         inline=False,
     )

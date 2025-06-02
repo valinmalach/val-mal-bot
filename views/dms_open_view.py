@@ -2,6 +2,12 @@ import discord
 from discord import Interaction
 from discord.ui import Button, View
 
+from constants import (
+    ASK_TO_DM_ROLE,
+    DM_REQUESTS_CHANNEL,
+    DMS_CLOSED_ROLE,
+    DMS_OPEN_ROLE,
+)
 from services import roles_button_pressed
 
 
@@ -28,17 +34,17 @@ DMS_OPEN_EMBED = (
         color=discord.Color.dark_blue(),
     )
     .add_field(
-        name="🟩DMs Open",
+        name=f"<@&{DMS_OPEN_ROLE}>",
         value="",
         inline=False,
     )
     .add_field(
-        name="🟨Ask to DM",
+        name=f"<@&{ASK_TO_DM_ROLE}> (Ask in <#{DM_REQUESTS_CHANNEL}>)",
         value="",
         inline=False,
     )
     .add_field(
-        name="🟥DMs Closed",
+        name=f"<@&{DMS_CLOSED_ROLE}>",
         value="",
         inline=False,
     )

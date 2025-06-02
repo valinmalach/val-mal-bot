@@ -2,6 +2,13 @@ import discord
 from discord import Interaction
 from discord.ui import Button, View
 
+from constants import (
+    ANNOUNCEMENTS_ROLE,
+    BLUESKY_ROLE,
+    FREE_STUFF_ROLE,
+    LIVE_ALERTS_ROLE,
+    PING_ROLE,
+)
 from services import roles_button_pressed
 
 
@@ -38,27 +45,27 @@ PING_ROLES_EMBED = (
         color=discord.Color.dark_blue(),
     )
     .add_field(
-        name="📢Announcements",
+        name=f"<@&{ANNOUNCEMENTS_ROLE}>",
         value="",
         inline=False,
     )
     .add_field(
-        name="🔴Live Alerts",
+        name=f"<@&{LIVE_ALERTS_ROLE}>",
         value="",
         inline=False,
     )
     .add_field(
-        name="❗Ping Role",
+        name=f"<@&{PING_ROLE}>",
         value="",
         inline=False,
     )
     .add_field(
-        name="🦋Bluesky",
+        name=f"<@&{BLUESKY_ROLE}>",
         value="",
         inline=False,
     )
     .add_field(
-        name="🎁Free Stuff",
+        name=f"<@&{FREE_STUFF_ROLE}>",
         value="",
         inline=False,
     )

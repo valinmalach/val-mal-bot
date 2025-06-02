@@ -2,6 +2,7 @@ import discord
 from discord import Interaction
 from discord.ui import Button, View
 
+from constants import HE_HIM_ROLE, OTHER_ASK_ROLE, SHE_HER_ROLE, THEY_THEM_ROLE
 from services import roles_button_pressed
 
 
@@ -32,22 +33,22 @@ PRONOUN_ROLES_EMBED = (
         color=discord.Color.dark_blue(),
     )
     .add_field(
-        name="🙋‍♂️He/Him",
+        name=f"<@&{HE_HIM_ROLE}>",
         value="",
         inline=False,
     )
     .add_field(
-        name="🙋‍♀️She/Her",
+        name=f"<@&{SHE_HER_ROLE}>",
         value="",
         inline=False,
     )
     .add_field(
-        name="🙋They/Them",
+        name=f"<@&{THEY_THEM_ROLE}>",
         value="",
         inline=False,
     )
     .add_field(
-        name="❓Other/Ask",
+        name=f"<@&{OTHER_ASK_ROLE}>",
         value="",
         inline=False,
     )

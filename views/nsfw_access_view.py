@@ -2,6 +2,7 @@ import discord
 from discord import Interaction
 from discord.ui import Button, View
 
+from constants import NSFW_ACCESS_ROLE
 from services import roles_button_pressed
 
 
@@ -15,6 +16,6 @@ class NSFWAccessView(View):
 
 
 NSFW_ACCESS_EMBED = discord.Embed(
-    title="🔞NSFW Access",
+    title=f"<@&{NSFW_ACCESS_ROLE}>",
     color=discord.Color.dark_blue(),
 )
