@@ -30,17 +30,17 @@ OTHER_ROLES_EMBED = (
     )
     .add_field(
         name="",
-        value=f"**<@&{STREAMER_ROLE}>**",
+        value=f"<@&{STREAMER_ROLE}>",
         inline=False,
     )
     .add_field(
         name="",
-        value=f"**<@&{GAMER_ROLE}>**",
+        value=f"<@&{GAMER_ROLE}>",
         inline=False,
     )
     .add_field(
         name="",
-        value=f"**<@&{ARTIST_ROLE}>**",
+        value=f"<@&{ARTIST_ROLE}>",
         inline=False,
     )
 )

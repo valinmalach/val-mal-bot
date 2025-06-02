@@ -35,17 +35,17 @@ DMS_OPEN_EMBED = (
     )
     .add_field(
         name="",
-        value=f"**<@&{DMS_OPEN_ROLE}>**",
+        value=f"<@&{DMS_OPEN_ROLE}>",
         inline=False,
     )
     .add_field(
         name="",
-        value=f"**<@&{ASK_TO_DM_ROLE}> (Ask in <#{DM_REQUESTS_CHANNEL}>)**",
+        value=f"<@&{ASK_TO_DM_ROLE}> (Ask in <#{DM_REQUESTS_CHANNEL}>)",
         inline=False,
     )
     .add_field(
         name="",
-        value=f"**<@&{DMS_CLOSED_ROLE}>**",
+        value=f"<@&{DMS_CLOSED_ROLE}>",
         inline=False,
     )
 )

@@ -34,22 +34,22 @@ PRONOUN_ROLES_EMBED = (
     )
     .add_field(
         name="",
-        value=f"**<@&{HE_HIM_ROLE}>**",
+        value=f"<@&{HE_HIM_ROLE}>",
         inline=False,
     )
     .add_field(
         name="",
-        value=f"**<@&{SHE_HER_ROLE}>**",
+        value=f"<@&{SHE_HER_ROLE}>",
         inline=False,
     )
     .add_field(
         name="",
-        value=f"**<@&{THEY_THEM_ROLE}>**",
+        value=f"<@&{THEY_THEM_ROLE}>",
         inline=False,
     )
     .add_field(
         name="",
-        value=f"**<@&{OTHER_ASK_ROLE}>**",
+        value=f"<@&{OTHER_ASK_ROLE}>",
         inline=False,
     )
 )

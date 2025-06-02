@@ -46,27 +46,27 @@ PING_ROLES_EMBED = (
     )
     .add_field(
         name="",
-        value=f"**<@&{ANNOUNCEMENTS_ROLE}>**",
+        value=f"<@&{ANNOUNCEMENTS_ROLE}>",
         inline=False,
     )
     .add_field(
         name="",
-        value=f"**<@&{LIVE_ALERTS_ROLE}>**",
+        value=f"<@&{LIVE_ALERTS_ROLE}>",
         inline=False,
     )
     .add_field(
         name="",
-        value=f"**<@&{PING_ROLE}>**",
+        value=f"<@&{PING_ROLE}>",
         inline=False,
     )
     .add_field(
         name="",
-        value=f"**<@&{BLUESKY_ROLE}>**",
+        value=f"<@&{BLUESKY_ROLE}>",
         inline=False,
     )
     .add_field(
         name="",
-        value=f"**<@&{FREE_STUFF_ROLE}>**",
+        value=f"<@&{FREE_STUFF_ROLE}>",
         inline=False,
     )
 )
