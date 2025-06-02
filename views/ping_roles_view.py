@@ -45,28 +45,28 @@ PING_ROLES_EMBED = (
         color=discord.Color.dark_blue(),
     )
     .add_field(
-        name=f"<@&{ANNOUNCEMENTS_ROLE}>",
-        value="",
+        name="",
+        value=f"**<@&{ANNOUNCEMENTS_ROLE}>**",
         inline=False,
     )
     .add_field(
-        name=f"<@&{LIVE_ALERTS_ROLE}>",
-        value="",
+        name="",
+        value=f"**<@&{LIVE_ALERTS_ROLE}>**",
         inline=False,
     )
     .add_field(
-        name=f"<@&{PING_ROLE}>",
-        value="",
+        name="",
+        value=f"**<@&{PING_ROLE}>**",
         inline=False,
     )
     .add_field(
-        name=f"<@&{BLUESKY_ROLE}>",
-        value="",
+        name="",
+        value=f"**<@&{BLUESKY_ROLE}>**",
         inline=False,
     )
     .add_field(
-        name=f"<@&{FREE_STUFF_ROLE}>",
-        value="",
+        name="",
+        value=f"**<@&{FREE_STUFF_ROLE}>**",
         inline=False,
     )
 )

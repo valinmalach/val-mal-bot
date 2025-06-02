@@ -33,23 +33,23 @@ PRONOUN_ROLES_EMBED = (
         color=discord.Color.dark_blue(),
     )
     .add_field(
-        name=f"<@&{HE_HIM_ROLE}>",
-        value="",
+        name="",
+        value=f"**<@&{HE_HIM_ROLE}>**",
         inline=False,
     )
     .add_field(
-        name=f"<@&{SHE_HER_ROLE}>",
-        value="",
+        name="",
+        value=f"**<@&{SHE_HER_ROLE}>**",
         inline=False,
     )
     .add_field(
-        name=f"<@&{THEY_THEM_ROLE}>",
-        value="",
+        name="",
+        value=f"**<@&{THEY_THEM_ROLE}>**",
         inline=False,
     )
     .add_field(
-        name=f"<@&{OTHER_ASK_ROLE}>",
-        value="",
+        name="",
+        value=f"**<@&{OTHER_ASK_ROLE}>**",
         inline=False,
     )
 )

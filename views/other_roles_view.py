@@ -29,18 +29,18 @@ OTHER_ROLES_EMBED = (
         color=discord.Color.dark_blue(),
     )
     .add_field(
-        name=f"<@&{STREAMER_ROLE}>",
-        value="",
+        name="",
+        value=f"**<@&{STREAMER_ROLE}>**",
         inline=False,
     )
     .add_field(
-        name=f"<@&{GAMER_ROLE}>",
-        value="",
+        name="",
+        value=f"**<@&{GAMER_ROLE}>**",
         inline=False,
     )
     .add_field(
-        name=f"<@&{ARTIST_ROLE}>",
-        value="",
+        name="",
+        value=f"**<@&{ARTIST_ROLE}>**",
         inline=False,
     )
 )
