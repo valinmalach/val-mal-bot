@@ -1,4 +1,5 @@
 import asyncio
+from typing import List
 
 import sentry_sdk
 from discord import (
@@ -7,6 +8,7 @@ from discord import (
     ForumChannel,
     GroupChannel,
     Interaction,
+    Message,
     app_commands,
 )
 from discord.ext.commands import Bot, Cog
@@ -51,7 +53,28 @@ class Admin(Cog):
         ):
             return
         await interaction.response.send_message("Nuking channel...")
-        await interaction.channel.purge(limit=100000)
+        iterator = interaction.channel.history(limit=100000)
+        ret: List[Message] = []
+        count = 0
+
+        async for message in iterator:
+            if count == 100:
+                to_delete = ret[-100:]
+                await interaction.channel.delete_messages(to_delete)
+                count = 0
+                await asyncio.sleep(1)
+
+            count += 1
+            ret.append(message)
+
+        # Some messages remaining to poll
+        if count >= 2:
+            # more than 2 messages -> bulk delete
+            to_delete = ret[-count:]
+            await interaction.channel.delete_messages(to_delete)
+        elif count == 1:
+            # delete a single message
+            await ret[-1].delete()
 
     @app_commands.command(description="Sends the rules embed to the rules channel")
     @app_commands.commands.default_permissions(administrator=True)
