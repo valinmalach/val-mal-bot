@@ -9,7 +9,7 @@ import sentry_sdk
 from discord.ui import View
 from dotenv import load_dotenv
 
-from constants import BOT_ADMIN_CHANNEL
+from constants import BOT_ADMIN_CHANNEL, LIVE_ALERTS_ROLE
 from init import xata_client
 from models import (
     AuthResponse,
@@ -153,7 +153,7 @@ async def update_alert(broadcaster_id: str, channel_id: int, message_id: int) ->
             started_at = parse_rfc3339(stream_info.started_at)
             started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
             now = datetime.now()
-            age = get_age(started_at)
+            age = get_age(started_at, limit_units=2)
             embed = (
                 discord.Embed(
                     description=f"[**{stream_info.title}**]({url})",
@@ -175,11 +175,16 @@ async def update_alert(broadcaster_id: str, channel_id: int, message_id: int) ->
                     value=f"{stream_info.viewer_count}",
                     inline=True,
                 )
+                .add_field(
+                    name="**Started At**",
+                    value=started_at_timestamp,
+                    inline=True,
+                )
                 .set_image(
                     url=stream_info.thumbnail_url.replace("{width}x{height}", "400x225")
                 )
                 .set_footer(
-                    text=f"Online for {age} since {started_at_timestamp} | Last updated",
+                    text=f"Online for {age} | Last updated",
                 )
             )
             view = View(timeout=None)
@@ -188,7 +193,9 @@ async def update_alert(broadcaster_id: str, channel_id: int, message_id: int) ->
                     label="Watch Stream", style=discord.ButtonStyle.link, url=url
                 )
             )
-            await edit_embed(message_id, embed, channel_id, view)
+            await edit_embed(
+                message_id, embed, channel_id, view, content=f"<@&{LIVE_ALERTS_ROLE}>"
+            )
             await asyncio.sleep(60)
             alert = xata_client.records().get("live_alerts", broadcaster_id)
             stream_info = await get_stream_info(broadcaster_id)

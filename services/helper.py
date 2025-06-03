@@ -35,18 +35,21 @@ from init import bot, xata_client
 
 
 @sentry_sdk.trace()
-async def send_message(message: str, channel_id: int) -> Optional[int]:
+async def send_message(content: str, channel_id: int) -> Optional[int]:
     channel = bot.get_channel(channel_id)
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
     ):
         return
-    return (await channel.send(message)).id
+    return (await channel.send(content)).id
 
 
 @sentry_sdk.trace()
 async def send_embed(
-    embed: Embed, channel_id: int, view: Optional[View] = None
+    embed: Embed,
+    channel_id: int,
+    view: Optional[View] = None,
+    content: Optional[str] = None,
 ) -> Optional[int]:
     channel = bot.get_channel(channel_id)
     if channel is None or isinstance(
@@ -54,8 +57,8 @@ async def send_embed(
     ):
         return
     if view:
-        return (await channel.send(embed=embed, view=view)).id
-    return (await channel.send(embed=embed)).id
+        return (await channel.send(content=content, embed=embed, view=view)).id
+    return (await channel.send(content=content, embed=embed)).id
 
 
 @sentry_sdk.trace()
@@ -64,6 +67,7 @@ async def edit_embed(
     embed: Embed,
     channel_id: int,
     view: Optional[View] = None,
+    content: Optional[str] = None,
 ) -> None:
     channel = bot.get_channel(channel_id)
     if channel is None or isinstance(
@@ -72,8 +76,8 @@ async def edit_embed(
         return
     message = await channel.fetch_message(message_id)
     if view:
-        await message.edit(embed=embed, view=view)
-    await message.edit(embed=embed)
+        await message.edit(content=content, embed=embed, view=view)
+    await message.edit(content=content, embed=embed)
 
 
 @sentry_sdk.trace()
@@ -129,7 +133,9 @@ def get_channel_mention(
 
 
 @sentry_sdk.trace()
-def get_age(date_time: datetime) -> str:
+def get_age(
+    date_time: datetime, limit_units: int = -1
+) -> str:
     now = datetime.now(timezone.utc)
     if date_time <= now:
         age = relativedelta.relativedelta(now, date_time)
@@ -163,7 +169,9 @@ def get_age(date_time: datetime) -> str:
         if minutes:
             parts.append(format_unit(minutes, "minute"))
         if seconds or not parts:
+            seconds = round(seconds)
             parts.append(format_unit(seconds, "second"))
+    parts = parts[:limit_units]
     return ", ".join(parts)
 
 
