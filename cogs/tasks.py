@@ -28,8 +28,13 @@ BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_APP_PASSWORD")
 class Tasks(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
-        self.check_posts.start()
-        self.check_birthdays.start()
+
+    @Cog.listener()
+    async def on_ready(self) -> None:
+        if not self.check_posts.is_running():
+            self.check_posts.start()
+        if not self.check_birthdays.is_running():
+            self.check_birthdays.start()
 
     _quarter_hours = [
         datetime.time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)

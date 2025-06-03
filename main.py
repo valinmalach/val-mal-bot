@@ -6,12 +6,6 @@ import asyncio
 import os
 
 import sentry_sdk
-from discord.ext.commands.errors import (
-    ExtensionAlreadyLoaded,
-    ExtensionFailed,
-    ExtensionNotFound,
-    NoEntryPointError,
-)
 from dotenv import load_dotenv
 from quart import Quart
 from sentry_sdk.integrations.quart import QuartIntegration
@@ -50,34 +44,27 @@ async def main() -> None:
         if not DISCORD_TOKEN:
             raise ValueError("DISCORD_TOKEN is not set in the environment variables.")
         bot.remove_command("help")
-        for ext in COGS:
-            try:
-                await bot.load_extension(ext)
-            except (
-                ExtensionNotFound,
-                ExtensionAlreadyLoaded,
-                NoEntryPointError,
-                ExtensionFailed,
-            ) as e:
-                sentry_sdk.capture_exception(e)
-                print(f"Something went wrong when loading extension {ext}: {e}")
+        results = await asyncio.gather(
+            *(bot.load_extension(ext) for ext in COGS), return_exceptions=True
+        )
+        for ext, res in zip(COGS, results):
+            if isinstance(res, Exception):
+                sentry_sdk.capture_exception(res)
+                print(f"Failed to load extension {ext}: {res}")
 
-        loop = asyncio.get_event_loop()
-        await bot.login(DISCORD_TOKEN)
-        loop.create_task(bot.connect())
+        await bot.start(DISCORD_TOKEN)
     except Exception as e:
         sentry_sdk.capture_exception(e)
         print(f"Error connecting the bot: {e}")
 
 
 app = Quart(__name__)
-
 app.register_blueprint(twitch_bp)
 
 
 @app.before_serving
 async def before_serving():
-    await main()
+    asyncio.create_task(main())
 
 
 @app.route("/health", methods=["GET"])
@@ -86,4 +73,4 @@ async def health() -> str:
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+    app.run(host="0.0.0.0", port=8000, use_reloader=False)
