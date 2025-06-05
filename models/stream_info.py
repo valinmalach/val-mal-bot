@@ -18,7 +18,7 @@ class StreamInfo(BaseModel):
     game_name: str
     type: StreamType
     title: str
-    tags: List[str]
+    tags: Optional[List[str]] = None
     viewer_count: int
     started_at: str
     language: str
