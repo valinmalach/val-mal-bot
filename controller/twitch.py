@@ -82,18 +82,13 @@ async def twitch_webhook() -> ResponseReturnValue:
         broadcaster_id = event_sub.event.broadcaster_user_id
         stream_info = await get_stream_info(broadcaster_id)
         user_info = await get_user(broadcaster_id)
-        if not stream_info:
-            url = f"https://www.twitch.tv/{event_sub.event.broadcaster_user_login}"
+        while not stream_info:
             await send_message(
-                f"<@&{LIVE_ALERTS_ROLE}> Valin has gone live!\n"
-                + f"Come join at {url}",
-                STREAM_ALERTS_CHANNEL,
-            )
-            await send_message(
-                "Failed to fetch stream info for the online event.",
+                "Failed to fetch stream info for the online event. Retrying...",
                 BOT_ADMIN_CHANNEL,
             )
-            return ""
+            await asyncio.sleep(5)
+            stream_info = await get_stream_info(broadcaster_id)
 
         url = f"https://www.twitch.tv/{stream_info.user_login}"
         embed = (
@@ -127,7 +122,9 @@ async def twitch_webhook() -> ResponseReturnValue:
                 label="Watch Stream", style=discord.ButtonStyle.link, url=url
             )
         )
-        message_id = await send_embed(embed, STREAM_ALERTS_CHANNEL, view, content=f"<@&{LIVE_ALERTS_ROLE}>")
+        message_id = await send_embed(
+            embed, STREAM_ALERTS_CHANNEL, view, content=f"<@&{LIVE_ALERTS_ROLE}>"
+        )
         if message_id is None:
             await send_message(
                 f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {STREAM_ALERTS_CHANNEL}",
