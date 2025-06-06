@@ -71,13 +71,13 @@ class Events(Cog):
                 )
                 if not resp.is_success():
                     await send_message(
-                        f"Failed to save message {message_obj['id']}: {resp.error_message}",
+                        f"Failed to save message {message.id}: {resp.error_message}",
                         BOT_ADMIN_CHANNEL,
                     )
             except Exception as e:
                 sentry_sdk.capture_exception(e)
                 await send_message(
-                    f"Failed to save message {message_obj['id']}: {e}",
+                    f"Failed to save message {message.id}: {e}",
                     BOT_ADMIN_CHANNEL,
                 )
 
