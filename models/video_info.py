@@ -28,7 +28,7 @@ class VideoInfo(BaseModel):
     url: str
     thumbnail_url: str
     viewable: str
-    viewer_count: int
+    view_count: int
     language: str
     type: VideoType
     duration: str
