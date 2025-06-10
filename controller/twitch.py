@@ -29,6 +29,7 @@ from services import (
     get_hmac,
     get_hmac_message,
     get_stream_info,
+    get_stream_vod,
     get_user,
     parse_rfc3339,
     send_embed,
@@ -211,6 +212,20 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
         stream_id = alert.get("stream_id", "")
         stream_started_at = alert.get("stream_started_at", "")
 
+        vod_info = None
+        for _ in range(5):
+            try:
+                vod_info = await get_stream_vod(broadcaster_id, stream_id)
+                if vod_info:
+                    break
+            except Exception as e:
+                sentry_sdk.capture_exception(e)
+                await send_message(
+                    f"Failed to fetch VOD info for {broadcaster_id}: {e}",
+                    BOT_ADMIN_CHANNEL,
+                )
+            await asyncio.sleep(5)
+
         url = f"https://www.twitch.tv/{event_sub.event.broadcaster_user_login}"
         embed = (
             discord.Embed(
@@ -229,10 +244,11 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
                 inline=True,
             )
         )
-        if stream_id:
+        if stream_id and vod_info:
+            vod_url = vod_info.url
             embed = embed.add_field(
                 name="**VOD**",
-                value=f"[**Click to view**](https://www.twitch.tv/videos/{stream_id})",
+                value=f"[**Click to view**]({vod_url})",
                 inline=True,
             )
         if stream_started_at:

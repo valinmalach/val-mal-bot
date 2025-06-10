@@ -4,6 +4,7 @@ from .stream_info import StreamInfo, StreamInfoResponse
 from .stream_offline_event_sub import StreamOfflineEventSub
 from .stream_online_event_sub import StreamOnlineEventSub
 from .user_info import UserInfo, UserInfoResponse
+from .video_info import VideoInfo, VideoInfoResponse
 
 __all__ = [
     "AuthResponse",
@@ -15,4 +16,6 @@ __all__ = [
     "StreamOnlineEventSub",
     "UserInfo",
     "UserInfoResponse",
+    "VideoInfo",
+    "VideoInfoResponse",
 ]

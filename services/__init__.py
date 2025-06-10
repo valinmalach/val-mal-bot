@@ -19,7 +19,13 @@ from .helper import (
     update_birthday,
     verify_message,
 )
-from .twitch_service import get_channel, get_stream_info, get_user, update_alert
+from .twitch_service import (
+    get_channel,
+    get_stream_info,
+    get_stream_vod,
+    get_user,
+    update_alert,
+)
 
 __all__ = [
     "edit_embed",
@@ -42,6 +48,7 @@ __all__ = [
     "update_birthday",
     "get_channel",
     "get_stream_info",
+    "get_stream_vod",
     "get_user",
     "update_alert",
     "verify_message",

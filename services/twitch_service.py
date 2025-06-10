@@ -19,6 +19,8 @@ from models import (
     StreamInfoResponse,
     UserInfo,
     UserInfoResponse,
+    VideoInfo,
+    VideoInfoResponse,
 )
 from services import edit_embed, get_age, parse_rfc3339, send_message
 
@@ -140,6 +142,39 @@ async def get_stream_info(broadcaster_id: str) -> Optional[StreamInfo]:
         return
     stream_info_response = StreamInfoResponse.model_validate(response.json())
     return stream_info_response.data[0] if stream_info_response.data else None
+
+
+@sentry_sdk.trace()
+async def get_stream_vod(user_id: str, stream_id: str) -> Optional[VideoInfo]:
+    global access_token
+    if not access_token:
+        refresh_success = await refresh_access_token()
+        if not refresh_success:
+            return
+
+    url = f"https://api.twitch.tv/helix/videos?user_id={user_id}&type=archive"
+    headers = {
+        "Client-ID": TWITCH_CLIENT_ID,
+        "Authorization": f"Bearer {access_token}",
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 401:
+        if await refresh_access_token():
+            headers["Authorization"] = f"Bearer {access_token}"
+            response = requests.get(url, headers=headers)
+        else:
+            return
+    if response.status_code != 200:
+        await send_message(
+            f"Failed to fetch stream info: {response.status_code} {response.text}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return
+    video_info_response = VideoInfoResponse.model_validate(response.json())
+    return next(
+        (video for video in video_info_response.data if video.stream_id == stream_id),
+        None,
+    )
 
 
 @sentry_sdk.trace()
