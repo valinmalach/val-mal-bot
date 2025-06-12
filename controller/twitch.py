@@ -97,6 +97,9 @@ async def twitch_webhook() -> ResponseReturnValue:
             if stream_info.user_login == "valinmalach"
             else PROMO_CHANNEL
         )
+        content = (
+            f"<@&{LIVE_ALERTS_ROLE}>" if channel == STREAM_ALERTS_CHANNEL else None
+        )
 
         url = f"https://www.twitch.tv/{stream_info.user_login}"
         embed = (
@@ -130,9 +133,7 @@ async def twitch_webhook() -> ResponseReturnValue:
                 label="Watch Stream", style=discord.ButtonStyle.link, url=url
             )
         )
-        message_id = await send_embed(
-            embed, channel, view, content=f"<@&{LIVE_ALERTS_ROLE}>"
-        )
+        message_id = await send_embed(embed, channel, view, content=content)
         if message_id is None:
             await send_message(
                 f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}",
@@ -231,6 +232,10 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
                 )
             await asyncio.sleep(5)
 
+        content = (
+            f"<@&{LIVE_ALERTS_ROLE}>" if channel_id == STREAM_ALERTS_CHANNEL else None
+        )
+
         url = f"https://www.twitch.tv/{event_sub.event.broadcaster_user_login}"
         embed = (
             discord.Embed(
@@ -262,9 +267,7 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
             embed = embed.set_footer(
                 text=f"Online for {age} | Offline at",
             )
-        await edit_embed(
-            message_id, embed, channel_id, content=f"<@&{LIVE_ALERTS_ROLE}>"
-        )
+        await edit_embed(message_id, embed, channel_id, content=content)
 
         resp = xata_client.records().delete("live_alerts", broadcaster_id)
         if not resp.is_success():
