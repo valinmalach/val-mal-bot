@@ -9,7 +9,7 @@ import sentry_sdk
 from discord.ui import View
 from dotenv import load_dotenv
 
-from constants import BOT_ADMIN_CHANNEL, LIVE_ALERTS_ROLE
+from constants import BOT_ADMIN_CHANNEL, LIVE_ALERTS_ROLE, STREAM_ALERTS_CHANNEL
 from init import xata_client
 from models import (
     AuthResponse,
@@ -184,6 +184,11 @@ async def update_alert(broadcaster_id: str, channel_id: int, message_id: int) ->
         stream_info = await get_stream_info(broadcaster_id)
         user_info = await get_user(broadcaster_id)
         while alert.is_success() and stream_info is not None:
+            content = (
+                f"<@&{LIVE_ALERTS_ROLE}>"
+                if channel_id == STREAM_ALERTS_CHANNEL
+                else None
+            )
             url = f"https://www.twitch.tv/{stream_info.user_login}"
             started_at = parse_rfc3339(stream_info.started_at)
             started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
@@ -228,9 +233,7 @@ async def update_alert(broadcaster_id: str, channel_id: int, message_id: int) ->
                     label="Watch Stream", style=discord.ButtonStyle.link, url=url
                 )
             )
-            await edit_embed(
-                message_id, embed, channel_id, view, content=f"<@&{LIVE_ALERTS_ROLE}>"
-            )
+            await edit_embed(message_id, embed, channel_id, view, content=content)
             await asyncio.sleep(60)
             alert = xata_client.records().get("live_alerts", broadcaster_id)
             stream_info = await get_stream_info(broadcaster_id)
