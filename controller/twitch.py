@@ -14,6 +14,7 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     HMAC_PREFIX,
     LIVE_ALERTS_ROLE,
+    PROMO_CHANNEL,
     STREAM_ALERTS_CHANNEL,
     TWITCH_MESSAGE_ID,
     TWITCH_MESSAGE_SIGNATURE,
@@ -91,6 +92,12 @@ async def twitch_webhook() -> ResponseReturnValue:
             await asyncio.sleep(5)
             stream_info = await get_stream_info(broadcaster_id)
 
+        channel = (
+            STREAM_ALERTS_CHANNEL
+            if stream_info.user_login == "valinmalach"
+            else PROMO_CHANNEL
+        )
+
         url = f"https://www.twitch.tv/{stream_info.user_login}"
         embed = (
             discord.Embed(
@@ -124,28 +131,26 @@ async def twitch_webhook() -> ResponseReturnValue:
             )
         )
         message_id = await send_embed(
-            embed, STREAM_ALERTS_CHANNEL, view, content=f"<@&{LIVE_ALERTS_ROLE}>"
+            embed, channel, view, content=f"<@&{LIVE_ALERTS_ROLE}>"
         )
         if message_id is None:
             await send_message(
-                f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {STREAM_ALERTS_CHANNEL}",
+                f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}",
                 BOT_ADMIN_CHANNEL,
             )
             return ""
         alert = {
-            "channel_id": STREAM_ALERTS_CHANNEL,
+            "channel_id": channel,
             "message_id": message_id,
             "stream_id": stream_info.id,
             "stream_started_at": stream_info.started_at,
         }
         resp = xata_client.records().upsert("live_alerts", broadcaster_id, alert)
         if resp.is_success():
-            asyncio.create_task(
-                update_alert(broadcaster_id, STREAM_ALERTS_CHANNEL, message_id)
-            )
+            asyncio.create_task(update_alert(broadcaster_id, channel, message_id))
         else:
             await send_message(
-                f"Failed to insert live alert message into database\nbroadcaster_id: {broadcaster_id}\nchannel_id: {STREAM_ALERTS_CHANNEL}\n message_id: {message_id}\n\n{resp.error_message}",
+                f"Failed to insert live alert message into database\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}\n message_id: {message_id}\n\n{resp.error_message}",
                 BOT_ADMIN_CHANNEL,
             )
 
