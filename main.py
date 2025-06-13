@@ -3,6 +3,7 @@ import truststore
 truststore.inject_into_ssl()
 
 import asyncio
+import logging
 import os
 
 import sentry_sdk
@@ -31,9 +32,15 @@ sentry_sdk.init(
     # Set profile_lifecycle to "trace" to automatically
     # run the profiler on when there is an active transaction
     profile_lifecycle="trace",
+    _experiments={
+        "enable_logs": True,  # Enable logging to Sentry
+    },
 )
 
 sentry_sdk.profiler.start_profiler()  # type: ignore
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
