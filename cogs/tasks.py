@@ -1,12 +1,9 @@
 import asyncio
 import datetime
-import os
 
 import sentry_sdk
-from atproto import Client
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
-from dotenv import load_dotenv
 from requests.exceptions import ConnectionError
 from xata.api_response import ApiResponse
 
@@ -16,13 +13,8 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     SHOUTOUTS_CHANNEL,
 )
-from init import xata_client
+from init import at_client, xata_client
 from services import get_next_leap, send_message, update_birthday
-
-load_dotenv()
-
-BLUESKY_LOGIN = os.getenv("BLUESKY_LOGIN")
-BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_APP_PASSWORD")
 
 
 class Tasks(Cog):
@@ -44,12 +36,6 @@ class Tasks(Cog):
     @sentry_sdk.trace()
     async def check_posts(self) -> None:
         try:
-            if not BLUESKY_LOGIN or not BLUESKY_APP_PASSWORD:
-                await send_message(
-                    "Bluesky credentials are not set. Skipping Bluesky post check.",
-                    BOT_ADMIN_CHANNEL,
-                )
-                return
             try:
                 last_sync_date_time = xata_client.data().query(
                     "bluesky",
@@ -60,13 +46,10 @@ class Tasks(Cog):
                     },
                 )["records"][0]["date"]
             except ConnectionError as e:
-                sentry_sdk.capture_exception(e)
                 return
 
             try:
-                at_client = Client()
-                at_client.login(BLUESKY_LOGIN, BLUESKY_APP_PASSWORD)
-                author_feed = at_client.get_author_feed(actor=BLUESKY_LOGIN)
+                author_feed = at_client.get_author_feed(actor="valinmalach.bsky.social")
             except Exception as e:
                 sentry_sdk.capture_exception(e)
                 return
@@ -75,7 +58,7 @@ class Tasks(Cog):
                 [
                     feed.post
                     for feed in author_feed.feed
-                    if feed.post.author.handle == BLUESKY_LOGIN
+                    if feed.post.author.handle == "valinmalach.bsky.social"
                     and feed.post.indexed_at > last_sync_date_time
                 ],
                 key=lambda post: post.indexed_at,
