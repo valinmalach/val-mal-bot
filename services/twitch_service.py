@@ -180,7 +180,13 @@ async def get_stream_vod(user_id: str, stream_id: str) -> Optional[VideoInfo]:
 @sentry_sdk.trace()
 async def update_alert(broadcaster_id: str, channel_id: int, message_id: int) -> None:
     try:
-        alert = xata_client.records().get("live_alerts", broadcaster_id)
+        # retry on connection errors
+        while True:
+            try:
+                alert = xata_client.records().get("live_alerts", broadcaster_id)
+                break
+            except ConnectionError:
+                await asyncio.sleep(60)
         stream_info = await get_stream_info(broadcaster_id)
         user_info = await get_user(broadcaster_id)
         while alert.is_success() and stream_info is not None:
@@ -234,8 +240,14 @@ async def update_alert(broadcaster_id: str, channel_id: int, message_id: int) ->
                 )
             )
             await edit_embed(message_id, embed, channel_id, view, content=content)
-            await asyncio.sleep(60)
-            alert = xata_client.records().get("live_alerts", broadcaster_id)
+            await asyncio.sleep(300)
+            # retry on connection errors
+            while True:
+                try:
+                    alert = xata_client.records().get("live_alerts", broadcaster_id)
+                    break
+                except ConnectionError:
+                    await asyncio.sleep(60)
             stream_info = await get_stream_info(broadcaster_id)
 
     except Exception as e:
