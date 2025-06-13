@@ -13,7 +13,7 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     SHOUTOUTS_CHANNEL,
 )
-from init import at_client, xata_client
+from init import xata_client  # at_client,
 from services import get_next_leap, send_message, update_birthday
 
 
@@ -23,8 +23,8 @@ class Tasks(Cog):
 
     @Cog.listener()
     async def on_ready(self) -> None:
-        if not self.check_posts.is_running():
-            self.check_posts.start()
+        # if not self.check_posts.is_running():
+        #     self.check_posts.start()
         if not self.check_birthdays.is_running():
             self.check_birthdays.start()
 
@@ -32,73 +32,73 @@ class Tasks(Cog):
         datetime.time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
     ]
 
-    @tasks.loop(minutes=1)
-    @sentry_sdk.trace()
-    async def check_posts(self) -> None:
-        try:
-            try:
-                last_sync_date_time = xata_client.data().query(
-                    "bluesky",
-                    {
-                        "columns": ["date"],
-                        "sort": {"date": "desc"},
-                        "page": {"size": 1},
-                    },
-                )["records"][0]["date"]
-            except ConnectionError as e:
-                return
+    # @tasks.loop(minutes=1)
+    # @sentry_sdk.trace()
+    # async def check_posts(self) -> None:
+    #     try:
+    #         try:
+    #             last_sync_date_time = xata_client.data().query(
+    #                 "bluesky",
+    #                 {
+    #                     "columns": ["date"],
+    #                     "sort": {"date": "desc"},
+    #                     "page": {"size": 1},
+    #                 },
+    #             )["records"][0]["date"]
+    #         except ConnectionError as e:
+    #             return
 
-            try:
-                author_feed = at_client.get_author_feed(actor="valinmalach.bsky.social")
-            except Exception as e:
-                sentry_sdk.capture_exception(e)
-                return
+    #         try:
+    #             author_feed = at_client.get_author_feed(actor="valinmalach.bsky.social")
+    #         except Exception as e:
+    #             sentry_sdk.capture_exception(e)
+    #             return
 
-            posts = sorted(
-                [
-                    feed.post
-                    for feed in author_feed.feed
-                    if feed.post.author.handle == "valinmalach.bsky.social"
-                    and feed.post.indexed_at > last_sync_date_time
-                ],
-                key=lambda post: post.indexed_at,
-            )
+    #         posts = sorted(
+    #             [
+    #                 feed.post
+    #                 for feed in author_feed.feed
+    #                 if feed.post.author.handle == "valinmalach.bsky.social"
+    #                 and feed.post.indexed_at > last_sync_date_time
+    #             ],
+    #             key=lambda post: post.indexed_at,
+    #         )
 
-            posts = [
-                {
-                    "id": post.uri.split("/")[-1],
-                    "date": post.indexed_at,
-                    "url": f"https://bsky.app/profile/valinmalach.bsky.social/post/{post.uri.split('/')[-1]}",
-                }
-                for post in posts
-            ]
+    #         posts = [
+    #             {
+    #                 "id": post.uri.split("/")[-1],
+    #                 "date": post.indexed_at,
+    #                 "url": f"https://bsky.app/profile/valinmalach.bsky.social/post/{post.uri.split('/')[-1]}",
+    #             }
+    #             for post in posts
+    #         ]
 
-            for post in posts:
-                post_id = post.pop("id")
-                try:
-                    resp = xata_client.records().upsert("bluesky", post_id, post)
-                    if resp.is_success():
-                        await send_message(
-                            f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
-                            BLUESKY_CHANNEL,
-                        )
-                    else:
-                        await send_message(
-                            f"Failed to insert post {post_id} into database: {resp.error_message}",
-                            BOT_ADMIN_CHANNEL,
-                        )
-                except Exception as e:
-                    sentry_sdk.capture_exception(e)
-                    await send_message(
-                        f"Failed to insert post {post_id} into database: {e}",
-                        BOT_ADMIN_CHANNEL,
-                    )
-        except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with Bluesky posts check: {e}",
-                BOT_ADMIN_CHANNEL,
-            )
+    #         for post in posts:
+    #             post_id = post.pop("id")
+    #             try:
+    #                 resp = xata_client.records().upsert("bluesky", post_id, post)
+    #                 if resp.is_success():
+    #                     await send_message(
+    #                         f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
+    #                         BLUESKY_CHANNEL,
+    #                     )
+    #                 else:
+    #                     await send_message(
+    #                         f"Failed to insert post {post_id} into database: {resp.error_message}",
+    #                         BOT_ADMIN_CHANNEL,
+    #                     )
+    #             except Exception as e:
+    #                 sentry_sdk.capture_exception(e)
+    #                 await send_message(
+    #                     f"Failed to insert post {post_id} into database: {e}",
+    #                     BOT_ADMIN_CHANNEL,
+    #                 )
+    #     except Exception as e:
+    #         sentry_sdk.capture_exception(e)
+    #         await send_message(
+    #             f"Fatal error with Bluesky posts check: {e}",
+    #             BOT_ADMIN_CHANNEL,
+    #         )
 
     @tasks.loop(time=_quarter_hours)
     @sentry_sdk.trace()
