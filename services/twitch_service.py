@@ -161,7 +161,9 @@ async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
     users: List[UserInfo] = []
 
     for batch in batches_list:
-        url = f"https://api.twitch.tv/helix/users?id={id}"
+        if not batch:
+            continue
+        url = f"https://api.twitch.tv/helix/users?id={'&id='.join(batch)}"
         headers = {
             "Client-ID": TWITCH_CLIENT_ID,
             "Authorization": f"Bearer {access_token}",
