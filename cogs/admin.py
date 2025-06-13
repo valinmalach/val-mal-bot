@@ -1,6 +1,7 @@
 import asyncio
 from typing import List
 
+import discord
 import sentry_sdk
 from discord import (
     CategoryChannel,
@@ -14,7 +15,7 @@ from discord import (
 from discord.ext.commands import Bot, Cog
 
 from constants import ROLES_CHANNEL, RULES_CHANNEL
-from services.helper import send_embed
+from services import get_subscriptions, get_users, send_embed
 from views import (
     DMS_OPEN_EMBED,
     NSFW_ACCESS_EMBED,
@@ -118,6 +119,51 @@ class Admin(Cog):
         for embed, view in zip(embeds, views):
             await send_embed(embed, ROLES_CHANNEL, view)
         await interaction.response.send_message("Roles embeds send to roles channel!")
+
+    @app_commands.command(description="Gets all active subscriptions' users")
+    @app_commands.commands.default_permissions(administrator=True)
+    async def subscriptions(self, interaction: Interaction) -> None:
+        subscriptions = await get_subscriptions()
+        if not subscriptions:
+            embed = discord.Embed(
+                title="No Subscriptions",
+                description="There are no active subscriptions.",
+                color=discord.Color.red(),
+            )
+            await interaction.response.send_message(embed=embed)
+            return
+
+        # Group subscriptions by type
+        grouped_subscriptions: dict[str, List[str]] = {}
+        for subscription in subscriptions:
+            sub_type = subscription.type
+            if sub_type not in grouped_subscriptions:
+                grouped_subscriptions[sub_type] = []
+            if subscription.condition.broadcaster_user_id:
+                grouped_subscriptions[sub_type].append(
+                    subscription.condition.broadcaster_user_id
+                )
+        embed = discord.Embed(
+            title="Active Subscriptions",
+            description="Here are the active subscriptions grouped by type.",
+            color=discord.Color.blue(),
+        )
+        for sub_type, user_ids in grouped_subscriptions.items():
+            if not user_ids:
+                continue
+            users = await get_users(user_ids)
+            if not users:
+                continue
+            user_names = [user.display_name for user in users if user]
+            if not user_names:
+                continue
+            user_names.sort()
+            embed.add_field(
+                name=sub_type,
+                value=f"* {'\n* '.join(user_names)}",
+                inline=False,
+            )
+        await interaction.response.send_message(embed=embed)
 
 
 async def setup(bot: Bot) -> None:

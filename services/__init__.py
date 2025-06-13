@@ -23,7 +23,9 @@ from .twitch_service import (
     get_channel,
     get_stream_info,
     get_stream_vod,
+    get_subscriptions,
     get_user,
+    get_users,
     update_alert,
 )
 
@@ -46,10 +48,12 @@ __all__ = [
     "send_message",
     "toggle_role",
     "update_birthday",
+    "verify_message",
     "get_channel",
     "get_stream_info",
     "get_stream_vod",
+    "get_subscriptions",
     "get_user",
+    "get_users",
     "update_alert",
-    "verify_message",
 ]

@@ -1,7 +1,8 @@
 import asyncio
+import itertools
 import os
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 import discord
 import requests
@@ -17,6 +18,8 @@ from models import (
     ChannelInfoResponse,
     StreamInfo,
     StreamInfoResponse,
+    SubscriptionInfo,
+    SubscriptionInfoResponse,
     UserInfo,
     UserInfoResponse,
     VideoInfo,
@@ -55,6 +58,65 @@ async def refresh_access_token() -> bool:
 
 
 @sentry_sdk.trace()
+async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
+    global access_token
+    if not access_token:
+        refresh_success = await refresh_access_token()
+        if not refresh_success:
+            return
+
+    all_subscriptions: List[SubscriptionInfo] = []
+    cursor: Optional[str] = None
+
+    url = "https://api.twitch.tv/helix/eventsub/subscriptions"
+    headers = {
+        "Client-ID": TWITCH_CLIENT_ID,
+        "Authorization": f"Bearer {access_token}",
+    }
+    while True:
+        params = {"status": "enabled"}
+        if cursor:
+            params["after"] = cursor
+
+        response = requests.get(
+            url,
+            headers=headers,
+            params=params,
+        )
+        if response.status_code == 401:
+            if await refresh_access_token():
+                headers["Authorization"] = f"Bearer {access_token}"
+                response = requests.get(
+                    url,
+                    headers=headers,
+                    params=params,
+                )
+            else:
+                return
+
+        if response.status_code != 200:
+            await send_message(
+                f"Failed to fetch subscriptions: {response.status_code} {response.text}",
+                BOT_ADMIN_CHANNEL,
+            )
+            return
+
+        subscription_info_response = SubscriptionInfoResponse.model_validate(
+            response.json()
+        )
+        data = subscription_info_response.data
+        if not data:
+            break
+
+        all_subscriptions.extend(data)
+        cursor = subscription_info_response.pagination.cursor
+        if not cursor:
+            break
+
+    return all_subscriptions
+
+
+@sentry_sdk.trace()
 async def get_user(id: str) -> Optional[UserInfo]:
     global access_token
     if not access_token:
@@ -82,6 +144,45 @@ async def get_user(id: str) -> Optional[UserInfo]:
         return
     user_info_response = UserInfoResponse.model_validate(response.json())
     return user_info_response.data[0] if user_info_response.data else None
+
+
+@sentry_sdk.trace()
+async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
+    global access_token
+    if not access_token:
+        refresh_success = await refresh_access_token()
+        if not refresh_success:
+            return
+
+    # Split ids into batches of 100
+    batches_iterator = itertools.batched(ids, 100)
+    batches_list = [list(batch) for batch in batches_iterator]
+
+    users: List[UserInfo] = []
+
+    for batch in batches_list:
+        url = f"https://api.twitch.tv/helix/users?id={id}"
+        headers = {
+            "Client-ID": TWITCH_CLIENT_ID,
+            "Authorization": f"Bearer {access_token}",
+        }
+        response = requests.get(url, headers=headers)
+        if response.status_code == 401:
+            if await refresh_access_token():
+                headers["Authorization"] = f"Bearer {access_token}"
+                response = requests.get(url, headers=headers)
+            else:
+                return
+        if response.status_code != 200:
+            await send_message(
+                f"Failed to fetch users infos: {response.status_code} {response.text}",
+                BOT_ADMIN_CHANNEL,
+            )
+            return
+        user_info_response = UserInfoResponse.model_validate(response.json())
+        users.extend(user_info_response.data)
+
+    return users
 
 
 @sentry_sdk.trace()
