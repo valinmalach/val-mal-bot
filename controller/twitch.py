@@ -148,7 +148,15 @@ async def twitch_webhook() -> ResponseReturnValue:
         }
         resp = xata_client.records().upsert("live_alerts", broadcaster_id, alert)
         if resp.is_success():
-            asyncio.create_task(update_alert(broadcaster_id, channel, message_id))
+            asyncio.create_task(
+                update_alert(
+                    broadcaster_id,
+                    channel,
+                    message_id,
+                    stream_info.id,
+                    stream_info.started_at,
+                )
+            )
         else:
             await send_message(
                 f"Failed to insert live alert message into database\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}\n message_id: {message_id}\n\n{resp.error_message}",
@@ -267,7 +275,13 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
             embed = embed.set_footer(
                 text=f"Online for {age} | Offline at",
             )
-        await edit_embed(message_id, embed, channel_id, content=content)
+        # retry on Discord Server Error
+        while True:
+            try:
+                await edit_embed(message_id, embed, channel_id, content=content)
+                break
+            except discord.DiscordServerError:
+                await asyncio.sleep(60)
 
         resp = xata_client.records().delete("live_alerts", broadcaster_id)
         if not resp.is_success():

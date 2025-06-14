@@ -281,7 +281,13 @@ async def get_stream_vod(user_id: str, stream_id: str) -> Optional[VideoInfo]:
 
 
 @sentry_sdk.trace()
-async def update_alert(broadcaster_id: str, channel_id: int, message_id: int) -> None:
+async def update_alert(
+    broadcaster_id: str,
+    channel_id: int,
+    message_id: int,
+    stream_id: str,
+    stream_started_at: str,
+) -> None:
     try:
         await asyncio.sleep(300)
         # retry on connection errors
@@ -300,10 +306,60 @@ async def update_alert(broadcaster_id: str, channel_id: int, message_id: int) ->
                 else None
             )
             url = f"https://www.twitch.tv/{stream_info.user_login}"
-            started_at = parse_rfc3339(stream_info.started_at)
+            started_at = parse_rfc3339(stream_started_at)
             started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
             now = datetime.now()
             age = get_age(started_at, limit_units=2)
+            if alert.get("stream_id", "") != stream_id:
+                vod_info = None
+                for _ in range(5):
+                    try:
+                        vod_info = await get_stream_vod(broadcaster_id, stream_id)
+                        if vod_info:
+                            break
+                    except Exception as e:
+                        sentry_sdk.capture_exception(e)
+                        await send_message(
+                            f"Failed to fetch VOD info for {broadcaster_id}: {e}",
+                            BOT_ADMIN_CHANNEL,
+                        )
+                    await asyncio.sleep(5)
+
+                embed = (
+                    discord.Embed(
+                        description=f"**{stream_info.title}**",
+                        color=0x9046FF,
+                        timestamp=now,
+                    )
+                    .set_author(
+                        name=f"{stream_info.user_name} was live",
+                        icon_url=user_info.profile_image_url if user_info else None,
+                        url=url,
+                    )
+                    .add_field(
+                        name="**Game**",
+                        value=f"{stream_info.game_name}",
+                        inline=True,
+                    )
+                    .set_footer(
+                        text=f"Online for {age} | Offline at",
+                    )
+                )
+                if vod_info:
+                    vod_url = vod_info.url
+                    embed = embed.add_field(
+                        name="**VOD**",
+                        value=f"[**Click to view**]({vod_url})",
+                        inline=True,
+                    )
+                # retry on Discord Server Error
+                while True:
+                    try:
+                        await edit_embed(message_id, embed, channel_id, content=content)
+                        break
+                    except discord.DiscordServerError:
+                        await asyncio.sleep(60)
+                return
             embed = (
                 discord.Embed(
                     description=f"[**{stream_info.title}**]({url})",
@@ -343,7 +399,15 @@ async def update_alert(broadcaster_id: str, channel_id: int, message_id: int) ->
                     label="Watch Stream", style=discord.ButtonStyle.link, url=url
                 )
             )
-            await edit_embed(message_id, embed, channel_id, view, content=content)
+            # retry on Discord Server Error
+            while True:
+                try:
+                    await edit_embed(
+                        message_id, embed, channel_id, view, content=content
+                    )
+                    break
+                except discord.DiscordServerError:
+                    await asyncio.sleep(60)
             await asyncio.sleep(300)
             # retry on connection errors
             while True:
