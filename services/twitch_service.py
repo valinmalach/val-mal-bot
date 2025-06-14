@@ -283,6 +283,7 @@ async def get_stream_vod(user_id: str, stream_id: str) -> Optional[VideoInfo]:
 @sentry_sdk.trace()
 async def update_alert(broadcaster_id: str, channel_id: int, message_id: int) -> None:
     try:
+        await asyncio.sleep(300)
         # retry on connection errors
         while True:
             try:
