@@ -385,7 +385,7 @@ async def update_alert(
             started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
             now = datetime.now()
             age = get_age(started_at, limit_units=2)
-            if alert.get("stream_id", "") != stream_id:
+            if alert.get("stream_id", "") != stream_id or stream_info.id != stream_id:
                 logger.info(
                     "Stream ID changed; building offline VOD embed for previous stream_id=%s",
                     stream_id,
