@@ -47,22 +47,29 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 @sentry_sdk.trace()
 async def main() -> None:
+    logger.info("Starting main function")
     try:
+        logger.info("Checking DISCORD_TOKEN presence")
         if not DISCORD_TOKEN:
+            logger.error("DISCORD_TOKEN is not set, aborting startup")
             raise ValueError("DISCORD_TOKEN is not set in the environment variables.")
+        logger.info("DISCORD_TOKEN found, loading extensions: %s", COGS)
         bot.remove_command("help")
         results = await asyncio.gather(
             *(bot.load_extension(ext) for ext in COGS), return_exceptions=True
         )
         for ext, res in zip(COGS, results):
             if isinstance(res, Exception):
+                logger.error("Failed to load extension %s: %s", ext, res)
                 sentry_sdk.capture_exception(res)
-                print(f"Failed to load extension {ext}: {res}")
+            else:
+                logger.info("Successfully loaded extension %s", ext)
 
+        logger.info("Starting bot with DISCORD_TOKEN")
         await bot.start(DISCORD_TOKEN)
     except Exception as e:
+        logger.error("Error in main: %s", e)
         sentry_sdk.capture_exception(e)
-        print(f"Error connecting the bot: {e}")
 
 
 app = Quart(__name__)
@@ -70,12 +77,16 @@ app.register_blueprint(twitch_bp)
 
 
 @app.before_serving
+@sentry_sdk.trace()
 async def before_serving():
+    logger.info("Quart app is starting, initializing bot")
     asyncio.create_task(main())
 
 
 @app.route("/health", methods=["GET"])
+@sentry_sdk.trace()
 async def health() -> str:
+    logger.info("Health check endpoint called")
     return "Healthy"
 
 

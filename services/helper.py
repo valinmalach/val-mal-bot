@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import logging
 from datetime import datetime, timezone
 from functools import cache
 from typing import Optional
@@ -32,6 +33,8 @@ from discord.ui import Button, View
 
 from constants import EMOJI_ROLE_MAP
 from init import bot, xata_client
+
+logger = logging.getLogger(__name__)
 
 
 @sentry_sdk.trace()
@@ -133,9 +136,7 @@ def get_channel_mention(
 
 
 @sentry_sdk.trace()
-def get_age(
-    date_time: datetime, limit_units: int = -1
-) -> str:
+def get_age(date_time: datetime, limit_units: int = -1) -> str:
     now = datetime.now(timezone.utc)
     if date_time <= now:
         age = relativedelta.relativedelta(now, date_time)
