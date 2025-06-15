@@ -8,7 +8,7 @@ import os
 
 import sentry_sdk
 from dotenv import load_dotenv
-from quart import Quart
+from quart import Quart, Response, ResponseReturnValue, send_from_directory
 from sentry_sdk.integrations.quart import QuartIntegration
 
 from constants import COGS
@@ -85,9 +85,19 @@ async def before_serving():
 
 @app.route("/health", methods=["GET"])
 @sentry_sdk.trace()
-async def health() -> str:
+async def health() -> ResponseReturnValue:
     logger.info("Health check endpoint called")
-    return "Healthy"
+    return Response("Health check OK", status=200)
+
+
+@app.route("/robots.txt")
+@sentry_sdk.trace()
+async def robots_txt() -> ResponseReturnValue:
+    logger.info("Serving robots.txt")
+    if not os.path.exists("robots.txt"):
+        logger.warning("robots.txt file not found, returning empty response")
+        return Response("", status=404)
+    return await send_from_directory(".", "robots.txt")
 
 
 if __name__ == "__main__":
