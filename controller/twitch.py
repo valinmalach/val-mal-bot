@@ -129,6 +129,11 @@ async def twitch_webhook() -> ResponseReturnValue:
 
         url = f"https://www.twitch.tv/{stream_info.user_login}"
         logger.info("Constructing embed for url=%s", url)
+        # Cache-bust thumbnail URL to force Discord to refresh the image
+        raw_thumb_url = stream_info.thumbnail_url.replace("{width}x{height}", "400x225")
+        cache_busted_thumb_url = f"{raw_thumb_url}?cb={int(datetime.now().timestamp())}"
+        logger.info("Using cache-busted thumbnail URL: %s", cache_busted_thumb_url)
+
         embed = (
             discord.Embed(
                 description=f"[**{stream_info.title}**]({url})",
@@ -150,9 +155,7 @@ async def twitch_webhook() -> ResponseReturnValue:
                 value=f"{stream_info.viewer_count}",
                 inline=True,
             )
-            .set_image(
-                url=stream_info.thumbnail_url.replace("{width}x{height}", "400x225")
-            )
+            .set_image(url=cache_busted_thumb_url)
         )
         view = View(timeout=None)
         view.add_item(

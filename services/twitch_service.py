@@ -460,6 +460,14 @@ async def update_alert(
             logger.info(
                 "Building live update embed for ongoing stream_id=%s", stream_id
             )
+            # Cache-bust thumbnail URL to force Discord to refresh the image
+            raw_thumb_url = stream_info.thumbnail_url.replace(
+                "{width}x{height}", "400x225"
+            )
+            cache_busted_thumb_url = (
+                f"{raw_thumb_url}?cb={int(datetime.now().timestamp())}"
+            )
+            logger.info("Using cache-busted thumbnail URL: %s", cache_busted_thumb_url)
             embed = (
                 discord.Embed(
                     description=f"[**{stream_info.title}**]({url})",
@@ -486,9 +494,7 @@ async def update_alert(
                     value=started_at_timestamp,
                     inline=True,
                 )
-                .set_image(
-                    url=stream_info.thumbnail_url.replace("{width}x{height}", "400x225")
-                )
+                .set_image(url=cache_busted_thumb_url)
                 .set_footer(
                     text=f"Online for {age} | Last updated",
                 )
