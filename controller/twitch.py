@@ -9,7 +9,7 @@ import quart
 import sentry_sdk
 from discord.ui import View
 from dotenv import load_dotenv
-from quart import Blueprint, ResponseReturnValue, request
+from quart import Blueprint, Response, ResponseReturnValue, request
 
 from constants import (
     BOT_ADMIN_CHANNEL,
@@ -64,6 +64,20 @@ async def twitch_webhook() -> ResponseReturnValue:
                 "Responding to callback verification with challenge=%s", challenge
             )
             return challenge or ""
+
+        if headers.get(TWITCH_MESSAGE_TYPE, "").lower() == "revocation":
+            subscription: dict[str, Any] = body.get("subscription", {})
+            logger.info(
+                "%s notifications revoked!", subscription.get("type", "unknown")
+            )
+            logger.info("reason: %s", subscription.get("status", "No reason provided"))
+            condition = subscription.get("condition", {})
+            logger.info("condition: %s", condition)
+            await send_message(
+                f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}",
+                BOT_ADMIN_CHANNEL,
+            )
+            return Response(status=204)
 
         twitch_message_id = headers.get(TWITCH_MESSAGE_ID, "")
         twitch_message_timestamp = headers.get(TWITCH_MESSAGE_TIMESTAMP, "")
@@ -171,7 +185,7 @@ async def twitch_webhook() -> ResponseReturnValue:
                 BOT_ADMIN_CHANNEL,
             )
             logger.error("Failed to send embed for broadcaster %s", broadcaster_id)
-            return ""
+            return Response(status=200)
 
         alert = {
             "channel_id": channel,
@@ -206,7 +220,7 @@ async def twitch_webhook() -> ResponseReturnValue:
                 BOT_ADMIN_CHANNEL,
             )
 
-        return ""
+        return Response(status=200)
     except Exception as e:
         logger.error("500: Internal server error on /webhook/twitch: %s", e)
         sentry_sdk.capture_exception(e)
@@ -226,13 +240,30 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
         body: dict[str, Any] = await request.get_json()
         logger.info("Body JSON parsed: %s", body)
 
-        if headers.get(TWITCH_MESSAGE_TYPE) == "webhook_callback_verification":
+        if (
+            headers.get(TWITCH_MESSAGE_TYPE, "").lower()
+            == "webhook_callback_verification"
+        ):
             challenge = body.get("challenge", "")
             logger.info(
                 "Responding to callback verification offline with challenge=%s",
                 challenge,
             )
             return challenge or ""
+
+        if headers.get(TWITCH_MESSAGE_TYPE, "").lower() == "revocation":
+            subscription: dict[str, Any] = body.get("subscription", {})
+            logger.info(
+                "%s notifications revoked!", subscription.get("type", "unknown")
+            )
+            logger.info("reason: %s", subscription.get("status", "No reason provided"))
+            condition = subscription.get("condition", {})
+            logger.info("condition: %s", condition)
+            await send_message(
+                f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}",
+                BOT_ADMIN_CHANNEL,
+            )
+            return Response(status=204)
 
         twitch_message_id = headers.get(TWITCH_MESSAGE_ID, "")
         twitch_message_timestamp = headers.get(TWITCH_MESSAGE_TIMESTAMP, "")
@@ -286,7 +317,7 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
                 f"Failed to fetch live alert for {broadcaster_id}: {alert.error_message}",
                 BOT_ADMIN_CHANNEL,
             )
-            return ""
+            return Response(status=200)
 
         logger.info(
             "Fetched live alert for broadcaster_id=%s: %s", broadcaster_id, alert
@@ -309,33 +340,31 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
             broadcaster_id,
             stream_id,
         )
-        for attempt in range(1, 6):
-            logger.info("VOD lookup attempt %d", attempt)
-            try:
-                vod_info = await get_stream_vod(broadcaster_id, stream_id)
-                if vod_info:
-                    logger.info("VOD info found: %s", vod_info)
-                    break
-                else:
-                    logger.warning(
-                        "No VOD info found for broadcaster_id=%s, stream_id=%s",
-                        broadcaster_id,
-                        stream_id,
-                    )
-                    await send_message(
-                        f"No VOD info found for {broadcaster_id} after {attempt} attempts.",
-                        BOT_ADMIN_CHANNEL,
-                    )
-            except Exception as e:
-                sentry_sdk.capture_exception(e)
-                await send_message(
-                    f"Failed to fetch VOD info for {broadcaster_id}: {e}",
-                    BOT_ADMIN_CHANNEL,
+        try:
+            vod_info = await get_stream_vod(broadcaster_id, stream_id)
+            if vod_info:
+                logger.info("VOD info found: %s", vod_info)
+            else:
+                logger.warning(
+                    "No VOD info found for broadcaster_id=%s, stream_id=%s",
+                    broadcaster_id,
+                    stream_id,
                 )
-            await asyncio.sleep(1)
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logger.error(
+                "Failed to fetch VOD info for broadcaster_id=%s: %s",
+                broadcaster_id,
+                e,
+            )
+            await send_message(
+                f"Failed to fetch VOD info for {broadcaster_id}: {e}",
+                BOT_ADMIN_CHANNEL,
+            )
+
         if not vod_info:
             logger.warning(
-                "No VOD info found after 5 attempts for broadcaster_id=%s",
+                "No VOD info found for broadcaster_id=%s",
                 broadcaster_id,
             )
 
@@ -418,7 +447,7 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
                 broadcaster_id,
             )
 
-        return ""
+        return Response(status=200)
     except Exception as e:
         logger.error("500: Internal server error on /webhook/twitch/offline: %s", e)
         sentry_sdk.capture_exception(e)
