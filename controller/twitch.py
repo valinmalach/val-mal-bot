@@ -114,7 +114,7 @@ async def twitch_webhook() -> ResponseReturnValue:
                 BOT_ADMIN_CHANNEL,
             )
             logger.info("Retrying get_stream_info for %s", broadcaster_id)
-            await asyncio.sleep(5)
+            await asyncio.sleep(1)
             stream_info = await get_stream_info(broadcaster_id)
 
         channel = (
@@ -316,13 +316,23 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
                 if vod_info:
                     logger.info("VOD info found: %s", vod_info)
                     break
+                else:
+                    logger.warning(
+                        "No VOD info found for broadcaster_id=%s, stream_id=%s",
+                        broadcaster_id,
+                        stream_id,
+                    )
+                    await send_message(
+                        f"No VOD info found for {broadcaster_id} after {attempt} attempts.",
+                        BOT_ADMIN_CHANNEL,
+                    )
             except Exception as e:
                 sentry_sdk.capture_exception(e)
                 await send_message(
                     f"Failed to fetch VOD info for {broadcaster_id}: {e}",
                     BOT_ADMIN_CHANNEL,
                 )
-            await asyncio.sleep(5)
+            await asyncio.sleep(1)
         if not vod_info:
             logger.warning(
                 "No VOD info found after 5 attempts for broadcaster_id=%s",
@@ -385,7 +395,7 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
                 logger.warning(
                     "Discord server error while editing embed; retrying after sleep"
                 )
-                await asyncio.sleep(60)
+                await asyncio.sleep(1)
 
         logger.info(
             "Proceeding to delete live_alert record for broadcaster_id=%s",
