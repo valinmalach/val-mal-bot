@@ -49,75 +49,9 @@ twitch_bp = Blueprint("twitch", __name__)
 logger = logging.getLogger(__name__)
 
 
-@twitch_bp.route("/webhook/twitch", methods=["POST"])
-async def twitch_webhook() -> ResponseReturnValue:
-    logger.info("Webhook received: twitch_webhook start")
+@sentry_sdk.trace()
+async def _twitch_webhook_task(broadcaster_id: str) -> None:
     try:
-        headers = request.headers
-        logger.info("Headers parsed: %s", dict(headers))
-        body: dict[str, Any] = await request.get_json()
-        logger.info("Body JSON parsed: %s", body)
-
-        if headers.get(TWITCH_MESSAGE_TYPE) == "webhook_callback_verification":
-            challenge = body.get("challenge", "")
-            logger.info(
-                "Responding to callback verification with challenge=%s", challenge
-            )
-            return challenge or ""
-
-        if headers.get(TWITCH_MESSAGE_TYPE, "").lower() == "revocation":
-            subscription: dict[str, Any] = body.get("subscription", {})
-            logger.info(
-                "%s notifications revoked!", subscription.get("type", "unknown")
-            )
-            logger.info("reason: %s", subscription.get("status", "No reason provided"))
-            condition = subscription.get("condition", {})
-            logger.info("condition: %s", condition)
-            await send_message(
-                f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}",
-                BOT_ADMIN_CHANNEL,
-            )
-            return Response(status=204)
-
-        twitch_message_id = headers.get(TWITCH_MESSAGE_ID, "")
-        twitch_message_timestamp = headers.get(TWITCH_MESSAGE_TIMESTAMP, "")
-        body_str = await request.get_data(as_text=True)
-        logger.info("Request raw body retrieved")
-        message = get_hmac_message(
-            twitch_message_id, twitch_message_timestamp, body_str
-        )
-        logger.info("HMAC message constructed")
-        secret_hmac = HMAC_PREFIX + get_hmac(TWITCH_WEBHOOK_SECRET, message)
-        logger.info("Computed secret_hmac=%s", secret_hmac)
-
-        twitch_message_signature = headers.get(TWITCH_MESSAGE_SIGNATURE, "")
-        if not verify_message(secret_hmac, twitch_message_signature):
-            logger.warning(
-                "403: Forbidden. Signature does not match: computed=%s, received=%s",
-                secret_hmac,
-                twitch_message_signature,
-            )
-            await send_message(
-                "403: Forbidden request on /webhook/twitch. Signature does not match.",
-                BOT_ADMIN_CHANNEL,
-            )
-            quart.abort(403)
-        logger.info("Signature verified")
-
-        event_sub = StreamOnlineEventSub.model_validate(body)
-        logger.info("Event subscription parsed: type=%s", event_sub.subscription.type)
-        if event_sub.subscription.type != "stream.online":
-            logger.warning(
-                "400: Bad request. Invalid subscription type: %s",
-                event_sub.subscription.type,
-            )
-            await send_message(
-                "400: Bad request on /webhook/twitch. Invalid subscription type.",
-                BOT_ADMIN_CHANNEL,
-            )
-            quart.abort(400)
-
-        broadcaster_id = event_sub.event.broadcaster_user_id
         logger.info("Processing online event for broadcaster_id=%s", broadcaster_id)
         stream_info = await get_stream_info(broadcaster_id)
         user_info = await get_user(broadcaster_id)
@@ -185,7 +119,7 @@ async def twitch_webhook() -> ResponseReturnValue:
                 BOT_ADMIN_CHANNEL,
             )
             logger.error("Failed to send embed for broadcaster %s", broadcaster_id)
-            return Response(status=200)
+            return
 
         alert = {
             "channel_id": channel,
@@ -219,88 +153,23 @@ async def twitch_webhook() -> ResponseReturnValue:
                 f"Failed to insert live alert message into database\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}\n message_id: {message_id}\n\n{resp.error_message}",
                 BOT_ADMIN_CHANNEL,
             )
-
-        return Response(status=200)
     except Exception as e:
-        logger.error("500: Internal server error on /webhook/twitch: %s", e)
+        logger.error(
+            "Error in _twitch_webhook_task for broadcaster_id=%s: %s",
+            broadcaster_id,
+            e,
+        )
         sentry_sdk.capture_exception(e)
         await send_message(
-            f"500: Internal server error on /webhook/twitch: {e}",
+            f"Error in _twitch_webhook_task for {broadcaster_id}: {e}",
             BOT_ADMIN_CHANNEL,
         )
-        quart.abort(500)
 
 
-@twitch_bp.route("/webhook/twitch/offline", methods=["POST"])
-async def twitch_webhook_offline() -> ResponseReturnValue:
-    logger.info("Webhook received: twitch_webhook_offline start")
+@sentry_sdk.trace()
+async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None:
+    broadcaster_id = event_sub.event.broadcaster_user_id
     try:
-        headers = request.headers
-        logger.info("Headers parsed: %s", dict(headers))
-        body: dict[str, Any] = await request.get_json()
-        logger.info("Body JSON parsed: %s", body)
-
-        if (
-            headers.get(TWITCH_MESSAGE_TYPE, "").lower()
-            == "webhook_callback_verification"
-        ):
-            challenge = body.get("challenge", "")
-            logger.info(
-                "Responding to callback verification offline with challenge=%s",
-                challenge,
-            )
-            return challenge or ""
-
-        if headers.get(TWITCH_MESSAGE_TYPE, "").lower() == "revocation":
-            subscription: dict[str, Any] = body.get("subscription", {})
-            logger.info(
-                "%s notifications revoked!", subscription.get("type", "unknown")
-            )
-            logger.info("reason: %s", subscription.get("status", "No reason provided"))
-            condition = subscription.get("condition", {})
-            logger.info("condition: %s", condition)
-            await send_message(
-                f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}",
-                BOT_ADMIN_CHANNEL,
-            )
-            return Response(status=204)
-
-        twitch_message_id = headers.get(TWITCH_MESSAGE_ID, "")
-        twitch_message_timestamp = headers.get(TWITCH_MESSAGE_TIMESTAMP, "")
-        body_str = await request.get_data(as_text=True)
-        message = get_hmac_message(
-            twitch_message_id, twitch_message_timestamp, body_str
-        )
-        secret_hmac = HMAC_PREFIX + get_hmac(TWITCH_WEBHOOK_SECRET, message)
-
-        twitch_message_signature = headers.get(TWITCH_MESSAGE_SIGNATURE, "")
-        if not verify_message(secret_hmac, twitch_message_signature):
-            logger.warning(
-                "403: Forbidden. Signature does not match: computed=%s, received=%s",
-                secret_hmac,
-                twitch_message_signature,
-            )
-            await send_message(
-                "403: Forbidden request on /webhook/twitch/offline. Signature does not match.",
-                BOT_ADMIN_CHANNEL,
-            )
-            quart.abort(403)
-        logger.info("Signature verified")
-
-        event_sub = StreamOfflineEventSub.model_validate(body)
-        logger.info("Event subscription parsed: type=%s", event_sub.subscription.type)
-        if event_sub.subscription.type != "stream.offline":
-            logger.warning(
-                "400: Bad request. Invalid subscription type: %s",
-                event_sub.subscription.type,
-            )
-            await send_message(
-                "400: Bad request on /webhook/twitch/offline. Invalid subscription type.",
-                BOT_ADMIN_CHANNEL,
-            )
-            quart.abort(400)
-
-        broadcaster_id = event_sub.event.broadcaster_user_id
         logger.info("Processing offline event for %s", broadcaster_id)
         user_info = await get_user(broadcaster_id)
         channel_info = await get_channel(broadcaster_id)
@@ -317,7 +186,7 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
                 f"Failed to fetch live alert for {broadcaster_id}: {alert.error_message}",
                 BOT_ADMIN_CHANNEL,
             )
-            return Response(status=200)
+            return
 
         logger.info(
             "Fetched live alert for broadcaster_id=%s: %s", broadcaster_id, alert
@@ -446,8 +315,172 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
                 "Deleted live_alert record successfully for broadcaster_id=%s",
                 broadcaster_id,
             )
+    except Exception as e:
+        logger.error(
+            "Error in _twitch_webhook_offline_task for broadcaster_id=%s: %s",
+            broadcaster_id,
+            e,
+        )
+        sentry_sdk.capture_exception(e)
+        await send_message(
+            f"Error in _twitch_webhook_offline_task for {broadcaster_id}: {e}",
+            BOT_ADMIN_CHANNEL,
+        )
 
-        return Response(status=200)
+
+@twitch_bp.route("/webhook/twitch", methods=["POST"])
+async def twitch_webhook() -> ResponseReturnValue:
+    logger.info("Webhook received: twitch_webhook start")
+    try:
+        headers = request.headers
+        logger.info("Headers parsed: %s", dict(headers))
+        body: dict[str, Any] = await request.get_json()
+        logger.info("Body JSON parsed: %s", body)
+
+        if headers.get(TWITCH_MESSAGE_TYPE) == "webhook_callback_verification":
+            challenge = body.get("challenge", "")
+            logger.info(
+                "Responding to callback verification with challenge=%s", challenge
+            )
+            return Response(challenge or "", status=200)
+
+        if headers.get(TWITCH_MESSAGE_TYPE, "").lower() == "revocation":
+            subscription: dict[str, Any] = body.get("subscription", {})
+            logger.info(
+                "%s notifications revoked!", subscription.get("type", "unknown")
+            )
+            logger.info("reason: %s", subscription.get("status", "No reason provided"))
+            condition = subscription.get("condition", {})
+            logger.info("condition: %s", condition)
+            await send_message(
+                f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}",
+                BOT_ADMIN_CHANNEL,
+            )
+            return Response(status=204)
+
+        twitch_message_id = headers.get(TWITCH_MESSAGE_ID, "")
+        twitch_message_timestamp = headers.get(TWITCH_MESSAGE_TIMESTAMP, "")
+        body_str = await request.get_data(as_text=True)
+        logger.info("Request raw body retrieved")
+        message = get_hmac_message(
+            twitch_message_id, twitch_message_timestamp, body_str
+        )
+        logger.info("HMAC message constructed")
+        secret_hmac = HMAC_PREFIX + get_hmac(TWITCH_WEBHOOK_SECRET, message)
+        logger.info("Computed secret_hmac=%s", secret_hmac)
+
+        twitch_message_signature = headers.get(TWITCH_MESSAGE_SIGNATURE, "")
+        if not verify_message(secret_hmac, twitch_message_signature):
+            logger.warning(
+                "403: Forbidden. Signature does not match: computed=%s, received=%s",
+                secret_hmac,
+                twitch_message_signature,
+            )
+            await send_message(
+                "403: Forbidden request on /webhook/twitch. Signature does not match.",
+                BOT_ADMIN_CHANNEL,
+            )
+            quart.abort(403)
+        logger.info("Signature verified")
+
+        event_sub = StreamOnlineEventSub.model_validate(body)
+        logger.info("Event subscription parsed: type=%s", event_sub.subscription.type)
+        if event_sub.subscription.type != "stream.online":
+            logger.warning(
+                "400: Bad request. Invalid subscription type: %s",
+                event_sub.subscription.type,
+            )
+            await send_message(
+                "400: Bad request on /webhook/twitch. Invalid subscription type.",
+                BOT_ADMIN_CHANNEL,
+            )
+            quart.abort(400)
+
+        asyncio.create_task(_twitch_webhook_task(event_sub.event.broadcaster_user_id))
+
+        return Response(status=202)
+    except Exception as e:
+        logger.error("500: Internal server error on /webhook/twitch: %s", e)
+        sentry_sdk.capture_exception(e)
+        await send_message(
+            f"500: Internal server error on /webhook/twitch: {e}",
+            BOT_ADMIN_CHANNEL,
+        )
+        quart.abort(500)
+
+
+@twitch_bp.route("/webhook/twitch/offline", methods=["POST"])
+async def twitch_webhook_offline() -> ResponseReturnValue:
+    logger.info("Webhook received: twitch_webhook_offline start")
+    try:
+        headers = request.headers
+        logger.info("Headers parsed: %s", dict(headers))
+        body: dict[str, Any] = await request.get_json()
+        logger.info("Body JSON parsed: %s", body)
+
+        if (
+            headers.get(TWITCH_MESSAGE_TYPE, "").lower()
+            == "webhook_callback_verification"
+        ):
+            challenge = body.get("challenge", "")
+            logger.info(
+                "Responding to callback verification offline with challenge=%s",
+                challenge,
+            )
+            return Response(challenge or "", status=200)
+
+        if headers.get(TWITCH_MESSAGE_TYPE, "").lower() == "revocation":
+            subscription: dict[str, Any] = body.get("subscription", {})
+            logger.info(
+                "%s notifications revoked!", subscription.get("type", "unknown")
+            )
+            logger.info("reason: %s", subscription.get("status", "No reason provided"))
+            condition = subscription.get("condition", {})
+            logger.info("condition: %s", condition)
+            await send_message(
+                f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}",
+                BOT_ADMIN_CHANNEL,
+            )
+            return Response(status=204)
+
+        twitch_message_id = headers.get(TWITCH_MESSAGE_ID, "")
+        twitch_message_timestamp = headers.get(TWITCH_MESSAGE_TIMESTAMP, "")
+        body_str = await request.get_data(as_text=True)
+        message = get_hmac_message(
+            twitch_message_id, twitch_message_timestamp, body_str
+        )
+        secret_hmac = HMAC_PREFIX + get_hmac(TWITCH_WEBHOOK_SECRET, message)
+
+        twitch_message_signature = headers.get(TWITCH_MESSAGE_SIGNATURE, "")
+        if not verify_message(secret_hmac, twitch_message_signature):
+            logger.warning(
+                "403: Forbidden. Signature does not match: computed=%s, received=%s",
+                secret_hmac,
+                twitch_message_signature,
+            )
+            await send_message(
+                "403: Forbidden request on /webhook/twitch/offline. Signature does not match.",
+                BOT_ADMIN_CHANNEL,
+            )
+            quart.abort(403)
+        logger.info("Signature verified")
+
+        event_sub = StreamOfflineEventSub.model_validate(body)
+        logger.info("Event subscription parsed: type=%s", event_sub.subscription.type)
+        if event_sub.subscription.type != "stream.offline":
+            logger.warning(
+                "400: Bad request. Invalid subscription type: %s",
+                event_sub.subscription.type,
+            )
+            await send_message(
+                "400: Bad request on /webhook/twitch/offline. Invalid subscription type.",
+                BOT_ADMIN_CHANNEL,
+            )
+            quart.abort(400)
+
+        asyncio.create_task(_twitch_webhook_offline_task(event_sub))
+
+        return Response(status=202)
     except Exception as e:
         logger.error("500: Internal server error on /webhook/twitch/offline: %s", e)
         sentry_sdk.capture_exception(e)
