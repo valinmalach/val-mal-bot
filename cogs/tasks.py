@@ -166,7 +166,7 @@ class Tasks(Cog):
                     break
                 except ConnectionError as e:
                     logger.warning("Connection error querying birthday records: %s", e)
-                    await asyncio.sleep(60)
+                    await asyncio.sleep(1)
         except Exception as e:
             logger.error("Fatal error during birthday check task: %s", e)
             sentry_sdk.capture_exception(e)

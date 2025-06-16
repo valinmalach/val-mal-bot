@@ -351,7 +351,7 @@ async def update_alert(
         message_id,
     )
     try:
-        await asyncio.sleep(300)
+        await asyncio.sleep(60)
         # retry on connection errors
         while True:
             try:
@@ -364,7 +364,7 @@ async def update_alert(
                 logger.warning(
                     "ConnectionError fetching live_alert; retrying after sleep"
                 )
-                await asyncio.sleep(60)
+                await asyncio.sleep(1)
         stream_info = await get_stream_info(broadcaster_id)
         logger.info("Fetched stream_info for update: %s", stream_info)
         user_info = await get_user(broadcaster_id)
@@ -391,25 +391,38 @@ async def update_alert(
                     stream_id,
                 )
                 vod_info = None
-                for _ in range(5):
-                    logger.info("Attempting to fetch VOD info, iteration=%d", _ + 1)
-                    try:
-                        vod_info = await get_stream_vod(broadcaster_id, stream_id)
-                        if vod_info:
-                            logger.info("VOD info obtained: %s", vod_info)
-                            break
-                    except Exception as e:
-                        logger.error(
-                            "Error fetching VOD info for broadcaster_id=%s: %s",
+                logger.info(
+                    "Beginning VOD lookup for broadcaster_id=%s, stream_id=%s",
+                    broadcaster_id,
+                    stream_id,
+                )
+                try:
+                    vod_info = await get_stream_vod(broadcaster_id, stream_id)
+                    if vod_info:
+                        logger.info("VOD info found: %s", vod_info)
+                    else:
+                        logger.warning(
+                            "No VOD info found for broadcaster_id=%s, stream_id=%s",
                             broadcaster_id,
-                            e,
+                            stream_id,
                         )
-                        sentry_sdk.capture_exception(e)
-                        await send_message(
-                            f"Failed to fetch VOD info for {broadcaster_id}: {e}",
-                            BOT_ADMIN_CHANNEL,
-                        )
-                    await asyncio.sleep(5)
+                except Exception as e:
+                    sentry_sdk.capture_exception(e)
+                    logger.error(
+                        "Failed to fetch VOD info for broadcaster_id=%s: %s",
+                        broadcaster_id,
+                        e,
+                    )
+                    await send_message(
+                        f"Failed to fetch VOD info for {broadcaster_id}: {e}",
+                        BOT_ADMIN_CHANNEL,
+                    )
+
+                if not vod_info:
+                    logger.warning(
+                        "No VOD info found for broadcaster_id=%s",
+                        broadcaster_id,
+                    )
 
                 logger.info(
                     "Building offline embed for previous stream_id=%s", stream_id
@@ -455,7 +468,7 @@ async def update_alert(
                         logger.warning(
                             "DiscordServerError encountered while editing offline embed; retrying..."
                         )
-                        await asyncio.sleep(60)
+                        await asyncio.sleep(1)
                 return
             logger.info(
                 "Building live update embed for ongoing stream_id=%s", stream_id
@@ -523,9 +536,9 @@ async def update_alert(
                     logger.warning(
                         "DiscordServerError on live embed edit; retrying after sleep"
                     )
-                    await asyncio.sleep(60)
-            logger.info("Sleeping for 300 seconds before next update cycle")
-            await asyncio.sleep(300)
+                    await asyncio.sleep(1)
+            logger.info("Sleeping for 60 seconds before next update cycle")
+            await asyncio.sleep(60)
             # retry on connection errors
             while True:
                 logger.info(
@@ -539,7 +552,7 @@ async def update_alert(
                     logger.warning(
                         "ConnectionError fetching alert post-sleep; retrying after sleep"
                     )
-                    await asyncio.sleep(60)
+                    await asyncio.sleep(1)
             stream_info = await get_stream_info(broadcaster_id)
             logger.info("Fetched updated stream_info for next cycle: %s", stream_info)
 
