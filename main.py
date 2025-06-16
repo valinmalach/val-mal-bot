@@ -1,3 +1,4 @@
+import quart
 import truststore
 
 truststore.inject_into_ssl()
@@ -87,7 +88,7 @@ async def before_serving():
 @sentry_sdk.trace()
 async def health() -> ResponseReturnValue:
     logger.info("Health check endpoint called")
-    return Response("Health check OK", status=200)
+    return Response("Health check OK", status=204)
 
 
 @app.route("/robots.txt")
@@ -96,7 +97,7 @@ async def robots_txt() -> ResponseReturnValue:
     logger.info("Serving robots.txt")
     if not os.path.exists("robots.txt"):
         logger.warning("robots.txt file not found, returning empty response")
-        return Response("", status=404)
+        quart.abort(404)
     return await send_from_directory(".", "robots.txt")
 
 
