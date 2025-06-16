@@ -10,6 +10,7 @@ import os
 import sentry_sdk
 from dotenv import load_dotenv
 from quart import Quart, Response, ResponseReturnValue, send_from_directory
+from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.quart import QuartIntegration
 
 from constants import COGS
@@ -20,7 +21,7 @@ load_dotenv()
 
 sentry_sdk.init(
     dsn="https://8a7232f8683fae9b47c91b194053ed11@o4508900413865984.ingest.us.sentry.io/4508900418584576",
-    integrations=[QuartIntegration()],
+    integrations=[QuartIntegration(), LoggingIntegration()],
     # Add data like request headers and IP for users,
     # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
     send_default_pii=True,
@@ -40,8 +41,8 @@ sentry_sdk.init(
 
 sentry_sdk.profiler.start_profiler()  # type: ignore
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
