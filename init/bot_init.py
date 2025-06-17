@@ -9,7 +9,7 @@ from discord.ext.commands import Bot
 from requests.exceptions import ConnectionError
 
 from constants import BOT_ADMIN_CHANNEL, GUILD_ID
-from init import xata_client
+from init.xata_init import xata_client
 from services import update_alert
 
 MY_GUILD = discord.Object(id=GUILD_ID)
