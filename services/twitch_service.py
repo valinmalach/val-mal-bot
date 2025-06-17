@@ -360,10 +360,8 @@ async def update_alert(
                 )
                 alert = xata_client.records().get("live_alerts", broadcaster_id)
                 break
-            except ConnectionError:
-                logger.warning(
-                    "ConnectionError fetching live_alert; retrying after sleep"
-                )
+            except Exception:
+                logger.warning("Error fetching live_alert; retrying after sleep")
                 await asyncio.sleep(1)
         stream_info = await get_stream_info(broadcaster_id)
         logger.info("Fetched stream_info for update: %s", stream_info)
@@ -548,9 +546,9 @@ async def update_alert(
                 try:
                     alert = xata_client.records().get("live_alerts", broadcaster_id)
                     break
-                except ConnectionError:
+                except Exception:
                     logger.warning(
-                        "ConnectionError fetching alert post-sleep; retrying after sleep"
+                        "Error fetching alert post-sleep; retrying after sleep"
                     )
                     await asyncio.sleep(1)
             stream_info = await get_stream_info(broadcaster_id)
