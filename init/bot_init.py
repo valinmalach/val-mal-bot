@@ -9,14 +9,15 @@ from discord.ext.commands import Bot
 from requests.exceptions import ConnectionError
 
 from constants import BOT_ADMIN_CHANNEL, GUILD_ID
-from init.xata_init import xata_client
-from services import update_alert
 
 MY_GUILD = discord.Object(id=GUILD_ID)
 logger = logging.getLogger(__name__)
 
 
 async def restart_live_alert_tasks() -> None:
+    from init import xata_client
+    from services import update_alert
+
     logger.info("Attempting to restart live alert tasks from Xata.")
 
     page_num = 1
