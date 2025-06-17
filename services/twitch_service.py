@@ -462,9 +462,9 @@ async def update_alert(
                             message_id,
                         )
                         break
-                    except discord.DiscordServerError:
+                    except Exception:
                         logger.warning(
-                            "DiscordServerError encountered while editing offline embed; retrying..."
+                            "Error encountered while editing offline embed; retrying..."
                         )
                         await asyncio.sleep(1)
                 return
@@ -530,10 +530,8 @@ async def update_alert(
                         message_id,
                     )
                     break
-                except discord.DiscordServerError:
-                    logger.warning(
-                        "DiscordServerError on live embed edit; retrying after sleep"
-                    )
+                except Exception:
+                    logger.warning("Error on live embed edit; retrying after sleep")
                     await asyncio.sleep(1)
             logger.info("Sleeping for 60 seconds before next update cycle")
             await asyncio.sleep(60)
