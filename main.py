@@ -36,7 +36,6 @@ sentry_sdk.init(
     profile_lifecycle="trace",
     _experiments={
         "continuous_profiling_auto_start": True,  # Automatically start the profiler
-        "otel_powered_performance": True,  # Enable OpenTelemetry powered performance monitoring
         "enable_metrics": True,  # Enable metrics collection
         "enable_logs": True,  # Enable logging to Sentry
     },
