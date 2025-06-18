@@ -86,35 +86,8 @@ class Admin(Cog):
             return
         await interaction.response.send_message("Nuking channel...")
         logger.info("Starting channel purge: %s", interaction.channel)
-        iterator = interaction.channel.history(limit=100000)
-        logger.info("Fetched message history iterator")
-        ret: List[Message] = []
-        count = 0
-
-        async for message in iterator:
-            logger.info(
-                "Checking message id=%s for deletion batch processing", message.id
-            )
-            if count == 100:
-                logger.info("Bulk deleting 100 messages")
-                to_delete = ret[-100:]
-                await interaction.channel.delete_messages(to_delete)
-                count = 0
-                await asyncio.sleep(1)
-
-            count += 1
-            ret.append(message)
-
-        # Some messages remaining to poll
-        if count >= 2:
-            # more than 2 messages -> bulk delete
-            logger.info("Bulk deleting remaining %d messages", count)
-            to_delete = ret[-count:]
-            await interaction.channel.delete_messages(to_delete)
-        elif count == 1:
-            # delete a single message
-            logger.info("Deleting last single message id=%s", ret[-1].id)
-            await ret[-1].delete()
+        await interaction.channel.purge(limit=None)
+        logger.info("Channel purge completed: %s", interaction.channel)
 
     @app_commands.command(description="Sends the rules embed to the rules channel")
     @app_commands.commands.default_permissions(administrator=True)
