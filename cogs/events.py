@@ -1,3 +1,4 @@
+import asyncio
 import random
 from datetime import datetime
 
@@ -647,17 +648,15 @@ class Events(Cog):
 
     @sentry_sdk.trace()
     async def _get_message_content_from_db(self, message_id: int) -> str:
-        try:
-            resp = xata_client.records().get("messages", str(message_id))
-            if resp.is_success():
-                return resp.get("contents", DEFAULT_MISSING_CONTENT)
-        except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Failed to get message {message_id} from database: {e}",
-                BOT_ADMIN_CHANNEL,
-            )
-        return DEFAULT_MISSING_CONTENT
+        while True:
+            try:
+                resp = xata_client.records().get("messages", str(message_id))
+                if resp.is_success():
+                    return resp.get("contents", DEFAULT_MISSING_CONTENT)
+                else:
+                    return DEFAULT_MISSING_CONTENT
+            except Exception as e:
+                await asyncio.sleep(1)
 
     @sentry_sdk.trace()
     async def _log_role_change(
