@@ -80,7 +80,8 @@ async def edit_embed(
     message = await channel.fetch_message(message_id)
     if view:
         await message.edit(content=content, embed=embed, view=view)
-    await message.edit(content=content, embed=embed, view=None)
+    else:
+        await message.edit(content=content, embed=embed, view=None)
 
 
 @sentry_sdk.trace()
