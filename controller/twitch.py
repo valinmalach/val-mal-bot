@@ -57,10 +57,6 @@ async def _twitch_webhook_task(broadcaster_id: str) -> None:
         user_info = await get_user(broadcaster_id)
         logger.info("Fetched stream_info=%s and user_info=%s", stream_info, user_info)
         while not stream_info:
-            await send_message(
-                "Failed to fetch stream info for the online event. Retrying...",
-                BOT_ADMIN_CHANNEL,
-            )
             logger.info("Retrying get_stream_info for %s", broadcaster_id)
             await asyncio.sleep(1)
             stream_info = await get_stream_info(broadcaster_id)
