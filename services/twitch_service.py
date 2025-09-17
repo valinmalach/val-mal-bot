@@ -32,6 +32,7 @@ load_dotenv()
 
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
+TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 access_token = ""
 
 logger = logging.getLogger(__name__)
@@ -174,6 +175,127 @@ async def get_user(id: str) -> Optional[UserInfo]:
     user_info_response = UserInfoResponse.model_validate(response.json())
     logger.info("Parsed user_info count=%d", len(user_info_response.data))
     return user_info_response.data[0] if user_info_response.data else None
+
+
+@sentry_sdk.trace()
+async def get_user_by_username(username: str) -> Optional[UserInfo]:
+    logger.info("Retrieving Twitch user info for username=%s", username)
+    global access_token
+    if not access_token:
+        refresh_success = await refresh_access_token()
+        if not refresh_success:
+            return
+
+    url = f"https://api.twitch.tv/helix/users?login={username}"
+    logger.info("Requesting user endpoint: %s", url)
+    headers = {
+        "Client-ID": TWITCH_CLIENT_ID,
+        "Authorization": f"Bearer {access_token}",
+    }
+    response = requests.get(url, headers=headers)
+    logger.info("User endpoint response status=%s", response.status_code)
+    if response.status_code == 401:
+        logger.warning("Unauthorized fetching user, refreshing token...")
+        if await refresh_access_token():
+            headers["Authorization"] = f"Bearer {access_token}"
+            response = requests.get(url, headers=headers)
+        else:
+            return
+    if response.status_code != 200:
+        logger.error("Failed to fetch user info: %s", response.status_code)
+        await send_message(
+            f"Failed to fetch user info: {response.status_code} {response.text}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return
+    user_info_response = UserInfoResponse.model_validate(response.json())
+    logger.info("Parsed user_info count=%d", len(user_info_response.data))
+    return user_info_response.data[0] if user_info_response.data else None
+
+
+@sentry_sdk.trace()
+async def subscribe_to_user(username: str) -> bool:
+    logger.info("Retrieving Twitch user info for username=%s", username)
+    global access_token
+    if not access_token:
+        refresh_success = await refresh_access_token()
+        if not refresh_success:
+            return False
+
+    logger.info("Getting user: %s", username)
+    user = await get_user_by_username(username)
+    if not user:
+        logger.error("User not found: %s", username)
+        return False
+    logger.info("Subscribing to user: %s (id=%s)", user.display_name, user.id)
+
+    user_id = user.id
+
+    url = "https://api.twitch.tv/helix/eventsub/subscriptions"
+    headers = {
+        "Client-ID": TWITCH_CLIENT_ID,
+        "Authorization": f"Bearer {access_token}",
+    }
+
+    logger.info("Subscribing to stream.online for user=%s", user.display_name)
+    body = {
+        "type": "stream.online",
+        "version": "1",
+        "condition": {
+            "broadcaster_user_id": user_id
+        },
+        "transport": {
+            "method": "webhook",
+            "callback": "https://valin.loclx.io/webhook/twitch",
+            "secret": TWITCH_WEBHOOK_SECRET
+        }
+    }
+    response = requests.post(url, headers=headers, json=body)
+    if response.status_code == 401:
+        logger.warning("Unauthorized subscribing to online event, refreshing token...")
+        if not await refresh_access_token():
+            return False
+        headers["Authorization"] = f"Bearer {access_token}"
+        response = requests.post(url, headers=headers, json=body)
+    if response.status_code != 200:
+        logger.error("Failed to subscribe to online event: %s", response.status_code)
+        await send_message(
+            f"Failed to subscribe to online event: {response.status_code} {response.text}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return False
+    logger.info("Subscribed to stream.online for user: %s", user.display_name)
+
+    logger.info("Subscribing to stream.offline for user=%s", user.display_name)
+    body = {
+        "type": "stream.offline",
+        "version": "1",
+        "condition": {
+            "broadcaster_user_id": user_id
+        },
+        "transport": {
+            "method": "webhook",
+            "callback": "https://valin.loclx.io/webhook/twitch/offline",
+            "secret": TWITCH_WEBHOOK_SECRET
+        }
+    }
+    response = requests.post(url, headers=headers, json=body)
+    if response.status_code == 401:
+        logger.warning("Unauthorized subscribing to offline event, refreshing token...")
+        if not await refresh_access_token():
+            return False
+        headers["Authorization"] = f"Bearer {access_token}"
+        response = requests.post(url, headers=headers, json=body)
+    if response.status_code != 200:
+        logger.error("Failed to subscribe to offline event: %s", response.status_code)
+        await send_message(
+            f"Failed to subscribe to offline event: {response.status_code} {response.text}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return False
+    logger.info("Subscribed to stream.offline for user: %s", user.display_name)
+
+    return True
 
 
 @sentry_sdk.trace()

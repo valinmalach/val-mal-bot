@@ -26,6 +26,7 @@ from .twitch_service import (
     get_subscriptions,
     get_user,
     get_users,
+    subscribe_to_user,
     update_alert,
 )
 
@@ -55,5 +56,6 @@ __all__ = [
     "get_subscriptions",
     "get_user",
     "get_users",
+    "subscribe_to_user",
     "update_alert",
 ]
