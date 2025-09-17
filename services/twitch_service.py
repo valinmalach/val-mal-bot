@@ -51,7 +51,7 @@ async def refresh_access_token() -> bool:
         response.status_code,
         response.text,
     )
-    if response.status_code != 200:
+    if response.status_code < 200 or response.status_code >= 300:
         logger.error("Token refresh failed with status=%s", response.status_code)
         await send_message(
             f"Failed to refresh access token: {response.status_code} {response.text}",
@@ -116,7 +116,7 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
             else:
                 return
 
-        if response.status_code != 200:
+        if response.status_code < 200 or response.status_code >= 300:
             logger.error("Error fetching subscriptions: %s", response.status_code)
             await send_message(
                 f"Failed to fetch subscriptions: {response.status_code} {response.text}",
@@ -165,7 +165,7 @@ async def get_user(id: str) -> Optional[UserInfo]:
             response = requests.get(url, headers=headers)
         else:
             return
-    if response.status_code != 200:
+    if response.status_code < 200 or response.status_code >= 300:
         logger.error("Failed to fetch user info: %s", response.status_code)
         await send_message(
             f"Failed to fetch user info: {response.status_code} {response.text}",
@@ -201,7 +201,7 @@ async def get_user_by_username(username: str) -> Optional[UserInfo]:
             response = requests.get(url, headers=headers)
         else:
             return
-    if response.status_code != 200:
+    if response.status_code < 200 or response.status_code >= 300:
         logger.error("Failed to fetch user info: %s", response.status_code)
         await send_message(
             f"Failed to fetch user info: {response.status_code} {response.text}",
@@ -257,7 +257,7 @@ async def subscribe_to_user(username: str) -> bool:
             return False
         headers["Authorization"] = f"Bearer {access_token}"
         response = requests.post(url, headers=headers, json=body)
-    if response.status_code != 200:
+    if response.status_code < 200 or response.status_code >= 300:
         logger.error("Failed to subscribe to online event: %s", response.status_code)
         await send_message(
             f"Failed to subscribe to online event: {response.status_code} {response.text}",
@@ -286,7 +286,7 @@ async def subscribe_to_user(username: str) -> bool:
             return False
         headers["Authorization"] = f"Bearer {access_token}"
         response = requests.post(url, headers=headers, json=body)
-    if response.status_code != 200:
+    if response.status_code < 200 or response.status_code >= 300:
         logger.error("Failed to subscribe to offline event: %s", response.status_code)
         await send_message(
             f"Failed to subscribe to offline event: {response.status_code} {response.text}",
@@ -332,7 +332,7 @@ async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
                 response = requests.get(url, headers=headers)
             else:
                 return
-        if response.status_code != 200:
+        if response.status_code < 200 or response.status_code >= 300:
             logger.error("Failed batch fetch of user infos: %s", response.status_code)
             await send_message(
                 f"Failed to fetch users infos: {response.status_code} {response.text}",
@@ -370,7 +370,7 @@ async def get_channel(id: str) -> Optional[ChannelInfo]:
             response = requests.get(url, headers=headers)
         else:
             return
-    if response.status_code != 200:
+    if response.status_code < 200 or response.status_code >= 300:
         logger.error("Failed to fetch channel info: %s", response.status_code)
         await send_message(
             f"Failed to fetch channel info: {response.status_code} {response.text}",
@@ -406,7 +406,7 @@ async def get_stream_info(broadcaster_id: str) -> Optional[StreamInfo]:
             response = requests.get(url, headers=headers)
         else:
             return
-    if response.status_code != 200:
+    if response.status_code < 200 or response.status_code >= 300:
         logger.error("Failed to fetch stream info: %s", response.status_code)
         await send_message(
             f"Failed to fetch stream info: {response.status_code} {response.text}",
@@ -444,7 +444,7 @@ async def get_stream_vod(user_id: str, stream_id: str) -> Optional[VideoInfo]:
             response = requests.get(url, headers=headers)
         else:
             return
-    if response.status_code != 200:
+    if response.status_code < 200 or response.status_code >= 300:
         logger.error("Failed to fetch VOD info: %s", response.status_code)
         await send_message(
             f"Failed to fetch stream info: {response.status_code} {response.text}",
