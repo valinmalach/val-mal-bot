@@ -18,9 +18,9 @@ git pull
 
 # Install or update the required packages
 Write-Host "Installing requirements..."
-python -m pip install pip -U -q
-python -m pip install -r requirements.txt -U -q
+uv self update
+uv sync
 
 # Restart the bot
 Write-Host "Restarting the bot..."
-python $BotScript
+uv run $BotScript

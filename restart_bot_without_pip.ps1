@@ -18,4 +18,4 @@ git pull
 
 # Restart the bot
 Write-Host "Restarting the bot..."
-python $BotScript
+uv run $BotScript
