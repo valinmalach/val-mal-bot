@@ -1,4 +1,3 @@
-import quart
 import truststore
 
 truststore.inject_into_ssl()
@@ -6,22 +5,24 @@ truststore.inject_into_ssl()
 import asyncio
 import logging
 import os
+from contextlib import asynccontextmanager
 
 import sentry_sdk
 from dotenv import load_dotenv
-from quart import Quart, Response, ResponseReturnValue, send_from_directory
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import FileResponse
+from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
-from sentry_sdk.integrations.quart import QuartIntegration
 
 from constants import COGS
-from controller import twitch_bp
+from controller import twitch_router
 from init import bot
 
 load_dotenv()
 
 sentry_sdk.init(
     dsn="https://8a7232f8683fae9b47c91b194053ed11@o4508900413865984.ingest.us.sentry.io/4508900418584576",
-    integrations=[QuartIntegration(), LoggingIntegration()],
+    integrations=[FastApiIntegration(), LoggingIntegration()],
     # Add data like request headers and IP for users,
     # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
     send_default_pii=True,
@@ -34,10 +35,10 @@ sentry_sdk.init(
     # Set profile_lifecycle to "trace" to automatically
     # run the profiler on when there is an active transaction
     profile_lifecycle="trace",
+    enable_logs=True,
     _experiments={
         "continuous_profiling_auto_start": True,  # Automatically start the profiler
         "enable_metrics": True,  # Enable metrics collection
-        "enable_logs": True,  # Enable logging to Sentry
     },
 )
 
@@ -76,33 +77,36 @@ async def main() -> None:
         sentry_sdk.capture_exception(e)
 
 
-app = Quart(__name__)
-app.register_blueprint(twitch_bp)
-
-
-@app.before_serving
+@asynccontextmanager
 @sentry_sdk.trace()
-async def before_serving():
-    logger.info("Quart app is starting, initializing bot")
+async def lifespan(app: FastAPI):
+    logger.info("FastAPI app is starting, initializing bot")
     asyncio.create_task(main())
+    yield
 
 
-@app.route("/health", methods=["GET"])
+app = FastAPI(lifespan=lifespan)
+app.include_router(twitch_router)
+
+
+@app.get("/health")
 @sentry_sdk.trace()
-async def health() -> ResponseReturnValue:
+async def health() -> Response:
     logger.info("Health check endpoint called")
-    return Response("Health check OK", status=204)
+    return Response("Health check OK", status_code=204)
 
 
-@app.route("/robots.txt")
+@app.get("/robots.txt")
 @sentry_sdk.trace()
-async def robots_txt() -> ResponseReturnValue:
+async def robots_txt() -> Response:
     logger.info("Serving robots.txt")
     if not os.path.exists("robots.txt"):
         logger.warning("robots.txt file not found, returning empty response")
-        quart.abort(404)
-    return await send_from_directory(".", "robots.txt")
+        raise HTTPException(status_code=404)
+    return FileResponse("robots.txt")
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, use_reloader=False)
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

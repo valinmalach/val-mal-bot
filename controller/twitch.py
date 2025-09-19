@@ -6,11 +6,10 @@ from typing import Any
 
 import discord
 import pandas as pd
-import quart
 import sentry_sdk
 from discord.ui import View
 from dotenv import load_dotenv
-from quart import Blueprint, Response, ResponseReturnValue, request
+from fastapi import APIRouter, HTTPException, Request, Response
 
 from constants import (
     BOT_ADMIN_CHANNEL,
@@ -46,7 +45,7 @@ load_dotenv()
 
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 
-twitch_bp = Blueprint("twitch", __name__)
+twitch_router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
@@ -329,13 +328,13 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
         )
 
 
-@twitch_bp.route("/webhook/twitch", methods=["POST"])
-async def twitch_webhook() -> ResponseReturnValue:
+@twitch_router.post("/webhook/twitch")
+async def twitch_webhook(request: Request) -> Response:
     logger.info("Webhook received: twitch_webhook start")
     try:
         headers = request.headers
         logger.info("Headers parsed: %s", dict(headers))
-        body: dict[str, Any] = await request.get_json()
+        body: dict[str, Any] = await request.json()
         logger.info("Body JSON parsed: %s", body)
 
         if headers.get(TWITCH_MESSAGE_TYPE) == "webhook_callback_verification":
@@ -343,7 +342,7 @@ async def twitch_webhook() -> ResponseReturnValue:
             logger.info(
                 "Responding to callback verification with challenge=%s", challenge
             )
-            return Response(challenge or "", status=200)
+            return Response(challenge or "", status_code=200)
 
         if headers.get(TWITCH_MESSAGE_TYPE, "").lower() == "revocation":
             subscription: dict[str, Any] = body.get("subscription", {})
@@ -357,11 +356,11 @@ async def twitch_webhook() -> ResponseReturnValue:
                 f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}",
                 BOT_ADMIN_CHANNEL,
             )
-            return Response(status=204)
+            return Response(status_code=204)
 
         twitch_message_id = headers.get(TWITCH_MESSAGE_ID, "")
         twitch_message_timestamp = headers.get(TWITCH_MESSAGE_TIMESTAMP, "")
-        body_str = await request.get_data(as_text=True)
+        body_str = (await request.body()).decode()
         logger.info("Request raw body retrieved")
         message = get_hmac_message(
             twitch_message_id, twitch_message_timestamp, body_str
@@ -381,7 +380,7 @@ async def twitch_webhook() -> ResponseReturnValue:
                 "403: Forbidden request on /webhook/twitch. Signature does not match.",
                 BOT_ADMIN_CHANNEL,
             )
-            quart.abort(403)
+            raise HTTPException(status_code=403)
         logger.info("Signature verified")
 
         event_sub = StreamOnlineEventSub.model_validate(body)
@@ -395,11 +394,11 @@ async def twitch_webhook() -> ResponseReturnValue:
                 "400: Bad request on /webhook/twitch. Invalid subscription type.",
                 BOT_ADMIN_CHANNEL,
             )
-            quart.abort(400)
+            raise HTTPException(status_code=400)
 
         asyncio.create_task(_twitch_webhook_task(event_sub.event.broadcaster_user_id))
 
-        return Response(status=202)
+        return Response(status_code=202)
     except Exception as e:
         logger.error("500: Internal server error on /webhook/twitch: %s", e)
         sentry_sdk.capture_exception(e)
@@ -407,16 +406,16 @@ async def twitch_webhook() -> ResponseReturnValue:
             f"500: Internal server error on /webhook/twitch: {e}",
             BOT_ADMIN_CHANNEL,
         )
-        quart.abort(500)
+        raise HTTPException(status_code=500)
 
 
-@twitch_bp.route("/webhook/twitch/offline", methods=["POST"])
-async def twitch_webhook_offline() -> ResponseReturnValue:
+@twitch_router.post("/webhook/twitch/offline")
+async def twitch_webhook_offline(request: Request) -> Response:
     logger.info("Webhook received: twitch_webhook_offline start")
     try:
         headers = request.headers
         logger.info("Headers parsed: %s", dict(headers))
-        body: dict[str, Any] = await request.get_json()
+        body: dict[str, Any] = await request.json()
         logger.info("Body JSON parsed: %s", body)
 
         if (
@@ -428,7 +427,7 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
                 "Responding to callback verification offline with challenge=%s",
                 challenge,
             )
-            return Response(challenge or "", status=200)
+            return Response(challenge or "", status_code=200)
 
         if headers.get(TWITCH_MESSAGE_TYPE, "").lower() == "revocation":
             subscription: dict[str, Any] = body.get("subscription", {})
@@ -442,11 +441,11 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
                 f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}",
                 BOT_ADMIN_CHANNEL,
             )
-            return Response(status=204)
+            return Response(status_code=204)
 
         twitch_message_id = headers.get(TWITCH_MESSAGE_ID, "")
         twitch_message_timestamp = headers.get(TWITCH_MESSAGE_TIMESTAMP, "")
-        body_str = await request.get_data(as_text=True)
+        body_str = (await request.body()).decode()
         message = get_hmac_message(
             twitch_message_id, twitch_message_timestamp, body_str
         )
@@ -463,7 +462,7 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
                 "403: Forbidden request on /webhook/twitch/offline. Signature does not match.",
                 BOT_ADMIN_CHANNEL,
             )
-            quart.abort(403)
+            raise HTTPException(status_code=403)
         logger.info("Signature verified")
 
         event_sub = StreamOfflineEventSub.model_validate(body)
@@ -477,11 +476,11 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
                 "400: Bad request on /webhook/twitch/offline. Invalid subscription type.",
                 BOT_ADMIN_CHANNEL,
             )
-            quart.abort(400)
+            raise HTTPException(status_code=400)
 
         asyncio.create_task(_twitch_webhook_offline_task(event_sub))
 
-        return Response(status=202)
+        return Response(status_code=202)
     except Exception as e:
         logger.error("500: Internal server error on /webhook/twitch/offline: %s", e)
         sentry_sdk.capture_exception(e)
@@ -489,4 +488,4 @@ async def twitch_webhook_offline() -> ResponseReturnValue:
             f"500: Internal server error on /webhook/twitch/offline: {e}",
             BOT_ADMIN_CHANNEL,
         )
-        quart.abort(500)
+        raise HTTPException(status_code=500)
