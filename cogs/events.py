@@ -1,8 +1,8 @@
-import asyncio
 import random
 from datetime import datetime
 
 import discord
+import pandas as pd
 import sentry_sdk
 from discord import (
     CategoryChannel,
@@ -35,8 +35,8 @@ from constants import (
     WEISS_ID,
     WELCOME_CHANNEL,
 )
-from init import xata_client
 from services import (
+    delete_row_from_parquet,
     get_age,
     get_channel_mention,
     get_discriminator,
@@ -44,6 +44,7 @@ from services import (
     get_pfp,
     send_embed,
     send_message,
+    upsert_row_to_parquet,
 )
 
 
@@ -58,6 +59,7 @@ class Events(Cog):
             guild = message.guild
             guild_id = GUILD_ID if guild is None else guild.id
             message_obj = {
+                "id": str(message.id),
                 "contents": message.content,
                 "guild_id": guild_id,
                 "author_id": message.author.id,
@@ -67,12 +69,13 @@ class Events(Cog):
                 ],
             }
             try:
-                resp = xata_client.records().upsert(
-                    "messages", str(message.id), message_obj
+                success, error = upsert_row_to_parquet(
+                    message_obj,
+                    "data/messages.parquet",
                 )
-                if not resp.is_success():
+                if not success:
                     await send_message(
-                        f"Failed to save message {message.id}: {resp.error_message}",
+                        f"Failed to save message {message.id} in parquet: {error}",
                         BOT_ADMIN_CHANNEL,
                     )
             except Exception as e:
@@ -155,14 +158,18 @@ class Events(Cog):
             )
 
             user = {
+                "id": str(member.id),
                 "username": member.name,
                 "birthday": None,
                 "isBirthdayLeap": None,
             }
-            resp = xata_client.records().upsert("users", str(member.id), user)
-            if not resp.is_success():
+            success, error = upsert_row_to_parquet(
+                user,
+                "data/users.parquet",
+            )
+            if not success:
                 await send_message(
-                    f"Failed to insert user {member.name} ({member.id}) into database: {resp.error_message}",
+                    f"Failed to insert user {member.name} ({member.id}) in parquet: {error}",
                     BOT_ADMIN_CHANNEL,
                 )
         except Exception as e:
@@ -222,15 +229,13 @@ class Events(Cog):
                 )
             await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
-            user = {
-                "username": member.name,
-                "birthday": None,
-                "isBirthdayLeap": None,
-            }
-            resp = xata_client.records().upsert("users", str(member.id), user)
-            if not resp.is_success():
+            success, error = delete_row_from_parquet(
+                str(member.id),
+                "data/users.parquet",
+            )
+            if not success:
                 await send_message(
-                    f"Failed to remove user {member.name} ({member.id}) from database: {resp.error_message}",
+                    f"Failed to remove user {member.name} ({member.id}) from parquet: {error}",
                     BOT_ADMIN_CHANNEL,
                 )
         except Exception as e:
@@ -321,7 +326,7 @@ class Events(Cog):
                 if before:
                     before_content = before.content
                 else:
-                    before_content = await self._get_message_content_from_db(after.id)
+                    before_content = await self._get_message_content(after.id)
 
                 after_content = after.content
             except KeyError:
@@ -370,6 +375,7 @@ class Events(Cog):
                 guild = after.guild
                 guild_id = GUILD_ID if guild is None else guild.id
                 after_message_obj = {
+                    "id": str(after.id),
                     "contents": after.content,
                     "guild_id": guild_id,
                     "author_id": after.author.id,
@@ -378,18 +384,20 @@ class Events(Cog):
                         attachment.url for attachment in after.attachments
                     ],
                 }
-                resp = xata_client.records().upsert(
-                    "messages", str(after.id), after_message_obj
+
+                success, error = upsert_row_to_parquet(
+                    after_message_obj,
+                    "data/messages.parquet",
                 )
-                if not resp.is_success():
+                if not success:
                     await send_message(
-                        f"Failed to upsert message {after.id} in database: {resp.error_message}",
+                        f"Failed to upsert message {after.id} in parquet: {error}",
                         BOT_ADMIN_CHANNEL,
                     )
             except Exception as e:
                 sentry_sdk.capture_exception(e)
                 await send_message(
-                    f"Failed to upsert message {after.id} in database: {e}",
+                    f"Failed to upsert message {after.id} in parquet: {e}",
                     BOT_ADMIN_CHANNEL,
                 )
         except Exception as e:
@@ -436,16 +444,19 @@ class Events(Cog):
             )
 
             try:
-                resp = xata_client.records().delete("messages", str(payload.message_id))
-                if not resp.is_success():
+                success, error = delete_row_from_parquet(
+                    str(payload.message_id),
+                    "data/messages.parquet",
+                )
+                if not success:
                     await send_message(
-                        f"Failed to delete message {payload.message_id} from database: {resp.error_message}",
+                        f"Failed to delete message {payload.message_id} from parquet: {error}",
                         BOT_ADMIN_CHANNEL,
                     )
             except Exception as e:
                 sentry_sdk.capture_exception(e)
                 await send_message(
-                    f"Failed to delete message {payload.message_id} from database: {e}",
+                    f"Failed to delete message {payload.message_id} from parquet: {e}",
                     BOT_ADMIN_CHANNEL,
                 )
         except Exception as e:
@@ -496,16 +507,19 @@ class Events(Cog):
 
             for message_id in payload.message_ids:
                 try:
-                    resp = xata_client.records().delete("messages", str(message_id))
-                    if not resp.is_success():
+                    success, error = delete_row_from_parquet(
+                        str(message_id),
+                        "data/messages.parquet",
+                    )
+                    if not success:
                         await send_message(
-                            f"Failed to delete message {message_id} from database: {resp.error_message}",
+                            f"Failed to delete message {message_id} from parquet: {error}",
                             BOT_ADMIN_CHANNEL,
                         )
                 except Exception as e:
                     sentry_sdk.capture_exception(e)
                     await send_message(
-                        f"Failed to delete message {message_id} from database: {e}",
+                        f"Failed to delete message {message_id} from parquet: {e}",
                         BOT_ADMIN_CHANNEL,
                     )
         except Exception as e:
@@ -647,23 +661,19 @@ class Events(Cog):
             )
 
     @sentry_sdk.trace()
-    async def _get_message_content_from_db(self, message_id: int) -> str:
-        while True:
-            try:
-                resp = xata_client.records().get("messages", str(message_id))
-                if resp.is_success():
-                    return resp.get("contents", DEFAULT_MISSING_CONTENT)
-                else:
-                    return DEFAULT_MISSING_CONTENT
-            except Exception as e:
-                await asyncio.sleep(1)
+    async def _get_message_content(self, message_id: int) -> str:
+        df = pd.read_parquet("data/live_alerts.parquet")
+        message_row = df.loc[str(df["id"]) == message_id]
+        if not message_row.empty:
+            return message_row.iloc[0]["content"]
+        return DEFAULT_MISSING_CONTENT
 
     @sentry_sdk.trace()
     async def _log_role_change(
         self, member: Member, discriminator: str, url: str, roles: list[Role], add: bool
     ) -> None:
         roles_str = " ".join([role.mention for role in roles])
-        message = f"**{member.mention} was {"given" if add else "removed from"} the role{"" if len(roles) == 1 else "s"} {roles_str}**"
+        message = f"**{member.mention} was {'given' if add else 'removed from'} the role{'' if len(roles) == 1 else 's'} {roles_str}**"
         embed = (
             Embed(
                 description=message,
@@ -776,7 +786,7 @@ class Events(Cog):
         self, message: Message, discriminator: str, url: str
     ) -> None:
         channel_mention = get_channel_mention(message.channel)
-        description = f"**Message {"pinned" if message.pinned else "unpinned"} in {channel_mention}** [Jump to Message]({message.jump_url})"
+        description = f"**Message {'pinned' if message.pinned else 'unpinned'} in {channel_mention}** [Jump to Message]({message.jump_url})"
         embed = (
             Embed(
                 description=description,
@@ -810,7 +820,7 @@ class Events(Cog):
             | None
         ),
     ) -> None:
-        message_content = await self._get_message_content_from_db(message_id)
+        message_content = await self._get_message_content(message_id)
 
         if user is None:
             discriminator = ""
@@ -847,16 +857,19 @@ class Events(Cog):
         await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
         try:
-            resp = xata_client.records().delete("messages", str(message_id))
-            if not resp.is_success():
+            success, error = delete_row_from_parquet(
+                str(message_id),
+                "data/messages.parquet",
+            )
+            if not success:
                 await send_message(
-                    f"Failed to delete message {message_id} from database: {resp.error_message}",
+                    f"Failed to delete message {message_id} from parquet: {error}",
                     BOT_ADMIN_CHANNEL,
                 )
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
-                f"Failed to delete message {message_id} from database: {e}",
+                f"Failed to delete message {message_id} from parquet: {e}",
                 BOT_ADMIN_CHANNEL,
             )
 
@@ -883,7 +896,7 @@ class Events(Cog):
         try:
             message_content = message.content
         except KeyError:
-            message_content = await self._get_message_content_from_db(message_id)
+            message_content = await self._get_message_content(message_id)
 
         user_who_deleted_mention = (
             "" if user_who_deleted is None else f" by {user_who_deleted.mention}"

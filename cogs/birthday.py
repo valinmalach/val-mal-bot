@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+import pandas as pd
 import pytz
 import sentry_sdk
 from discord import Interaction, app_commands
@@ -9,7 +10,6 @@ from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
 
 from constants import BOT_ADMIN_CHANNEL, FOLLOWER_ROLE, MAX_DAYS, OWNER_ID, Months
-from init import xata_client
 from services import get_next_leap, send_message, update_birthday
 
 logger = logging.getLogger(__name__)
@@ -98,6 +98,7 @@ class Birthday(GroupCog):
             )
             logger.info("Building birthday record payload for database")
             record = {
+                "id": str(interaction.user.id),
                 "username": interaction.user.name,
                 "birthday": (
                     datetime.strptime(
@@ -113,10 +114,10 @@ class Birthday(GroupCog):
             logger.info(
                 "Updating birthday in database for user ID %s", interaction.user.id
             )
-            success = update_birthday(str(interaction.user.id), record)
-            logger.info("Database update returned success status: %s", success[0])
-            if not success[0]:
-                await self._set_birthday_failed(interaction, success[1])
+            success, error = update_birthday(record)
+            logger.info("Database update returned success status: %s", success)
+            if not success:
+                await self._set_birthday_failed(interaction, error)
                 return
 
             if month == Months.February and day == 29:
@@ -166,53 +167,47 @@ class Birthday(GroupCog):
     ) -> None:
         logger.info("Removing birthday record for user %s", interaction.user.id)
         try:
-            try:
+            df = pd.read_parquet("data/users.parquet")
+            existing_user_row = df.loc[str(df["id"]) == str(interaction.user.id)]
+            if existing_user_row.empty:
+                existing_user = None
+            else:
+                existing_user = existing_user_row.iloc[0].to_dict()
+
+            if existing_user is None:
                 logger.info(
-                    "Fetching user record from database for user ID %s",
+                    "No user record found for user %s",
                     interaction.user.id,
                 )
-                existing_user = xata_client.records().get(
-                    "users", str(interaction.user.id)
+                await send_message(
+                    f"User {interaction.user.name} ({interaction.user.id}) attempted to remove a birthday but had no record.",
+                    BOT_ADMIN_CHANNEL,
                 )
-                if not existing_user.is_success():
-                    logger.error(
-                        "Failed to fetch user record for user %s: %s",
-                        interaction.user.id,
-                        existing_user.error_message,
-                    )
-                    await self._forget_birthday_failed(
-                        interaction, existing_user.error_message
-                    )
-                    return
-            except Exception as e:
-                logger.error(
-                    "Error fetching user record for user %s: %s",
-                    interaction.user.id,
-                    e,
+                await interaction.response.send_message(
+                    "An error occurred while trying to remove your birthday."
                 )
-                sentry_sdk.capture_exception(e)
-                await self._forget_birthday_failed(interaction, e)
                 return
 
             logger.info("Constructing payload to remove birthday record for database")
             record = {
+                "id": str(interaction.user.id),
                 "username": interaction.user.name,
                 "birthday": None,
                 "isBirthdayLeap": None,
             }
-            success = update_birthday(str(interaction.user.id), record)
-            if not success[0]:
+            success, error = update_birthday(record)
+            if not success:
                 logger.error(
                     "Failed to remove birthday for user %s: %s",
                     interaction.user.id,
-                    success[1],
+                    error,
                 )
-                await self._forget_birthday_failed(interaction, success[1])
+                await self._forget_birthday_failed(interaction, error)
                 return
 
             logger.info("Birthday removal successful for user %s", interaction.user.id)
             try:
-                if existing_user.is_success() and existing_user.get("birthday"):
+                if existing_user.get("birthday"):
                     await interaction.response.send_message(
                         "I've removed your birthday! I won't wish you anymore!"
                     )

@@ -207,7 +207,9 @@ class Admin(Cog):
         await interaction.response.send_message(embed=embed)
         logger.info("Sent subscriptions embed with %d fields", len(embed.fields))
 
-    @app_commands.command(description="Subscribe to online and offline events for a user")
+    @app_commands.command(
+        description="Subscribe to online and offline events for a user"
+    )
     @app_commands.commands.default_permissions(administrator=True)
     @app_commands.describe(
         username="The username of the user to subscribe to",
@@ -216,9 +218,15 @@ class Admin(Cog):
         logger.info("Subscribing to user %s", username)
         success = await subscribe_to_user(username)
         logger.info(
-            f"Subscribed to user {username}" if success else f"Failed to subscribe to {username}"
+            f"Subscribed to user {username}"
+            if success
+            else f"Failed to subscribe to {username}"
         )
-        await interaction.response.send_message(content=f"Subscribed to {username}" if success else f"Failed to subscribe to {username}")
+        await interaction.response.send_message(
+            content=f"Subscribed to {username}"
+            if success
+            else f"Failed to subscribe to {username}"
+        )
 
 
 async def setup(bot: Bot) -> None:

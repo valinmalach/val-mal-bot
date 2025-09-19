@@ -1,4 +1,5 @@
 from .helper import (
+    delete_row_from_parquet,
     edit_embed,
     format_unit,
     get_age,
@@ -17,6 +18,7 @@ from .helper import (
     send_message,
     toggle_role,
     update_birthday,
+    upsert_row_to_parquet,
     verify_message,
 )
 from .twitch_service import (
@@ -31,6 +33,7 @@ from .twitch_service import (
 )
 
 __all__ = [
+    "delete_row_from_parquet",
     "edit_embed",
     "format_unit",
     "get_age",
@@ -49,6 +52,7 @@ __all__ = [
     "send_message",
     "toggle_role",
     "update_birthday",
+    "upsert_row_to_parquet",
     "verify_message",
     "get_channel",
     "get_stream_info",

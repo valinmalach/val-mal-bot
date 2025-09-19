@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 import discord
+import pandas as pd
 import quart
 import sentry_sdk
 from discord.ui import View
@@ -22,9 +23,9 @@ from constants import (
     TWITCH_MESSAGE_TIMESTAMP,
     TWITCH_MESSAGE_TYPE,
 )
-from init import xata_client
 from models import StreamOfflineEventSub, StreamOnlineEventSub
 from services import (
+    delete_row_from_parquet,
     edit_embed,
     get_age,
     get_channel,
@@ -37,6 +38,7 @@ from services import (
     send_embed,
     send_message,
     update_alert,
+    upsert_row_to_parquet,
     verify_message,
 )
 
@@ -118,13 +120,14 @@ async def _twitch_webhook_task(broadcaster_id: str) -> None:
             return
 
         alert = {
+            "id": broadcaster_id,
             "channel_id": channel,
             "message_id": message_id,
             "stream_id": stream_info.id,
             "stream_started_at": stream_info.started_at,
         }
-        resp = xata_client.records().upsert("live_alerts", broadcaster_id, alert)
-        if resp.is_success():
+        success, error = upsert_row_to_parquet(alert, "data/live_alerts.parquet")
+        if success:
             asyncio.create_task(
                 update_alert(
                     broadcaster_id,
@@ -135,18 +138,18 @@ async def _twitch_webhook_task(broadcaster_id: str) -> None:
                 )
             )
             logger.info(
-                "Inserted live alert message into database: broadcaster_id=%s, channel_id=%s, message_id=%s",
+                "Inserted live alert message into parquet: broadcaster_id=%s, channel_id=%s, message_id=%s",
                 broadcaster_id,
                 channel,
                 message_id,
             )
         else:
             logger.error(
-                "Failed to insert live alert message into database: %s",
-                resp.error_message,
+                "Failed to insert live alert message into parquet: %s",
+                error,
             )
             await send_message(
-                f"Failed to insert live alert message into database\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}\n message_id: {message_id}\n\n{resp.error_message}",
+                f"Failed to insert live alert message into parquet\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}\n message_id: {message_id}\n\n{error}",
                 BOT_ADMIN_CHANNEL,
             )
     except Exception as e:
@@ -171,19 +174,19 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
         channel_info = await get_channel(broadcaster_id)
         logger.info("Fetched user_info=%s and channel_info=%s", user_info, channel_info)
 
-        alert = xata_client.records().get("live_alerts", broadcaster_id)
-        if not alert.is_success():
+        df = pd.read_parquet("data/live_alerts.parquet")
+        alert_row = df.loc[str(df["id"]) == broadcaster_id]
+        if alert_row.empty:
             logger.error(
-                "Failed to fetch live alert for broadcaster_id=%s: %s",
-                broadcaster_id,
-                alert.error_message,
+                "Failed to fetch live alert for broadcaster_id=%s: %s", broadcaster_id
             )
             await send_message(
-                f"Failed to fetch live alert for {broadcaster_id}: {alert.error_message}",
+                f"Failed to fetch live alert for {broadcaster_id}: No record found",
                 BOT_ADMIN_CHANNEL,
             )
             return
 
+        alert = alert_row.iloc[0].to_dict()
         logger.info(
             "Fetched live alert for broadcaster_id=%s: %s", broadcaster_id, alert
         )
@@ -295,15 +298,17 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
             "Proceeding to delete live_alert record for broadcaster_id=%s",
             broadcaster_id,
         )
-        resp = xata_client.records().delete("live_alerts", broadcaster_id)
-        if not resp.is_success():
+        success, error = delete_row_from_parquet(
+            broadcaster_id, "data/live_alerts.parquet"
+        )
+        if not success:
             logger.error(
                 "Failed to delete live alert for broadcaster_id=%s: %s",
                 broadcaster_id,
-                resp.error_message,
+                error,
             )
             await send_message(
-                f"Failed to delete live alert for {broadcaster_id}: {resp.error_message}",
+                f"Failed to delete live alert for {broadcaster_id}: {error}",
                 BOT_ADMIN_CHANNEL,
             )
         else:

@@ -6,6 +6,7 @@ from functools import cache
 from typing import Optional
 
 import discord
+import pandas as pd
 import sentry_sdk
 from dateutil import relativedelta
 from dateutil.parser import isoparse
@@ -30,11 +31,82 @@ from discord import (
 )
 from discord.abc import GuildChannel, PrivateChannel
 from discord.ui import Button, View
+from pandas import DataFrame
 
 from constants import EMOJI_ROLE_MAP
-from init import bot, xata_client
+from init import bot
 
 logger = logging.getLogger(__name__)
+
+
+@sentry_sdk.trace()
+def upsert_row_to_parquet(
+    row_data: dict, filepath: str, id_column: str = "id"
+) -> tuple[bool, Exception | None]:
+    """
+    Upsert a single row into a parquet file based on a unique identifier column.
+
+    Args:
+        row_data: Dictionary containing the row data to upsert
+        filepath: Path to the parquet file
+        id_column: Name of the unique identifier column (default: "id")
+    """
+    try:
+        # Convert row data to DataFrame
+        new_row_df = pd.DataFrame([row_data])
+
+        # Load existing data
+        existing_df = pd.read_parquet(filepath)
+
+        # Check if ID already exists
+        id_value = row_data[id_column]
+        if id_value in existing_df[id_column].values:
+            # Update existing row
+            existing_df.loc[existing_df[id_column] == id_value, new_row_df.columns] = (
+                new_row_df.values[0]
+            )
+            combined_df = existing_df
+        else:
+            # Insert new row
+            combined_df = pd.concat([existing_df, new_row_df], ignore_index=True)
+
+        # Save back to parquet
+        combined_df.to_parquet(filepath, index=False)
+        return True, None
+    except Exception as e:
+        logger.error(f"Error upserting row to parquet: {e}")
+        sentry_sdk.capture_exception(e)
+        return False, e
+
+
+@sentry_sdk.trace()
+def delete_row_from_parquet(
+    id_value: str, filepath: str, id_column: str = "id"
+) -> tuple[bool, Exception | None]:
+    """
+    Delete a single row from a parquet file based on a unique identifier column.
+
+    Args:
+        id_value: Value of the unique identifier for the row to delete
+        filepath: Path to the parquet file
+        id_column: Name of the unique identifier column (default: "id")
+    """
+    try:
+        # Load existing data
+        existing_df = pd.read_parquet(filepath)
+
+        # Check if ID exists
+        if id_value in existing_df[id_column].values:
+            # Delete the row
+            updated_df: DataFrame = existing_df[existing_df[id_column] != id_value]
+
+            # Save back to parquet
+            updated_df.to_parquet(filepath, index=False)
+        return True, None
+    except Exception as e:
+        logger.error(f"Error deleting row from parquet: {e}")
+        sentry_sdk.capture_exception(e)
+        return False, e
 
 
 @sentry_sdk.trace()
@@ -95,15 +167,8 @@ def get_discriminator(member: User | Member) -> str:
 
 
 @sentry_sdk.trace()
-def update_birthday(
-    user_id: str, record: dict[str, str]
-) -> tuple[bool, Exception | None]:
-    try:
-        resp = xata_client.records().upsert("users", user_id, record)
-        return resp.is_success(), None
-    except Exception as e:
-        sentry_sdk.capture_exception(e)
-        return False, e
+def update_birthday(record: dict[str, str]) -> tuple[bool, Exception | None]:
+    return upsert_row_to_parquet(record, "data/users.parquet")
 
 
 @sentry_sdk.trace()

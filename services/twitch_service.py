@@ -6,13 +6,13 @@ from datetime import datetime
 from typing import List, Optional
 
 import discord
+import pandas as pd
 import requests
 import sentry_sdk
 from discord.ui import View
 from dotenv import load_dotenv
 
 from constants import BOT_ADMIN_CHANNEL, LIVE_ALERTS_ROLE, STREAM_ALERTS_CHANNEL
-from init import xata_client
 from models import (
     AuthResponse,
     ChannelInfo,
@@ -241,14 +241,12 @@ async def subscribe_to_user(username: str) -> bool:
     body = {
         "type": "stream.online",
         "version": "1",
-        "condition": {
-            "broadcaster_user_id": user_id
-        },
+        "condition": {"broadcaster_user_id": user_id},
         "transport": {
             "method": "webhook",
             "callback": "https://valin.loclx.io/webhook/twitch",
-            "secret": TWITCH_WEBHOOK_SECRET
-        }
+            "secret": TWITCH_WEBHOOK_SECRET,
+        },
     }
     response = requests.post(url, headers=headers, json=body)
     if response.status_code == 401:
@@ -270,14 +268,12 @@ async def subscribe_to_user(username: str) -> bool:
     body = {
         "type": "stream.offline",
         "version": "1",
-        "condition": {
-            "broadcaster_user_id": user_id
-        },
+        "condition": {"broadcaster_user_id": user_id},
         "transport": {
             "method": "webhook",
             "callback": "https://valin.loclx.io/webhook/twitch/offline",
-            "secret": TWITCH_WEBHOOK_SECRET
-        }
+            "secret": TWITCH_WEBHOOK_SECRET,
+        },
     }
     response = requests.post(url, headers=headers, json=body)
     if response.status_code == 401:
@@ -474,22 +470,20 @@ async def update_alert(
     )
     try:
         await asyncio.sleep(60)
-        # retry on connection errors
-        while True:
-            try:
-                logger.info(
-                    "Fetching live_alert record for broadcaster_id=%s", broadcaster_id
-                )
-                alert = xata_client.records().get("live_alerts", broadcaster_id)
-                break
-            except Exception:
-                logger.warning("Error fetching live_alert; retrying after sleep")
-                await asyncio.sleep(1)
+        df = pd.read_parquet("data/live_alerts.parquet")
+        alert_row = df.loc[str(df["id"]) == broadcaster_id]
+        if alert_row.empty:
+            logger.warning(
+                "No live alert record found for broadcaster_id=%s; exiting",
+                broadcaster_id,
+            )
+            return
         stream_info = await get_stream_info(broadcaster_id)
         logger.info("Fetched stream_info for update: %s", stream_info)
         user_info = await get_user(broadcaster_id)
         logger.info("Fetched user_info for update: %s", user_info)
-        while alert.is_success() and stream_info is not None:
+        while not alert_row.empty and stream_info is not None:
+            alert = alert_row.iloc[0].to_dict()
             logger.info(
                 "Live alert record found. Checking if stream_id changed (current=%s, original=%s)",
                 stream_info.id,
@@ -657,20 +651,11 @@ async def update_alert(
                     await asyncio.sleep(1)
             logger.info("Sleeping for 60 seconds before next update cycle")
             await asyncio.sleep(60)
-            # retry on connection errors
-            while True:
-                logger.info(
-                    "Fetching updated live_alert record after sleep for broadcaster_id=%s",
-                    broadcaster_id,
-                )
-                try:
-                    alert = xata_client.records().get("live_alerts", broadcaster_id)
-                    break
-                except Exception:
-                    logger.warning(
-                        "Error fetching alert post-sleep; retrying after sleep"
-                    )
-                    await asyncio.sleep(1)
+            logger.info(
+                "Fetching updated live_alert record after sleep for broadcaster_id=%s",
+                broadcaster_id,
+            )
+            alert_row = df.loc[df["id"] == int(broadcaster_id)]
             stream_info = await get_stream_info(broadcaster_id)
             logger.info("Fetched updated stream_info for next cycle: %s", stream_info)
 

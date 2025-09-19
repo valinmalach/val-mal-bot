@@ -1,12 +1,11 @@
-import asyncio
 import datetime
 import logging
 
+import pandas as pd
 import sentry_sdk
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
-from requests.exceptions import ConnectionError
-from xata.api_response import ApiResponse
+from pandas import DataFrame
 
 from constants import (
     BLUESKY_CHANNEL,
@@ -14,8 +13,8 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     SHOUTOUTS_CHANNEL,
 )
-from init import at_client, xata_client
-from services import get_next_leap, send_message, update_birthday
+from init import at_client
+from services import get_next_leap, send_message, update_birthday, upsert_row_to_parquet
 
 logger = logging.getLogger(__name__)
 
@@ -42,18 +41,10 @@ class Tasks(Cog):
         logger.info("Executing Bluesky posts synchronization task")
         try:
             logger.info("Retrieving last synced Bluesky post date from database")
-            try:
-                last_sync_date_time = xata_client.data().query(
-                    "bluesky",
-                    {
-                        "columns": ["date"],
-                        "sort": {"date": "desc"},
-                        "page": {"size": 1},
-                    },
-                )["records"][0]["date"]
-            except ConnectionError as e:
-                logger.warning("Connection error retrieving last sync date: %s", e)
-                return
+            df = pd.read_parquet("data/bluesky.parquet")
+            last_sync_date_time = (
+                "1970-01-01T00:00:00.000Z" if df.empty else df["date"].max()
+            )
 
             logger.info(
                 "Fetching Bluesky author feed for user 'valinmalach.bsky.social'"
@@ -91,12 +82,13 @@ class Tasks(Cog):
 
             logger.info("Processing %d new posts for insertion", len(posts))
             for post in posts:
-                post_id = post.pop("id")
-                logger.info("Upserting post with id %s", post_id)
+                logger.info("Upserting post with id %s", post["id"])
                 try:
-                    resp = xata_client.records().upsert("bluesky", post_id, post)
-                    if resp.is_success():
-                        logger.info("Inserted Bluesky post %s into database", post_id)
+                    success, error = upsert_row_to_parquet(post, "data/bluesky.parquet")
+                    if success:
+                        logger.info(
+                            "Inserted Bluesky post %s into database", post["id"]
+                        )
                         await send_message(
                             f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
                             BLUESKY_CHANNEL,
@@ -104,18 +96,20 @@ class Tasks(Cog):
                     else:
                         logger.warning(
                             "Failed to insert post %s into database: %s",
-                            post_id,
-                            resp.error_message,
+                            post["id"],
+                            error,
                         )
                         await send_message(
-                            f"Failed to insert post {post_id} into database: {resp.error_message}",
+                            f"Failed to insert post {post['id']} into database: {error}",
                             BOT_ADMIN_CHANNEL,
                         )
                 except Exception as e:
-                    logger.error("Exception upserting Bluesky post %s: %s", post_id, e)
+                    logger.error(
+                        "Exception upserting Bluesky post %s: %s", post["id"], e
+                    )
                     sentry_sdk.capture_exception(e)
                     await send_message(
-                        f"Failed to insert post {post_id} into database: {e}",
+                        f"Failed to insert post {post['id']} into database: {e}",
                         BOT_ADMIN_CHANNEL,
                     )
         except Exception as e:
@@ -139,34 +133,13 @@ class Tasks(Cog):
             )
 
             logger.info("Querying users with birthday equal to now=%s", now)
-            while True:
-                try:
-                    records = xata_client.data().query(
-                        "users", {"filter": {"birthday": now}}
-                    )
-                    logger.info(
-                        "Processing batch of birthday records: count=%d",
-                        len(records["records"]),
-                    )
-                    await self._process_birthday_records(records)
-
-                    while records.has_more_results():
-                        records = xata_client.data().query(
-                            "users",
-                            {
-                                "filter": {"birthday": now},
-                                "page": {"after": records.get_cursor()},
-                            },
-                        )
-                        logger.info(
-                            "Processing batch of birthday records: count=%d",
-                            len(records["records"]),
-                        )
-                        await self._process_birthday_records(records)
-                    break
-                except ConnectionError as e:
-                    logger.warning("Connection error querying birthday records: %s", e)
-                    await asyncio.sleep(1)
+            df = pd.read_parquet("data/users.parquet")
+            birthday_users = df[df["birthday"] == now]
+            logger.info(
+                "Processing batch of birthday records: count=%d",
+                len(birthday_users),
+            )
+            await self._process_birthday_records(birthday_users)
         except Exception as e:
             logger.error("Fatal error during birthday check task: %s", e)
             sentry_sdk.capture_exception(e)
@@ -176,14 +149,13 @@ class Tasks(Cog):
             )
 
     @sentry_sdk.trace()
-    async def _process_birthday_records(self, records: ApiResponse) -> None:
+    async def _process_birthday_records(self, birthdays_now: DataFrame) -> None:
         logger.info(
-            "Handling birthday records, total to process: %d", len(records["records"])
+            "Handling birthday records, total to process: %d", len(birthdays_now)
         )
         now = datetime.datetime.now()
-        birthdays_now = records["records"]
         logger.info(f"Processing {len(birthdays_now)} birthday records.")
-        for record in birthdays_now:
+        for _, record in birthdays_now.iterrows():
             user_id = record["id"]
             logger.info("Processing birthday for user ID %s", user_id)
             user = self.bot.get_user(int(user_id))
@@ -226,22 +198,23 @@ class Tasks(Cog):
                 next_birthday,
             )
             updated_record = {
+                "id": user_id,
                 "username": record["username"],
                 "birthday": next_birthday,
                 "isBirthdayLeap": leap,
             }
             logger.info("Updating birthday record in database for user ID %s", user_id)
-            success = update_birthday(user_id, updated_record)
-            if success[0]:
+            success, error = update_birthday(updated_record)
+            if success:
                 logger.info(
                     "Updated next birthday for user ID %s to %s", user_id, next_birthday
                 )
             else:
                 logger.error(
-                    "Failed to update birthday for user ID %s: %s", user_id, success[1]
+                    "Failed to update birthday for user ID %s: %s", user_id, error
                 )
                 await send_message(
-                    f"Failed to update birthday for {updated_record['username']}: {success[1]}",
+                    f"Failed to update birthday for {updated_record['username']}: {error}",
                     BOT_ADMIN_CHANNEL,
                 )
 
