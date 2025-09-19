@@ -1,6 +1,6 @@
 [project]
 name = "val-mal-bot"
-version = "0.1.0"
+version = "1.0.0"
 description = "Valin Malach's bot for Twitch/Discord"
 readme = "README.md"
 requires-python = ">=3.13"
