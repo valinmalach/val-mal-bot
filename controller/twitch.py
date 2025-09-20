@@ -375,7 +375,7 @@ async def twitch_webhook(request: Request) -> Response:
             f"500: Internal server error on /webhook/twitch: {e}",
             BOT_ADMIN_CHANNEL,
         )
-        raise HTTPException(status_code=500)
+        raise HTTPException(status_code=500) from e
 
 
 @twitch_router.post("/webhook/twitch/offline")
@@ -451,4 +451,4 @@ async def twitch_webhook_offline(request: Request) -> Response:
             f"500: Internal server error on /webhook/twitch/offline: {e}",
             BOT_ADMIN_CHANNEL,
         )
-        raise HTTPException(status_code=500)
+        raise HTTPException(status_code=500) from e
