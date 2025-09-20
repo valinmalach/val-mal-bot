@@ -36,42 +36,43 @@ class Tasks(Cog):
         pendulum.Time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
     ]
 
-    @tasks.loop(hours=24)
-    @sentry_sdk.trace()
-    async def renew_youtube_webhook_subscription(self) -> None:
-        logger.info("Renewing YouTube webhook subscription")
-        try:
-            YOUTUBE_CHANNEL_ID = "UC7BVlWSXIU4hKtWkBqEgZMA"
-            CALLBACK_URL = "https://valin.loclx.io/youtube/webhook"
+    # Temporarily disabled to see if webhook endpoint is fully functional first
+    # @tasks.loop(hours=24)
+    # @sentry_sdk.trace()
+    # async def renew_youtube_webhook_subscription(self) -> None:
+    #     logger.info("Renewing YouTube webhook subscription")
+    #     try:
+    #         YOUTUBE_CHANNEL_ID = "UC7BVlWSXIU4hKtWkBqEgZMA"
+    #         CALLBACK_URL = "https://valin.loclx.io/youtube/webhook"
 
-            response = httpx.post(
-                "https://pubsubhubbub.appspot.com/subscribe",
-                data={
-                    "hub.mode": "subscribe",
-                    "hub.callback": CALLBACK_URL,
-                    "hub.topic": f"https://www.youtube.com/xml/feeds/videos.xml?channel_id={YOUTUBE_CHANNEL_ID}",
-                    "hub.verify": "async",
-                    "hub.lease_seconds": str(864000),  # 10 days
-                },
-            )
+    #         response = httpx.post(
+    #             "https://pubsubhubbub.appspot.com/subscribe",
+    #             data={
+    #                 "hub.mode": "subscribe",
+    #                 "hub.callback": CALLBACK_URL,
+    #                 "hub.topic": f"https://www.youtube.com/xml/feeds/videos.xml?channel_id={YOUTUBE_CHANNEL_ID}",
+    #                 "hub.verify": "async",
+    #                 "hub.lease_seconds": str(864000),  # 10 days
+    #             },
+    #         )
 
-            if response.status_code == 202:
-                logger.info("YouTube webhook subscription renewed successfully")
-            else:
-                logger.error(
-                    f"Failed to renew YouTube webhook subscription: {response.status_code} - {response.text}"
-                )
-                await send_message(
-                    f"Failed to renew YouTube webhook subscription: {response.status_code} - {response.text}",
-                    BOT_ADMIN_CHANNEL,
-                )
-        except Exception as e:
-            logger.error(f"Exception during YouTube webhook renewal: {e}")
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Exception during YouTube webhook renewal: {e}",
-                BOT_ADMIN_CHANNEL,
-            )
+    #         if response.status_code == 202:
+    #             logger.info("YouTube webhook subscription renewed successfully")
+    #         else:
+    #             logger.error(
+    #                 f"Failed to renew YouTube webhook subscription: {response.status_code} - {response.text}"
+    #             )
+    #             await send_message(
+    #                 f"Failed to renew YouTube webhook subscription: {response.status_code} - {response.text}",
+    #                 BOT_ADMIN_CHANNEL,
+    #             )
+    #     except Exception as e:
+    #         logger.error(f"Exception during YouTube webhook renewal: {e}")
+    #         sentry_sdk.capture_exception(e)
+    #         await send_message(
+    #             f"Exception during YouTube webhook renewal: {e}",
+    #             BOT_ADMIN_CHANNEL,
+    #         )
 
     @tasks.loop(minutes=1)
     @sentry_sdk.trace()

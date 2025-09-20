@@ -83,7 +83,7 @@ async def handle_new_video(
             return
 
         url = f"https://www.youtube.com/watch?v={video_id}"
-        message = f"New video uploaded by {author}: {url}"
+        message = f"New video uploaded by {author}!\n{url}"
 
         await send_message(message, PROMO_CHANNEL)
 
