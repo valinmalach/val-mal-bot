@@ -665,7 +665,7 @@ class Events(Cog):
 
     @sentry_sdk.trace()
     async def _get_message_content(self, message_id: int) -> str:
-        df = pl.read_parquet("data/live_alerts.parquet")
+        df = pl.read_parquet("data/messages.parquet")
         message_row = df.filter(pl.col("id") == message_id)
         if message_row.height != 0:
             return message_row.row(0, named=True)["content"]
