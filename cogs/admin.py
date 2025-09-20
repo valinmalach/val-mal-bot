@@ -17,7 +17,6 @@ from discord.ext.commands import Bot, Cog
 
 from constants import ROLES_CHANNEL, RULES_CHANNEL
 from services import (
-    delete_row_from_parquet,
     get_subscriptions,
     get_users,
     send_embed,
@@ -239,8 +238,10 @@ class Admin(Cog):
             rows_to_delete = df.filter(pl.col("author_id") == self.bot.user.id)
             for row in rows_to_delete.iter_rows(named=True):
                 message_id = row["id"]
-                delete_row_from_parquet("data/messages.parquet", message_id)
+                if message_id in df["id"].to_list():
+                    df = df.filter(pl.col("id") != message_id)
                 logger.info(f"Deleted message with ID {message_id}")
+            df.write_parquet("data/messages.parquet")
             logger.info("Deleted all messages sent by the bot")
             await interaction.response.send_message(
                 content="Deleted all messages sent by the bot"
