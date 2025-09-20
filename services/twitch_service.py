@@ -568,9 +568,9 @@ async def update_alert(
                             f"Successfully edited embed for offline event message_id={message_id}",
                         )
                         break
-                    except Exception:
+                    except Exception as e:
                         logger.warning(
-                            "Error encountered while editing offline embed; retrying..."
+                            f"Error encountered while editing offline embed; retrying...\n{e}"
                         )
                         await asyncio.sleep(1)
                 return
