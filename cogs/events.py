@@ -65,7 +65,7 @@ class Events(Cog):
                 "channel_id": message.channel.id,
                 "attachment_urls": orjson.dumps(
                     [attachment.url for attachment in message.attachments]
-                ),
+                ).decode("utf-8"),
             }
             try:
                 success, error = upsert_row_to_parquet(
@@ -376,7 +376,7 @@ class Events(Cog):
                     "channel_id": after.channel.id,
                     "attachment_urls": orjson.dumps(
                         [attachment.url for attachment in after.attachments]
-                    ),
+                    ).decode("utf-8"),
                 }
 
                 success, error = upsert_row_to_parquet(
