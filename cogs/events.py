@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 
 import discord
-import pandas as pd
+import polars as pl
 import sentry_sdk
 from discord import (
     CategoryChannel,
@@ -656,10 +656,10 @@ class Events(Cog):
 
     @sentry_sdk.trace()
     async def _get_message_content(self, message_id: int) -> str:
-        df = pd.read_parquet("data/live_alerts.parquet")
-        message_row = df.loc[df["id"] == message_id]
-        if not message_row.empty:
-            return message_row.iloc[0]["content"]
+        df = pl.read_parquet("data/live_alerts.parquet")
+        message_row = df.filter(pl.col("id") == message_id)
+        if message_row.height != 0:
+            return message_row.row(0, named=True)["content"]
         return DEFAULT_MISSING_CONTENT
 
     @sentry_sdk.trace()

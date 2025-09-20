@@ -1,11 +1,11 @@
 import datetime
 import logging
 
-import pandas as pd
+import polars as pl
 import sentry_sdk
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
-from pandas import DataFrame
+from polars import DataFrame
 
 from constants import (
     BLUESKY_CHANNEL,
@@ -41,9 +41,9 @@ class Tasks(Cog):
         logger.info("Executing Bluesky posts synchronization task")
         try:
             logger.info("Retrieving last synced Bluesky post date from database")
-            df = pd.read_parquet("data/bluesky.parquet")
+            df = pl.read_parquet("data/bluesky.parquet")
             last_sync_date_time = (
-                "1970-01-01T00:00:00.000Z" if df.empty else df["date"].max()
+                "1970-01-01T00:00:00.000Z" if df.height == 0 else str(df["date"].max())
             )
 
             logger.info(
@@ -126,10 +126,10 @@ class Tasks(Cog):
             )
 
             logger.info(f"Querying users with birthday equal to now={now}")
-            df = pd.read_parquet("data/users.parquet")
-            birthday_users = df[df["birthday"] == now]
+            df = pl.read_parquet("data/users.parquet")
+            birthday_users = df.filter(pl.col("birthday") == now)
             logger.info(
-                f"Processing batch of birthday records: count={len(birthday_users)}",
+                f"Processing batch of birthday records: count={birthday_users.height}",
             )
             await self._process_birthday_records(birthday_users)
         except Exception as e:
@@ -143,11 +143,11 @@ class Tasks(Cog):
     @sentry_sdk.trace()
     async def _process_birthday_records(self, birthdays_now: DataFrame) -> None:
         logger.info(
-            f"Handling birthday records, total to process: {len(birthdays_now)}"
+            f"Handling birthday records, total to process: {birthdays_now.height}"
         )
         now = datetime.datetime.now()
-        logger.info(f"Processing {len(birthdays_now)} birthday records.")
-        for _, record in birthdays_now.iterrows():
+        logger.info(f"Processing {birthdays_now.height} birthday records.")
+        for record in birthdays_now.iter_rows(named=True):
             user_id = record["id"]
             logger.info(f"Processing birthday for user ID {user_id}")
             user = self.bot.get_user(int(user_id))

@@ -6,7 +6,7 @@ from functools import cache
 from typing import Optional
 
 import discord
-import pandas as pd
+import polars as pl
 import sentry_sdk
 from dateutil import relativedelta
 from dateutil.parser import isoparse
@@ -31,7 +31,6 @@ from discord import (
 )
 from discord.abc import GuildChannel, PrivateChannel
 from discord.ui import Button, View
-from pandas import DataFrame
 
 from constants import EMOJI_ROLE_MAP
 from init import bot
@@ -43,35 +42,17 @@ logger = logging.getLogger(__name__)
 def upsert_row_to_parquet(
     row_data: dict, filepath: str, id_column: str = "id"
 ) -> tuple[bool, Exception | None]:
-    """
-    Upsert a single row into a parquet file based on a unique identifier column.
-
-    Args:
-        row_data: Dictionary containing the row data to upsert
-        filepath: Path to the parquet file
-        id_column: Name of the unique identifier column (default: "id")
-    """
     try:
-        # Convert row data to DataFrame
-        new_row_df = pd.DataFrame([row_data])
+        new_row_df = pl.DataFrame([row_data])
+        existing_df = pl.read_parquet(filepath)
 
-        # Load existing data
-        existing_df = pd.read_parquet(filepath)
-
-        # Check if ID already exists
         id_value = row_data[id_column]
-        if id_value in existing_df[id_column].values:
-            # Update existing row
-            existing_df.loc[existing_df[id_column] == id_value, new_row_df.columns] = (
-                new_row_df.values[0]
-            )
-            combined_df = existing_df
-        else:
-            # Insert new row
-            combined_df = pd.concat([existing_df, new_row_df], ignore_index=True)
+        if id_value in existing_df[id_column].to_list():
+            existing_df = existing_df.filter(pl.col(id_column) != id_value)
 
-        # Save back to parquet
-        combined_df.to_parquet(filepath, index=False)
+        combined_df = pl.concat([existing_df, new_row_df])
+
+        combined_df.write_parquet(filepath)
         return True, None
     except Exception as e:
         logger.error(f"Error upserting row to parquet: {e}")
@@ -83,25 +64,12 @@ def upsert_row_to_parquet(
 def delete_row_from_parquet(
     id_value: str, filepath: str, id_column: str = "id"
 ) -> tuple[bool, Exception | None]:
-    """
-    Delete a single row from a parquet file based on a unique identifier column.
-
-    Args:
-        id_value: Value of the unique identifier for the row to delete
-        filepath: Path to the parquet file
-        id_column: Name of the unique identifier column (default: "id")
-    """
     try:
-        # Load existing data
-        existing_df = pd.read_parquet(filepath)
+        existing_df = pl.read_parquet(filepath)
 
-        # Check if ID exists
-        if id_value in existing_df[id_column].values:
-            # Delete the row
-            updated_df: DataFrame = existing_df[existing_df[id_column] != id_value]
-
-            # Save back to parquet
-            updated_df.to_parquet(filepath, index=False)
+        if id_value in existing_df[id_column].to_list():
+            updated_df = existing_df.filter(pl.col(id_column) != id_value)
+            updated_df.write_parquet(filepath)
         return True, None
     except Exception as e:
         logger.error(f"Error deleting row from parquet: {e}")

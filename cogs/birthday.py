@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-import pandas as pd
+import polars as pl
 import pytz
 import sentry_sdk
 from discord import Interaction, app_commands
@@ -154,12 +154,12 @@ class Birthday(GroupCog):
     ) -> None:
         logger.info(f"Removing birthday record for user {interaction.user.id}")
         try:
-            df = pd.read_parquet("data/users.parquet")
-            existing_user_row = df.loc[df["id"] == interaction.user.id]
-            if existing_user_row.empty:
+            df = pl.read_parquet("data/users.parquet")
+            existing_user_row = df.filter(pl.col("id") == interaction.user.id)
+            if existing_user_row.height == 0:
                 existing_user = None
             else:
-                existing_user = existing_user_row.iloc[0].to_dict()
+                existing_user = existing_user_row.row(0, named=True)
 
             if existing_user is None:
                 logger.info(f"No user record found for user {interaction.user.id}")

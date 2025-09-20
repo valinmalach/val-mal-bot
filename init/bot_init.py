@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 import discord
-import pandas as pd
+import polars as pl
 import sentry_sdk
 from discord import CategoryChannel, ForumChannel
 from discord.abc import PrivateChannel
@@ -20,11 +20,11 @@ async def restart_live_alert_tasks() -> None:
     logger.info("Attempting to restart live alert tasks.")
 
     logger.info("Getting live alert records.")
-    df = pd.read_parquet("data/live_alerts.parquet")
-    logger.info(f"Successfully fetched live alert records. Found {len(df)} records.")
+    df = pl.read_parquet("data/live_alerts.parquet")
+    logger.info(f"Successfully fetched live alert records. Found {df.height} records.")
 
-    logger.info(f"Processing {len(df)} records.")
-    for _, alert in df.iterrows():
+    logger.info(f"Processing {df.height} records.")
+    for alert in df.iter_rows(named=True):
         broadcaster_id = alert["id"]
         channel_id = alert["channel_id"]
         message_id = alert["message_id"]

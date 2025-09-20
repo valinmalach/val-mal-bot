@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import List, Optional
 
 import discord
-import pandas as pd
+import polars as pl
 import requests
 import sentry_sdk
 from discord.ui import View
@@ -470,9 +470,9 @@ async def update_alert(
     )
     try:
         await asyncio.sleep(60)
-        df = pd.read_parquet("data/live_alerts.parquet")
-        alert_row = df.loc[df["id"] == broadcaster_id]
-        if alert_row.empty:
+        df = pl.read_parquet("data/live_alerts.parquet")
+        alert_row = df.filter(pl.col("id") == broadcaster_id)
+        if alert_row.height == 0:
             logger.warning(
                 f"No live alert record found for broadcaster_id={broadcaster_id}; exiting"
             )
@@ -481,8 +481,8 @@ async def update_alert(
         logger.info(f"Fetched stream_info for update: {stream_info}")
         user_info = await get_user(broadcaster_id)
         logger.info(f"Fetched user_info for update: {user_info}")
-        while not alert_row.empty and stream_info is not None:
-            alert = alert_row.iloc[0].to_dict()
+        while alert_row.height != 0 and stream_info is not None:
+            alert = alert_row.row(0, named=True)
             logger.info(
                 f"Live alert record found. Checking if stream_id changed (current={stream_info.id}, original={stream_id})",
             )
@@ -641,8 +641,8 @@ async def update_alert(
             logger.info(
                 f"Fetching updated live_alert record after sleep for broadcaster_id={broadcaster_id}"
             )
-            df = pd.read_parquet("data/live_alerts.parquet")
-            alert_row = df.loc[df["id"] == broadcaster_id]
+            df = pl.read_parquet("data/live_alerts.parquet")
+            alert_row = df.filter(pl.col("id") == broadcaster_id)
             stream_info = await get_stream_info(broadcaster_id)
             logger.info(f"Fetched updated stream_info for next cycle: {stream_info}")
 

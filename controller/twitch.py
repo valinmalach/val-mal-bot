@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 
 import discord
-import pandas as pd
+import polars as pl
 import sentry_sdk
 from discord.ui import View
 from dotenv import load_dotenv
@@ -167,9 +167,9 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
         channel_info = await get_channel(int(broadcaster_id))
         logger.info(f"Fetched user_info={user_info} and channel_info={channel_info}")
 
-        df = pd.read_parquet("data/live_alerts.parquet")
-        alert_row = df.loc[df["id"] == int(broadcaster_id)]
-        if alert_row.empty:
+        df = pl.read_parquet("data/live_alerts.parquet")
+        alert_row = df.filter(pl.col("id") == int(broadcaster_id))
+        if alert_row.height == 0:
             logger.error(
                 f"Failed to fetch live alert for broadcaster_id={broadcaster_id}: No record found"
             )
@@ -179,7 +179,7 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
             )
             return
 
-        alert = alert_row.iloc[0].to_dict()
+        alert = alert_row.row(0, named=True)
         logger.info(f"Fetched live alert for broadcaster_id={broadcaster_id}: {alert}")
         channel_id = alert.get("channel_id", 0)
         message_id = alert.get("message_id", 0)
