@@ -1,3 +1,4 @@
+import json
 import random
 from datetime import datetime
 
@@ -64,9 +65,9 @@ class Events(Cog):
                 "guild_id": guild_id,
                 "author_id": message.author.id,
                 "channel_id": message.channel.id,
-                "attachment_urls": [
-                    attachment.url for attachment in message.attachments
-                ],
+                "attachment_urls": json.dumps(
+                    [attachment.url for attachment in message.attachments]
+                ),
             }
             try:
                 success, error = upsert_row_to_parquet(
@@ -380,9 +381,9 @@ class Events(Cog):
                     "guild_id": guild_id,
                     "author_id": after.author.id,
                     "channel_id": after.channel.id,
-                    "attachment_urls": [
-                        attachment.url for attachment in after.attachments
-                    ],
+                    "attachment_urls": json.dumps(
+                        [attachment.url for attachment in after.attachments]
+                    ),
                 }
 
                 success, error = upsert_row_to_parquet(
