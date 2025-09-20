@@ -174,7 +174,7 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
         logger.info("Fetched user_info=%s and channel_info=%s", user_info, channel_info)
 
         df = pd.read_parquet("data/live_alerts.parquet")
-        alert_row = df.loc[str(df["id"]) == broadcaster_id]
+        alert_row = df.loc[df["id"] == int(broadcaster_id)]
         if alert_row.empty:
             logger.error(
                 "Failed to fetch live alert for broadcaster_id=%s: %s", broadcaster_id

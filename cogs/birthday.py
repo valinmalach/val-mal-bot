@@ -168,7 +168,7 @@ class Birthday(GroupCog):
         logger.info("Removing birthday record for user %s", interaction.user.id)
         try:
             df = pd.read_parquet("data/users.parquet")
-            existing_user_row = df.loc[str(df["id"]) == str(interaction.user.id)]
+            existing_user_row = df.loc[df["id"] == interaction.user.id]
             if existing_user_row.empty:
                 existing_user = None
             else:

@@ -664,7 +664,7 @@ class Events(Cog):
     @sentry_sdk.trace()
     async def _get_message_content(self, message_id: int) -> str:
         df = pd.read_parquet("data/live_alerts.parquet")
-        message_row = df.loc[str(df["id"]) == message_id]
+        message_row = df.loc[df["id"] == message_id]
         if not message_row.empty:
             return message_row.iloc[0]["content"]
         return DEFAULT_MISSING_CONTENT

@@ -471,7 +471,7 @@ async def update_alert(
     try:
         await asyncio.sleep(60)
         df = pd.read_parquet("data/live_alerts.parquet")
-        alert_row = df.loc[str(df["id"]) == broadcaster_id]
+        alert_row = df.loc[df["id"] == int(broadcaster_id)]
         if alert_row.empty:
             logger.warning(
                 "No live alert record found for broadcaster_id=%s; exiting",
@@ -655,6 +655,7 @@ async def update_alert(
                 "Fetching updated live_alert record after sleep for broadcaster_id=%s",
                 broadcaster_id,
             )
+            df = pd.read_parquet("data/live_alerts.parquet")
             alert_row = df.loc[df["id"] == int(broadcaster_id)]
             stream_info = await get_stream_info(broadcaster_id)
             logger.info("Fetched updated stream_info for next cycle: %s", stream_info)
