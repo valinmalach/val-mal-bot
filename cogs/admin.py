@@ -3,6 +3,7 @@ import logging
 from typing import List
 
 import discord
+import polars as pl
 import sentry_sdk
 from discord import (
     CategoryChannel,
@@ -15,7 +16,13 @@ from discord import (
 from discord.ext.commands import Bot, Cog
 
 from constants import ROLES_CHANNEL, RULES_CHANNEL
-from services import get_subscriptions, get_users, send_embed, subscribe_to_user
+from services import (
+    delete_row_from_parquet,
+    get_subscriptions,
+    get_users,
+    send_embed,
+    subscribe_to_user,
+)
 from views import (
     DMS_OPEN_EMBED,
     NSFW_ACCESS_EMBED,
@@ -215,6 +222,34 @@ class Admin(Cog):
             if success
             else f"Failed to subscribe to {username}"
         )
+
+    @app_commands.command(
+        description="Delete all messages sent by the bot in messages.parquet"
+    )
+    @app_commands.commands.default_permissions(administrator=True)
+    async def delete_messages(self, interaction: Interaction) -> None:
+        logger.info("Deleting all messages sent by the bot")
+        try:
+            df = pl.read_parquet("messages.parquet")
+            if self.bot.user is None:
+                await interaction.response.send_message(
+                    "Bot user is not available. Cannot delete messages."
+                )
+                return
+            rows_to_delete = df.filter(pl.col("author_id") == self.bot.user.id)
+            for row in rows_to_delete.iter_rows(named=True):
+                message_id = row["id"]
+                delete_row_from_parquet("data/messages.parquet", message_id)
+                logger.info(f"Deleted message with ID {message_id}")
+            logger.info("Deleted all messages sent by the bot")
+            await interaction.response.send_message(
+                content="Deleted all messages sent by the bot"
+            )
+        except Exception as e:
+            logger.error("Failed to delete messages sent by the bot", exc_info=e)
+            await interaction.response.send_message(
+                f"Failed to delete messages sent by the bot: {e}"
+            )
 
 
 async def setup(bot: Bot) -> None:

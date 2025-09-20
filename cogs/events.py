@@ -55,6 +55,9 @@ class Events(Cog):
     @sentry_sdk.trace()
     async def on_message(self, message: Message) -> None:
         try:
+            if message.author == self.bot.user:
+                return
+
             guild = message.guild
             guild_id = GUILD_ID if guild is None else guild.id
             message_obj = {
@@ -83,9 +86,6 @@ class Events(Cog):
                     f"Failed to save message {message.id}: {e}",
                     BOT_ADMIN_CHANNEL,
                 )
-
-            if message.author == self.bot.user:
-                return
 
             content = message.content.lower()
             if content == "ping":
@@ -305,6 +305,12 @@ class Events(Cog):
     @sentry_sdk.trace()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent) -> None:
         try:
+            if payload.message.author == self.bot.user or (
+                payload.cached_message is not None
+                and payload.cached_message.author == self.bot.user
+            ):
+                return
+
             before = payload.cached_message
             after = payload.message
 
@@ -405,6 +411,9 @@ class Events(Cog):
     @sentry_sdk.trace()
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent) -> None:
         try:
+            if payload.cached_message is not None and payload.cached_message.author == self.bot.user:
+                return
+
             user_who_deleted = None
             if payload.guild_id is not None:
                 guild = self.bot.get_guild(payload.guild_id)
