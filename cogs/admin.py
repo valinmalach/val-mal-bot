@@ -53,16 +53,18 @@ class Admin(Cog):
         )
         logger.info("Restart script executed")
 
-    @app_commands.command(description="Restarts the bot without pip")
+    @app_commands.command(description="Restarts the bot without uv sync")
     @app_commands.commands.default_permissions(administrator=True)
     async def raw_restart(self, interaction: Interaction) -> None:
         logger.info(
-            "Restarting bot without pip as requested by user %s", interaction.user
+            "Restarting bot without uv sync as requested by user %s", interaction.user
         )
-        await interaction.response.send_message("Restarting without pip...")
+        await interaction.response.send_message("Restarting without uv sync...")
         logger.info("Sent raw restart confirmation to %s", interaction.user)
         await asyncio.create_subprocess_exec(
-            "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot_without_pip.ps1"
+            "powershell.exe",
+            "-File",
+            "C:\\val-mal-bot\\restart_bot_without_uv_sync.ps1",
         )
         logger.info("Raw restart script executed")
 
