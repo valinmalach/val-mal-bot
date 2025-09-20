@@ -42,12 +42,10 @@ class Admin(Cog):
     @app_commands.commands.default_permissions(administrator=True)
     async def restart(self, interaction: Interaction) -> None:
         logger.info(
-            "Restarting bot as requested by user %s in channel %s",
-            interaction.user,
-            interaction.channel,
+            f"Restarting bot as requested by user {interaction.user} in channel {interaction.channel}"
         )
         await interaction.response.send_message("Restarting...")
-        logger.info("Sent restart confirmation response to %s", interaction.user)
+        logger.info(f"Sent restart confirmation response to {interaction.user}")
         await asyncio.create_subprocess_exec(
             "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
         )
@@ -57,10 +55,10 @@ class Admin(Cog):
     @app_commands.commands.default_permissions(administrator=True)
     async def raw_restart(self, interaction: Interaction) -> None:
         logger.info(
-            "Restarting bot without uv sync as requested by user %s", interaction.user
+            f"Restarting bot without uv sync as requested by user {interaction.user}"
         )
         await interaction.response.send_message("Restarting without uv sync...")
-        logger.info("Sent raw restart confirmation to %s", interaction.user)
+        logger.info(f"Sent raw restart confirmation to {interaction.user}")
         await asyncio.create_subprocess_exec(
             "powershell.exe",
             "-File",
@@ -73,29 +71,26 @@ class Admin(Cog):
     @sentry_sdk.trace()
     async def nuke(self, interaction: Interaction) -> None:
         logger.info(
-            "Purging all messages in channel %s as requested by user %s",
-            interaction.channel,
-            interaction.user,
+            f"Purging all messages in channel {interaction.channel} as requested by user {interaction.user}"
         )
         if interaction.channel is None or isinstance(
             interaction.channel,
             (ForumChannel, CategoryChannel, DMChannel, GroupChannel),
         ):
             logger.warning(
-                "Nuke aborted: invalid channel type %s", type(interaction.channel)
+                f"Nuke aborted: invalid channel type {type(interaction.channel)}"
             )
             return
         await interaction.response.send_message("Nuking channel...")
-        logger.info("Starting channel purge: %s", interaction.channel)
+        logger.info(f"Starting channel purge: {interaction.channel}")
         await interaction.channel.purge(limit=None)
-        logger.info("Channel purge completed: %s", interaction.channel)
+        logger.info(f"Channel purge completed: {interaction.channel}")
 
     @app_commands.command(description="Sends the rules embed to the rules channel")
     @app_commands.commands.default_permissions(administrator=True)
     async def rules(self, interaction: Interaction) -> None:
         logger.info(
-            "Sending rules embed to rules channel as requested by user %s",
-            interaction.user,
+            f"Sending rules embed to rules channel as requested by user {interaction.user}"
         )
         embed = RULES_EMBED
         view = RulesView()
@@ -105,7 +100,7 @@ class Admin(Cog):
             RULES_CHANNEL,
             view,
         )
-        logger.info("Rules embed sent to channel %s", RULES_CHANNEL)
+        logger.info(f"Rules embed sent to channel {RULES_CHANNEL}")
         await interaction.response.send_message("Rules embed send to rules channel!")
         logger.info("Sent confirmation message for rules command")
 
@@ -113,8 +108,7 @@ class Admin(Cog):
     @app_commands.commands.default_permissions(administrator=True)
     async def roles(self, interaction: Interaction) -> None:
         logger.info(
-            "Sending roles embeds to roles channel as requested by user %s",
-            interaction.user,
+            f"Sending roles embeds to roles channel as requested by user {interaction.user}"
         )
         embeds = [
             PING_ROLES_EMBED,
@@ -133,22 +127,20 @@ class Admin(Cog):
 
         for embed, view in zip(embeds, views):
             logger.info(
-                "Sending roles embed %s to channel %s",
-                embed.title if hasattr(embed, "title") else embed.description,
-                ROLES_CHANNEL,
+                f"Sending roles embed {embed.title if hasattr(embed, 'title') else embed.description} to channel {ROLES_CHANNEL}"
             )
             await send_embed(embed, ROLES_CHANNEL, view)
-        logger.info("All role embeds sent to channel %s", ROLES_CHANNEL)
+        logger.info(f"All role embeds sent to channel {ROLES_CHANNEL}")
         await interaction.response.send_message("Roles embeds send to roles channel!")
         logger.info("Sent confirmation message for roles command")
 
     @app_commands.command(description="Gets all active subscriptions' users")
     @app_commands.commands.default_permissions(administrator=True)
     async def subscriptions(self, interaction: Interaction) -> None:
-        logger.info("Fetching active subscriptions for user %s", interaction.user)
+        logger.info(f"Fetching active subscriptions for user {interaction.user}")
         subscriptions = await get_subscriptions()
         logger.info(
-            "Fetched %d subscriptions", len(subscriptions) if subscriptions else 0
+            f"Fetched {len(subscriptions) if subscriptions else 0} subscriptions"
         )
         if not subscriptions:
             embed = discord.Embed(
@@ -165,9 +157,7 @@ class Admin(Cog):
         for subscription in subscriptions:
             sub_type = subscription.type
             logger.info(
-                "Grouping subscription of type %s for broadcaster_id %s",
-                sub_type,
-                subscription.condition.broadcaster_user_id,
+                f"Grouping subscription of type {sub_type} for broadcaster_id {subscription.condition.broadcaster_user_id}"
             )
             if sub_type not in grouped_subscriptions:
                 grouped_subscriptions[sub_type] = []
@@ -182,22 +172,18 @@ class Admin(Cog):
         )
         for sub_type, user_ids in grouped_subscriptions.items():
             logger.info(
-                "Building subscription field for type=%s with %d user_ids",
-                sub_type,
-                len(user_ids),
+                f"Building subscription field for type={sub_type} with {len(user_ids)} user_ids"
             )
             if not user_ids:
                 continue
             users = await get_users(user_ids)
             logger.info(
-                "Fetched %d users for subscription type=%s",
-                len(users) if users else 0,
-                sub_type,
+                f"Fetched {len(users) if users else 0} users for subscription type={sub_type}"
             )
             if not users:
                 continue
             user_names = [user.display_name for user in users if user]
-            logger.info("Compiled user display names: %s", user_names)
+            logger.info(f"Compiled user display names: {user_names}")
             if not user_names:
                 continue
             user_names.sort()
@@ -207,7 +193,7 @@ class Admin(Cog):
                 inline=False,
             )
         await interaction.response.send_message(embed=embed)
-        logger.info("Sent subscriptions embed with %d fields", len(embed.fields))
+        logger.info(f"Sent subscriptions embed with {len(embed.fields)} fields")
 
     @app_commands.command(
         description="Subscribe to online and offline events for a user"
@@ -217,7 +203,7 @@ class Admin(Cog):
         username="The username of the user to subscribe to",
     )
     async def subscribe(self, interaction: Interaction, username: str) -> None:
-        logger.info("Subscribing to user %s", username)
+        logger.info(f"Subscribing to user {username}")
         success = await subscribe_to_user(username)
         logger.info(
             f"Subscribed to user {username}"

@@ -35,42 +35,35 @@ class Birthday(GroupCog):
         timezone: str = "UTC",
     ) -> None:
         logger.info(
-            "Validating and setting birthday for user %s with month=%s, day=%s, timezone=%s",
-            interaction.user.id,
-            month,
-            day,
-            timezone,
+            f"Validating and setting birthday for user {interaction.user.id} with month={month}, day={day}, timezone={timezone}"
         )
         try:
-            logger.info("Validating provided timezone: %s", timezone)
+            logger.info(f"Validating provided timezone: {timezone}")
             if timezone not in pytz.all_timezones:
                 await interaction.response.send_message(
                     f"Sorry. I've never heard of the timezone {timezone}. "
                     + "Have you tried using the autocomplete options provided? "
                     + "Because those are the only timezones I know of."
                 )
-                logger.warning("Invalid timezone provided: %s", timezone)
+                logger.warning(f"Invalid timezone provided: {timezone}")
                 return
 
-            logger.info("Validating provided day %s for month %s", day, month.name)
+            logger.info(f"Validating provided day {day} for month {month.name}")
             if day > MAX_DAYS[month]:
                 await interaction.response.send_message(
                     f"{month.name} doesn't have that many days..."
                 )
-                logger.warning("Invalid day %s for month %s", day, month)
+                logger.warning(f"Invalid day {day} for month {month.name}")
                 return
 
-            logger.info("Creating timezone object for timezone: %s", timezone)
+            logger.info(f"Creating timezone object for timezone: {timezone}")
             tz = ZoneInfo(timezone)
             now = datetime.now(tz).replace(second=0, microsecond=0)
-            logger.info("Current datetime in timezone %s: %s", timezone, now)
+            logger.info(f"Current datetime in timezone {timezone}: {now}")
             year = now.year
 
             logger.info(
-                "Checking if date %s-%s-%s requires leap year handling",
-                year,
-                month.value,
-                day,
+                f"Checking if date {year}-{month.value}-{day} requires leap year handling"
             )
             if month == Months.February and day == 29:
                 logger.info("Applying leap year logic for Feb 29 birthday")
@@ -91,10 +84,7 @@ class Birthday(GroupCog):
                     year += 1
 
             logger.info(
-                "Constructed birthday record for database insertion: year=%s, month=%s, day=%s",
-                year,
-                month,
-                day,
+                f"Constructed birthday record for database insertion: year={year}, month={month}, day={day}"
             )
             logger.info("Building birthday record payload for database")
             record = {
@@ -112,34 +102,31 @@ class Birthday(GroupCog):
                 "isBirthdayLeap": month == Months.February and day == 29,
             }
             logger.info(
-                "Updating birthday in database for user ID %s", interaction.user.id
+                f"Updating birthday in database for user ID {interaction.user.id}"
             )
             success, error = update_birthday(record)
-            logger.info("Database update returned success status: %s", success)
+            logger.info(f"Database update returned success status: {success}")
             if not success:
                 await self._set_birthday_failed(interaction, error)
                 return
 
             if month == Months.February and day == 29:
                 logger.info(
-                    "Sending response for leap year birthday user=%s",
-                    interaction.user.id,
+                    f"Sending response for leap year birthday user={interaction.user.id}"
                 )
                 await interaction.response.send_message(
                     "That's an unfortunate birthday 😦\n\n"
                     + "Ah well, looks like I'll only wish you every 4 years!"
                 )
             else:
-                logger.info(
-                    "Birthday set successfully for user=%s", interaction.user.id
-                )
+                logger.info(f"Birthday set successfully for user={interaction.user.id}")
                 await interaction.response.send_message(
                     "I've remembered your birthday! "
                     + "I'll wish you at midnight of your selected timezone!"
                 )
         except Exception as e:
             logger.error(
-                "Exception in set_birthday for user=%s: %s", interaction.user.id, e
+                f"Exception in set_birthday for user={interaction.user.id}: {e}"
             )
             sentry_sdk.capture_exception(e)
             await self._set_birthday_failed(interaction, e)
@@ -165,7 +152,7 @@ class Birthday(GroupCog):
         self,
         interaction: Interaction,
     ) -> None:
-        logger.info("Removing birthday record for user %s", interaction.user.id)
+        logger.info(f"Removing birthday record for user {interaction.user.id}")
         try:
             df = pd.read_parquet("data/users.parquet")
             existing_user_row = df.loc[df["id"] == interaction.user.id]
@@ -175,10 +162,7 @@ class Birthday(GroupCog):
                 existing_user = existing_user_row.iloc[0].to_dict()
 
             if existing_user is None:
-                logger.info(
-                    "No user record found for user %s",
-                    interaction.user.id,
-                )
+                logger.info(f"No user record found for user {interaction.user.id}")
                 await send_message(
                     f"User {interaction.user.name} ({interaction.user.id}) attempted to remove a birthday but had no record.",
                     BOT_ADMIN_CHANNEL,
@@ -198,14 +182,12 @@ class Birthday(GroupCog):
             success, error = update_birthday(record)
             if not success:
                 logger.error(
-                    "Failed to remove birthday for user %s: %s",
-                    interaction.user.id,
-                    error,
+                    f"Failed to remove birthday for user {interaction.user.id}: {error}"
                 )
                 await self._forget_birthday_failed(interaction, error)
                 return
 
-            logger.info("Birthday removal successful for user %s", interaction.user.id)
+            logger.info(f"Birthday removal successful for user {interaction.user.id}")
             try:
                 if existing_user.get("birthday"):
                     await interaction.response.send_message(
@@ -218,12 +200,12 @@ class Birthday(GroupCog):
                     + "Maybe try setting one first before asking me to remove it?"
                 )
             except Exception as e:
-                logger.error("Error while sending response for birthday removal: %s", e)
+                logger.error(f"Error while sending response for birthday removal: {e}")
                 sentry_sdk.capture_exception(e)
                 await self._forget_birthday_failed(interaction, e)
         except Exception as e:
             logger.error(
-                "Exception in remove_birthday for user=%s: %s", interaction.user.id, e
+                f"Exception in remove_birthday for user={interaction.user.id}: {e}"
             )
             sentry_sdk.capture_exception(e)
             await self._forget_birthday_failed(interaction, e)
@@ -232,7 +214,7 @@ class Birthday(GroupCog):
     async def _set_birthday_failed(
         self, interaction: Interaction, e: Exception | str | None
     ) -> None:
-        logger.info("Notifying user %s of birthday set failure", interaction.user.id)
+        logger.info(f"Notifying user {interaction.user.id} of birthday set failure")
         mention = (
             interaction.guild.owner.mention
             if interaction.guild and interaction.guild.owner
@@ -251,9 +233,7 @@ class Birthday(GroupCog):
     async def _forget_birthday_failed(
         self, interaction: Interaction, e: Exception | str | None
     ) -> None:
-        logger.info(
-            "Notifying user %s of birthday removal failure", interaction.user.id
-        )
+        logger.info(f"Notifying user {interaction.user.id} of birthday removal failure")
         mention = (
             interaction.guild.owner.mention
             if interaction.guild and interaction.guild.owner

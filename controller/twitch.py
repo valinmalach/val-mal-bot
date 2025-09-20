@@ -51,14 +51,14 @@ logger = logging.getLogger(__name__)
 
 
 @sentry_sdk.trace()
-async def _twitch_webhook_task(broadcaster_id: str) -> None:
+async def _twitch_webhook_task(broadcaster_id: int) -> None:
     try:
-        logger.info("Processing online event for broadcaster_id=%s", broadcaster_id)
+        logger.info(f"Processing online event for broadcaster_id={broadcaster_id}")
         stream_info = await get_stream_info(broadcaster_id)
         user_info = await get_user(broadcaster_id)
-        logger.info("Fetched stream_info=%s and user_info=%s", stream_info, user_info)
+        logger.info(f"Fetched stream_info={stream_info} and user_info={user_info}")
         while not stream_info:
-            logger.info("Retrying get_stream_info for %s", broadcaster_id)
+            logger.info(f"Retrying get_stream_info for {broadcaster_id}")
             await asyncio.sleep(1)
             stream_info = await get_stream_info(broadcaster_id)
 
@@ -67,17 +67,17 @@ async def _twitch_webhook_task(broadcaster_id: str) -> None:
             if stream_info.user_login == "valinmalach"
             else PROMO_CHANNEL
         )
-        logger.info("Selected channel %s", channel)
+        logger.info(f"Selected channel {channel}")
         content = (
             f"<@&{LIVE_ALERTS_ROLE}>" if channel == STREAM_ALERTS_CHANNEL else None
         )
 
         url = f"https://www.twitch.tv/{stream_info.user_login}"
-        logger.info("Constructing embed for url=%s", url)
+        logger.info(f"Constructing embed for url={url}")
         # Cache-bust thumbnail URL to force Discord to refresh the image
         raw_thumb_url = stream_info.thumbnail_url.replace("{width}x{height}", "400x225")
         cache_busted_thumb_url = f"{raw_thumb_url}?cb={int(datetime.now().timestamp())}"
-        logger.info("Using cache-busted thumbnail URL: %s", cache_busted_thumb_url)
+        logger.info(f"Using cache-busted thumbnail URL: {cache_busted_thumb_url}")
 
         embed = (
             discord.Embed(
@@ -109,17 +109,17 @@ async def _twitch_webhook_task(broadcaster_id: str) -> None:
             )
         )
         message_id = await send_embed(embed, channel, view, content=content)
-        logger.info("Embed sent, message_id=%s", message_id)
+        logger.info(f"Embed sent, message_id={message_id}")
         if message_id is None:
             await send_message(
                 f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}",
                 BOT_ADMIN_CHANNEL,
             )
-            logger.error("Failed to send embed for broadcaster %s", broadcaster_id)
+            logger.error(f"Failed to send embed for broadcaster {broadcaster_id}")
             return
 
         alert = {
-            "id": int(broadcaster_id),
+            "id": broadcaster_id,
             "channel_id": channel,
             "message_id": message_id,
             "stream_id": stream_info.id,
@@ -132,20 +132,16 @@ async def _twitch_webhook_task(broadcaster_id: str) -> None:
                     broadcaster_id,
                     channel,
                     message_id,
-                    stream_info.id,
+                    int(stream_info.id),
                     stream_info.started_at,
                 )
             )
             logger.info(
-                "Inserted live alert message into parquet: broadcaster_id=%s, channel_id=%s, message_id=%s",
-                broadcaster_id,
-                channel,
-                message_id,
+                f"Inserted live alert message into parquet: broadcaster_id={broadcaster_id}, channel_id={channel}, message_id={message_id}",
             )
         else:
             logger.error(
-                "Failed to insert live alert message into parquet: %s",
-                error,
+                f"Failed to insert live alert message into parquet: {error}",
             )
             await send_message(
                 f"Failed to insert live alert message into parquet\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}\n message_id: {message_id}\n\n{error}",
@@ -153,9 +149,7 @@ async def _twitch_webhook_task(broadcaster_id: str) -> None:
             )
     except Exception as e:
         logger.error(
-            "Error in _twitch_webhook_task for broadcaster_id=%s: %s",
-            broadcaster_id,
-            e,
+            f"Error in _twitch_webhook_task for broadcaster_id={broadcaster_id}: {e}"
         )
         sentry_sdk.capture_exception(e)
         await send_message(
@@ -168,16 +162,16 @@ async def _twitch_webhook_task(broadcaster_id: str) -> None:
 async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     try:
-        logger.info("Processing offline event for %s", broadcaster_id)
-        user_info = await get_user(broadcaster_id)
-        channel_info = await get_channel(broadcaster_id)
-        logger.info("Fetched user_info=%s and channel_info=%s", user_info, channel_info)
+        logger.info(f"Processing offline event for {broadcaster_id}")
+        user_info = await get_user(int(broadcaster_id))
+        channel_info = await get_channel(int(broadcaster_id))
+        logger.info(f"Fetched user_info={user_info} and channel_info={channel_info}")
 
         df = pd.read_parquet("data/live_alerts.parquet")
         alert_row = df.loc[df["id"] == int(broadcaster_id)]
         if alert_row.empty:
             logger.error(
-                "Failed to fetch live alert for broadcaster_id=%s: %s", broadcaster_id
+                f"Failed to fetch live alert for broadcaster_id={broadcaster_id}: No record found"
             )
             await send_message(
                 f"Failed to fetch live alert for {broadcaster_id}: No record found",
@@ -186,43 +180,31 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
             return
 
         alert = alert_row.iloc[0].to_dict()
-        logger.info(
-            "Fetched live alert for broadcaster_id=%s: %s", broadcaster_id, alert
-        )
+        logger.info(f"Fetched live alert for broadcaster_id={broadcaster_id}: {alert}")
         channel_id = alert.get("channel_id", 0)
         message_id = alert.get("message_id", 0)
         stream_id = alert.get("stream_id", "")
         stream_started_at = alert.get("stream_started_at", "")
         logger.info(
-            "Extracted alert fields: channel_id=%s, message_id=%s, stream_id=%s, stream_started_at=%s",
-            channel_id,
-            message_id,
-            stream_id,
-            stream_started_at,
+            f"Extracted alert fields: channel_id={channel_id}, message_id={message_id}, stream_id={stream_id}, stream_started_at={stream_started_at}"
         )
 
         vod_info = None
         logger.info(
-            "Beginning VOD lookup for broadcaster_id=%s, stream_id=%s",
-            broadcaster_id,
-            stream_id,
+            f"Beginning VOD lookup for broadcaster_id={broadcaster_id}, stream_id={stream_id}"
         )
         try:
-            vod_info = await get_stream_vod(broadcaster_id, stream_id)
+            vod_info = await get_stream_vod(int(broadcaster_id), stream_id)
             if vod_info:
-                logger.info("VOD info found: %s", vod_info)
+                logger.info(f"VOD info found: {vod_info}")
             else:
                 logger.warning(
-                    "No VOD info found for broadcaster_id=%s, stream_id=%s",
-                    broadcaster_id,
-                    stream_id,
+                    f"No VOD info found for broadcaster_id={broadcaster_id}, stream_id={stream_id}"
                 )
         except Exception as e:
             sentry_sdk.capture_exception(e)
             logger.error(
-                "Failed to fetch VOD info for broadcaster_id=%s: %s",
-                broadcaster_id,
-                e,
+                f"Failed to fetch VOD info for broadcaster_id={broadcaster_id}: {e}"
             )
             await send_message(
                 f"Failed to fetch VOD info for {broadcaster_id}: {e}",
@@ -230,18 +212,15 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
             )
 
         if not vod_info:
-            logger.warning(
-                "No VOD info found for broadcaster_id=%s",
-                broadcaster_id,
-            )
+            logger.warning(f"No VOD info found for broadcaster_id={broadcaster_id}")
 
         content = (
             f"<@&{LIVE_ALERTS_ROLE}>" if channel_id == STREAM_ALERTS_CHANNEL else None
         )
-        logger.info("Prepared content mention: %s", content)
+        logger.info(f"Prepared content mention: {content}")
 
         url = f"https://www.twitch.tv/{event_sub.event.broadcaster_user_login}"
-        logger.info("Constructing embed for offline event with url=%s", url)
+        logger.info(f"Constructing embed for offline event with url={url}")
         embed = (
             discord.Embed(
                 description=f"**{channel_info.title if channel_info else ''}**",
@@ -267,24 +246,23 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
                 value=f"[**Click to view**]({vod_url})",
                 inline=True,
             )
-            logger.info("Added VOD field to embed: %s", vod_url)
+            logger.info(f"Added VOD field to embed: {vod_url}")
         if stream_started_at:
             started_at = parse_rfc3339(stream_started_at)
             age = get_age(started_at, limit_units=2)
             embed = embed.set_footer(
                 text=f"Online for {age} | Offline at",
             )
-            logger.info("Set embed footer with age: %s", age)
+            logger.info(f"Set embed footer with age: {age}")
         # retry on Discord Server Error
         while True:
             logger.info(
-                "Attempting to edit embed message for offline event (message_id=%s)",
-                message_id,
+                f"Attempting to edit embed message for offline event (message_id={message_id})"
             )
             try:
                 await edit_embed(message_id, embed, channel_id, content=content)
                 logger.info(
-                    "Successfully edited embed (offline) for message_id=%s", message_id
+                    f"Successfully edited embed (offline) for message_id={message_id}"
                 )
                 break
             except discord.DiscordServerError:
@@ -294,17 +272,14 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
                 await asyncio.sleep(1)
 
         logger.info(
-            "Proceeding to delete live_alert record for broadcaster_id=%s",
-            broadcaster_id,
+            f"Proceeding to delete live_alert record for broadcaster_id={broadcaster_id}"
         )
         success, error = delete_row_from_parquet(
             broadcaster_id, "data/live_alerts.parquet"
         )
         if not success:
             logger.error(
-                "Failed to delete live alert for broadcaster_id=%s: %s",
-                broadcaster_id,
-                error,
+                f"Failed to delete live alert for broadcaster_id={broadcaster_id}: {error}"
             )
             await send_message(
                 f"Failed to delete live alert for {broadcaster_id}: {error}",
@@ -312,14 +287,11 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
             )
         else:
             logger.info(
-                "Deleted live_alert record successfully for broadcaster_id=%s",
-                broadcaster_id,
+                f"Deleted live_alert record successfully for broadcaster_id={broadcaster_id}"
             )
     except Exception as e:
         logger.error(
-            "Error in _twitch_webhook_offline_task for broadcaster_id=%s: %s",
-            broadcaster_id,
-            e,
+            f"Error in _twitch_webhook_offline_task for broadcaster_id={broadcaster_id}: {e}"
         )
         sentry_sdk.capture_exception(e)
         await send_message(
@@ -333,25 +305,23 @@ async def twitch_webhook(request: Request) -> Response:
     logger.info("Webhook received: twitch_webhook start")
     try:
         headers = request.headers
-        logger.info("Headers parsed: %s", dict(headers))
+        logger.info(f"Headers parsed: {dict(headers)}")
         body: dict[str, Any] = await request.json()
-        logger.info("Body JSON parsed: %s", body)
+        logger.info(f"Body JSON parsed: {body}")
 
         if headers.get(TWITCH_MESSAGE_TYPE) == "webhook_callback_verification":
             challenge = body.get("challenge", "")
             logger.info(
-                "Responding to callback verification with challenge=%s", challenge
+                f"Responding to callback verification with challenge={challenge}"
             )
             return Response(challenge or "", status_code=200)
 
         if headers.get(TWITCH_MESSAGE_TYPE, "").lower() == "revocation":
             subscription: dict[str, Any] = body.get("subscription", {})
-            logger.info(
-                "%s notifications revoked!", subscription.get("type", "unknown")
-            )
-            logger.info("reason: %s", subscription.get("status", "No reason provided"))
+            logger.info(f"{subscription.get('type', 'unknown')} notifications revoked!")
+            logger.info(f"reason: {subscription.get('status', 'No reason provided')}")
             condition = subscription.get("condition", {})
-            logger.info("condition: %s", condition)
+            logger.info(f"condition: {condition}")
             await send_message(
                 f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}",
                 BOT_ADMIN_CHANNEL,
@@ -367,14 +337,12 @@ async def twitch_webhook(request: Request) -> Response:
         )
         logger.info("HMAC message constructed")
         secret_hmac = HMAC_PREFIX + get_hmac(TWITCH_WEBHOOK_SECRET, message)
-        logger.info("Computed secret_hmac=%s", secret_hmac)
+        logger.info(f"Computed secret_hmac={secret_hmac}")
 
         twitch_message_signature = headers.get(TWITCH_MESSAGE_SIGNATURE, "")
         if not verify_message(secret_hmac, twitch_message_signature):
             logger.warning(
-                "403: Forbidden. Signature does not match: computed=%s, received=%s",
-                secret_hmac,
-                twitch_message_signature,
+                f"403: Forbidden. Signature does not match: computed={secret_hmac}, received={twitch_message_signature}"
             )
             await send_message(
                 "403: Forbidden request on /webhook/twitch. Signature does not match.",
@@ -384,11 +352,10 @@ async def twitch_webhook(request: Request) -> Response:
         logger.info("Signature verified")
 
         event_sub = StreamOnlineEventSub.model_validate(body)
-        logger.info("Event subscription parsed: type=%s", event_sub.subscription.type)
+        logger.info(f"Event subscription parsed: type={event_sub.subscription.type}")
         if event_sub.subscription.type != "stream.online":
             logger.warning(
-                "400: Bad request. Invalid subscription type: %s",
-                event_sub.subscription.type,
+                f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
             )
             await send_message(
                 "400: Bad request on /webhook/twitch. Invalid subscription type.",
@@ -396,11 +363,13 @@ async def twitch_webhook(request: Request) -> Response:
             )
             raise HTTPException(status_code=400)
 
-        asyncio.create_task(_twitch_webhook_task(event_sub.event.broadcaster_user_id))
+        asyncio.create_task(
+            _twitch_webhook_task(int(event_sub.event.broadcaster_user_id))
+        )
 
         return Response(status_code=202)
     except Exception as e:
-        logger.error("500: Internal server error on /webhook/twitch: %s", e)
+        logger.error(f"500: Internal server error on /webhook/twitch: {e}")
         sentry_sdk.capture_exception(e)
         await send_message(
             f"500: Internal server error on /webhook/twitch: {e}",
@@ -414,9 +383,9 @@ async def twitch_webhook_offline(request: Request) -> Response:
     logger.info("Webhook received: twitch_webhook_offline start")
     try:
         headers = request.headers
-        logger.info("Headers parsed: %s", dict(headers))
+        logger.info(f"Headers parsed: {dict(headers)}")
         body: dict[str, Any] = await request.json()
-        logger.info("Body JSON parsed: %s", body)
+        logger.info(f"Body JSON parsed: {body}")
 
         if (
             headers.get(TWITCH_MESSAGE_TYPE, "").lower()
@@ -424,19 +393,16 @@ async def twitch_webhook_offline(request: Request) -> Response:
         ):
             challenge = body.get("challenge", "")
             logger.info(
-                "Responding to callback verification offline with challenge=%s",
-                challenge,
+                f"Responding to callback verification offline with challenge={challenge}"
             )
             return Response(challenge or "", status_code=200)
 
         if headers.get(TWITCH_MESSAGE_TYPE, "").lower() == "revocation":
             subscription: dict[str, Any] = body.get("subscription", {})
-            logger.info(
-                "%s notifications revoked!", subscription.get("type", "unknown")
-            )
-            logger.info("reason: %s", subscription.get("status", "No reason provided"))
+            logger.info(f"{subscription.get('type', 'unknown')} notifications revoked!")
+            logger.info(f"reason: {subscription.get('status', 'No reason provided')}")
             condition = subscription.get("condition", {})
-            logger.info("condition: %s", condition)
+            logger.info(f"condition: {condition}")
             await send_message(
                 f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}",
                 BOT_ADMIN_CHANNEL,
@@ -454,9 +420,7 @@ async def twitch_webhook_offline(request: Request) -> Response:
         twitch_message_signature = headers.get(TWITCH_MESSAGE_SIGNATURE, "")
         if not verify_message(secret_hmac, twitch_message_signature):
             logger.warning(
-                "403: Forbidden. Signature does not match: computed=%s, received=%s",
-                secret_hmac,
-                twitch_message_signature,
+                f"403: Forbidden. Signature does not match: computed={secret_hmac}, received={twitch_message_signature}"
             )
             await send_message(
                 "403: Forbidden request on /webhook/twitch/offline. Signature does not match.",
@@ -466,11 +430,10 @@ async def twitch_webhook_offline(request: Request) -> Response:
         logger.info("Signature verified")
 
         event_sub = StreamOfflineEventSub.model_validate(body)
-        logger.info("Event subscription parsed: type=%s", event_sub.subscription.type)
+        logger.info(f"Event subscription parsed: type={event_sub.subscription.type}")
         if event_sub.subscription.type != "stream.offline":
             logger.warning(
-                "400: Bad request. Invalid subscription type: %s",
-                event_sub.subscription.type,
+                f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
             )
             await send_message(
                 "400: Bad request on /webhook/twitch/offline. Invalid subscription type.",
@@ -482,7 +445,7 @@ async def twitch_webhook_offline(request: Request) -> Response:
 
         return Response(status_code=202)
     except Exception as e:
-        logger.error("500: Internal server error on /webhook/twitch/offline: %s", e)
+        logger.error(f"500: Internal server error on /webhook/twitch/offline: {e}")
         sentry_sdk.capture_exception(e)
         await send_message(
             f"500: Internal server error on /webhook/twitch/offline: {e}",

@@ -52,13 +52,12 @@ class Tasks(Cog):
             try:
                 author_feed = at_client.get_author_feed(actor="valinmalach.bsky.social")
             except Exception as e:
-                logger.error("Error fetching Bluesky author feed: %s", e)
+                logger.error(f"Error fetching Bluesky author feed: {e}")
                 sentry_sdk.capture_exception(e)
                 return
 
             logger.info(
-                "Sorting and filtering new posts since last sync: date > %s",
-                last_sync_date_time,
+                f"Sorting and filtering new posts since last sync: date > {last_sync_date_time}"
             )
             posts = sorted(
                 [
@@ -70,7 +69,7 @@ class Tasks(Cog):
                 key=lambda post: post.indexed_at,
             )
 
-            logger.info("Transforming posts to payloads: count=%d", len(posts))
+            logger.info(f"Transforming posts to payloads: count={len(posts)}")
             posts = [
                 {
                     "id": post.uri.split("/")[-1],
@@ -80,40 +79,34 @@ class Tasks(Cog):
                 for post in posts
             ]
 
-            logger.info("Processing %d new posts for insertion", len(posts))
+            logger.info(f"Processing {len(posts)} new posts for insertion")
             for post in posts:
-                logger.info("Upserting post with id %s", post["id"])
+                logger.info(f"Upserting post with id {post['id']}")
                 try:
                     success, error = upsert_row_to_parquet(post, "data/bluesky.parquet")
                     if success:
-                        logger.info(
-                            "Inserted Bluesky post %s into database", post["id"]
-                        )
+                        logger.info(f"Inserted Bluesky post {post['id']} into parquet")
                         await send_message(
                             f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
                             BLUESKY_CHANNEL,
                         )
                     else:
                         logger.warning(
-                            "Failed to insert post %s into database: %s",
-                            post["id"],
-                            error,
+                            f"Failed to insert post {post['id']} into parquet: {error}",
                         )
                         await send_message(
-                            f"Failed to insert post {post['id']} into database: {error}",
+                            f"Failed to insert post {post['id']} into parquet: {error}",
                             BOT_ADMIN_CHANNEL,
                         )
                 except Exception as e:
-                    logger.error(
-                        "Exception upserting Bluesky post %s: %s", post["id"], e
-                    )
+                    logger.error(f"Exception upserting Bluesky post {post['id']}: {e}")
                     sentry_sdk.capture_exception(e)
                     await send_message(
                         f"Failed to insert post {post['id']} into database: {e}",
                         BOT_ADMIN_CHANNEL,
                     )
         except Exception as e:
-            logger.error("Fatal error during Bluesky posts sync: %s", e)
+            logger.error(f"Fatal error during Bluesky posts sync: {e}")
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with Bluesky posts check: {e}",
@@ -132,16 +125,15 @@ class Tasks(Cog):
                 .strftime("%Y-%m-%dT%H:%M:%S.000Z")
             )
 
-            logger.info("Querying users with birthday equal to now=%s", now)
+            logger.info(f"Querying users with birthday equal to now={now}")
             df = pd.read_parquet("data/users.parquet")
             birthday_users = df[df["birthday"] == now]
             logger.info(
-                "Processing batch of birthday records: count=%d",
-                len(birthday_users),
+                f"Processing batch of birthday records: count={len(birthday_users)}",
             )
             await self._process_birthday_records(birthday_users)
         except Exception as e:
-            logger.error("Fatal error during birthday check task: %s", e)
+            logger.error(f"Fatal error during birthday check task: {e}")
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with birthday check: {e}",
@@ -151,17 +143,17 @@ class Tasks(Cog):
     @sentry_sdk.trace()
     async def _process_birthday_records(self, birthdays_now: DataFrame) -> None:
         logger.info(
-            "Handling birthday records, total to process: %d", len(birthdays_now)
+            f"Handling birthday records, total to process: {len(birthdays_now)}"
         )
         now = datetime.datetime.now()
         logger.info(f"Processing {len(birthdays_now)} birthday records.")
         for _, record in birthdays_now.iterrows():
             user_id = record["id"]
-            logger.info("Processing birthday for user ID %s", user_id)
+            logger.info(f"Processing birthday for user ID {user_id}")
             user = self.bot.get_user(int(user_id))
-            logger.info("Looking up Discord user object for ID %s", user_id)
+            logger.info(f"Looking up Discord user object for ID {user_id}")
             if user is None:
-                logger.warning("Discord user ID %s not found in guild cache", user_id)
+                logger.warning(f"Discord user ID {user_id} not found in guild cache")
                 sentry_sdk.capture_message(f"User with ID {user_id} not found.")
                 await send_message(
                     f"_process_birthday_records: User with ID {user_id} not found.",
@@ -169,23 +161,18 @@ class Tasks(Cog):
                 )
                 continue
             logger.info(
-                "Sending birthday greeting message to channel %s for user ID %s",
-                SHOUTOUTS_CHANNEL,
-                user_id,
+                f"Sending birthday greeting message to channel {SHOUTOUTS_CHANNEL} for user ID {user_id}"
             )
             await send_message(
                 f"Happy Birthday {user.mention}!",
                 SHOUTOUTS_CHANNEL,
             )
             logger.info(
-                "Determining next birthday occurrence for user ID %s (leap=%s)",
-                user_id,
-                record["isBirthdayLeap"],
+                f"Determining next birthday occurrence for user ID {user_id} (leap={record['isBirthdayLeap']})"
             )
             if record["isBirthdayLeap"]:
                 logger.info(
-                    "User ID %s has leap-year birthday, calculating next leap year",
-                    user_id,
+                    f"User ID {user_id} has leap-year birthday, calculating next leap year"
                 )
                 leap = True
                 next_birthday = f"{get_next_leap(now.year)}{record['birthday'][4:]}"
@@ -193,9 +180,7 @@ class Tasks(Cog):
                 leap = False
                 next_birthday = f"{now.year + 1}{record['birthday'][4:]}"
             logger.info(
-                "Building updated birthday record for user ID %s: next_birthday=%s",
-                user_id,
-                next_birthday,
+                f"Building updated birthday record for user ID {user_id}: next_birthday={next_birthday}"
             )
             updated_record = {
                 "id": user_id,
@@ -203,15 +188,15 @@ class Tasks(Cog):
                 "birthday": next_birthday,
                 "isBirthdayLeap": leap,
             }
-            logger.info("Updating birthday record in database for user ID %s", user_id)
+            logger.info(f"Updating birthday record in database for user ID {user_id}")
             success, error = update_birthday(updated_record)
             if success:
                 logger.info(
-                    "Updated next birthday for user ID %s to %s", user_id, next_birthday
+                    f"Updated next birthday for user ID {user_id} to {next_birthday}"
                 )
             else:
                 logger.error(
-                    "Failed to update birthday for user ID %s: %s", user_id, error
+                    f"Failed to update birthday for user ID {user_id}: {error}"
                 )
                 await send_message(
                     f"Failed to update birthday for {updated_record['username']}: {error}",

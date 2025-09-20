@@ -1,5 +1,4 @@
 import json
-import random
 from datetime import datetime
 
 import discord
@@ -33,7 +32,6 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     DEFAULT_MISSING_CONTENT,
     GUILD_ID,
-    WEISS_ID,
     WELCOME_CHANNEL,
 )
 from services import (
@@ -94,11 +92,6 @@ class Events(Cog):
                 await message.channel.send("pong")
             elif content == "plap":
                 await message.channel.send("clank")
-
-            if message.author.id == WEISS_ID and random.random() < 0.1:
-                await message.reply(
-                    "Fuck you, Weiss\n\nRegards, Valin", mention_author=True
-                )
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(

@@ -43,29 +43,27 @@ async def refresh_access_token() -> bool:
     logger.info("Refreshing Twitch OAuth token by requesting new access token")
     global access_token
     url = f"https://id.twitch.tv/oauth2/token?client_id={TWITCH_CLIENT_ID}&client_secret={TWITCH_CLIENT_SECRET}&grant_type=client_credentials"
-    logger.info("Posting to token endpoint: %s", url)
+    logger.info(f"Posting to token endpoint: {url}")
 
     response = requests.post(url)
     logger.info(
-        "Token endpoint response status=%s, body=%s",
-        response.status_code,
-        response.text,
+        f"Token endpoint response status={response.status_code}, body={response.text}"
     )
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error("Token refresh failed with status=%s", response.status_code)
+        logger.error(f"Token refresh failed with status={response.status_code}")
         await send_message(
             f"Failed to refresh access token: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
         )
         return False
     auth_response = AuthResponse.model_validate(response.json())
-    logger.info("Token refresh returned token_type=%s", auth_response.token_type)
+    logger.info(f"Token refresh returned token_type={auth_response.token_type}")
     if auth_response.token_type == "bearer":
         access_token = auth_response.access_token
         logger.info("Access token updated successfully")
         return True
     else:
-        logger.error("Unexpected token type received: %s", auth_response.token_type)
+        logger.error(f"Unexpected token type received: {auth_response.token_type}")
         await send_message(
             f"Unexpected token type: {auth_response.token_type}", BOT_ADMIN_CHANNEL
         )
@@ -89,9 +87,9 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
         "Client-ID": TWITCH_CLIENT_ID,
         "Authorization": f"Bearer {access_token}",
     }
-    logger.info("Subscriptions endpoint URL: %s", url)
+    logger.info(f"Subscriptions endpoint URL: {url}")
     while True:
-        logger.info("Fetching subscriptions page with cursor=%s", cursor)
+        logger.info(f"Fetching subscriptions page with cursor={cursor}")
         params = {"status": "enabled"}
         if cursor:
             params["after"] = cursor
@@ -101,7 +99,7 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
             headers=headers,
             params=params,
         )
-        logger.info("Subscriptions API response status=%s", response.status_code)
+        logger.info(f"Subscriptions API response status={response.status_code}")
         if response.status_code == 401:
             logger.warning(
                 "Unauthorized when fetching subscriptions, refreshing token..."
@@ -117,7 +115,7 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
                 return
 
         if response.status_code < 200 or response.status_code >= 300:
-            logger.error("Error fetching subscriptions: %s", response.status_code)
+            logger.error(f"Error fetching subscriptions: {response.status_code}")
             await send_message(
                 f"Failed to fetch subscriptions: {response.status_code} {response.text}",
                 BOT_ADMIN_CHANNEL,
@@ -128,13 +126,13 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
             response.json()
         )
         data = subscription_info_response.data
-        logger.info("Received %d subscriptions", len(data))
+        logger.info(f"Received {len(data)} subscriptions")
         if not data:
             break
 
         all_subscriptions.extend(data)
         cursor = subscription_info_response.pagination.cursor
-        logger.info("Next pagination cursor=%s", cursor)
+        logger.info(f"Next pagination cursor={cursor}")
         if not cursor:
             break
 
@@ -142,8 +140,8 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
 
 
 @sentry_sdk.trace()
-async def get_user(id: str) -> Optional[UserInfo]:
-    logger.info("Retrieving Twitch user info for id=%s", id)
+async def get_user(id: int) -> Optional[UserInfo]:
+    logger.info(f"Retrieving Twitch user info for id={id}")
     global access_token
     if not access_token:
         refresh_success = await refresh_access_token()
@@ -151,13 +149,13 @@ async def get_user(id: str) -> Optional[UserInfo]:
             return
 
     url = f"https://api.twitch.tv/helix/users?id={id}"
-    logger.info("Requesting user endpoint: %s", url)
+    logger.info(f"Requesting user endpoint: {url}")
     headers = {
         "Client-ID": TWITCH_CLIENT_ID,
         "Authorization": f"Bearer {access_token}",
     }
     response = requests.get(url, headers=headers)
-    logger.info("User endpoint response status=%s", response.status_code)
+    logger.info(f"User endpoint response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching user, refreshing token...")
         if await refresh_access_token():
@@ -166,20 +164,20 @@ async def get_user(id: str) -> Optional[UserInfo]:
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error("Failed to fetch user info: %s", response.status_code)
+        logger.error(f"Failed to fetch user info: {response.status_code}")
         await send_message(
             f"Failed to fetch user info: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
         )
         return
     user_info_response = UserInfoResponse.model_validate(response.json())
-    logger.info("Parsed user_info count=%d", len(user_info_response.data))
+    logger.info(f"Parsed user_info count={len(user_info_response.data)}")
     return user_info_response.data[0] if user_info_response.data else None
 
 
 @sentry_sdk.trace()
 async def get_user_by_username(username: str) -> Optional[UserInfo]:
-    logger.info("Retrieving Twitch user info for username=%s", username)
+    logger.info(f"Retrieving Twitch user info for username={username}")
     global access_token
     if not access_token:
         refresh_success = await refresh_access_token()
@@ -187,13 +185,13 @@ async def get_user_by_username(username: str) -> Optional[UserInfo]:
             return
 
     url = f"https://api.twitch.tv/helix/users?login={username}"
-    logger.info("Requesting user endpoint: %s", url)
+    logger.info(f"Requesting user endpoint: {url}")
     headers = {
         "Client-ID": TWITCH_CLIENT_ID,
         "Authorization": f"Bearer {access_token}",
     }
     response = requests.get(url, headers=headers)
-    logger.info("User endpoint response status=%s", response.status_code)
+    logger.info(f"User endpoint response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching user, refreshing token...")
         if await refresh_access_token():
@@ -202,32 +200,32 @@ async def get_user_by_username(username: str) -> Optional[UserInfo]:
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error("Failed to fetch user info: %s", response.status_code)
+        logger.error(f"Failed to fetch user info: {response.status_code}")
         await send_message(
             f"Failed to fetch user info: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
         )
         return
     user_info_response = UserInfoResponse.model_validate(response.json())
-    logger.info("Parsed user_info count=%d", len(user_info_response.data))
+    logger.info(f"Parsed user_info count={len(user_info_response.data)}")
     return user_info_response.data[0] if user_info_response.data else None
 
 
 @sentry_sdk.trace()
 async def subscribe_to_user(username: str) -> bool:
-    logger.info("Retrieving Twitch user info for username=%s", username)
+    logger.info(f"Retrieving Twitch user info for username={username}")
     global access_token
     if not access_token:
         refresh_success = await refresh_access_token()
         if not refresh_success:
             return False
 
-    logger.info("Getting user: %s", username)
+    logger.info(f"Getting user: {username}")
     user = await get_user_by_username(username)
     if not user:
-        logger.error("User not found: %s", username)
+        logger.error(f"User not found: {username}")
         return False
-    logger.info("Subscribing to user: %s (id=%s)", user.display_name, user.id)
+    logger.info(f"Subscribing to user: {user.display_name} (id={user.id})")
 
     user_id = user.id
 
@@ -237,7 +235,7 @@ async def subscribe_to_user(username: str) -> bool:
         "Authorization": f"Bearer {access_token}",
     }
 
-    logger.info("Subscribing to stream.online for user=%s", user.display_name)
+    logger.info(f"Subscribing to stream.online for user={user.display_name}")
     body = {
         "type": "stream.online",
         "version": "1",
@@ -256,15 +254,15 @@ async def subscribe_to_user(username: str) -> bool:
         headers["Authorization"] = f"Bearer {access_token}"
         response = requests.post(url, headers=headers, json=body)
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error("Failed to subscribe to online event: %s", response.status_code)
+        logger.error(f"Failed to subscribe to online event: {response.status_code}")
         await send_message(
             f"Failed to subscribe to online event: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
         )
         return False
-    logger.info("Subscribed to stream.online for user: %s", user.display_name)
+    logger.info(f"Subscribed to stream.online for user: {user.display_name}")
 
-    logger.info("Subscribing to stream.offline for user=%s", user.display_name)
+    logger.info(f"Subscribing to stream.offline for user={user.display_name}")
     body = {
         "type": "stream.offline",
         "version": "1",
@@ -283,20 +281,20 @@ async def subscribe_to_user(username: str) -> bool:
         headers["Authorization"] = f"Bearer {access_token}"
         response = requests.post(url, headers=headers, json=body)
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error("Failed to subscribe to offline event: %s", response.status_code)
+        logger.error(f"Failed to subscribe to offline event: {response.status_code}")
         await send_message(
             f"Failed to subscribe to offline event: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
         )
         return False
-    logger.info("Subscribed to stream.offline for user: %s", user.display_name)
+    logger.info(f"Subscribed to stream.offline for user: {user.display_name}")
 
     return True
 
 
 @sentry_sdk.trace()
 async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
-    logger.info("Retrieving Twitch user infos in batches for ids=%s", ids)
+    logger.info(f"Retrieving Twitch user infos in batches for ids={ids}")
     global access_token
     if not access_token:
         refresh_success = await refresh_access_token()
@@ -306,12 +304,12 @@ async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
     # Split ids into batches of 100
     batches_iterator = itertools.batched(ids, 100)
     batches_list = [list(batch) for batch in batches_iterator]
-    logger.info("Split into %d batches", len(batches_list))
+    logger.info(f"Split into {len(batches_list)} batches")
 
     users: List[UserInfo] = []
 
     for batch in batches_list:
-        logger.info("Requesting batch: %s", batch)
+        logger.info(f"Requesting batch: {batch}")
         if not batch:
             continue
         url = f"https://api.twitch.tv/helix/users?id={'&id='.join(batch)}"
@@ -320,7 +318,7 @@ async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
             "Authorization": f"Bearer {access_token}",
         }
         response = requests.get(url, headers=headers)
-        logger.info("Batch users API response status=%s", response.status_code)
+        logger.info(f"Batch users API response status={response.status_code}")
         if response.status_code == 401:
             logger.warning("Unauthorized on batch users, refreshing token...")
             if await refresh_access_token():
@@ -329,22 +327,22 @@ async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
             else:
                 return
         if response.status_code < 200 or response.status_code >= 300:
-            logger.error("Failed batch fetch of user infos: %s", response.status_code)
+            logger.error(f"Failed batch fetch of user infos: {response.status_code}")
             await send_message(
                 f"Failed to fetch users infos: {response.status_code} {response.text}",
                 BOT_ADMIN_CHANNEL,
             )
             return
         user_info_response = UserInfoResponse.model_validate(response.json())
-        logger.info("Batch parsed %d users", len(user_info_response.data))
+        logger.info(f"Batch parsed {len(user_info_response.data)} users")
         users.extend(user_info_response.data)
 
     return users
 
 
 @sentry_sdk.trace()
-async def get_channel(id: str) -> Optional[ChannelInfo]:
-    logger.info("Retrieving Twitch channel info for broadcaster_id=%s", id)
+async def get_channel(id: int) -> Optional[ChannelInfo]:
+    logger.info(f"Retrieving Twitch channel info for broadcaster_id={id}")
     global access_token
     if not access_token:
         refresh_success = await refresh_access_token()
@@ -352,13 +350,13 @@ async def get_channel(id: str) -> Optional[ChannelInfo]:
             return
 
     url = f"https://api.twitch.tv/helix/channels?broadcaster_id={id}"
-    logger.info("Requesting channel endpoint: %s", url)
+    logger.info(f"Requesting channel endpoint: {url}")
     headers = {
         "Client-ID": TWITCH_CLIENT_ID,
         "Authorization": f"Bearer {access_token}",
     }
     response = requests.get(url, headers=headers)
-    logger.info("Channel endpoint response status=%s", response.status_code)
+    logger.info(f"Channel endpoint response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching channel, refreshing token...")
         if await refresh_access_token():
@@ -367,20 +365,20 @@ async def get_channel(id: str) -> Optional[ChannelInfo]:
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error("Failed to fetch channel info: %s", response.status_code)
+        logger.error(f"Failed to fetch channel info: {response.status_code}")
         await send_message(
             f"Failed to fetch channel info: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
         )
         return
     channel_info_response = ChannelInfoResponse.model_validate(response.json())
-    logger.info("Parsed channel info: %s entries", len(channel_info_response.data))
+    logger.info(f"Parsed channel info: {len(channel_info_response.data)} entries")
     return channel_info_response.data[0] if channel_info_response.data else None
 
 
 @sentry_sdk.trace()
-async def get_stream_info(broadcaster_id: str) -> Optional[StreamInfo]:
-    logger.info("Retrieving Twitch stream info for broadcaster_id=%s", broadcaster_id)
+async def get_stream_info(broadcaster_id: int) -> Optional[StreamInfo]:
+    logger.info(f"Retrieving Twitch stream info for broadcaster_id={broadcaster_id}")
     global access_token
     if not access_token:
         refresh_success = await refresh_access_token()
@@ -388,13 +386,13 @@ async def get_stream_info(broadcaster_id: str) -> Optional[StreamInfo]:
             return
 
     url = f"https://api.twitch.tv/helix/streams?user_id={broadcaster_id}"
-    logger.info("Requesting stream info endpoint: %s", url)
+    logger.info(f"Requesting stream info endpoint: {url}")
     headers = {
         "Client-ID": TWITCH_CLIENT_ID,
         "Authorization": f"Bearer {access_token}",
     }
     response = requests.get(url, headers=headers)
-    logger.info("Stream info API response status=%s", response.status_code)
+    logger.info(f"Stream info API response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching stream info, refreshing token...")
         if await refresh_access_token():
@@ -403,21 +401,21 @@ async def get_stream_info(broadcaster_id: str) -> Optional[StreamInfo]:
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error("Failed to fetch stream info: %s", response.status_code)
+        logger.error(f"Failed to fetch stream info: {response.status_code}")
         await send_message(
             f"Failed to fetch stream info: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
         )
         return
     stream_info_response = StreamInfoResponse.model_validate(response.json())
-    logger.info("Parsed stream info items: %d", len(stream_info_response.data))
+    logger.info(f"Parsed stream info items: {len(stream_info_response.data)}")
     return stream_info_response.data[0] if stream_info_response.data else None
 
 
 @sentry_sdk.trace()
-async def get_stream_vod(user_id: str, stream_id: str) -> Optional[VideoInfo]:
+async def get_stream_vod(user_id: int, stream_id: int) -> Optional[VideoInfo]:
     logger.info(
-        "Retrieving VOD list for user_id=%s to find stream_id=%s", user_id, stream_id
+        f"Retrieving VOD list for user_id={user_id} to find stream_id={stream_id}"
     )
     global access_token
     if not access_token:
@@ -426,13 +424,13 @@ async def get_stream_vod(user_id: str, stream_id: str) -> Optional[VideoInfo]:
             return
 
     url = f"https://api.twitch.tv/helix/videos?user_id={user_id}&type=archive"
-    logger.info("Requesting VOD endpoint: %s", url)
+    logger.info(f"Requesting VOD endpoint: {url}")
     headers = {
         "Client-ID": TWITCH_CLIENT_ID,
         "Authorization": f"Bearer {access_token}",
     }
     response = requests.get(url, headers=headers)
-    logger.info("VOD API response status=%s", response.status_code)
+    logger.info(f"VOD API response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching VOD, refreshing token...")
         if await refresh_access_token():
@@ -441,53 +439,52 @@ async def get_stream_vod(user_id: str, stream_id: str) -> Optional[VideoInfo]:
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error("Failed to fetch VOD info: %s", response.status_code)
+        logger.error(f"Failed to fetch VOD info: {response.status_code}")
         await send_message(
             f"Failed to fetch stream info: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
         )
         return
     video_info_response = VideoInfoResponse.model_validate(response.json())
-    logger.info("Parsed %d video entries", len(video_info_response.data))
+    logger.info(f"Parsed {len(video_info_response.data)} video entries")
     return next(
-        (video for video in video_info_response.data if video.stream_id == stream_id),
+        (
+            video
+            for video in video_info_response.data
+            if video.stream_id == str(stream_id)
+        ),
         None,
     )
 
 
 @sentry_sdk.trace()
 async def update_alert(
-    broadcaster_id: str,
+    broadcaster_id: int,
     channel_id: int,
     message_id: int,
-    stream_id: str,
+    stream_id: int,
     stream_started_at: str,
 ) -> None:
     logger.info(
-        "Updating live alert embed in Discord for broadcaster_id=%s, message_id=%s",
-        broadcaster_id,
-        message_id,
+        f"Updating live alert embed in Discord for broadcaster_id={broadcaster_id}, message_id={message_id}",
     )
     try:
         await asyncio.sleep(60)
         df = pd.read_parquet("data/live_alerts.parquet")
-        alert_row = df.loc[df["id"] == int(broadcaster_id)]
+        alert_row = df.loc[df["id"] == broadcaster_id]
         if alert_row.empty:
             logger.warning(
-                "No live alert record found for broadcaster_id=%s; exiting",
-                broadcaster_id,
+                f"No live alert record found for broadcaster_id={broadcaster_id}; exiting"
             )
             return
         stream_info = await get_stream_info(broadcaster_id)
-        logger.info("Fetched stream_info for update: %s", stream_info)
+        logger.info(f"Fetched stream_info for update: {stream_info}")
         user_info = await get_user(broadcaster_id)
-        logger.info("Fetched user_info for update: %s", user_info)
+        logger.info(f"Fetched user_info for update: {user_info}")
         while not alert_row.empty and stream_info is not None:
             alert = alert_row.iloc[0].to_dict()
             logger.info(
-                "Live alert record found. Checking if stream_id changed (current=%s, original=%s)",
-                stream_info.id,
-                stream_id,
+                f"Live alert record found. Checking if stream_id changed (current={stream_info.id}, original={stream_id})",
             )
             content = (
                 f"<@&{LIVE_ALERTS_ROLE}>"
@@ -499,33 +496,28 @@ async def update_alert(
             started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
             now = datetime.now()
             age = get_age(started_at, limit_units=2)
-            if alert.get("stream_id", "") != stream_id or stream_info.id != stream_id:
+            if alert.get("stream_id", "") != stream_id or stream_info.id != str(
+                stream_id
+            ):
                 logger.info(
-                    "Stream ID changed; building offline VOD embed for previous stream_id=%s",
-                    stream_id,
+                    f"Stream ID changed; building offline VOD embed for previous stream_id={stream_id}",
                 )
                 vod_info = None
                 logger.info(
-                    "Beginning VOD lookup for broadcaster_id=%s, stream_id=%s",
-                    broadcaster_id,
-                    stream_id,
+                    f"Beginning VOD lookup for broadcaster_id={broadcaster_id}, stream_id={stream_id}",
                 )
                 try:
                     vod_info = await get_stream_vod(broadcaster_id, stream_id)
                     if vod_info:
-                        logger.info("VOD info found: %s", vod_info)
+                        logger.info(f"VOD info found: {vod_info}")
                     else:
                         logger.warning(
-                            "No VOD info found for broadcaster_id=%s, stream_id=%s",
-                            broadcaster_id,
-                            stream_id,
+                            f"No VOD info found for broadcaster_id={broadcaster_id}, stream_id={stream_id}",
                         )
                 except Exception as e:
                     sentry_sdk.capture_exception(e)
                     logger.error(
-                        "Failed to fetch VOD info for broadcaster_id=%s: %s",
-                        broadcaster_id,
-                        e,
+                        f"Failed to fetch VOD info for broadcaster_id={broadcaster_id}: {e}",
                     )
                     await send_message(
                         f"Failed to fetch VOD info for {broadcaster_id}: {e}",
@@ -534,12 +526,11 @@ async def update_alert(
 
                 if not vod_info:
                     logger.warning(
-                        "No VOD info found for broadcaster_id=%s",
-                        broadcaster_id,
+                        f"No VOD info found for broadcaster_id={broadcaster_id}",
                     )
 
                 logger.info(
-                    "Building offline embed for previous stream_id=%s", stream_id
+                    f"Building offline embed for previous stream_id={stream_id}"
                 )
                 embed = (
                     discord.Embed(
@@ -574,8 +565,7 @@ async def update_alert(
                     try:
                         await edit_embed(message_id, embed, channel_id, content=content)
                         logger.info(
-                            "Successfully edited embed for offline event message_id=%s",
-                            message_id,
+                            f"Successfully edited embed for offline event message_id={message_id}",
                         )
                         break
                     except Exception:
@@ -584,9 +574,7 @@ async def update_alert(
                         )
                         await asyncio.sleep(1)
                 return
-            logger.info(
-                "Building live update embed for ongoing stream_id=%s", stream_id
-            )
+            logger.info(f"Building live update embed for ongoing stream_id={stream_id}")
             # Cache-bust thumbnail URL to force Discord to refresh the image
             raw_thumb_url = stream_info.thumbnail_url.replace(
                 "{width}x{height}", "400x225"
@@ -594,7 +582,7 @@ async def update_alert(
             cache_busted_thumb_url = (
                 f"{raw_thumb_url}?cb={int(datetime.now().timestamp())}"
             )
-            logger.info("Using cache-busted thumbnail URL: %s", cache_busted_thumb_url)
+            logger.info(f"Using cache-busted thumbnail URL: {cache_busted_thumb_url}")
             embed = (
                 discord.Embed(
                     description=f"[**{stream_info.title}**]({url})",
@@ -633,7 +621,7 @@ async def update_alert(
                 )
             )
             logger.info(
-                "Editing embed message for live update message_id=%s", message_id
+                f"Editing embed message for live update message_id={message_id}"
             )
             # retry on Discord Server Error
             while True:
@@ -642,8 +630,7 @@ async def update_alert(
                         message_id, embed, channel_id, view, content=content
                     )
                     logger.info(
-                        "Successfully edited embed for live update message_id=%s",
-                        message_id,
+                        f"Successfully edited embed for live update message_id={message_id}"
                     )
                     break
                 except Exception:
@@ -652,19 +639,16 @@ async def update_alert(
             logger.info("Sleeping for 60 seconds before next update cycle")
             await asyncio.sleep(60)
             logger.info(
-                "Fetching updated live_alert record after sleep for broadcaster_id=%s",
-                broadcaster_id,
+                f"Fetching updated live_alert record after sleep for broadcaster_id={broadcaster_id}"
             )
             df = pd.read_parquet("data/live_alerts.parquet")
-            alert_row = df.loc[df["id"] == int(broadcaster_id)]
+            alert_row = df.loc[df["id"] == broadcaster_id]
             stream_info = await get_stream_info(broadcaster_id)
-            logger.info("Fetched updated stream_info for next cycle: %s", stream_info)
+            logger.info(f"Fetched updated stream_info for next cycle: {stream_info}")
 
     except Exception as e:
         logger.error(
-            "Error updating live alert message for broadcaster_id=%s: %s",
-            broadcaster_id,
-            e,
+            f"Error updating live alert message for broadcaster_id={broadcaster_id}: {e}"
         )
         sentry_sdk.capture_exception(e)
         await send_message(

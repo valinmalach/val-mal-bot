@@ -25,11 +25,11 @@ async def restart_live_alert_tasks() -> None:
 
     logger.info(f"Processing {len(df)} records.")
     for _, alert in df.iterrows():
-        broadcaster_id = str(alert["id"])
-        channel_id = int(alert["channel_id"])
-        message_id = int(alert["message_id"])
-        stream_id = str(alert["stream_id"])
-        stream_started_at = str(alert["stream_started_at"])
+        broadcaster_id = alert["id"]
+        channel_id = alert["channel_id"]
+        message_id = alert["message_id"]
+        stream_id = alert["stream_id"]
+        stream_started_at = alert["stream_started_at"]
         logger.info(
             f"Processing alert: broadcaster_id={broadcaster_id}, channel_id={channel_id}, message_id={message_id}, stream_id={stream_id}, stream_started_at={stream_started_at}"
         )
