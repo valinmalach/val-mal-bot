@@ -26,7 +26,13 @@ from models import (
     VideoInfo,
     VideoInfoResponse,
 )
-from services import edit_embed, get_age, parse_rfc3339, send_message
+from services import (
+    delete_row_from_parquet,
+    edit_embed,
+    get_age,
+    parse_rfc3339,
+    send_message,
+)
 
 load_dotenv()
 
@@ -568,6 +574,14 @@ async def update_alert(
                             f"Successfully edited embed for offline event message_id={message_id}",
                         )
                         break
+                    except discord.NotFound:
+                        logger.error(
+                            f"Message not found when editing offline embed for message_id={message_id}; aborting"
+                        )
+                        delete_row_from_parquet(
+                            broadcaster_id, "data/live_alerts.parquet"
+                        )
+                        break
                     except Exception as e:
                         logger.warning(
                             f"Error encountered while editing offline embed; retrying...\n{e}"
@@ -632,6 +646,12 @@ async def update_alert(
                     logger.info(
                         f"Successfully edited embed for live update message_id={message_id}"
                     )
+                    break
+                except discord.NotFound:
+                    logger.error(
+                        f"Message not found when editing offline embed for message_id={message_id}; aborting"
+                    )
+                    delete_row_from_parquet(broadcaster_id, "data/live_alerts.parquet")
                     break
                 except Exception as e:
                     logger.warning(

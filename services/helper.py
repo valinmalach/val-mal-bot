@@ -61,7 +61,7 @@ def upsert_row_to_parquet(
 
 @sentry_sdk.trace()
 def delete_row_from_parquet(
-    id_value: str, filepath: str, id_column: str = "id"
+    id_value: str | int, filepath: str, id_column: str = "id"
 ) -> tuple[bool, Exception | None]:
     try:
         existing_df = pl.read_parquet(filepath)

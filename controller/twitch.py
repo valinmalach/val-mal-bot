@@ -265,17 +265,21 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
                     f"Successfully edited embed (offline) for message_id={message_id}"
                 )
                 break
-            except discord.DiscordServerError:
-                logger.warning(
-                    "Discord server error while editing embed; retrying after sleep"
+            except discord.NotFound:
+                logger.error(
+                    f"Message not found when editing offline embed for message_id={message_id}; continuing"
                 )
+                delete_row_from_parquet(int(broadcaster_id), "data/live_alerts.parquet")
+                break
+            except Exception as e:
+                logger.warning(f"Error while editing embed; retrying after sleep: {e}")
                 await asyncio.sleep(1)
 
         logger.info(
             f"Proceeding to delete live_alert record for broadcaster_id={broadcaster_id}"
         )
         success, error = delete_row_from_parquet(
-            broadcaster_id, "data/live_alerts.parquet"
+            int(broadcaster_id), "data/live_alerts.parquet"
         )
         if not success:
             logger.error(

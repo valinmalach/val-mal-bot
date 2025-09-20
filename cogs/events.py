@@ -224,7 +224,7 @@ class Events(Cog):
             await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
             success, error = delete_row_from_parquet(
-                str(member.id),
+                member.id,
                 "data/users.parquet",
             )
             if not success:
@@ -448,7 +448,7 @@ class Events(Cog):
 
             try:
                 success, error = delete_row_from_parquet(
-                    str(payload.message_id),
+                    payload.message_id,
                     "data/messages.parquet",
                 )
                 if not success:
@@ -511,7 +511,7 @@ class Events(Cog):
             for message_id in payload.message_ids:
                 try:
                     success, error = delete_row_from_parquet(
-                        str(message_id),
+                        message_id,
                         "data/messages.parquet",
                     )
                     if not success:
@@ -861,7 +861,7 @@ class Events(Cog):
 
         try:
             success, error = delete_row_from_parquet(
-                str(message_id),
+                message_id,
                 "data/messages.parquet",
             )
             if not success:
