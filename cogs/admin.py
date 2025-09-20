@@ -230,7 +230,7 @@ class Admin(Cog):
     async def delete_messages(self, interaction: Interaction) -> None:
         logger.info("Deleting all messages sent by the bot")
         try:
-            df = pl.read_parquet("messages.parquet")
+            df = pl.read_parquet("data/messages.parquet")
             if self.bot.user is None:
                 await interaction.response.send_message(
                     "Bot user is not available. Cannot delete messages."
