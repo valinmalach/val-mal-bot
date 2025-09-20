@@ -2,12 +2,12 @@ import asyncio
 import itertools
 import logging
 import os
-from datetime import datetime
 from typing import List, Optional
 
 import discord
+import httpx
+import pendulum
 import polars as pl
-import requests
 import sentry_sdk
 from discord.ui import View
 from dotenv import load_dotenv
@@ -45,7 +45,7 @@ async def refresh_access_token() -> bool:
     url = f"https://id.twitch.tv/oauth2/token?client_id={TWITCH_CLIENT_ID}&client_secret={TWITCH_CLIENT_SECRET}&grant_type=client_credentials"
     logger.info(f"Posting to token endpoint: {url}")
 
-    response = requests.post(url)
+    response = httpx.post(url)
     logger.info(
         f"Token endpoint response status={response.status_code}, body={response.text}"
     )
@@ -94,7 +94,7 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
         if cursor:
             params["after"] = cursor
 
-        response = requests.get(
+        response = httpx.get(
             url,
             headers=headers,
             params=params,
@@ -106,7 +106,7 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
             )
             if await refresh_access_token():
                 headers["Authorization"] = f"Bearer {access_token}"
-                response = requests.get(
+                response = httpx.get(
                     url,
                     headers=headers,
                     params=params,
@@ -154,13 +154,13 @@ async def get_user(id: int) -> Optional[UserInfo]:
         "Client-ID": TWITCH_CLIENT_ID,
         "Authorization": f"Bearer {access_token}",
     }
-    response = requests.get(url, headers=headers)
+    response = httpx.get(url, headers=headers)
     logger.info(f"User endpoint response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching user, refreshing token...")
         if await refresh_access_token():
             headers["Authorization"] = f"Bearer {access_token}"
-            response = requests.get(url, headers=headers)
+            response = httpx.get(url, headers=headers)
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
@@ -190,13 +190,13 @@ async def get_user_by_username(username: str) -> Optional[UserInfo]:
         "Client-ID": TWITCH_CLIENT_ID,
         "Authorization": f"Bearer {access_token}",
     }
-    response = requests.get(url, headers=headers)
+    response = httpx.get(url, headers=headers)
     logger.info(f"User endpoint response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching user, refreshing token...")
         if await refresh_access_token():
             headers["Authorization"] = f"Bearer {access_token}"
-            response = requests.get(url, headers=headers)
+            response = httpx.get(url, headers=headers)
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
@@ -246,13 +246,13 @@ async def subscribe_to_user(username: str) -> bool:
             "secret": TWITCH_WEBHOOK_SECRET,
         },
     }
-    response = requests.post(url, headers=headers, json=body)
+    response = httpx.post(url, headers=headers, json=body)
     if response.status_code == 401:
         logger.warning("Unauthorized subscribing to online event, refreshing token...")
         if not await refresh_access_token():
             return False
         headers["Authorization"] = f"Bearer {access_token}"
-        response = requests.post(url, headers=headers, json=body)
+        response = httpx.post(url, headers=headers, json=body)
     if response.status_code < 200 or response.status_code >= 300:
         logger.error(f"Failed to subscribe to online event: {response.status_code}")
         await send_message(
@@ -273,13 +273,13 @@ async def subscribe_to_user(username: str) -> bool:
             "secret": TWITCH_WEBHOOK_SECRET,
         },
     }
-    response = requests.post(url, headers=headers, json=body)
+    response = httpx.post(url, headers=headers, json=body)
     if response.status_code == 401:
         logger.warning("Unauthorized subscribing to offline event, refreshing token...")
         if not await refresh_access_token():
             return False
         headers["Authorization"] = f"Bearer {access_token}"
-        response = requests.post(url, headers=headers, json=body)
+        response = httpx.post(url, headers=headers, json=body)
     if response.status_code < 200 or response.status_code >= 300:
         logger.error(f"Failed to subscribe to offline event: {response.status_code}")
         await send_message(
@@ -317,13 +317,13 @@ async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
             "Client-ID": TWITCH_CLIENT_ID,
             "Authorization": f"Bearer {access_token}",
         }
-        response = requests.get(url, headers=headers)
+        response = httpx.get(url, headers=headers)
         logger.info(f"Batch users API response status={response.status_code}")
         if response.status_code == 401:
             logger.warning("Unauthorized on batch users, refreshing token...")
             if await refresh_access_token():
                 headers["Authorization"] = f"Bearer {access_token}"
-                response = requests.get(url, headers=headers)
+                response = httpx.get(url, headers=headers)
             else:
                 return
         if response.status_code < 200 or response.status_code >= 300:
@@ -355,13 +355,13 @@ async def get_channel(id: int) -> Optional[ChannelInfo]:
         "Client-ID": TWITCH_CLIENT_ID,
         "Authorization": f"Bearer {access_token}",
     }
-    response = requests.get(url, headers=headers)
+    response = httpx.get(url, headers=headers)
     logger.info(f"Channel endpoint response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching channel, refreshing token...")
         if await refresh_access_token():
             headers["Authorization"] = f"Bearer {access_token}"
-            response = requests.get(url, headers=headers)
+            response = httpx.get(url, headers=headers)
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
@@ -391,13 +391,13 @@ async def get_stream_info(broadcaster_id: int) -> Optional[StreamInfo]:
         "Client-ID": TWITCH_CLIENT_ID,
         "Authorization": f"Bearer {access_token}",
     }
-    response = requests.get(url, headers=headers)
+    response = httpx.get(url, headers=headers)
     logger.info(f"Stream info API response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching stream info, refreshing token...")
         if await refresh_access_token():
             headers["Authorization"] = f"Bearer {access_token}"
-            response = requests.get(url, headers=headers)
+            response = httpx.get(url, headers=headers)
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
@@ -429,13 +429,13 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[VideoInfo]:
         "Client-ID": TWITCH_CLIENT_ID,
         "Authorization": f"Bearer {access_token}",
     }
-    response = requests.get(url, headers=headers)
+    response = httpx.get(url, headers=headers)
     logger.info(f"VOD API response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching VOD, refreshing token...")
         if await refresh_access_token():
             headers["Authorization"] = f"Bearer {access_token}"
-            response = requests.get(url, headers=headers)
+            response = httpx.get(url, headers=headers)
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
@@ -494,7 +494,7 @@ async def update_alert(
             url = f"https://www.twitch.tv/{stream_info.user_login}"
             started_at = parse_rfc3339(stream_started_at)
             started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
-            now = datetime.now()
+            now = pendulum.now()
             age = get_age(started_at, limit_units=2)
             if alert.get("stream_id", "") != stream_id or stream_info.id != str(
                 stream_id
@@ -580,7 +580,7 @@ async def update_alert(
                 "{width}x{height}", "400x225"
             )
             cache_busted_thumb_url = (
-                f"{raw_thumb_url}?cb={int(datetime.now().timestamp())}"
+                f"{raw_thumb_url}?cb={int(pendulum.now().timestamp())}"
             )
             logger.info(f"Using cache-busted thumbnail URL: {cache_busted_thumb_url}")
             embed = (

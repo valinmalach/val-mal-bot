@@ -1,13 +1,12 @@
 import logging
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
+import pendulum
 import polars as pl
-import pytz
 import sentry_sdk
 from discord import Interaction, app_commands
 from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
+from pendulum import DateTime
 
 from constants import BOT_ADMIN_CHANNEL, FOLLOWER_ROLE, MAX_DAYS, OWNER_ID, Months
 from services import get_next_leap, send_message, update_birthday
@@ -39,7 +38,7 @@ class Birthday(GroupCog):
         )
         try:
             logger.info(f"Validating provided timezone: {timezone}")
-            if timezone not in pytz.all_timezones:
+            if timezone not in pendulum.timezones():
                 await interaction.response.send_message(
                     f"Sorry. I've never heard of the timezone {timezone}. "
                     + "Have you tried using the autocomplete options provided? "
@@ -57,9 +56,8 @@ class Birthday(GroupCog):
                 return
 
             logger.info(f"Creating timezone object for timezone: {timezone}")
-            tz = ZoneInfo(timezone)
-            now = datetime.now(tz).replace(second=0, microsecond=0)
-            logger.info(f"Current datetime in timezone {timezone}: {now}")
+            now = pendulum.now(timezone).replace(second=0, microsecond=0)
+            logger.info(f"Current DateTime in timezone {timezone}: {now}")
             year = now.year
 
             logger.info(
@@ -68,7 +66,12 @@ class Birthday(GroupCog):
             if month == Months.February and day == 29:
                 logger.info("Applying leap year logic for Feb 29 birthday")
                 try:
-                    birthday_this_year = datetime(year, month.value, day, tzinfo=tz)
+                    birthday_this_year = DateTime(
+                        year=year,
+                        month=month.value,
+                        day=day,
+                        tzinfo=pendulum.timezone(timezone),
+                    )
                 except ValueError:
                     birthday_this_year = None
 
@@ -79,7 +82,12 @@ class Birthday(GroupCog):
                     year = get_next_leap(year)
             else:
                 logger.info("Calculating next occurrence for non-leap date")
-                birthday_this_year = datetime(year, month.value, day, tzinfo=tz)
+                birthday_this_year = DateTime(
+                    year=year,
+                    month=month.value,
+                    day=day,
+                    tzinfo=pendulum.timezone(timezone),
+                )
                 if birthday_this_year <= now:
                     year += 1
 
@@ -91,12 +99,12 @@ class Birthday(GroupCog):
                 "id": interaction.user.id,
                 "username": interaction.user.name,
                 "birthday": (
-                    datetime.strptime(
+                    DateTime.strptime(
                         f"{year}-{month.value:02d}-{day:02d} 00:00:00",
                         "%Y-%m-%d %H:%M:%S",
                     )
-                    .replace(tzinfo=ZoneInfo(timezone))
-                    .astimezone(ZoneInfo("UTC"))
+                    .replace(tzinfo=pendulum.timezone(timezone))
+                    .astimezone(pendulum.timezone("UTC"))
                     .strftime("%Y-%m-%dT%H:%M:%S.000Z")
                 ),
                 "isBirthdayLeap": month == Months.February and day == 29,
@@ -138,7 +146,7 @@ class Birthday(GroupCog):
     ) -> list[Choice[str]]:
         choices = [
             Choice(name=tz, value=tz)
-            for tz in pytz.all_timezones
+            for tz in pendulum.timezones()
             if current_input.lower() in tz.lower()
         ]
         return choices[:25]

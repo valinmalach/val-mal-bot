@@ -1,15 +1,13 @@
 import hashlib
 import hmac
 import logging
-from datetime import datetime, timezone
 from functools import cache
 from typing import Optional
 
 import discord
+import pendulum
 import polars as pl
 import sentry_sdk
-from dateutil import relativedelta
-from dateutil.parser import isoparse
 from discord import (
     CategoryChannel,
     DMChannel,
@@ -31,6 +29,7 @@ from discord import (
 )
 from discord.abc import GuildChannel, PrivateChannel
 from discord.ui import Button, View
+from pendulum import DateTime
 
 from constants import EMOJI_ROLE_MAP
 from init import bot
@@ -170,22 +169,17 @@ def get_channel_mention(
 
 
 @sentry_sdk.trace()
-def get_age(date_time: datetime, limit_units: int = -1) -> str:
-    now = datetime.now(timezone.utc)
-    if date_time <= now:
-        age = relativedelta.relativedelta(now, date_time)
-    else:
-        age = relativedelta.relativedelta(date_time, now)
-    years, months, days, hours, minutes, seconds, microseconds = (
+def get_age(date_time: DateTime, limit_units: int = -1) -> str:
+    now = pendulum.now("UTC")
+    age = now - date_time if date_time <= now else date_time - now
+    years, months, days, hours, minutes, seconds = (
         age.years,
         age.months,
-        age.days,
+        age.remaining_days,
         age.hours,
         age.minutes,
-        age.seconds,
-        age.microseconds,
+        age.remaining_seconds,
     )
-    seconds += microseconds / 1000000
     parts = []
     if years > 0 or months > 0:
         if years:
@@ -269,12 +263,15 @@ def verify_message(hmac_str: str, verify_signature: str) -> bool:
 
 @sentry_sdk.trace()
 @cache
-def parse_rfc3339(date_str: str) -> datetime:
+def parse_rfc3339(date_str: str) -> DateTime:
     """
     Parse an RFC3339 / ISO-8601 timestamp (e.g. '2025-05-31T12:34:56Z')
-    and return a timezone-aware datetime.
+    and return a timezone-aware DateTime.
     """
-    return isoparse(date_str)
+    parsed = pendulum.parse(date_str)
+    if not isinstance(parsed, DateTime):
+        raise ValueError(f"Expected DateTime string, got: {date_str}")
+    return parsed
 
 
 @sentry_sdk.trace()

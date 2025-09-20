@@ -1,7 +1,6 @@
-import json
-from datetime import datetime
-
 import discord
+import orjson
+import pendulum
 import polars as pl
 import sentry_sdk
 from discord import (
@@ -26,6 +25,7 @@ from discord import (
 )
 from discord.abc import PrivateChannel
 from discord.ext.commands import Bot, Cog, CommandError, Context
+from pendulum import DateTime
 
 from constants import (
     AUDIT_LOGS_CHANNEL,
@@ -63,7 +63,7 @@ class Events(Cog):
                 "guild_id": guild_id,
                 "author_id": message.author.id,
                 "channel_id": message.channel.id,
-                "attachment_urls": json.dumps(
+                "attachment_urls": orjson.dumps(
                     [attachment.url for attachment in message.attachments]
                 ),
             }
@@ -109,7 +109,7 @@ class Events(Cog):
                 Embed(
                     description=f"**Welcome to Malachar, {member.mention}**",
                     color=0x9B59B6,
-                    timestamp=datetime.now(),
+                    timestamp=pendulum.now(),
                 )
                 .set_author(
                     name=f"{member.name}{discriminator}",
@@ -125,12 +125,12 @@ class Events(Cog):
                 WELCOME_CHANNEL,
             )
 
-            age = get_age(member.created_at)
+            age = get_age(pendulum.instance(member.created_at))
             embed = (
                 Embed(
                     description=f"{member.mention} {member.name}{discriminator}",
                     color=0x43B582,
-                    timestamp=datetime.now(),
+                    timestamp=pendulum.now(),
                 )
                 .set_author(
                     name="Member Joined",
@@ -184,7 +184,7 @@ class Events(Cog):
                 Embed(
                     description=f"**{member.mention} has left. Goodbye!**",
                     color=0x992D22,
-                    timestamp=datetime.now(),
+                    timestamp=pendulum.now(),
                 )
                 .set_author(
                     name=f"{member.name}{discriminator}",
@@ -204,7 +204,7 @@ class Events(Cog):
                 Embed(
                     description=f"{member.mention} {member.name}{discriminator}{triple_nl}",
                     color=0xFF470F,
-                    timestamp=datetime.now(),
+                    timestamp=pendulum.now(),
                 )
                 .set_author(
                     name="Member Left",
@@ -278,20 +278,20 @@ class Events(Cog):
 
             if (
                 before.timed_out_until is None
-                or before.timed_out_until <= datetime.now()
+                or before.timed_out_until <= pendulum.now()
             ) and (
                 after.timed_out_until is not None
-                and after.timed_out_until > datetime.now()
+                and after.timed_out_until > pendulum.now()
             ):
                 await self._log_timeout(
-                    after, discriminator, url, after.timed_out_until
+                    after, discriminator, url, pendulum.instance(after.timed_out_until)
                 )
 
             elif (
                 before.timed_out_until is not None
-                and before.timed_out_until > datetime.now()
+                and before.timed_out_until > pendulum.now()
             ) and (
-                after.timed_out_until is None or after.timed_out_until <= datetime.now()
+                after.timed_out_until is None or after.timed_out_until <= pendulum.now()
             ):
                 await self._log_untimeout(after, discriminator, url)
         except Exception as e:
@@ -350,7 +350,7 @@ class Events(Cog):
                 Embed(
                     description=message,
                     color=0x337FD5,
-                    timestamp=datetime.now(),
+                    timestamp=pendulum.now(),
                 )
                 .set_author(
                     name=f"{after.author.name}{discriminator}",
@@ -374,7 +374,7 @@ class Events(Cog):
                     "guild_id": guild_id,
                     "author_id": after.author.id,
                     "channel_id": after.channel.id,
-                    "attachment_urls": json.dumps(
+                    "attachment_urls": orjson.dumps(
                         [attachment.url for attachment in after.attachments]
                     ),
                 }
@@ -492,7 +492,7 @@ class Events(Cog):
             embed = Embed(
                 description=description,
                 color=0x337FD5,
-                timestamp=datetime.now(),
+                timestamp=pendulum.now(),
             ).set_author(
                 name=f"{user_who_deleted_name}{discriminator}",
                 icon_url=url,
@@ -534,7 +534,7 @@ class Events(Cog):
                 Embed(
                     description=f"{user.mention} {user.name}{discriminator}",
                     color=0xFF470F,
-                    timestamp=datetime.now(),
+                    timestamp=pendulum.now(),
                 )
                 .set_author(
                     name="User Banned",
@@ -564,7 +564,7 @@ class Events(Cog):
                 Embed(
                     description=f"{user.mention} {user.name}{discriminator}",
                     color=0x337FD5,
-                    timestamp=datetime.now(),
+                    timestamp=pendulum.now(),
                 )
                 .set_author(
                     name="User Unbanned",
@@ -609,7 +609,7 @@ class Events(Cog):
             embed = Embed(
                 description=description,
                 color=0x337FD5,
-                timestamp=datetime.now(),
+                timestamp=pendulum.now(),
             ).set_author(
                 name=f"{guild_name}",
                 icon_url=guild_icon,
@@ -641,7 +641,7 @@ class Events(Cog):
             embed = Embed(
                 description=description,
                 color=0xFF470F,
-                timestamp=datetime.now(),
+                timestamp=pendulum.now(),
             ).set_author(
                 name=f"{guild_name}",
                 icon_url=guild_icon,
@@ -672,7 +672,7 @@ class Events(Cog):
             Embed(
                 description=message,
                 color=0x337FD5,
-                timestamp=datetime.now(),
+                timestamp=pendulum.now(),
             )
             .set_author(
                 name=f"{member.name}{discriminator}",
@@ -693,7 +693,7 @@ class Events(Cog):
             Embed(
                 description=f"**{member.mention} changed their nickname**",
                 color=0x337FD5,
-                timestamp=datetime.now(),
+                timestamp=pendulum.now(),
             )
             .set_author(
                 name=f"{member.name}{discriminator}",
@@ -716,7 +716,7 @@ class Events(Cog):
             Embed(
                 description=f"**{member.mention} changed their profile picture**",
                 color=0x337FD5,
-                timestamp=datetime.now(),
+                timestamp=pendulum.now(),
             )
             .set_author(
                 name=f"{member.name}{discriminator}",
@@ -734,14 +734,14 @@ class Events(Cog):
 
     @sentry_sdk.trace()
     async def _log_timeout(
-        self, member: Member, discriminator: str, url: str, timeout: datetime
+        self, member: Member, discriminator: str, url: str, timeout: DateTime
     ) -> None:
         expiry = f"<t:{int(timeout.timestamp())}:R>"
         embed = (
             Embed(
                 description=f"**{member.mention} has been timed out**\nExpires {expiry}",
                 color=0x337FD5,
-                timestamp=datetime.now(),
+                timestamp=pendulum.now(),
             )
             .set_author(
                 name=f"{member.name}{discriminator}",
@@ -762,7 +762,7 @@ class Events(Cog):
             Embed(
                 description=f"**{member.mention}'s timeout has been removed**",
                 color=0x337FD5,
-                timestamp=datetime.now(),
+                timestamp=pendulum.now(),
             )
             .set_author(
                 name=f"{member.name}{discriminator}",
@@ -785,7 +785,7 @@ class Events(Cog):
             Embed(
                 description=description,
                 color=0x337FD5,
-                timestamp=datetime.now(),
+                timestamp=pendulum.now(),
             )
             .set_author(
                 name=f"{message.author.name}{discriminator}",
@@ -835,7 +835,7 @@ class Events(Cog):
             Embed(
                 description=description,
                 color=0xFF470F,
-                timestamp=datetime.now(),
+                timestamp=pendulum.now(),
             )
             .set_author(
                 name=f"{user_name}{discriminator}",
@@ -901,7 +901,7 @@ class Events(Cog):
             Embed(
                 description=description,
                 color=0xFF470F,
-                timestamp=datetime.now(),
+                timestamp=pendulum.now(),
             )
             .set_author(
                 name=f"{author.name}{discriminator}",
@@ -949,7 +949,7 @@ class Events(Cog):
                     Embed(
                         description=f"**Attachment sent by {author.mention} deleted in {channel_mention}**",
                         color=0xFF470F,
-                        timestamp=datetime.now(),
+                        timestamp=pendulum.now(),
                     )
                     .set_author(
                         name=f"{author.name}{discriminator}",

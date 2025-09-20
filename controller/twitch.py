@@ -1,10 +1,10 @@
 import asyncio
 import logging
 import os
-from datetime import datetime
 from typing import Any
 
 import discord
+import pendulum
 import polars as pl
 import sentry_sdk
 from discord.ui import View
@@ -76,7 +76,7 @@ async def _twitch_webhook_task(broadcaster_id: int) -> None:
         logger.info(f"Constructing embed for url={url}")
         # Cache-bust thumbnail URL to force Discord to refresh the image
         raw_thumb_url = stream_info.thumbnail_url.replace("{width}x{height}", "400x225")
-        cache_busted_thumb_url = f"{raw_thumb_url}?cb={int(datetime.now().timestamp())}"
+        cache_busted_thumb_url = f"{raw_thumb_url}?cb={int(pendulum.now().timestamp())}"
         logger.info(f"Using cache-busted thumbnail URL: {cache_busted_thumb_url}")
 
         embed = (
@@ -225,7 +225,7 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
             discord.Embed(
                 description=f"**{channel_info.title if channel_info else ''}**",
                 color=0x9046FF,
-                timestamp=datetime.now(),
+                timestamp=pendulum.now(),
             )
             .set_author(
                 name=f"{event_sub.event.broadcaster_user_name} was live",

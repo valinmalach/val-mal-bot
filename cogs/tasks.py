@@ -1,6 +1,6 @@
-import datetime
 import logging
 
+import pendulum
 import polars as pl
 import sentry_sdk
 from discord.ext import tasks
@@ -32,7 +32,7 @@ class Tasks(Cog):
             self.check_birthdays.start()
 
     _quarter_hours = [
-        datetime.time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
+        pendulum.Time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
     ]
 
     @tasks.loop(minutes=1)
@@ -120,7 +120,7 @@ class Tasks(Cog):
         try:
             logger.info("Calculating current UTC time for birthday matching")
             now = (
-                datetime.datetime.now(datetime.timezone.utc)
+                pendulum.now("UTC")
                 .replace(second=0, microsecond=0)
                 .strftime("%Y-%m-%dT%H:%M:%S.000Z")
             )
@@ -145,7 +145,7 @@ class Tasks(Cog):
         logger.info(
             f"Handling birthday records, total to process: {birthdays_now.height}"
         )
-        now = datetime.datetime.now()
+        now = pendulum.now()
         logger.info(f"Processing {birthdays_now.height} birthday records.")
         for record in birthdays_now.iter_rows(named=True):
             user_id = record["id"]
