@@ -42,7 +42,7 @@ sentry_sdk.init(
     },
 )
 
-sentry_sdk.profiler.start_profiler()  # type: ignore
+sentry_sdk.profiler.start_profiler()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

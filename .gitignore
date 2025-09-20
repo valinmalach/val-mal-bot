@@ -164,3 +164,4 @@ setup.cfg
 upgrade_packages_uv.py
 *.code-workspace
 data/
+.codacy/
