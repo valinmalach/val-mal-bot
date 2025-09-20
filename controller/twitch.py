@@ -122,7 +122,7 @@ async def _twitch_webhook_task(broadcaster_id: int) -> None:
             "id": broadcaster_id,
             "channel_id": channel,
             "message_id": message_id,
-            "stream_id": stream_info.id,
+            "stream_id": int(stream_info.id),
             "stream_started_at": stream_info.started_at,
         }
         success, error = upsert_row_to_parquet(alert, "data/live_alerts.parquet")
