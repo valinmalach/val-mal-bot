@@ -59,7 +59,7 @@ class Events(Cog):
             guild = message.guild
             guild_id = GUILD_ID if guild is None else guild.id
             message_obj = {
-                "id": str(message.id),
+                "id": message.id,
                 "contents": message.content,
                 "guild_id": guild_id,
                 "author_id": message.author.id,
@@ -158,7 +158,7 @@ class Events(Cog):
             )
 
             user = {
-                "id": str(member.id),
+                "id": member.id,
                 "username": member.name,
                 "birthday": None,
                 "isBirthdayLeap": None,
@@ -375,7 +375,7 @@ class Events(Cog):
                 guild = after.guild
                 guild_id = GUILD_ID if guild is None else guild.id
                 after_message_obj = {
-                    "id": str(after.id),
+                    "id": after.id,
                     "contents": after.content,
                     "guild_id": guild_id,
                     "author_id": after.author.id,

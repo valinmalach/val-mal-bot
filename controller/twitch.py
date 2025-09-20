@@ -119,7 +119,7 @@ async def _twitch_webhook_task(broadcaster_id: str) -> None:
             return
 
         alert = {
-            "id": broadcaster_id,
+            "id": int(broadcaster_id),
             "channel_id": channel,
             "message_id": message_id,
             "stream_id": stream_info.id,

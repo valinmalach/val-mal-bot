@@ -98,7 +98,7 @@ class Birthday(GroupCog):
             )
             logger.info("Building birthday record payload for database")
             record = {
-                "id": str(interaction.user.id),
+                "id": interaction.user.id,
                 "username": interaction.user.name,
                 "birthday": (
                     datetime.strptime(
@@ -190,7 +190,7 @@ class Birthday(GroupCog):
 
             logger.info("Constructing payload to remove birthday record for database")
             record = {
-                "id": str(interaction.user.id),
+                "id": interaction.user.id,
                 "username": interaction.user.name,
                 "birthday": None,
                 "isBirthdayLeap": None,
