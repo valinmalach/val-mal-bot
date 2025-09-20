@@ -17,4 +17,5 @@ dependencies = [
     "sentry-sdk>=2.38.0",
     "truststore>=0.10.4",
     "uvicorn[standard]>=0.36.0",
+    "xmltodict>=1.0.2",
 ]

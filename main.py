@@ -15,7 +15,7 @@ from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 
 from constants import COGS
-from controller import twitch_router
+from controller import twitch_router, youtube_router
 from init import bot
 
 load_dotenv()
@@ -87,6 +87,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(twitch_router)
+app.include_router(youtube_router)
 
 
 @app.get("/health")
