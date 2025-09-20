@@ -633,8 +633,10 @@ async def update_alert(
                         f"Successfully edited embed for live update message_id={message_id}"
                     )
                     break
-                except Exception:
-                    logger.warning("Error on live embed edit; retrying after sleep")
+                except Exception as e:
+                    logger.warning(
+                        f"Error on live embed edit; retrying after sleep: {e}"
+                    )
                     await asyncio.sleep(1)
             logger.info("Sleeping for 60 seconds before next update cycle")
             await asyncio.sleep(60)
