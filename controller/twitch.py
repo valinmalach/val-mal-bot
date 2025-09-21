@@ -170,12 +170,8 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
         df = pl.read_parquet("data/live_alerts.parquet")
         alert_row = df.filter(pl.col("id") == int(broadcaster_id))
         if alert_row.height == 0:
-            logger.error(
-                f"Failed to fetch live alert for broadcaster_id={broadcaster_id}: No record found"
-            )
-            await send_message(
-                f"Failed to fetch live alert for {broadcaster_id}: No record found",
-                BOT_ADMIN_CHANNEL,
+            logger.warning(
+                f"Failed to fetch live alert for broadcaster_id={broadcaster_id}: No record found; Skipping"
             )
             return
 
@@ -254,26 +250,23 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
                 text=f"Online for {age} | Offline at",
             )
             logger.info(f"Set embed footer with age: {age}")
-        # retry on Discord Server Error
-        while True:
+        logger.info(
+            f"Attempting to edit embed message for offline event (message_id={message_id})"
+        )
+        try:
+            await edit_embed(message_id, embed, channel_id, content=content)
             logger.info(
-                f"Attempting to edit embed message for offline event (message_id={message_id})"
+                f"Successfully edited embed (offline) for message_id={message_id}"
             )
-            try:
-                await edit_embed(message_id, embed, channel_id, content=content)
-                logger.info(
-                    f"Successfully edited embed (offline) for message_id={message_id}"
-                )
-                break
-            except discord.NotFound:
-                logger.error(
-                    f"Message not found when editing offline embed for message_id={message_id}; continuing"
-                )
-                delete_row_from_parquet(int(broadcaster_id), "data/live_alerts.parquet")
-                break
-            except Exception as e:
-                logger.warning(f"Error while editing embed; retrying after sleep: {e}")
-                await asyncio.sleep(1)
+        except discord.NotFound:
+            logger.warning(
+                f"Message not found when editing offline embed for message_id={message_id}; continuing"
+            )
+            delete_row_from_parquet(int(broadcaster_id), "data/live_alerts.parquet")
+        except Exception as e:
+            logger.warning(
+                f"Error while editing embed; Continuing without aborting: {e}"
+            )
 
         logger.info(
             f"Proceeding to delete live_alert record for broadcaster_id={broadcaster_id}"

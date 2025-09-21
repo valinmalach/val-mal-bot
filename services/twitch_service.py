@@ -121,7 +121,7 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
                 return
 
         if response.status_code < 200 or response.status_code >= 300:
-            logger.error(f"Error fetching subscriptions: {response.status_code}")
+            logger.warning(f"Error fetching subscriptions: {response.status_code}")
             await send_message(
                 f"Failed to fetch subscriptions: {response.status_code} {response.text}",
                 BOT_ADMIN_CHANNEL,
@@ -170,7 +170,7 @@ async def get_user(id: int) -> Optional[UserInfo]:
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error(f"Failed to fetch user info: {response.status_code}")
+        logger.warning(f"Failed to fetch user info: {response.status_code}")
         await send_message(
             f"Failed to fetch user info: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
@@ -206,7 +206,7 @@ async def get_user_by_username(username: str) -> Optional[UserInfo]:
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error(f"Failed to fetch user info: {response.status_code}")
+        logger.warning(f"Failed to fetch user info: {response.status_code}")
         await send_message(
             f"Failed to fetch user info: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
@@ -229,7 +229,8 @@ async def subscribe_to_user(username: str) -> bool:
     logger.info(f"Getting user: {username}")
     user = await get_user_by_username(username)
     if not user:
-        logger.error(f"User not found: {username}")
+        logger.warning(f"User not found: {username}")
+        await send_message(f"User not found: {username}", BOT_ADMIN_CHANNEL)
         return False
     logger.info(f"Subscribing to user: {user.display_name} (id={user.id})")
 
@@ -260,7 +261,7 @@ async def subscribe_to_user(username: str) -> bool:
         headers["Authorization"] = f"Bearer {access_token}"
         response = httpx.post(url, headers=headers, json=body)
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error(f"Failed to subscribe to online event: {response.status_code}")
+        logger.warning(f"Failed to subscribe to online event: {response.status_code}")
         await send_message(
             f"Failed to subscribe to online event: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
@@ -287,7 +288,7 @@ async def subscribe_to_user(username: str) -> bool:
         headers["Authorization"] = f"Bearer {access_token}"
         response = httpx.post(url, headers=headers, json=body)
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error(f"Failed to subscribe to offline event: {response.status_code}")
+        logger.warning(f"Failed to subscribe to offline event: {response.status_code}")
         await send_message(
             f"Failed to subscribe to offline event: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
@@ -333,7 +334,7 @@ async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
             else:
                 return
         if response.status_code < 200 or response.status_code >= 300:
-            logger.error(f"Failed batch fetch of user infos: {response.status_code}")
+            logger.warning(f"Failed batch fetch of user infos: {response.status_code}")
             await send_message(
                 f"Failed to fetch users infos: {response.status_code} {response.text}",
                 BOT_ADMIN_CHANNEL,
@@ -371,7 +372,7 @@ async def get_channel(id: int) -> Optional[ChannelInfo]:
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error(f"Failed to fetch channel info: {response.status_code}")
+        logger.warning(f"Failed to fetch channel info: {response.status_code}")
         await send_message(
             f"Failed to fetch channel info: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
@@ -407,7 +408,7 @@ async def get_stream_info(broadcaster_id: int) -> Optional[StreamInfo]:
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error(f"Failed to fetch stream info: {response.status_code}")
+        logger.warning(f"Failed to fetch stream info: {response.status_code}")
         await send_message(
             f"Failed to fetch stream info: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
@@ -445,7 +446,7 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[VideoInfo]:
         else:
             return
     if response.status_code < 200 or response.status_code >= 300:
-        logger.error(f"Failed to fetch VOD info: {response.status_code}")
+        logger.warning(f"Failed to fetch VOD info: {response.status_code}")
         await send_message(
             f"Failed to fetch stream info: {response.status_code} {response.text}",
             BOT_ADMIN_CHANNEL,
@@ -522,7 +523,7 @@ async def update_alert(
                         )
                 except Exception as e:
                     sentry_sdk.capture_exception(e)
-                    logger.error(
+                    logger.warning(
                         f"Failed to fetch VOD info for broadcaster_id={broadcaster_id}: {e}",
                     )
                     await send_message(
@@ -566,27 +567,22 @@ async def update_alert(
                         inline=True,
                     )
                 logger.info("Editing embed message to display offline VOD")
-                # retry on Discord Server Error
-                while True:
-                    try:
-                        await edit_embed(message_id, embed, channel_id, content=content)
-                        logger.info(
-                            f"Successfully edited embed for offline event message_id={message_id}",
-                        )
-                        break
-                    except discord.NotFound:
-                        logger.error(
-                            f"Message not found when editing offline embed for message_id={message_id}; aborting"
-                        )
-                        delete_row_from_parquet(
-                            broadcaster_id, "data/live_alerts.parquet"
-                        )
-                        break
-                    except Exception as e:
-                        logger.warning(
-                            f"Error encountered while editing offline embed; retrying...\n{e}"
-                        )
-                        await asyncio.sleep(1)
+                try:
+                    await edit_embed(message_id, embed, channel_id, content=content)
+                    logger.info(
+                        f"Successfully edited embed for offline event message_id={message_id}",
+                    )
+                    break
+                except discord.NotFound:
+                    logger.warning(
+                        f"Message not found when editing offline embed for message_id={message_id}; aborting"
+                    )
+                    delete_row_from_parquet(broadcaster_id, "data/live_alerts.parquet")
+                    break
+                except Exception as e:
+                    logger.warning(
+                        f"Error encountered while editing offline embed; Continuing without aborting...\n{e}"
+                    )
                 return
             logger.info(f"Building live update embed for ongoing stream_id={stream_id}")
             # Cache-bust thumbnail URL to force Discord to refresh the image
@@ -637,27 +633,22 @@ async def update_alert(
             logger.info(
                 f"Editing embed message for live update message_id={message_id}"
             )
-            # retry on Discord Server Error
-            while True:
-                try:
-                    await edit_embed(
-                        message_id, embed, channel_id, view, content=content
-                    )
-                    logger.info(
-                        f"Successfully edited embed for live update message_id={message_id}"
-                    )
-                    break
-                except discord.NotFound:
-                    logger.error(
-                        f"Message not found when editing offline embed for message_id={message_id}; aborting"
-                    )
-                    delete_row_from_parquet(broadcaster_id, "data/live_alerts.parquet")
-                    break
-                except Exception as e:
-                    logger.warning(
-                        f"Error on live embed edit; retrying after sleep: {e}"
-                    )
-                    await asyncio.sleep(1)
+            try:
+                await edit_embed(message_id, embed, channel_id, view, content=content)
+                logger.info(
+                    f"Successfully edited embed for live update message_id={message_id}"
+                )
+                break
+            except discord.NotFound:
+                logger.warning(
+                    f"Message not found when editing offline embed for message_id={message_id}; aborting"
+                )
+                delete_row_from_parquet(broadcaster_id, "data/live_alerts.parquet")
+                break
+            except Exception as e:
+                logger.warning(
+                    f"Error on live embed edit; Continuing without aborting: {e}"
+                )
             logger.info("Sleeping for 60 seconds before next update cycle")
             await asyncio.sleep(60)
             logger.info(
@@ -669,7 +660,7 @@ async def update_alert(
             logger.info(f"Fetched updated stream_info for next cycle: {stream_info}")
 
     except Exception as e:
-        logger.error(
+        logger.warning(
             f"Error updating live alert message for broadcaster_id={broadcaster_id}: {e}"
         )
         sentry_sdk.capture_exception(e)
