@@ -31,8 +31,8 @@ from services import (
     get_age,
     parse_rfc3339,
     send_message,
-    token_manager,
 )
+from services.twitch_token_manager import token_manager
 
 load_dotenv()
 
