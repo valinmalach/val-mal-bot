@@ -1,4 +1,5 @@
 import logging
+import os
 
 import httpx
 import pendulum
@@ -149,6 +150,44 @@ class Tasks(Cog):
             sentry_sdk.capture_exception(e)
             await send_message(
                 f"Fatal error with Bluesky posts check: {e}",
+                BOT_ADMIN_CHANNEL,
+            )
+
+    @tasks.loop(time=pendulum.Time(0, 0, 0, 0))
+    @sentry_sdk.trace()
+    async def backup_data(self) -> None:
+        logger.info("Executing backup data task")
+        try:
+            # Placeholder for backup logic
+            logger.info("Backup data task is not yet implemented")
+
+            # Copy all files from data/ to C:/backups/data/[date]/
+            date_string = pendulum.now().format("YYYY-MM-DD")
+            backup_path = f"C:/backups/data/{date_string}/"
+
+            if not os.path.exists(backup_path):
+                os.makedirs(backup_path)
+
+            for filename in os.listdir("data/"):
+                source_file = os.path.join("data/", filename)
+                dest_file = os.path.join(backup_path, filename)
+                logger.info(f"Backing up {source_file} to {dest_file}")
+                try:
+                    with open(source_file, "rb") as src, open(dest_file, "wb") as dst:
+                        dst.write(src.read())
+                    logger.info(f"Successfully backed up {filename}")
+                except Exception as e:
+                    logger.error(f"Error backing up file {filename}: {e}")
+                    sentry_sdk.capture_exception(e)
+                    await send_message(
+                        f"Error backing up file {filename}: {e}",
+                        BOT_ADMIN_CHANNEL,
+                    )
+        except Exception as e:
+            logger.error(f"Fatal error during backup data task: {e}")
+            sentry_sdk.capture_exception(e)
+            await send_message(
+                f"Fatal error with backup data task: {e}",
                 BOT_ADMIN_CHANNEL,
             )
 
