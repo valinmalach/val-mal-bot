@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 
 from constants import BOT_ADMIN_CHANNEL, LIVE_ALERTS_ROLE, STREAM_ALERTS_CHANNEL
 from models import (
-    AuthResponse,
     ChannelInfo,
     ChannelInfoResponse,
     StreamInfo,
@@ -32,55 +31,26 @@ from services import (
     get_age,
     parse_rfc3339,
     send_message,
+    token_manager,
 )
 
 load_dotenv()
 
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
-TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
-access_token = ""
 
 logger = logging.getLogger(__name__)
 
 
 @sentry_sdk.trace()
 async def refresh_access_token() -> bool:
-    logger.info("Refreshing Twitch OAuth token by requesting new access token")
-    global access_token
-    url = f"https://id.twitch.tv/oauth2/token?client_id={TWITCH_CLIENT_ID}&client_secret={TWITCH_CLIENT_SECRET}&grant_type=client_credentials"
-    logger.info(f"Posting to token endpoint: {url}")
-
-    response = httpx.post(url)
-    logger.info(
-        f"Token endpoint response status={response.status_code}, body={response.text}"
-    )
-    if response.status_code < 200 or response.status_code >= 300:
-        logger.error(f"Token refresh failed with status={response.status_code}")
-        await send_message(
-            f"Failed to refresh access token: {response.status_code} {response.text}",
-            BOT_ADMIN_CHANNEL,
-        )
-        return False
-    auth_response = AuthResponse.model_validate(response.json())
-    logger.info(f"Token refresh returned token_type={auth_response.token_type}")
-    if auth_response.token_type == "bearer":
-        access_token = auth_response.access_token
-        logger.info("Access token updated successfully")
-        return True
-    else:
-        logger.error(f"Unexpected token type received: {auth_response.token_type}")
-        await send_message(
-            f"Unexpected token type: {auth_response.token_type}", BOT_ADMIN_CHANNEL
-        )
-        return False
+    return await token_manager.refresh_access_token()
 
 
 @sentry_sdk.trace()
 async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
     logger.info("Retrieving Twitch EventSub subscriptions list")
-    global access_token
-    if not access_token:
+    if not token_manager.access_token:
         refresh_success = await refresh_access_token()
         if not refresh_success:
             return
@@ -91,7 +61,7 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
     url = "https://api.twitch.tv/helix/eventsub/subscriptions"
     headers = {
         "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {access_token}",
+        "Authorization": f"Bearer {token_manager.access_token}",
     }
     logger.info(f"Subscriptions endpoint URL: {url}")
     while True:
@@ -111,7 +81,7 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
                 "Unauthorized when fetching subscriptions, refreshing token..."
             )
             if await refresh_access_token():
-                headers["Authorization"] = f"Bearer {access_token}"
+                headers["Authorization"] = f"Bearer {token_manager.access_token}"
                 response = httpx.get(
                     url,
                     headers=headers,
@@ -148,8 +118,7 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
 @sentry_sdk.trace()
 async def get_user(id: int) -> Optional[UserInfo]:
     logger.info(f"Retrieving Twitch user info for id={id}")
-    global access_token
-    if not access_token:
+    if not token_manager.access_token:
         refresh_success = await refresh_access_token()
         if not refresh_success:
             return
@@ -158,14 +127,14 @@ async def get_user(id: int) -> Optional[UserInfo]:
     logger.info(f"Requesting user endpoint: {url}")
     headers = {
         "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {access_token}",
+        "Authorization": f"Bearer {token_manager.access_token}",
     }
     response = httpx.get(url, headers=headers)
     logger.info(f"User endpoint response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching user, refreshing token...")
         if await refresh_access_token():
-            headers["Authorization"] = f"Bearer {access_token}"
+            headers["Authorization"] = f"Bearer {token_manager.access_token}"
             response = httpx.get(url, headers=headers)
         else:
             return
@@ -184,8 +153,7 @@ async def get_user(id: int) -> Optional[UserInfo]:
 @sentry_sdk.trace()
 async def get_user_by_username(username: str) -> Optional[UserInfo]:
     logger.info(f"Retrieving Twitch user info for username={username}")
-    global access_token
-    if not access_token:
+    if not token_manager.access_token:
         refresh_success = await refresh_access_token()
         if not refresh_success:
             return
@@ -194,14 +162,14 @@ async def get_user_by_username(username: str) -> Optional[UserInfo]:
     logger.info(f"Requesting user endpoint: {url}")
     headers = {
         "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {access_token}",
+        "Authorization": f"Bearer {token_manager.access_token}",
     }
     response = httpx.get(url, headers=headers)
     logger.info(f"User endpoint response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching user, refreshing token...")
         if await refresh_access_token():
-            headers["Authorization"] = f"Bearer {access_token}"
+            headers["Authorization"] = f"Bearer {token_manager.access_token}"
             response = httpx.get(url, headers=headers)
         else:
             return
@@ -220,8 +188,7 @@ async def get_user_by_username(username: str) -> Optional[UserInfo]:
 @sentry_sdk.trace()
 async def subscribe_to_user(username: str) -> bool:
     logger.info(f"Retrieving Twitch user info for username={username}")
-    global access_token
-    if not access_token:
+    if not token_manager.access_token:
         refresh_success = await refresh_access_token()
         if not refresh_success:
             return False
@@ -239,7 +206,7 @@ async def subscribe_to_user(username: str) -> bool:
     url = "https://api.twitch.tv/helix/eventsub/subscriptions"
     headers = {
         "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {access_token}",
+        "Authorization": f"Bearer {token_manager.access_token}",
     }
 
     logger.info(f"Subscribing to stream.online for user={user.display_name}")
@@ -258,7 +225,7 @@ async def subscribe_to_user(username: str) -> bool:
         logger.warning("Unauthorized subscribing to online event, refreshing token...")
         if not await refresh_access_token():
             return False
-        headers["Authorization"] = f"Bearer {access_token}"
+        headers["Authorization"] = f"Bearer {token_manager.access_token}"
         response = httpx.post(url, headers=headers, json=body)
     if response.status_code < 200 or response.status_code >= 300:
         logger.warning(f"Failed to subscribe to online event: {response.status_code}")
@@ -285,7 +252,7 @@ async def subscribe_to_user(username: str) -> bool:
         logger.warning("Unauthorized subscribing to offline event, refreshing token...")
         if not await refresh_access_token():
             return False
-        headers["Authorization"] = f"Bearer {access_token}"
+        headers["Authorization"] = f"Bearer {token_manager.access_token}"
         response = httpx.post(url, headers=headers, json=body)
     if response.status_code < 200 or response.status_code >= 300:
         logger.warning(f"Failed to subscribe to offline event: {response.status_code}")
@@ -302,8 +269,7 @@ async def subscribe_to_user(username: str) -> bool:
 @sentry_sdk.trace()
 async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
     logger.info(f"Retrieving Twitch user infos in batches for ids={ids}")
-    global access_token
-    if not access_token:
+    if not token_manager.access_token:
         refresh_success = await refresh_access_token()
         if not refresh_success:
             return
@@ -322,14 +288,14 @@ async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
         url = f"https://api.twitch.tv/helix/users?id={'&id='.join(batch)}"
         headers = {
             "Client-ID": TWITCH_CLIENT_ID,
-            "Authorization": f"Bearer {access_token}",
+            "Authorization": f"Bearer {token_manager.access_token}",
         }
         response = httpx.get(url, headers=headers)
         logger.info(f"Batch users API response status={response.status_code}")
         if response.status_code == 401:
             logger.warning("Unauthorized on batch users, refreshing token...")
             if await refresh_access_token():
-                headers["Authorization"] = f"Bearer {access_token}"
+                headers["Authorization"] = f"Bearer {token_manager.access_token}"
                 response = httpx.get(url, headers=headers)
             else:
                 return
@@ -350,8 +316,7 @@ async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
 @sentry_sdk.trace()
 async def get_channel(id: int) -> Optional[ChannelInfo]:
     logger.info(f"Retrieving Twitch channel info for broadcaster_id={id}")
-    global access_token
-    if not access_token:
+    if not token_manager.access_token:
         refresh_success = await refresh_access_token()
         if not refresh_success:
             return
@@ -360,14 +325,14 @@ async def get_channel(id: int) -> Optional[ChannelInfo]:
     logger.info(f"Requesting channel endpoint: {url}")
     headers = {
         "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {access_token}",
+        "Authorization": f"Bearer {token_manager.access_token}",
     }
     response = httpx.get(url, headers=headers)
     logger.info(f"Channel endpoint response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching channel, refreshing token...")
         if await refresh_access_token():
-            headers["Authorization"] = f"Bearer {access_token}"
+            headers["Authorization"] = f"Bearer {token_manager.access_token}"
             response = httpx.get(url, headers=headers)
         else:
             return
@@ -386,8 +351,7 @@ async def get_channel(id: int) -> Optional[ChannelInfo]:
 @sentry_sdk.trace()
 async def get_stream_info(broadcaster_id: int) -> Optional[StreamInfo]:
     logger.info(f"Retrieving Twitch stream info for broadcaster_id={broadcaster_id}")
-    global access_token
-    if not access_token:
+    if not token_manager.access_token:
         refresh_success = await refresh_access_token()
         if not refresh_success:
             return
@@ -396,14 +360,14 @@ async def get_stream_info(broadcaster_id: int) -> Optional[StreamInfo]:
     logger.info(f"Requesting stream info endpoint: {url}")
     headers = {
         "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {access_token}",
+        "Authorization": f"Bearer {token_manager.access_token}",
     }
     response = httpx.get(url, headers=headers)
     logger.info(f"Stream info API response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching stream info, refreshing token...")
         if await refresh_access_token():
-            headers["Authorization"] = f"Bearer {access_token}"
+            headers["Authorization"] = f"Bearer {token_manager.access_token}"
             response = httpx.get(url, headers=headers)
         else:
             return
@@ -424,8 +388,7 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[VideoInfo]:
     logger.info(
         f"Retrieving VOD list for user_id={user_id} to find stream_id={stream_id}"
     )
-    global access_token
-    if not access_token:
+    if not token_manager.access_token:
         refresh_success = await refresh_access_token()
         if not refresh_success:
             return
@@ -434,14 +397,14 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[VideoInfo]:
     logger.info(f"Requesting VOD endpoint: {url}")
     headers = {
         "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {access_token}",
+        "Authorization": f"Bearer {token_manager.access_token}",
     }
     response = httpx.get(url, headers=headers)
     logger.info(f"VOD API response status={response.status_code}")
     if response.status_code == 401:
         logger.warning("Unauthorized fetching VOD, refreshing token...")
         if await refresh_access_token():
-            headers["Authorization"] = f"Bearer {access_token}"
+            headers["Authorization"] = f"Bearer {token_manager.access_token}"
             response = httpx.get(url, headers=headers)
         else:
             return

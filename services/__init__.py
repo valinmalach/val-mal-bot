@@ -31,6 +31,7 @@ from .twitch_service import (
     subscribe_to_user,
     update_alert,
 )
+from .twitch_token_manager import token_manager
 
 __all__ = [
     "delete_row_from_parquet",
@@ -62,4 +63,5 @@ __all__ = [
     "get_users",
     "subscribe_to_user",
     "update_alert",
+    "token_manager",
 ]
