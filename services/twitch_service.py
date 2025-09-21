@@ -24,7 +24,6 @@ from models import (
     UserInfoResponse,
     VideoInfo,
     VideoInfoResponse,
-    channel_info,
 )
 from services import (
     delete_row_from_parquet,
@@ -540,8 +539,8 @@ async def update_alert(
         logger.info(f"Fetched stream_info for update: {stream_info}")
         user_info = await get_user(broadcaster_id)
         logger.info(f"Fetched user_info for update: {user_info}")
-        channel = await get_channel(broadcaster_id)
-        logger.info(f"Fetched channel_info for update: {channel}")
+        channel_info = await get_channel(broadcaster_id)
+        logger.info(f"Fetched channel_info for update: {channel_info}")
         if alert_row.height == 0 or stream_info is None:
             logger.info(
                 f"No live alert record found or stream ended for broadcaster_id={broadcaster_id}; Initiating offline sequence"
@@ -551,7 +550,7 @@ async def update_alert(
                 if channel_id == STREAM_ALERTS_CHANNEL
                 else None
             )
-            url = f"https://www.twitch.tv/{user_info.login if user_info else channel.broadcaster_login if channel else ''}"
+            url = f"https://www.twitch.tv/{user_info.login if user_info else channel_info.broadcaster_login if channel_info else ''}"
             started_at = parse_rfc3339(stream_started_at)
             started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
             now = pendulum.now()
@@ -567,7 +566,7 @@ async def update_alert(
                 message_id,
                 channel_id,
                 content,
-                channel,
+                channel_info,
             )
             return
         while alert_row.height != 0 and stream_info is not None:
@@ -602,7 +601,7 @@ async def update_alert(
                     message_id,
                     channel_id,
                     content,
-                    channel,
+                    channel_info,
                 )
             logger.info(f"Building live update embed for ongoing stream_id={stream_id}")
             # Cache-bust thumbnail URL to force Discord to refresh the image
