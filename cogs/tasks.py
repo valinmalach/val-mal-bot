@@ -32,6 +32,10 @@ class Tasks(Cog):
             self.check_posts.start()
         if not self.check_birthdays.is_running():
             self.check_birthdays.start()
+        if not self.renew_youtube_webhook_subscription.is_running():
+            self.renew_youtube_webhook_subscription.start()
+        if not self.backup_data.is_running():
+            self.backup_data.start()
 
     _quarter_hours = [
         pendulum.Time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
