@@ -1,5 +1,6 @@
 from .auth_response import AuthResponse
 from .channel_info import ChannelInfo, ChannelInfoResponse
+from .stream_chat_event_sub import StreamChatEventSub
 from .stream_info import StreamInfo, StreamInfoResponse
 from .stream_offline_event_sub import StreamOfflineEventSub
 from .stream_online_event_sub import StreamOnlineEventSub
@@ -11,6 +12,7 @@ __all__ = [
     "AuthResponse",
     "ChannelInfo",
     "ChannelInfoResponse",
+    "StreamChatEventSub",
     "StreamInfo",
     "StreamInfoResponse",
     "StreamOfflineEventSub",
