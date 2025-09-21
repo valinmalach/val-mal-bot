@@ -90,7 +90,7 @@ async def twitch_webhook(request: Request) -> Response:
 
         event_sub = StreamChatEventSub.model_validate(body)
         logger.info(f"Event subscription parsed: type={event_sub.subscription.type}")
-        if event_sub.subscription.type != "stream.online":
+        if event_sub.subscription.type != "channel.chat.message":
             logger.warning(
                 f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
             )
@@ -103,6 +103,8 @@ async def twitch_webhook(request: Request) -> Response:
         asyncio.create_task(_twitch_chat_webhook_task(event_sub))
 
         return Response(status_code=202)
+    except HTTPException as e:
+        raise e
     except Exception as e:
         logger.error(f"500: Internal server error on /webhook/twitch: {e}")
         sentry_sdk.capture_exception(e)

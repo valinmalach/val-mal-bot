@@ -42,7 +42,7 @@ class TwitchTokenManager:
         """Refresh the Twitch OAuth token by requesting a new access token."""
         logger.info("Refreshing Twitch OAuth token by requesting new access token")
 
-        url = f"https://id.twitch.tv/oauth2/token?client_id={TWITCH_CLIENT_ID}&client_secret={TWITCH_CLIENT_SECRET}&grant_type=client_credentials"
+        url = f"https://id.twitch.tv/oauth2/token?client_id={TWITCH_CLIENT_ID}&client_secret={TWITCH_CLIENT_SECRET}&grant_type=client_credentials&scope=user%3Abot+user%3Aread%3Achat+user%3Awrite%3Achat+channel%3Abot"
         logger.info(f"Posting to token endpoint: {url}")
 
         response = httpx.post(url)
