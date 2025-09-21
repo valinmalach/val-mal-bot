@@ -24,6 +24,7 @@ from models import (
     UserInfoResponse,
     VideoInfo,
     VideoInfoResponse,
+    channel_info,
 )
 from services import (
     delete_row_from_parquet,
@@ -428,6 +429,94 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[VideoInfo]:
 
 
 @sentry_sdk.trace()
+async def trigger_offline_sequence(
+    broadcaster_id: int,
+    stream_id: int,
+    stream_info: Optional[StreamInfo],
+    now: pendulum.DateTime,
+    user_info: Optional[UserInfo],
+    url: str,
+    age: str,
+    message_id: int,
+    channel_id: int,
+    content: Optional[str],
+    channel: Optional[ChannelInfo],
+) -> None:
+    vod_info = None
+    logger.info(
+        f"Beginning VOD lookup for broadcaster_id={broadcaster_id}, stream_id={stream_id}",
+    )
+    try:
+        vod_info = await get_stream_vod(broadcaster_id, stream_id)
+        if vod_info:
+            logger.info(f"VOD info found: {vod_info}")
+        else:
+            logger.warning(
+                f"No VOD info found for broadcaster_id={broadcaster_id}, stream_id={stream_id}",
+            )
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        logger.warning(
+            f"Failed to fetch VOD info for broadcaster_id={broadcaster_id}: {e}",
+        )
+        await send_message(
+            f"Failed to fetch VOD info for {broadcaster_id}: {e}",
+            BOT_ADMIN_CHANNEL,
+        )
+
+    if not vod_info:
+        logger.warning(
+            f"No VOD info found for broadcaster_id={broadcaster_id}",
+        )
+
+    logger.info(f"Building offline embed for previous stream_id={stream_id}")
+    embed = (
+        discord.Embed(
+            description=f"**{stream_info.title if stream_info else vod_info.title if vod_info else channel.title if channel else 'Unknown'}**",
+            color=0x9046FF,
+            timestamp=now,
+        )
+        .set_author(
+            name=f"{stream_info.user_name if stream_info else user_info.display_name if user_info else 'Unknown'} was live",
+            icon_url=user_info.profile_image_url if user_info else None,
+            url=url,
+        )
+        .add_field(
+            name="**Game**",
+            value=f"{stream_info.game_name if stream_info else channel.game_name if channel else 'Unknown'}",
+            inline=True,
+        )
+        .set_footer(
+            text=f"Online for {age} | Offline at",
+        )
+    )
+    if vod_info:
+        vod_url = vod_info.url
+        embed = embed.add_field(
+            name="**VOD**",
+            value=f"[**Click to view**]({vod_url})",
+            inline=True,
+        )
+    logger.info("Editing embed message to display offline VOD")
+    try:
+        await edit_embed(message_id, embed, channel_id, content=content)
+        logger.info(
+            f"Successfully edited embed for offline event message_id={message_id}",
+        )
+        return
+    except discord.NotFound:
+        logger.warning(
+            f"Message not found when editing offline embed for message_id={message_id}; aborting"
+        )
+        delete_row_from_parquet(broadcaster_id, "data/live_alerts.parquet")
+        return
+    except Exception as e:
+        logger.warning(
+            f"Error encountered while editing offline embed; Continuing without aborting...\n{e}"
+        )
+
+
+@sentry_sdk.trace()
 async def update_alert(
     broadcaster_id: int,
     channel_id: int,
@@ -451,6 +540,36 @@ async def update_alert(
         logger.info(f"Fetched stream_info for update: {stream_info}")
         user_info = await get_user(broadcaster_id)
         logger.info(f"Fetched user_info for update: {user_info}")
+        channel = await get_channel(broadcaster_id)
+        logger.info(f"Fetched channel_info for update: {channel}")
+        if alert_row.height == 0 or stream_info is None:
+            logger.info(
+                f"No live alert record found or stream ended for broadcaster_id={broadcaster_id}; Initiating offline sequence"
+            )
+            content = (
+                f"<@&{LIVE_ALERTS_ROLE}>"
+                if channel_id == STREAM_ALERTS_CHANNEL
+                else None
+            )
+            url = f"https://www.twitch.tv/{user_info.login if user_info else channel.broadcaster_login if channel else ''}"
+            started_at = parse_rfc3339(stream_started_at)
+            started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
+            now = pendulum.now()
+            age = get_age(started_at, limit_units=2)
+            await trigger_offline_sequence(
+                broadcaster_id,
+                stream_id,
+                stream_info,
+                now,
+                user_info,
+                url,
+                age,
+                message_id,
+                channel_id,
+                content,
+                channel,
+            )
+            return
         while alert_row.height != 0 and stream_info is not None:
             alert = alert_row.row(0, named=True)
             logger.info(
@@ -472,81 +591,19 @@ async def update_alert(
                 logger.info(
                     f"Stream ID changed; building offline VOD embed for previous stream_id={stream_id}",
                 )
-                vod_info = None
-                logger.info(
-                    f"Beginning VOD lookup for broadcaster_id={broadcaster_id}, stream_id={stream_id}",
+                await trigger_offline_sequence(
+                    broadcaster_id,
+                    stream_id,
+                    stream_info,
+                    now,
+                    user_info,
+                    url,
+                    age,
+                    message_id,
+                    channel_id,
+                    content,
+                    channel,
                 )
-                try:
-                    vod_info = await get_stream_vod(broadcaster_id, stream_id)
-                    if vod_info:
-                        logger.info(f"VOD info found: {vod_info}")
-                    else:
-                        logger.warning(
-                            f"No VOD info found for broadcaster_id={broadcaster_id}, stream_id={stream_id}",
-                        )
-                except Exception as e:
-                    sentry_sdk.capture_exception(e)
-                    logger.warning(
-                        f"Failed to fetch VOD info for broadcaster_id={broadcaster_id}: {e}",
-                    )
-                    await send_message(
-                        f"Failed to fetch VOD info for {broadcaster_id}: {e}",
-                        BOT_ADMIN_CHANNEL,
-                    )
-
-                if not vod_info:
-                    logger.warning(
-                        f"No VOD info found for broadcaster_id={broadcaster_id}",
-                    )
-
-                logger.info(
-                    f"Building offline embed for previous stream_id={stream_id}"
-                )
-                embed = (
-                    discord.Embed(
-                        description=f"**{stream_info.title}**",
-                        color=0x9046FF,
-                        timestamp=now,
-                    )
-                    .set_author(
-                        name=f"{stream_info.user_name} was live",
-                        icon_url=user_info.profile_image_url if user_info else None,
-                        url=url,
-                    )
-                    .add_field(
-                        name="**Game**",
-                        value=f"{stream_info.game_name}",
-                        inline=True,
-                    )
-                    .set_footer(
-                        text=f"Online for {age} | Offline at",
-                    )
-                )
-                if vod_info:
-                    vod_url = vod_info.url
-                    embed = embed.add_field(
-                        name="**VOD**",
-                        value=f"[**Click to view**]({vod_url})",
-                        inline=True,
-                    )
-                logger.info("Editing embed message to display offline VOD")
-                try:
-                    await edit_embed(message_id, embed, channel_id, content=content)
-                    logger.info(
-                        f"Successfully edited embed for offline event message_id={message_id}",
-                    )
-                    break
-                except discord.NotFound:
-                    logger.warning(
-                        f"Message not found when editing offline embed for message_id={message_id}; aborting"
-                    )
-                    delete_row_from_parquet(broadcaster_id, "data/live_alerts.parquet")
-                    break
-                except Exception as e:
-                    logger.warning(
-                        f"Error encountered while editing offline embed; Continuing without aborting...\n{e}"
-                    )
-                return
             logger.info(f"Building live update embed for ongoing stream_id={stream_id}")
             # Cache-bust thumbnail URL to force Discord to refresh the image
             raw_thumb_url = stream_info.thumbnail_url.replace(
