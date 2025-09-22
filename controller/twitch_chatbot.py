@@ -93,6 +93,12 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
 
 
 @sentry_sdk.trace()
+async def lurk(broadcaster_id: str, chatter_name: str) -> None:
+    message = f"{chatter_name} has gone to lurk. Eat, drink, sleep, water your pets, feed your plants. Make sure to take care of yourself and stay safe while you're away!"
+    await twitch_send_message(broadcaster_id, message)
+
+
+@sentry_sdk.trace()
 async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
     try:
         if not event_sub.event.message.text.startswith("!"):
@@ -107,8 +113,9 @@ async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
             or event_sub.event.source_broadcaster_user_id
             == event_sub.event.broadcaster_user_id
         ):
-            message = f"{event_sub.event.chatter_user_name} has gone to lurk. Eat, drink, sleep, water your pets, feed your plants. Make sure to take care of yourself and stay safe while you're away!"
-            await twitch_send_message(event_sub.event.broadcaster_user_id, message)
+            await lurk(
+                event_sub.event.broadcaster_user_id, event_sub.event.chatter_user_name
+            )
     except Exception as e:
         logger.error(f"Error processing Twitch chat webhook task: {e}")
         sentry_sdk.capture_exception(e)
