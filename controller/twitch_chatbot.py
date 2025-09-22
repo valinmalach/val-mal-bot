@@ -3,6 +3,7 @@ import logging
 import os
 from typing import Any
 
+import httpx
 import sentry_sdk
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException, Request, Response
@@ -26,6 +27,7 @@ from services import (
 load_dotenv()
 
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
+TWITCH_BOT_USER_ID = os.getenv("TWITCH_BOT_USER_ID")
 
 twitch_chatbot_router = APIRouter()
 
@@ -33,8 +35,52 @@ logger = logging.getLogger(__name__)
 
 
 @sentry_sdk.trace()
+async def twitch_send_message(broadcaster_id: str, message: str) -> None:
+    try:
+        data = {
+            "broadcaster_id": broadcaster_id,
+            "sender_id": TWITCH_BOT_USER_ID,
+            "message": message,
+        }
+        response = httpx.post("https://api.twitch.tv/helix/chat/messages", json=data)
+        if response.status_code < 200 or response.status_code >= 300:
+            logger.error(
+                f"Failed to send message: {response.status_code} {response.text}"
+            )
+            await send_message(
+                f"Failed to send message: {response.status_code} {response.text}",
+                BOT_ADMIN_CHANNEL,
+            )
+        logger.info("Message sent successfully")
+    except Exception as e:
+        logger.error(f"Error sending Twitch message: {e}")
+        sentry_sdk.capture_exception(e)
+        await send_message(f"Error sending Twitch message: {e}", BOT_ADMIN_CHANNEL)
+
+
+@sentry_sdk.trace()
 async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
-    pass
+    try:
+        if not event_sub.event.message.text.startswith("!"):
+            return
+        text_without_prefix = event_sub.event.message.text[1:]
+        command_parts = text_without_prefix.split(" ", 1)
+        command = command_parts[0].lower()
+        # args = command_parts[1] if len(command_parts) > 1 else ""
+
+        if command == "lurk" and (
+            event_sub.event.source_broadcaster_user_id is None
+            or event_sub.event.source_broadcaster_user_id
+            == event_sub.event.broadcaster_user_id
+        ):
+            message = f"{event_sub.event.chatter_user_name} has gone to lurk. Eat, drink, sleep, water your pets, feed your plants. Make sure to take care of yourself and stay safe while you're away!"
+            await twitch_send_message(event_sub.event.broadcaster_user_id, message)
+    except Exception as e:
+        logger.error(f"Error processing Twitch chat webhook task: {e}")
+        sentry_sdk.capture_exception(e)
+        await send_message(
+            f"Error processing Twitch chat webhook task: {e}", BOT_ADMIN_CHANNEL
+        )
 
 
 @twitch_chatbot_router.post("/webhook/twitch/chat")
