@@ -86,7 +86,6 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
                 BOT_ADMIN_CHANNEL,
             )
             return
-        logger.info("Message sent successfully")
     except Exception as e:
         logger.error(f"Error sending Twitch message: {e}")
         sentry_sdk.capture_exception(e)
@@ -222,26 +221,17 @@ async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
 
 @twitch_chatbot_router.post("/webhook/twitch/chat")
 async def twitch_webhook(request: Request) -> Response:
-    logger.info("Webhook received: twitch_webhook start")
     try:
         headers = request.headers
-        logger.info(f"Headers parsed: {dict(headers)}")
         body: dict[str, Any] = await request.json()
-        logger.info(f"Body JSON parsed: {body}")
 
         if headers.get(TWITCH_MESSAGE_TYPE) == "webhook_callback_verification":
             challenge = body.get("challenge", "")
-            logger.info(
-                f"Responding to callback verification with challenge={challenge}"
-            )
             return Response(challenge or "", status_code=200)
 
         if headers.get(TWITCH_MESSAGE_TYPE, "").lower() == "revocation":
             subscription: dict[str, Any] = body.get("subscription", {})
-            logger.info(f"{subscription.get('type', 'unknown')} notifications revoked!")
-            logger.info(f"reason: {subscription.get('status', 'No reason provided')}")
             condition = subscription.get("condition", {})
-            logger.info(f"condition: {condition}")
             await send_message(
                 f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}",
                 BOT_ADMIN_CHANNEL,
@@ -251,13 +241,10 @@ async def twitch_webhook(request: Request) -> Response:
         twitch_message_id = headers.get(TWITCH_MESSAGE_ID, "")
         twitch_message_timestamp = headers.get(TWITCH_MESSAGE_TIMESTAMP, "")
         body_str = (await request.body()).decode()
-        logger.info("Request raw body retrieved")
         message = get_hmac_message(
             twitch_message_id, twitch_message_timestamp, body_str
         )
-        logger.info("HMAC message constructed")
         secret_hmac = HMAC_PREFIX + get_hmac(TWITCH_WEBHOOK_SECRET, message)
-        logger.info(f"Computed secret_hmac={secret_hmac}")
 
         twitch_message_signature = headers.get(TWITCH_MESSAGE_SIGNATURE, "")
         if not verify_message(secret_hmac, twitch_message_signature):
@@ -269,10 +256,8 @@ async def twitch_webhook(request: Request) -> Response:
                 BOT_ADMIN_CHANNEL,
             )
             raise HTTPException(status_code=403)
-        logger.info("Signature verified")
 
         event_sub = StreamChatEventSub.model_validate(body)
-        logger.info(f"Event subscription parsed: type={event_sub.subscription.type}")
         if event_sub.subscription.type != "channel.chat.message":
             logger.warning(
                 f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"

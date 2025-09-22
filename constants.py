@@ -49,7 +49,7 @@ OWNER_ID = 389318636201967628
 
 COGS = ["cogs.admin", "cogs.birthday", "cogs.events", "cogs.tasks"]
 
-DEFAULT_MISSING_CONTENT = "`Message content not found in database or cache`"
+DEFAULT_MISSING_CONTENT = "`Message content not found in cache`"
 
 
 class Months(Enum):

@@ -52,13 +52,10 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 @sentry_sdk.trace()
 async def main() -> None:
-    logger.info("Starting main function")
     try:
-        logger.info("Checking DISCORD_TOKEN presence")
         if not DISCORD_TOKEN:
             logger.error("DISCORD_TOKEN is not set, aborting startup")
             raise ValueError("DISCORD_TOKEN is not set in the environment variables.")
-        logger.info(f"DISCORD_TOKEN found, loading extensions: {COGS}")
         bot.remove_command("help")
         results = await asyncio.gather(
             *(bot.load_extension(ext) for ext in COGS), return_exceptions=True
@@ -67,10 +64,7 @@ async def main() -> None:
             if isinstance(res, Exception):
                 logger.error(f"Failed to load extension {ext}: {res}")
                 sentry_sdk.capture_exception(res)
-            else:
-                logger.info(f"Successfully loaded extension {ext}")
 
-        logger.info("Starting bot with DISCORD_TOKEN")
         await bot.start(DISCORD_TOKEN)
     except Exception as e:
         logger.error(f"Error in main: {e}")
@@ -80,7 +74,6 @@ async def main() -> None:
 @asynccontextmanager
 @sentry_sdk.trace()
 async def lifespan(app: FastAPI):
-    logger.info("FastAPI app is starting, initializing bot")
     asyncio.create_task(main())
     yield
 
@@ -94,14 +87,12 @@ app.include_router(twitch_chatbot_router)
 @app.get("/health")
 @sentry_sdk.trace()
 async def health() -> Response:
-    logger.info("Health check endpoint called")
     return Response("Health check OK", status_code=204)
 
 
 @app.get("/robots.txt")
 @sentry_sdk.trace()
 async def robots_txt() -> Response:
-    logger.info("Serving robots.txt")
     if not os.path.exists("robots.txt"):
         logger.warning("robots.txt file not found, returning empty response")
         raise HTTPException(status_code=404)

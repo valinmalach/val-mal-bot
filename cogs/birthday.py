@@ -33,11 +33,7 @@ class Birthday(GroupCog):
         day: Range[int, 1, 31],
         timezone: str = "UTC",
     ) -> None:
-        logger.info(
-            f"Validating and setting birthday for user {interaction.user.id} with month={month}, day={day}, timezone={timezone}"
-        )
         try:
-            logger.info(f"Validating provided timezone: {timezone}")
             if timezone not in pendulum.timezones():
                 await interaction.response.send_message(
                     f"Sorry. I've never heard of the timezone {timezone}. "
@@ -47,7 +43,6 @@ class Birthday(GroupCog):
                 logger.warning(f"Invalid timezone provided: {timezone}")
                 return
 
-            logger.info(f"Validating provided day {day} for month {month.name}")
             if day > MAX_DAYS[month]:
                 await interaction.response.send_message(
                     f"{month.name} doesn't have that many days..."
@@ -55,16 +50,10 @@ class Birthday(GroupCog):
                 logger.warning(f"Invalid day {day} for month {month.name}")
                 return
 
-            logger.info(f"Creating timezone object for timezone: {timezone}")
             now = pendulum.now(timezone).replace(second=0, microsecond=0)
-            logger.info(f"Current DateTime in timezone {timezone}: {now}")
             year = now.year
 
-            logger.info(
-                f"Checking if date {year}-{month.value}-{day} requires leap year handling"
-            )
             if month == Months.February and day == 29:
-                logger.info("Applying leap year logic for Feb 29 birthday")
                 try:
                     birthday_this_year = DateTime(
                         year=year,
@@ -76,12 +65,8 @@ class Birthday(GroupCog):
                     birthday_this_year = None
 
                 if birthday_this_year is None or birthday_this_year <= now:
-                    logger.info(
-                        "Feb 29 invalid for current year; locating next leap year"
-                    )
                     year = get_next_leap(year)
             else:
-                logger.info("Calculating next occurrence for non-leap date")
                 birthday_this_year = DateTime(
                     year=year,
                     month=month.value,
@@ -91,10 +76,6 @@ class Birthday(GroupCog):
                 if birthday_this_year <= now:
                     year += 1
 
-            logger.info(
-                f"Constructed birthday record for database insertion: year={year}, month={month}, day={day}"
-            )
-            logger.info("Building birthday record payload for database")
             record = {
                 "id": interaction.user.id,
                 "username": interaction.user.name,
@@ -109,25 +90,17 @@ class Birthday(GroupCog):
                 ),
                 "isBirthdayLeap": month == Months.February and day == 29,
             }
-            logger.info(
-                f"Updating birthday in database for user ID {interaction.user.id}"
-            )
             success, error = update_birthday(record)
-            logger.info(f"Database update returned success status: {success}")
             if not success:
                 await self._set_birthday_failed(interaction, error)
                 return
 
             if month == Months.February and day == 29:
-                logger.info(
-                    f"Sending response for leap year birthday user={interaction.user.id}"
-                )
                 await interaction.response.send_message(
                     "That's an unfortunate birthday 😦\n\n"
                     + "Ah well, looks like I'll only wish you every 4 years!"
                 )
             else:
-                logger.info(f"Birthday set successfully for user={interaction.user.id}")
                 await interaction.response.send_message(
                     "I've remembered your birthday! "
                     + "I'll wish you at midnight of your selected timezone!"
@@ -160,7 +133,6 @@ class Birthday(GroupCog):
         self,
         interaction: Interaction,
     ) -> None:
-        logger.info(f"Removing birthday record for user {interaction.user.id}")
         try:
             df = pl.read_parquet("data/users.parquet")
             existing_user_row = df.filter(pl.col("id") == interaction.user.id)
@@ -170,7 +142,6 @@ class Birthday(GroupCog):
                 existing_user = existing_user_row.row(0, named=True)
 
             if existing_user is None:
-                logger.info(f"No user record found for user {interaction.user.id}")
                 await send_message(
                     f"User {interaction.user.name} ({interaction.user.id}) attempted to remove a birthday but had no record.",
                     BOT_ADMIN_CHANNEL,
@@ -180,7 +151,6 @@ class Birthday(GroupCog):
                 )
                 return
 
-            logger.info("Constructing payload to remove birthday record for database")
             record = {
                 "id": interaction.user.id,
                 "username": interaction.user.name,
@@ -195,7 +165,6 @@ class Birthday(GroupCog):
                 await self._forget_birthday_failed(interaction, error)
                 return
 
-            logger.info(f"Birthday removal successful for user {interaction.user.id}")
             try:
                 if existing_user.get("birthday"):
                     await interaction.response.send_message(
@@ -222,7 +191,6 @@ class Birthday(GroupCog):
     async def _set_birthday_failed(
         self, interaction: Interaction, e: Exception | str | None
     ) -> None:
-        logger.info(f"Notifying user {interaction.user.id} of birthday set failure")
         mention = (
             interaction.guild.owner.mention
             if interaction.guild and interaction.guild.owner
@@ -241,7 +209,6 @@ class Birthday(GroupCog):
     async def _forget_birthday_failed(
         self, interaction: Interaction, e: Exception | str | None
     ) -> None:
-        logger.info(f"Notifying user {interaction.user.id} of birthday removal failure")
         mention = (
             interaction.guild.owner.mention
             if interaction.guild and interaction.guild.owner

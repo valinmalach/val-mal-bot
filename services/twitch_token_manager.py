@@ -39,16 +39,8 @@ class TwitchTokenManager:
 
     @sentry_sdk.trace()
     async def refresh_access_token(self) -> bool:
-        """Refresh the Twitch OAuth token by requesting a new access token."""
-        logger.info("Refreshing Twitch OAuth token by requesting new access token")
-
         url = f"https://id.twitch.tv/oauth2/token?client_id={TWITCH_CLIENT_ID}&client_secret={TWITCH_CLIENT_SECRET}&grant_type=client_credentials&scope=user%3Abot+user%3Aread%3Achat+user%3Awrite%3Achat+channel%3Abot"
-        logger.info(f"Posting to token endpoint: {url}")
-
         response = httpx.post(url)
-        logger.info(
-            f"Token endpoint response status={response.status_code}, body={response.text}"
-        )
 
         if response.status_code < 200 or response.status_code >= 300:
             logger.error(f"Token refresh failed with status={response.status_code}")
@@ -59,11 +51,9 @@ class TwitchTokenManager:
             return False
 
         auth_response = AuthResponse.model_validate(response.json())
-        logger.info(f"Token refresh returned token_type={auth_response.token_type}")
 
         if auth_response.token_type == "bearer":
             self._access_token = auth_response.access_token
-            logger.info("Access token updated successfully")
             return True
         else:
             logger.error(f"Unexpected token type received: {auth_response.token_type}")
@@ -73,5 +63,4 @@ class TwitchTokenManager:
             return False
 
 
-# Create a global instance
 token_manager = TwitchTokenManager()
