@@ -63,6 +63,7 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
             "broadcaster_id": broadcaster_id,
             "sender_id": TWITCH_BOT_USER_ID,
             "message": message,
+            "for_source_only": False,
         }
         response = httpx.post(url, headers=headers, json=data)
         if response.status_code == 401:
