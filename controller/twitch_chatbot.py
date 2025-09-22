@@ -94,13 +94,93 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
 
 
 @sentry_sdk.trace()
-async def lurk(broadcaster_id: str, chatter_name: str) -> None:
+async def lurk(event_sub: StreamChatEventSub) -> None:
+    broadcaster_id = event_sub.event.broadcaster_user_id
+    chatter_name = event_sub.event.chatter_user_name
     message = f"{chatter_name} has gone to lurk. Eat, drink, sleep, water your pets, feed your plants. Make sure to take care of yourself and stay safe while you're away!"
     await twitch_send_message(broadcaster_id, message)
 
 
 @sentry_sdk.trace()
+async def discord(event_sub: StreamChatEventSub) -> None:
+    broadcaster_id = event_sub.event.broadcaster_user_id
+    message = "https://discord.gg/tkJyNJH2k7 Come join us and hang out! This is also where all my updates on streams and whatnot go"
+    await twitch_send_message(broadcaster_id, message)
+
+
+@sentry_sdk.trace()
+async def kofi(event_sub: StreamChatEventSub) -> None:
+    broadcaster_id = event_sub.event.broadcaster_user_id
+    message = "Idk why you would want to donate, but here: https://ko-fi.com/valinmalach But always remember to take care of yourselves first!"
+    await twitch_send_message(broadcaster_id, message)
+
+
+@sentry_sdk.trace()
+async def megathon(event_sub: StreamChatEventSub) -> None:
+    broadcaster_id = event_sub.event.broadcaster_user_id
+    message = "I'm holding a megathon until 31st October! Click here to see the goals: https://x.com/ValinMalach/status/1949087837296726406"
+    await twitch_send_message(broadcaster_id, message)
+    message = "Subs, bits, donos to my kofi and throne all contribute to the goals! https://ko-fi.com/valinmalach https://throne.com/valinmalach"
+    await twitch_send_message(broadcaster_id, message)
+
+
+@sentry_sdk.trace()
+async def raid(event_sub: StreamChatEventSub) -> None:
+    broadcaster_id = event_sub.event.broadcaster_user_id
+    message = "valinmArrive valinmRaid Valin Raid valinmArrive valinmRaid Valin Raid valinmArrive valinmRaid Your Fallen Angel is here valinmHeart valinmHeart"
+    await twitch_send_message(broadcaster_id, message)
+    message = "DinoDance DinoDance Valin Raid DinoDance DinoDance Valin Raid DinoDance DinoDance Your Fallen Angel is here <3 <3"
+    await twitch_send_message(broadcaster_id, message)
+
+
+@sentry_sdk.trace()
+async def socials(event_sub: StreamChatEventSub) -> None:
+    broadcaster_id = event_sub.event.broadcaster_user_id
+    message = "Twitter: https://twitter.com/ValinMalach Bluesky: https://bsky.app/profile/valinmalach.bsky.social"
+    await twitch_send_message(broadcaster_id, message)
+
+
+@sentry_sdk.trace()
+async def throne(event_sub: StreamChatEventSub) -> None:
+    broadcaster_id = event_sub.event.broadcaster_user_id
+    message = "There's really only one thing on it for now lol... https://throne.com/valinmalach If I do add more, they will all be for stream!"
+    await twitch_send_message(broadcaster_id, message)
+
+
+@sentry_sdk.trace()
+async def unlurk(event_sub: StreamChatEventSub) -> None:
+    broadcaster_id = event_sub.event.broadcaster_user_id
+    chatter_name = event_sub.event.chatter_user_name
+    message = f"{chatter_name} has returned from their lurk. Welcome back! Hope you had a good break and are ready to hang out again!"
+    await twitch_send_message(broadcaster_id, message)
+
+
+@sentry_sdk.trace()
+async def hug(event_sub: StreamChatEventSub, args: str) -> None:
+    target = args.split(" ", 1)[0] if args else ""
+    broadcaster_id = event_sub.event.broadcaster_user_id
+    chatter_name = event_sub.event.chatter_user_name
+    if not target:
+        message = f"{chatter_name} gives everyone a big warm hug. How sweet! <3"
+        await twitch_send_message(broadcaster_id, message)
+        return
+    message = f"{chatter_name} gives {target} a big warm hug. How sweet! <3"
+    await twitch_send_message(broadcaster_id, message)
+
+
+@sentry_sdk.trace()
 async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
+    user_command_dict = {
+        "lurk": lurk,
+        "discord": discord,
+        "kofi": kofi,
+        "megathon": megathon,
+        "raid": raid,
+        "socials": socials,
+        "throne": throne,
+        "unlurk": unlurk,
+        "hug": hug,
+    }
     try:
         has_bot_badge = any(
             badge.set_id == "bot-badge" for badge in event_sub.event.badges or []
@@ -110,7 +190,7 @@ async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
         text_without_prefix = event_sub.event.message.text[1:]
         command_parts = text_without_prefix.split(" ", 1)
         command = command_parts[0].lower()
-        # args = command_parts[1] if len(command_parts) > 1 else ""
+        args = command_parts[1] if len(command_parts) > 1 else ""
 
         # "badges": [
         #     {
@@ -119,14 +199,14 @@ async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
         #         "info": ""
         #     }
         # ],
-        if command == "lurk" and (
-            event_sub.event.source_broadcaster_user_id is None
-            or event_sub.event.source_broadcaster_user_id
-            == event_sub.event.broadcaster_user_id
+        if (
+            event_sub.event.source_broadcaster_user_id is not None
+            and event_sub.event.source_broadcaster_user_id
+            != event_sub.event.broadcaster_user_id
         ):
-            await lurk(
-                event_sub.event.broadcaster_user_id, event_sub.event.chatter_user_name
-            )
+            return
+
+        user_command_dict.get(command, lambda _: None)(event_sub, *args)
     except Exception as e:
         logger.error(f"Error processing Twitch chat webhook task: {e}")
         sentry_sdk.capture_exception(e)
