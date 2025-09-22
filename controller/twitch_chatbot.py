@@ -23,9 +23,11 @@ from services import (
     send_message,
     verify_message,
 )
+from services.twitch_token_manager import token_manager
 
 load_dotenv()
 
+TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 TWITCH_BOT_USER_ID = os.getenv("TWITCH_BOT_USER_ID")
 
@@ -35,22 +37,54 @@ logger = logging.getLogger(__name__)
 
 
 @sentry_sdk.trace()
+async def refresh_access_token() -> bool:
+    return await token_manager.refresh_access_token()
+
+
+@sentry_sdk.trace()
 async def twitch_send_message(broadcaster_id: str, message: str) -> None:
     try:
+        if not token_manager.access_token:
+            refresh_success = await refresh_access_token()
+            if not refresh_success:
+                logger.warning("No access token available and failed to refresh")
+                await send_message(
+                    "No access token available and failed to refresh",
+                    BOT_ADMIN_CHANNEL,
+                )
+                return
+
+        url = "https://api.twitch.tv/helix/chat/messages"
+        headers = {
+            "Client-ID": TWITCH_CLIENT_ID,
+            "Authorization": f"Bearer {token_manager.access_token}",
+        }
         data = {
             "broadcaster_id": broadcaster_id,
             "sender_id": TWITCH_BOT_USER_ID,
             "message": message,
         }
-        response = httpx.post("https://api.twitch.tv/helix/chat/messages", json=data)
+        response = httpx.post(url, headers=headers, json=data)
+        if response.status_code == 401:
+            logger.warning("Unauthorized fetching user, refreshing token...")
+            if await refresh_access_token():
+                headers["Authorization"] = f"Bearer {token_manager.access_token}"
+                response = httpx.get(url, headers=headers)
+            else:
+                logger.warning("Unauthorized and failed to refresh token")
+                await send_message(
+                    "Unauthorized and failed to refresh token", BOT_ADMIN_CHANNEL
+                )
+                return
         if response.status_code < 200 or response.status_code >= 300:
-            logger.error(
+            logger.warning(
                 f"Failed to send message: {response.status_code} {response.text}"
             )
             await send_message(
                 f"Failed to send message: {response.status_code} {response.text}",
                 BOT_ADMIN_CHANNEL,
             )
+            return
         logger.info("Message sent successfully")
     except Exception as e:
         logger.error(f"Error sending Twitch message: {e}")
