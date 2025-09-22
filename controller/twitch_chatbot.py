@@ -101,13 +101,23 @@ async def lurk(broadcaster_id: str, chatter_name: str) -> None:
 @sentry_sdk.trace()
 async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
     try:
-        if not event_sub.event.message.text.startswith("!"):
+        has_bot_badge = any(
+            badge.set_id == "bot-badge" for badge in event_sub.event.badges or []
+        )
+        if not event_sub.event.message.text.startswith("!") or has_bot_badge:
             return
         text_without_prefix = event_sub.event.message.text[1:]
         command_parts = text_without_prefix.split(" ", 1)
         command = command_parts[0].lower()
         # args = command_parts[1] if len(command_parts) > 1 else ""
 
+        # "badges": [
+        #     {
+        #         "set_id": "moderator",
+        #         "id": "1",
+        #         "info": ""
+        #     }
+        # ],
         if command == "lurk" and (
             event_sub.event.source_broadcaster_user_id is None
             or event_sub.event.source_broadcaster_user_id
