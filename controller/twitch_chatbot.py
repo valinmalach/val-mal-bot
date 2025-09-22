@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 import httpx
 import sentry_sdk
@@ -94,7 +94,7 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
 
 
 @sentry_sdk.trace()
-async def lurk(event_sub: StreamChatEventSub) -> None:
+async def lurk(event_sub: StreamChatEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     chatter_name = event_sub.event.chatter_user_name
     message = f"{chatter_name} has gone to lurk. Eat, drink, sleep, water your pets, feed your plants. Make sure to take care of yourself and stay safe while you're away!"
@@ -102,21 +102,21 @@ async def lurk(event_sub: StreamChatEventSub) -> None:
 
 
 @sentry_sdk.trace()
-async def discord(event_sub: StreamChatEventSub) -> None:
+async def discord(event_sub: StreamChatEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     message = "https://discord.gg/tkJyNJH2k7 Come join us and hang out! This is also where all my updates on streams and whatnot go"
     await twitch_send_message(broadcaster_id, message)
 
 
 @sentry_sdk.trace()
-async def kofi(event_sub: StreamChatEventSub) -> None:
+async def kofi(event_sub: StreamChatEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     message = "Idk why you would want to donate, but here: https://ko-fi.com/valinmalach But always remember to take care of yourselves first!"
     await twitch_send_message(broadcaster_id, message)
 
 
 @sentry_sdk.trace()
-async def megathon(event_sub: StreamChatEventSub) -> None:
+async def megathon(event_sub: StreamChatEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     message = "I'm holding a megathon until 31st October! Click here to see the goals: https://x.com/ValinMalach/status/1949087837296726406"
     await twitch_send_message(broadcaster_id, message)
@@ -125,7 +125,7 @@ async def megathon(event_sub: StreamChatEventSub) -> None:
 
 
 @sentry_sdk.trace()
-async def raid(event_sub: StreamChatEventSub) -> None:
+async def raid(event_sub: StreamChatEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     message = "valinmArrive valinmRaid Valin Raid valinmArrive valinmRaid Valin Raid valinmArrive valinmRaid Your Fallen Angel is here valinmHeart valinmHeart"
     await twitch_send_message(broadcaster_id, message)
@@ -134,21 +134,21 @@ async def raid(event_sub: StreamChatEventSub) -> None:
 
 
 @sentry_sdk.trace()
-async def socials(event_sub: StreamChatEventSub) -> None:
+async def socials(event_sub: StreamChatEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     message = "Twitter: https://twitter.com/ValinMalach Bluesky: https://bsky.app/profile/valinmalach.bsky.social"
     await twitch_send_message(broadcaster_id, message)
 
 
 @sentry_sdk.trace()
-async def throne(event_sub: StreamChatEventSub) -> None:
+async def throne(event_sub: StreamChatEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     message = "There's really only one thing on it for now lol... https://throne.com/valinmalach If I do add more, they will all be for stream!"
     await twitch_send_message(broadcaster_id, message)
 
 
 @sentry_sdk.trace()
-async def unlurk(event_sub: StreamChatEventSub) -> None:
+async def unlurk(event_sub: StreamChatEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     chatter_name = event_sub.event.chatter_user_name
     message = f"{chatter_name} has returned from their lurk. Welcome back! Hope you had a good break and are ready to hang out again!"
@@ -170,7 +170,9 @@ async def hug(event_sub: StreamChatEventSub, args: str) -> None:
 
 @sentry_sdk.trace()
 async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
-    user_command_dict = {
+    user_command_dict: dict[
+        str, Callable[[StreamChatEventSub, str], Awaitable[None]]
+    ] = {
         "lurk": lurk,
         "discord": discord,
         "kofi": kofi,
@@ -206,7 +208,10 @@ async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
         ):
             return
 
-        user_command_dict.get(command, lambda _: None)(event_sub, *args)
+        async def default_command(event_sub: StreamChatEventSub, args: str) -> None:
+            pass
+
+        await user_command_dict.get(command, default_command)(event_sub, args)
     except Exception as e:
         logger.error(f"Error processing Twitch chat webhook task: {e}")
         sentry_sdk.capture_exception(e)
