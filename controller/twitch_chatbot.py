@@ -18,6 +18,7 @@ from constants import (
 )
 from models import StreamChatEventSub
 from services import (
+    get_channel,
     get_hmac,
     get_hmac_message,
     send_message,
@@ -39,6 +40,20 @@ logger = logging.getLogger(__name__)
 @sentry_sdk.trace()
 async def refresh_access_token() -> bool:
     return await token_manager.refresh_access_token()
+
+
+@sentry_sdk.trace()
+async def check_mod(event_sub: StreamChatEventSub) -> bool:
+    has_mod = any(
+        badge.set_id in {"moderator", "broadcaster"}
+        for badge in event_sub.event.badges or []
+    )
+    broadcaster_id = event_sub.event.broadcaster_user_id
+    if not has_mod:
+        message = "Only moderators can use this command."
+        await twitch_send_message(broadcaster_id, message)
+        return False
+    return True
 
 
 @sentry_sdk.trace()
@@ -168,6 +183,37 @@ async def hug(event_sub: StreamChatEventSub, args: str) -> None:
 
 
 @sentry_sdk.trace()
+async def shoutout(event_sub: StreamChatEventSub, args: str) -> None:
+    if not await check_mod(event_sub):
+        return
+
+    broadcaster_id = event_sub.event.broadcaster_user_id
+    target = (args.split(" ", 1)[0] if args else "") or broadcaster_id
+
+    target_channel = await get_channel(int(target))
+    if not target_channel:
+        message = "User not found."
+        await twitch_send_message(broadcaster_id, message)
+        return
+
+    message = f"Go follow {target_channel.broadcaster_name} at https://www.twitch.tv/{target_channel.broadcaster_login}. They were last seen playing {target_channel.game_name}."
+    await twitch_send_message(broadcaster_id, message)
+
+
+@sentry_sdk.trace()
+async def everything(event_sub: StreamChatEventSub, args: str) -> None:
+    if not await check_mod(event_sub):
+        return
+
+    await discord(event_sub, args)
+    await socials(event_sub, args)
+    await kofi(event_sub, args)
+    await throne(event_sub, args)
+    await megathon(event_sub, args)
+    await raid(event_sub, args)
+
+
+@sentry_sdk.trace()
 async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
     user_command_dict: dict[
         str, Callable[[StreamChatEventSub, str], Awaitable[None]]
@@ -181,6 +227,8 @@ async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
         "throne": throne,
         "unlurk": unlurk,
         "hug": hug,
+        "so": shoutout,
+        "everything": everything,
     }
     try:
         has_bot_badge = any(
@@ -193,13 +241,6 @@ async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
         command = command_parts[0].lower()
         args = command_parts[1] if len(command_parts) > 1 else ""
 
-        # "badges": [
-        #     {
-        #         "set_id": "moderator",
-        #         "id": "1",
-        #         "info": ""
-        #     }
-        # ],
         if (
             event_sub.event.source_broadcaster_user_id is not None
             and event_sub.event.source_broadcaster_user_id

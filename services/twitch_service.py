@@ -309,7 +309,7 @@ async def get_channel(id: int) -> Optional[ChannelInfo]:
     if response.status_code < 200 or response.status_code >= 300:
         logger.warning(f"Failed to fetch channel info: {response.status_code}")
         await send_message(
-            f"Failed to fetch channel info: {response.status_code} {response.text}",
+            f"Failed to fetch channel info: {response}",
             BOT_ADMIN_CHANNEL,
         )
         return
