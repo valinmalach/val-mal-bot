@@ -58,12 +58,13 @@ async def _twitch_webhook_task(broadcaster_id: int) -> None:
         while not stream_info:
             await asyncio.sleep(1)
             stream_info = await get_stream_info(broadcaster_id)
+        
+        channel = PROMO_CHANNEL
+        if stream_info.user_login == "valinmalach":
+            channel = STREAM_ALERTS_CHANNEL
+            # Send stream start message
+            # Activate shoutout queue
 
-        channel = (
-            STREAM_ALERTS_CHANNEL
-            if stream_info.user_login == "valinmalach"
-            else PROMO_CHANNEL
-        )
         content = (
             f"<@&{LIVE_ALERTS_ROLE}>" if channel == STREAM_ALERTS_CHANNEL else None
         )
@@ -151,6 +152,10 @@ async def _twitch_webhook_task(broadcaster_id: int) -> None:
 async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     try:
+        if event_sub.event.broadcaster_user_login == "valinmalach":
+            # Deactivate shoutout queue
+            pass
+
         user_info = await get_user(int(broadcaster_id))
         channel_info = await get_channel(int(broadcaster_id))
 

@@ -21,6 +21,7 @@ from services import (
     get_channel,
     get_hmac,
     get_hmac_message,
+    get_user_by_username,
     send_message,
     verify_message,
 )
@@ -188,9 +189,14 @@ async def shoutout(event_sub: StreamChatEventSub, args: str) -> None:
         return
 
     broadcaster_id = event_sub.event.broadcaster_user_id
-    target = (args.split(" ", 1)[0] if args else "") or broadcaster_id
+    target = (
+        args.split(" ", 1)[0] if args else ""
+    ) or event_sub.event.broadcaster_user_login
+    if target.startswith("@"):
+        target = target[1:]
 
-    target_channel = await get_channel(int(target))
+    user = await get_user_by_username(target)
+    target_channel = await get_channel(int(user.id)) if user else None
     if not target_channel:
         message = "User not found."
         await twitch_send_message(broadcaster_id, message)
