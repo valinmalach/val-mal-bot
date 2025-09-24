@@ -22,6 +22,7 @@ from constants import (
     TWITCH_MESSAGE_TIMESTAMP,
     TWITCH_MESSAGE_TYPE,
 )
+from controller.twitch_chatbot import twitch_send_message
 from models import StreamOfflineEventSub, StreamOnlineEventSub
 from services import (
     delete_row_from_parquet,
@@ -63,8 +64,11 @@ async def _twitch_webhook_task(broadcaster_id: int) -> None:
         channel = PROMO_CHANNEL
         if stream_info.user_login == "valinmalach":
             channel = STREAM_ALERTS_CHANNEL
-            # Send stream start message
             asyncio.create_task(shoutout_queue.activate())
+            await twitch_send_message(
+                str(broadcaster_id),
+                f"${stream_info.user_name} is now live! Streaming {stream_info.game_name}: {stream_info.title}",
+            )
 
         content = (
             f"<@&{LIVE_ALERTS_ROLE}>" if channel == STREAM_ALERTS_CHANNEL else None
