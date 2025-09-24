@@ -447,13 +447,11 @@ async def trigger_offline_sequence(
         )
     try:
         await edit_embed(message_id, embed, channel_id, content=content)
-        return
     except discord.NotFound:
         logger.warning(
             f"Message not found when editing offline embed for message_id={message_id}; aborting"
         )
         delete_row_from_parquet(broadcaster_id, "data/live_alerts.parquet")
-        return
     except Exception as e:
         logger.warning(
             f"Error encountered while editing offline embed; Continuing without aborting...\n{e}"
@@ -578,13 +576,12 @@ async def update_alert(
             )
             try:
                 await edit_embed(message_id, embed, channel_id, view, content=content)
-                break
             except discord.NotFound:
                 logger.warning(
                     f"Message not found when editing offline embed for message_id={message_id}; aborting"
                 )
                 delete_row_from_parquet(broadcaster_id, "data/live_alerts.parquet")
-                break
+                return
             except Exception as e:
                 logger.warning(
                     f"Error on live embed edit; Continuing without aborting: {e}"

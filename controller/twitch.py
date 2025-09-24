@@ -232,7 +232,6 @@ async def _twitch_webhook_offline_task(event_sub: StreamOfflineEventSub) -> None
             logger.warning(
                 f"Message not found when editing offline embed for message_id={message_id}; continuing"
             )
-            delete_row_from_parquet(int(broadcaster_id), "data/live_alerts.parquet")
         except Exception as e:
             logger.warning(
                 f"Error while editing embed; Continuing without aborting: {e}"
