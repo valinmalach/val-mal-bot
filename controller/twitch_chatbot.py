@@ -3,7 +3,6 @@ import logging
 import os
 from typing import Any, Awaitable, Callable
 
-import httpx
 import sentry_sdk
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException, Request, Response
@@ -18,6 +17,7 @@ from constants import (
 )
 from models import StreamChatEventSub
 from services import (
+    call_twitch,
     get_channel,
     get_hmac,
     get_hmac_message,
@@ -25,6 +25,7 @@ from services import (
     send_message,
     verify_message,
 )
+from services.twitch_shoutout_queue import shoutout_queue
 from services.twitch_token_manager import token_manager
 
 load_dotenv()
@@ -71,34 +72,23 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
                 return
 
         url = "https://api.twitch.tv/helix/chat/messages"
-        headers = {
-            "Client-ID": TWITCH_CLIENT_ID,
-            "Authorization": f"Bearer {token_manager.access_token}",
-        }
         data = {
             "broadcaster_id": broadcaster_id,
             "sender_id": TWITCH_BOT_USER_ID,
             "message": message,
             "for_source_only": False,
         }
-        response = httpx.post(url, headers=headers, json=data)
-        if response.status_code == 401:
-            logger.warning("Unauthorized fetching user, refreshing token...")
-            if await refresh_access_token():
-                headers["Authorization"] = f"Bearer {token_manager.access_token}"
-                response = httpx.get(url, headers=headers)
-            else:
-                logger.warning("Unauthorized and failed to refresh token")
-                await send_message(
-                    "Unauthorized and failed to refresh token", BOT_ADMIN_CHANNEL
-                )
-                return
-        if response.status_code < 200 or response.status_code >= 300:
+        response = await call_twitch("POST", url, data)
+        if (
+            response is None
+            or response.status_code < 200
+            or response.status_code >= 300
+        ):
             logger.warning(
-                f"Failed to send message: {response.status_code} {response.text}"
+                f"Failed to send message: {response.status_code if response else 'No response'}"
             )
             await send_message(
-                f"Failed to send message: {response.status_code} {response.text}",
+                f"Failed to send message: {response.status_code if response else 'No response'} {response.text if response else ''}",
                 BOT_ADMIN_CHANNEL,
             )
             return
@@ -201,6 +191,9 @@ async def shoutout(event_sub: StreamChatEventSub, args: str) -> None:
         message = "User not found."
         await twitch_send_message(broadcaster_id, message)
         return
+
+    if shoutout_queue.activated:
+        shoutout_queue.add_to_queue(target)
 
     message = f"Go follow {target_channel.broadcaster_name} at https://www.twitch.tv/{target_channel.broadcaster_login}. They were last seen playing {target_channel.game_name}."
     await twitch_send_message(broadcaster_id, message)

@@ -22,6 +22,7 @@ from .helper import (
     verify_message,
 )
 from .twitch_service import (
+    call_twitch,
     get_channel,
     get_stream_info,
     get_stream_vod,
@@ -55,6 +56,7 @@ __all__ = [
     "update_birthday",
     "upsert_row_to_parquet",
     "verify_message",
+    "call_twitch",
     "get_channel",
     "get_stream_info",
     "get_stream_vod",

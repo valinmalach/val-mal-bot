@@ -2,7 +2,7 @@ import asyncio
 import itertools
 import logging
 import os
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 import discord
 import httpx
@@ -48,6 +48,51 @@ async def refresh_access_token() -> bool:
 
 
 @sentry_sdk.trace()
+async def call_twitch(
+    method: Literal["GET", "POST"], url: str, json: Optional[dict]
+) -> Optional[httpx.Response]:
+    try:
+        headers = {
+            "Client-ID": TWITCH_CLIENT_ID,
+            "Authorization": f"Bearer {token_manager.access_token}",
+        }
+
+        if method.upper() == "GET":
+            response = httpx.get(url, headers=headers, params=json)
+        elif method.upper() == "POST":
+            response = httpx.post(url, headers=headers, json=json)
+        else:
+            logger.error(f"Unsupported HTTP method: {method}")
+            await send_message(
+                f"Unsupported HTTP method: {method}",
+                BOT_ADMIN_CHANNEL,
+            )
+            return None
+
+        if response.status_code == 401:
+            logger.warning("Unauthorized request, refreshing token...")
+            if await refresh_access_token():
+                headers["Authorization"] = f"Bearer {token_manager.access_token}"
+                if method.upper() == "GET":
+                    response = httpx.get(url, headers=headers, params=json)
+                elif method.upper() == "POST":
+                    response = httpx.post(url, headers=headers, json=json)
+            else:
+                return None
+
+        return response
+
+    except Exception as e:
+        logger.error(f"Exception during Twitch API call: {e}")
+        sentry_sdk.capture_exception(e)
+        await send_message(
+            f"Exception during Twitch API call: {e}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return None
+
+
+@sentry_sdk.trace()
 async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
     if not token_manager.access_token:
         refresh_success = await refresh_access_token()
@@ -58,38 +103,21 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
     cursor: Optional[str] = None
 
     url = "https://api.twitch.tv/helix/eventsub/subscriptions"
-    headers = {
-        "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {token_manager.access_token}",
-    }
     while True:
         params = {"status": "enabled"}
         if cursor:
             params["after"] = cursor
-
-        response = httpx.get(
-            url,
-            headers=headers,
-            params=params,
-        )
-        if response.status_code == 401:
+        response = await call_twitch("GET", url, params)
+        if (
+            response is None
+            or response.status_code < 200
+            or response.status_code >= 300
+        ):
             logger.warning(
-                "Unauthorized when fetching subscriptions, refreshing token..."
+                f"Error fetching subscriptions: {response.status_code if response else 'No response'}"
             )
-            if await refresh_access_token():
-                headers["Authorization"] = f"Bearer {token_manager.access_token}"
-                response = httpx.get(
-                    url,
-                    headers=headers,
-                    params=params,
-                )
-            else:
-                return
-
-        if response.status_code < 200 or response.status_code >= 300:
-            logger.warning(f"Error fetching subscriptions: {response.status_code}")
             await send_message(
-                f"Failed to fetch subscriptions: {response.status_code} {response.text}",
+                f"Failed to fetch subscriptions: {response.status_code if response else 'No response'} {response.text if response else ''}",
                 BOT_ADMIN_CHANNEL,
             )
             return
@@ -117,22 +145,13 @@ async def get_user(id: int) -> Optional[UserInfo]:
             return
 
     url = f"https://api.twitch.tv/helix/users?id={id}"
-    headers = {
-        "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {token_manager.access_token}",
-    }
-    response = httpx.get(url, headers=headers)
-    if response.status_code == 401:
-        logger.warning("Unauthorized fetching user, refreshing token...")
-        if await refresh_access_token():
-            headers["Authorization"] = f"Bearer {token_manager.access_token}"
-            response = httpx.get(url, headers=headers)
-        else:
-            return
-    if response.status_code < 200 or response.status_code >= 300:
-        logger.warning(f"Failed to fetch user info: {response.status_code}")
+    response = await call_twitch("GET", url, None)
+    if response is None or response.status_code < 200 or response.status_code >= 300:
+        logger.warning(
+            f"Failed to fetch user info: {response.status_code if response else 'No response'}"
+        )
         await send_message(
-            f"Failed to fetch user info: {response.status_code} {response.text}",
+            f"Failed to fetch user info: {response.status_code if response else 'No response'} {response.text if response else ''}",
             BOT_ADMIN_CHANNEL,
         )
         return
@@ -148,22 +167,13 @@ async def get_user_by_username(username: str) -> Optional[UserInfo]:
             return
 
     url = f"https://api.twitch.tv/helix/users?login={username}"
-    headers = {
-        "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {token_manager.access_token}",
-    }
-    response = httpx.get(url, headers=headers)
-    if response.status_code == 401:
-        logger.warning("Unauthorized fetching user, refreshing token...")
-        if await refresh_access_token():
-            headers["Authorization"] = f"Bearer {token_manager.access_token}"
-            response = httpx.get(url, headers=headers)
-        else:
-            return
-    if response.status_code < 200 or response.status_code >= 300:
-        logger.warning(f"Failed to fetch user info: {response.status_code}")
+    response = await call_twitch("GET", url, None)
+    if response is None or response.status_code < 200 or response.status_code >= 300:
+        logger.warning(
+            f"Failed to fetch user info: {response.status_code if response else 'No response'}"
+        )
         await send_message(
-            f"Failed to fetch user info: {response.status_code} {response.text}",
+            f"Failed to fetch user info: {response.status_code if response else 'No response'} {response.text if response else ''}",
             BOT_ADMIN_CHANNEL,
         )
         return
@@ -187,11 +197,6 @@ async def subscribe_to_user(username: str) -> bool:
     user_id = user.id
 
     url = "https://api.twitch.tv/helix/eventsub/subscriptions"
-    headers = {
-        "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {token_manager.access_token}",
-    }
-
     body = {
         "type": "stream.online",
         "version": "1",
@@ -202,17 +207,13 @@ async def subscribe_to_user(username: str) -> bool:
             "secret": TWITCH_WEBHOOK_SECRET,
         },
     }
-    response = httpx.post(url, headers=headers, json=body)
-    if response.status_code == 401:
-        logger.warning("Unauthorized subscribing to online event, refreshing token...")
-        if not await refresh_access_token():
-            return False
-        headers["Authorization"] = f"Bearer {token_manager.access_token}"
-        response = httpx.post(url, headers=headers, json=body)
-    if response.status_code < 200 or response.status_code >= 300:
-        logger.warning(f"Failed to subscribe to online event: {response.status_code}")
+    response = await call_twitch("POST", url, body)
+    if response is None or response.status_code < 200 or response.status_code >= 300:
+        logger.warning(
+            f"Failed to subscribe to online event: {response.status_code if response else 'No response'}"
+        )
         await send_message(
-            f"Failed to subscribe to online event: {response.status_code} {response.text}",
+            f"Failed to subscribe to online event: {response.status_code if response else 'No response'} {response.text if response else ''}",
             BOT_ADMIN_CHANNEL,
         )
         return False
@@ -227,17 +228,13 @@ async def subscribe_to_user(username: str) -> bool:
             "secret": TWITCH_WEBHOOK_SECRET,
         },
     }
-    response = httpx.post(url, headers=headers, json=body)
-    if response.status_code == 401:
-        logger.warning("Unauthorized subscribing to offline event, refreshing token...")
-        if not await refresh_access_token():
-            return False
-        headers["Authorization"] = f"Bearer {token_manager.access_token}"
-        response = httpx.post(url, headers=headers, json=body)
-    if response.status_code < 200 or response.status_code >= 300:
-        logger.warning(f"Failed to subscribe to offline event: {response.status_code}")
+    response = await call_twitch("POST", url, body)
+    if response is None or response.status_code < 200 or response.status_code >= 300:
+        logger.warning(
+            f"Failed to subscribe to offline event: {response.status_code if response else 'No response'}"
+        )
         await send_message(
-            f"Failed to subscribe to offline event: {response.status_code} {response.text}",
+            f"Failed to subscribe to offline event: {response.status_code if response else 'No response'} {response.text if response else ''}",
             BOT_ADMIN_CHANNEL,
         )
         return False
@@ -261,22 +258,17 @@ async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
         if not batch:
             continue
         url = f"https://api.twitch.tv/helix/users?id={'&id='.join(batch)}"
-        headers = {
-            "Client-ID": TWITCH_CLIENT_ID,
-            "Authorization": f"Bearer {token_manager.access_token}",
-        }
-        response = httpx.get(url, headers=headers)
-        if response.status_code == 401:
-            logger.warning("Unauthorized on batch users, refreshing token...")
-            if await refresh_access_token():
-                headers["Authorization"] = f"Bearer {token_manager.access_token}"
-                response = httpx.get(url, headers=headers)
-            else:
-                return
-        if response.status_code < 200 or response.status_code >= 300:
-            logger.warning(f"Failed batch fetch of user infos: {response.status_code}")
+        response = await call_twitch("GET", url, None)
+        if (
+            response is None
+            or response.status_code < 200
+            or response.status_code >= 300
+        ):
+            logger.warning(
+                f"Failed batch fetch of user infos: {response.status_code if response else 'No response'}"
+            )
             await send_message(
-                f"Failed to fetch users infos: {response.status_code} {response.text}",
+                f"Failed to fetch users infos: {response.status_code if response else 'No response'} {response.text if response else ''}",
                 BOT_ADMIN_CHANNEL,
             )
             return
@@ -294,22 +286,13 @@ async def get_channel(id: int) -> Optional[ChannelInfo]:
             return
 
     url = f"https://api.twitch.tv/helix/channels?broadcaster_id={id}"
-    headers = {
-        "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {token_manager.access_token}",
-    }
-    response = httpx.get(url, headers=headers)
-    if response.status_code == 401:
-        logger.warning("Unauthorized fetching channel, refreshing token...")
-        if await refresh_access_token():
-            headers["Authorization"] = f"Bearer {token_manager.access_token}"
-            response = httpx.get(url, headers=headers)
-        else:
-            return
-    if response.status_code < 200 or response.status_code >= 300:
-        logger.warning(f"Failed to fetch channel info: {response.status_code}")
+    response = await call_twitch("GET", url, None)
+    if response is None or response.status_code < 200 or response.status_code >= 300:
+        logger.warning(
+            f"Failed to fetch channel info: {response.status_code if response else 'No response'}"
+        )
         await send_message(
-            f"Failed to fetch channel info: {response}",
+            f"Failed to fetch channel info: {response.status_code if response else 'No response'} {response.text if response else ''}",
             BOT_ADMIN_CHANNEL,
         )
         return
@@ -325,22 +308,13 @@ async def get_stream_info(broadcaster_id: int) -> Optional[StreamInfo]:
             return
 
     url = f"https://api.twitch.tv/helix/streams?user_id={broadcaster_id}"
-    headers = {
-        "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {token_manager.access_token}",
-    }
-    response = httpx.get(url, headers=headers)
-    if response.status_code == 401:
-        logger.warning("Unauthorized fetching stream info, refreshing token...")
-        if await refresh_access_token():
-            headers["Authorization"] = f"Bearer {token_manager.access_token}"
-            response = httpx.get(url, headers=headers)
-        else:
-            return
-    if response.status_code < 200 or response.status_code >= 300:
-        logger.warning(f"Failed to fetch stream info: {response.status_code}")
+    response = await call_twitch("GET", url, None)
+    if response is None or response.status_code < 200 or response.status_code >= 300:
+        logger.warning(
+            f"Failed to fetch stream info: {response.status_code if response else 'No response'}"
+        )
         await send_message(
-            f"Failed to fetch stream info: {response.status_code} {response.text}",
+            f"Failed to fetch stream info: {response.status_code if response else 'No response'} {response.text if response else ''}",
             BOT_ADMIN_CHANNEL,
         )
         return
@@ -356,22 +330,13 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[VideoInfo]:
             return
 
     url = f"https://api.twitch.tv/helix/videos?user_id={user_id}&type=archive"
-    headers = {
-        "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {token_manager.access_token}",
-    }
-    response = httpx.get(url, headers=headers)
-    if response.status_code == 401:
-        logger.warning("Unauthorized fetching VOD, refreshing token...")
-        if await refresh_access_token():
-            headers["Authorization"] = f"Bearer {token_manager.access_token}"
-            response = httpx.get(url, headers=headers)
-        else:
-            return
-    if response.status_code < 200 or response.status_code >= 300:
-        logger.warning(f"Failed to fetch VOD info: {response.status_code}")
+    response = await call_twitch("GET", url, None)
+    if response is None or response.status_code < 200 or response.status_code >= 300:
+        logger.warning(
+            f"Failed to fetch VOD info: {response.status_code if response else 'No response'}"
+        )
         await send_message(
-            f"Failed to fetch stream info: {response.status_code} {response.text}",
+            f"Failed to fetch VOD info: {response.status_code if response else 'No response'} {response.text if response else ''}",
             BOT_ADMIN_CHANNEL,
         )
         return

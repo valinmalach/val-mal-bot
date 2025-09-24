@@ -19,8 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 class TwitchTokenManager:
-    """Singleton class to manage Twitch OAuth access token."""
-
     _instance: Optional["TwitchTokenManager"] = None
     _access_token: str = ""
 
