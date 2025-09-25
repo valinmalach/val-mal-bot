@@ -67,7 +67,11 @@ async def _twitch_webhook_task(broadcaster_id: int) -> None:
             asyncio.create_task(shoutout_queue.activate())
             await twitch_send_message(
                 str(broadcaster_id),
-                f"${stream_info.user_name} is now live! Streaming {stream_info.game_name}: {stream_info.title}",
+                "NilavHcalam is here valinmArrive",
+            )
+            await twitch_send_message(
+                str(broadcaster_id),
+                f"{stream_info.user_name} is now live! Streaming {stream_info.game_name}: {stream_info.title}",
             )
 
         content = (
