@@ -37,8 +37,25 @@ class TwitchTokenManager:
 
     @sentry_sdk.trace()
     async def refresh_access_token(self) -> bool:
-        url = f"https://id.twitch.tv/oauth2/token?client_id={TWITCH_CLIENT_ID}&client_secret={TWITCH_CLIENT_SECRET}&grant_type=client_credentials&scope=user%3Abot+user%3Aread%3Achat+user%3Awrite%3Achat+channel%3Abot+moderator%3Amanage%3Ashoutouts+moderator%3Aread%3Afollowers+channel%3Aread%3Aads"
-        response = httpx.post(url)
+        scopes = [
+            "channel:bot",
+            "channel:read:ads",
+            "channel:read:redemptions",
+            "moderator:manage:announcements",
+            "moderator:manage:shoutouts",
+            "moderator:read:chatters",
+            "moderator:read:followers",
+            "user:bot",
+            "user:read:chat",
+            "user:write:chat",
+        ]
+        params = {
+            "client_id": TWITCH_CLIENT_ID,
+            "client_secret": TWITCH_CLIENT_SECRET,
+            "grant_type": "client_credentials",
+            "scope": " ".join(scopes),
+        }
+        response = httpx.post("https://id.twitch.tv/oauth2/token", params=params)
 
         if response.status_code < 200 or response.status_code >= 300:
             logger.error(f"Token refresh failed with status={response.status_code}")
