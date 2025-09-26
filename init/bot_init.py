@@ -34,6 +34,7 @@ async def restart_live_alert_tasks() -> None:
                 stream_started_at=stream_started_at,
             )
         )
+        await asyncio.sleep(1)
 
 
 class MyBot(Bot):
