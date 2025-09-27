@@ -1,26 +1,29 @@
-from .auth_response import AuthResponse
-from .channel_info import ChannelInfo, ChannelInfoResponse
-from .stream_chat_event_sub import StreamChatEventSub
-from .stream_info import StreamInfo, StreamInfoResponse
-from .stream_offline_event_sub import StreamOfflineEventSub
-from .stream_online_event_sub import StreamOnlineEventSub
-from .subscription_info import SubscriptionInfo, SubscriptionInfoResponse
-from .user_info import UserInfo, UserInfoResponse
-from .video_info import VideoInfo, VideoInfoResponse
+from .auth.auth_response import AuthResponse
+from .twitch_api_responses.channel_info import ChannelInfo, ChannelInfoResponse
+from .twitch_api_responses.stream_info import StreamInfo, StreamInfoResponse
+from .twitch_api_responses.subscription_info import (
+    SubscriptionInfo,
+    SubscriptionInfoResponse,
+)
+from .twitch_api_responses.user_info import UserInfo, UserInfoResponse
+from .twitch_api_responses.video_info import VideoInfo, VideoInfoResponse
+from .twitch_event_subs.stream_chat_event_sub import StreamChatEventSub
+from .twitch_event_subs.stream_offline_event_sub import StreamOfflineEventSub
+from .twitch_event_subs.stream_online_event_sub import StreamOnlineEventSub
 
 __all__ = [
     "AuthResponse",
     "ChannelInfo",
     "ChannelInfoResponse",
-    "StreamChatEventSub",
     "StreamInfo",
     "StreamInfoResponse",
-    "StreamOfflineEventSub",
-    "StreamOnlineEventSub",
     "SubscriptionInfo",
     "SubscriptionInfoResponse",
     "UserInfo",
     "UserInfoResponse",
     "VideoInfo",
     "VideoInfoResponse",
+    "StreamChatEventSub",
+    "StreamOfflineEventSub",
+    "StreamOnlineEventSub",
 ]
