@@ -25,14 +25,16 @@ from models import (
     VideoInfo,
     VideoInfoResponse,
 )
-from services import (
+
+from . import (
+    call_twitch,
     delete_row_from_parquet,
     edit_embed,
     get_age,
     parse_rfc3339,
     send_message,
 )
-from services.twitch_token_manager import token_manager
+from .twitch_token_manager import token_manager
 
 load_dotenv()
 
@@ -43,59 +45,9 @@ logger = logging.getLogger(__name__)
 
 
 @sentry_sdk.trace()
-async def refresh_access_token() -> bool:
-    return await token_manager.refresh_access_token()
-
-
-@sentry_sdk.trace()
-async def call_twitch(
-    method: Literal["GET", "POST"], url: str, json: Optional[dict]
-) -> Optional[httpx.Response]:
-    try:
-        headers = {
-            "Client-ID": TWITCH_CLIENT_ID,
-            "Authorization": f"Bearer {token_manager.access_token}",
-        }
-
-        if method.upper() == "GET":
-            response = httpx.get(url, headers=headers, params=json)
-        elif method.upper() == "POST":
-            response = httpx.post(url, headers=headers, json=json)
-        else:
-            logger.error(f"Unsupported HTTP method: {method}")
-            await send_message(
-                f"Unsupported HTTP method: {method}",
-                BOT_ADMIN_CHANNEL,
-            )
-            return None
-
-        if response.status_code == 401:
-            logger.warning("Unauthorized request, refreshing token...")
-            if await refresh_access_token():
-                headers["Authorization"] = f"Bearer {token_manager.access_token}"
-                if method.upper() == "GET":
-                    response = httpx.get(url, headers=headers, params=json)
-                elif method.upper() == "POST":
-                    response = httpx.post(url, headers=headers, json=json)
-            else:
-                return None
-
-        return response
-
-    except Exception as e:
-        logger.error(f"Exception during Twitch API call: {e}")
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"Exception during Twitch API call: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
-        return None
-
-
-@sentry_sdk.trace()
 async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
     if not token_manager.access_token:
-        refresh_success = await refresh_access_token()
+        refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
             return
 
@@ -140,7 +92,7 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
 @sentry_sdk.trace()
 async def get_user(id: int) -> Optional[UserInfo]:
     if not token_manager.access_token:
-        refresh_success = await refresh_access_token()
+        refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
             return
 
@@ -162,7 +114,7 @@ async def get_user(id: int) -> Optional[UserInfo]:
 @sentry_sdk.trace()
 async def get_user_by_username(username: str) -> Optional[UserInfo]:
     if not token_manager.access_token:
-        refresh_success = await refresh_access_token()
+        refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
             return
 
@@ -184,7 +136,7 @@ async def get_user_by_username(username: str) -> Optional[UserInfo]:
 @sentry_sdk.trace()
 async def subscribe_to_user(username: str) -> bool:
     if not token_manager.access_token:
-        refresh_success = await refresh_access_token()
+        refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
             return False
 
@@ -245,7 +197,7 @@ async def subscribe_to_user(username: str) -> bool:
 @sentry_sdk.trace()
 async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
     if not token_manager.access_token:
-        refresh_success = await refresh_access_token()
+        refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
             return
 
@@ -281,7 +233,7 @@ async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
 @sentry_sdk.trace()
 async def get_channel(id: int) -> Optional[ChannelInfo]:
     if not token_manager.access_token:
-        refresh_success = await refresh_access_token()
+        refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
             return
 
@@ -303,7 +255,7 @@ async def get_channel(id: int) -> Optional[ChannelInfo]:
 @sentry_sdk.trace()
 async def get_stream_info(broadcaster_id: int) -> Optional[StreamInfo]:
     if not token_manager.access_token:
-        refresh_success = await refresh_access_token()
+        refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
             return
 
@@ -325,7 +277,7 @@ async def get_stream_info(broadcaster_id: int) -> Optional[StreamInfo]:
 @sentry_sdk.trace()
 async def get_stream_vod(user_id: int, stream_id: int) -> Optional[VideoInfo]:
     if not token_manager.access_token:
-        refresh_success = await refresh_access_token()
+        refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
             return
 

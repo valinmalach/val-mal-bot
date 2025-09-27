@@ -22,7 +22,6 @@ from constants import (
     TWITCH_MESSAGE_TIMESTAMP,
     TWITCH_MESSAGE_TYPE,
 )
-from controller.twitch_chatbot import twitch_send_message
 from models import StreamOfflineEventSub, StreamOnlineEventSub
 from services import (
     delete_row_from_parquet,
@@ -37,6 +36,7 @@ from services import (
     parse_rfc3339,
     send_embed,
     send_message,
+    twitch_send_message,
     update_alert,
     upsert_row_to_parquet,
     verify_message,
