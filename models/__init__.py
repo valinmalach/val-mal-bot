@@ -7,7 +7,7 @@ from .twitch_api_responses.subscription_info import (
 )
 from .twitch_api_responses.user_info import UserInfo, UserInfoResponse
 from .twitch_api_responses.video_info import VideoInfo, VideoInfoResponse
-from .twitch_event_subs.stream_chat_event_sub import StreamChatEventSub
+from .twitch_event_subs.channel_chat_message_event_sub import ChannelChatMessageEventSub
 from .twitch_event_subs.stream_offline_event_sub import StreamOfflineEventSub
 from .twitch_event_subs.stream_online_event_sub import StreamOnlineEventSub
 
@@ -23,7 +23,7 @@ __all__ = [
     "UserInfoResponse",
     "VideoInfo",
     "VideoInfoResponse",
-    "StreamChatEventSub",
+    "ChannelChatMessageEventSub",
     "StreamOfflineEventSub",
     "StreamOnlineEventSub",
 ]

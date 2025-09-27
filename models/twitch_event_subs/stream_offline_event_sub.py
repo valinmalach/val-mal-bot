@@ -1,18 +1,14 @@
 from pydantic import BaseModel
 
+from models.twitch_event_subs.common import Subscription
+
 
 class StreamOfflineCondition(BaseModel):
     broadcaster_user_id: str
 
 
-class StreamOfflineSubscription(BaseModel):
-    id: str
-    type: str
-    version: str
-    status: str
-    cost: int
+class StreamOfflineSubscription(Subscription):
     condition: StreamOfflineCondition
-    created_at: str
 
 
 class StreamOfflineEvent(BaseModel):

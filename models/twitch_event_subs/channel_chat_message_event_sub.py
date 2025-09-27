@@ -2,20 +2,16 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel
 
+from models.twitch_event_subs.common import Subscription
 
-class StreamChatEventCondition(BaseModel):
+
+class ChannelChatMessageCondition(BaseModel):
     broadcaster_user_id: str
     user_id: str
 
 
-class StreamChatEventSubscription(BaseModel):
-    id: str
-    type: str
-    version: str
-    status: str
-    cost: int
-    condition: StreamChatEventCondition
-    created_at: str
+class ChannelChatMessageSubscription(Subscription):
+    condition: ChannelChatMessageCondition
 
 
 class Cheermote(BaseModel):
@@ -45,7 +41,7 @@ class Fragment(BaseModel):
     mention: Optional[Mention]
 
 
-class ChatMessage(BaseModel):
+class Message(BaseModel):
     text: str
     fragments: list[Fragment]
 
@@ -60,7 +56,7 @@ class Cheer(BaseModel):
     bits: int
 
 
-class ChatReply(BaseModel):
+class Reply(BaseModel):
     parent_message_id: str
     parent_message_body: str
     parent_user_id: str
@@ -72,7 +68,7 @@ class ChatReply(BaseModel):
     thread_user_login: str
 
 
-class StreamChatEvent(BaseModel):
+class ChannelChatMessageEvent(BaseModel):
     broadcaster_user_id: str
     broadcaster_user_login: str
     broadcaster_user_name: str
@@ -80,7 +76,7 @@ class StreamChatEvent(BaseModel):
     chatter_user_login: str
     chatter_user_name: str
     message_id: str
-    message: ChatMessage
+    message: Message
     message_type: Literal[
         "text",
         "channel_points_highlighted",
@@ -92,7 +88,7 @@ class StreamChatEvent(BaseModel):
     badges: list[Badge]
     cheer: Optional[Cheer]
     color: Optional[str]
-    reply: Optional[ChatReply]
+    reply: Optional[Reply]
     channel_points_custom_reward_id: Optional[str]
     source_broadcaster_user_id: Optional[str]
     source_broadcaster_user_name: Optional[str]
@@ -102,6 +98,6 @@ class StreamChatEvent(BaseModel):
     is_source_only: Optional[bool]
 
 
-class StreamChatEventSub(BaseModel):
-    subscription: StreamChatEventSubscription
-    event: StreamChatEvent
+class ChannelChatMessageEventSub(BaseModel):
+    subscription: ChannelChatMessageSubscription
+    event: ChannelChatMessageEvent

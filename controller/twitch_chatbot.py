@@ -15,7 +15,7 @@ from constants import (
     TWITCH_MESSAGE_TIMESTAMP,
     TWITCH_MESSAGE_TYPE,
 )
-from models import StreamChatEventSub
+from models import ChannelChatMessageEventSub
 from services import (
     call_twitch,
     get_channel,
@@ -45,7 +45,7 @@ async def refresh_access_token() -> bool:
 
 
 @sentry_sdk.trace()
-async def check_mod(event_sub: StreamChatEventSub) -> bool:
+async def check_mod(event_sub: ChannelChatMessageEventSub) -> bool:
     has_mod = any(
         badge.set_id in {"moderator", "broadcaster"}
         for badge in event_sub.event.badges or []
@@ -99,7 +99,7 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
 
 
 @sentry_sdk.trace()
-async def lurk(event_sub: StreamChatEventSub, _: str) -> None:
+async def lurk(event_sub: ChannelChatMessageEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     chatter_name = event_sub.event.chatter_user_name
     message = f"{chatter_name} has gone to lurk. Eat, drink, sleep, water your pets, feed your plants. Make sure to take care of yourself and stay safe while you're away!"
@@ -107,21 +107,21 @@ async def lurk(event_sub: StreamChatEventSub, _: str) -> None:
 
 
 @sentry_sdk.trace()
-async def discord(event_sub: StreamChatEventSub, _: str) -> None:
+async def discord(event_sub: ChannelChatMessageEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     message = "https://discord.gg/tkJyNJH2k7 Come join us and hang out! This is also where all my updates on streams and whatnot go"
     await twitch_send_message(broadcaster_id, message)
 
 
 @sentry_sdk.trace()
-async def kofi(event_sub: StreamChatEventSub, _: str) -> None:
+async def kofi(event_sub: ChannelChatMessageEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     message = "Idk why you would want to donate, but here: https://ko-fi.com/valinmalach But always remember to take care of yourselves first!"
     await twitch_send_message(broadcaster_id, message)
 
 
 @sentry_sdk.trace()
-async def megathon(event_sub: StreamChatEventSub, _: str) -> None:
+async def megathon(event_sub: ChannelChatMessageEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     message = "I'm holding a megathon until 31st October! Click here to see the goals: https://x.com/ValinMalach/status/1949087837296726406"
     await twitch_send_message(broadcaster_id, message)
@@ -130,7 +130,7 @@ async def megathon(event_sub: StreamChatEventSub, _: str) -> None:
 
 
 @sentry_sdk.trace()
-async def raid(event_sub: StreamChatEventSub, _: str) -> None:
+async def raid(event_sub: ChannelChatMessageEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     message = "valinmArrive valinmRaid Valin Raid valinmArrive valinmRaid Valin Raid valinmArrive valinmRaid Your Fallen Angel is here valinmHeart valinmHeart"
     await twitch_send_message(broadcaster_id, message)
@@ -139,21 +139,21 @@ async def raid(event_sub: StreamChatEventSub, _: str) -> None:
 
 
 @sentry_sdk.trace()
-async def socials(event_sub: StreamChatEventSub, _: str) -> None:
+async def socials(event_sub: ChannelChatMessageEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     message = "Twitter: https://twitter.com/ValinMalach Bluesky: https://bsky.app/profile/valinmalach.bsky.social"
     await twitch_send_message(broadcaster_id, message)
 
 
 @sentry_sdk.trace()
-async def throne(event_sub: StreamChatEventSub, _: str) -> None:
+async def throne(event_sub: ChannelChatMessageEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     message = "There's really only one thing on it for now lol... https://throne.com/valinmalach If I do add more, they will all be for stream!"
     await twitch_send_message(broadcaster_id, message)
 
 
 @sentry_sdk.trace()
-async def unlurk(event_sub: StreamChatEventSub, _: str) -> None:
+async def unlurk(event_sub: ChannelChatMessageEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     chatter_name = event_sub.event.chatter_user_name
     message = f"{chatter_name} has returned from their lurk. Welcome back! Hope you had a good break and are ready to hang out again!"
@@ -161,7 +161,7 @@ async def unlurk(event_sub: StreamChatEventSub, _: str) -> None:
 
 
 @sentry_sdk.trace()
-async def hug(event_sub: StreamChatEventSub, args: str) -> None:
+async def hug(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     target = args.split(" ", 1)[0] if args else ""
     broadcaster_id = event_sub.event.broadcaster_user_id
     chatter_name = event_sub.event.chatter_user_name
@@ -174,7 +174,7 @@ async def hug(event_sub: StreamChatEventSub, args: str) -> None:
 
 
 @sentry_sdk.trace()
-async def shoutout(event_sub: StreamChatEventSub, args: str) -> None:
+async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     if not await check_mod(event_sub):
         return
 
@@ -200,7 +200,7 @@ async def shoutout(event_sub: StreamChatEventSub, args: str) -> None:
 
 
 @sentry_sdk.trace()
-async def everything(event_sub: StreamChatEventSub, args: str) -> None:
+async def everything(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     if not await check_mod(event_sub):
         return
 
@@ -213,9 +213,9 @@ async def everything(event_sub: StreamChatEventSub, args: str) -> None:
 
 
 @sentry_sdk.trace()
-async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
+async def _twitch_chat_webhook_task(event_sub: ChannelChatMessageEventSub) -> None:
     user_command_dict: dict[
-        str, Callable[[StreamChatEventSub, str], Awaitable[None]]
+        str, Callable[[ChannelChatMessageEventSub, str], Awaitable[None]]
     ] = {
         "lurk": lurk,
         "discord": discord,
@@ -247,7 +247,9 @@ async def _twitch_chat_webhook_task(event_sub: StreamChatEventSub) -> None:
         ):
             return
 
-        async def default_command(event_sub: StreamChatEventSub, args: str) -> None:
+        async def default_command(
+            event_sub: ChannelChatMessageEventSub, args: str
+        ) -> None:
             pass
 
         await user_command_dict.get(command, default_command)(event_sub, args)
@@ -297,7 +299,7 @@ async def twitch_webhook(request: Request) -> Response:
             )
             raise HTTPException(status_code=403)
 
-        event_sub = StreamChatEventSub.model_validate(body)
+        event_sub = ChannelChatMessageEventSub.model_validate(body)
         if event_sub.subscription.type != "channel.chat.message":
             logger.warning(
                 f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
