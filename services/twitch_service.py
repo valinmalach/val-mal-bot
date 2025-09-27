@@ -2,10 +2,9 @@ import asyncio
 import itertools
 import logging
 import os
-from typing import List, Literal, Optional
+from typing import List, Optional
 
 import discord
-import httpx
 import pendulum
 import polars as pl
 import sentry_sdk
