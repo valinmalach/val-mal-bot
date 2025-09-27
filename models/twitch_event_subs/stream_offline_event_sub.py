@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from models.twitch_event_subs.common import Subscription
+from .common import Subscription
 
 
 class StreamOfflineCondition(BaseModel):
