@@ -2,13 +2,13 @@ import sentry_sdk
 
 from models import ChannelChatMessageEventSub
 
-from . import (
+from .. import (
     check_mod,
     get_channel,
     get_user_by_username,
     twitch_send_message,
 )
-from .twitch_shoutout_queue import shoutout_queue
+from .shoutout_queue import shoutout_queue
 
 
 @sentry_sdk.trace()
@@ -20,7 +20,7 @@ async def lurk(event_sub: ChannelChatMessageEventSub, _: str) -> None:
 
 
 @sentry_sdk.trace()
-async def discord(event_sub: ChannelChatMessageEventSub, _: str) -> None:
+async def discord_command(event_sub: ChannelChatMessageEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     message = "https://discord.gg/tkJyNJH2k7 Come join us and hang out! This is also where all my updates on streams and whatnot go"
     await twitch_send_message(broadcaster_id, message)
@@ -117,7 +117,7 @@ async def everything(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     if not await check_mod(event_sub):
         return
 
-    await discord(event_sub, args)
+    await discord_command(event_sub, args)
     await socials(event_sub, args)
     await kofi(event_sub, args)
     await throne(event_sub, args)

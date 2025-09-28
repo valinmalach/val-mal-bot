@@ -7,8 +7,8 @@ import sentry_sdk
 from dotenv import load_dotenv
 
 from constants import BOT_ADMIN_CHANNEL
-from . import call_twitch, get_user_by_username, send_message
-from .twitch_token_manager import token_manager
+from .. import call_twitch, get_user_by_username, send_message
+from .token_manager import token_manager
 
 load_dotenv()
 

@@ -25,7 +25,7 @@ from models import (
     VideoInfoResponse,
 )
 
-from . import (
+from .. import (
     call_twitch,
     delete_row_from_parquet,
     edit_embed,
@@ -33,7 +33,7 @@ from . import (
     parse_rfc3339,
     send_message,
 )
-from .twitch_token_manager import token_manager
+from .token_manager import token_manager
 
 load_dotenv()
 

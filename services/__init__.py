@@ -24,8 +24,19 @@ from .helper import (
     upsert_row_to_parquet,
     verify_message,
 )
-from .twitch_commands import (
-    discord,
+from .twitch.api import (
+    get_channel,
+    get_stream_info,
+    get_stream_vod,
+    get_subscriptions,
+    get_user,
+    get_user_by_username,
+    get_users,
+    subscribe_to_user,
+    update_alert,
+)
+from .twitch.commands import (
+    discord_command,
     everything,
     hug,
     kofi,
@@ -36,17 +47,6 @@ from .twitch_commands import (
     socials,
     throne,
     unlurk,
-)
-from .twitch_service import (
-    get_channel,
-    get_stream_info,
-    get_stream_vod,
-    get_subscriptions,
-    get_user,
-    get_user_by_username,
-    get_users,
-    subscribe_to_user,
-    update_alert,
 )
 
 __all__ = [
@@ -74,7 +74,7 @@ __all__ = [
     "update_birthday",
     "upsert_row_to_parquet",
     "verify_message",
-    "discord",
+    "discord_command",
     "everything",
     "hug",
     "kofi",

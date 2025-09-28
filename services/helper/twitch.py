@@ -10,7 +10,7 @@ from constants import (
     BOT_ADMIN_CHANNEL,
 )
 from models import ChannelChatMessageEventSub
-from services.twitch_token_manager import token_manager
+from services.twitch.token_manager import token_manager
 
 from . import (
     send_message,
