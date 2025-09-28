@@ -384,6 +384,13 @@ async def update_alert(
 ) -> None:
     try:
         await asyncio.sleep(60)
+
+        content = (
+            f"<@&{LIVE_ALERTS_ROLE}>" if channel_id == STREAM_ALERTS_CHANNEL else None
+        )
+        started_at = parse_rfc3339(stream_started_at)
+        started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
+
         df = pl.read_parquet("data/live_alerts.parquet")
         alert_row = df.filter(pl.col("id") == broadcaster_id)
         if alert_row.height == 0:
@@ -395,14 +402,7 @@ async def update_alert(
         user_info = await get_user(broadcaster_id)
         channel_info = await get_channel(broadcaster_id)
         if alert_row.height == 0 or stream_info is None:
-            content = (
-                f"<@&{LIVE_ALERTS_ROLE}>"
-                if channel_id == STREAM_ALERTS_CHANNEL
-                else None
-            )
             url = f"https://www.twitch.tv/{user_info.login if user_info else channel_info.broadcaster_login if channel_info else ''}"
-            started_at = parse_rfc3339(stream_started_at)
-            started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
             now = pendulum.now()
             age = get_age(started_at, limit_units=2)
             await trigger_offline_sequence(
@@ -421,14 +421,7 @@ async def update_alert(
             return
         while alert_row.height != 0 and stream_info is not None:
             alert = alert_row.row(0, named=True)
-            content = (
-                f"<@&{LIVE_ALERTS_ROLE}>"
-                if channel_id == STREAM_ALERTS_CHANNEL
-                else None
-            )
             url = f"https://www.twitch.tv/{stream_info.user_login}"
-            started_at = parse_rfc3339(stream_started_at)
-            started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
             now = pendulum.now()
             age = get_age(started_at, limit_units=2)
             if alert.get("stream_id", "") != stream_id or stream_info.id != str(
@@ -447,6 +440,7 @@ async def update_alert(
                     content,
                     channel_info,
                 )
+                return
             raw_thumb_url = stream_info.thumbnail_url.replace(
                 "{width}x{height}", "400x225"
             )
