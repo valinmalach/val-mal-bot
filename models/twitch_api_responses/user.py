@@ -17,7 +17,7 @@ class BroadcasterType(str, Enum):
     normal = ""
 
 
-class UserInfo(BaseModel):
+class User(BaseModel):
     id: str
     login: str
     display_name: str
@@ -29,5 +29,5 @@ class UserInfo(BaseModel):
     created_at: str
 
 
-class UserInfoResponse(BaseModel):
-    data: List[UserInfo]
+class UserResponse(BaseModel):
+    data: List[User]

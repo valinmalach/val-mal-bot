@@ -9,7 +9,7 @@ class StreamType(str, Enum):
     error = ""
 
 
-class StreamInfo(BaseModel):
+class Stream(BaseModel):
     id: str
     user_id: str
     user_login: str
@@ -30,6 +30,6 @@ class Pagination(BaseModel):
     cursor: Optional[str] = None
 
 
-class StreamInfoResponse(BaseModel):
-    data: List[StreamInfo]
+class StreamResponse(BaseModel):
+    data: List[Stream]
     pagination: Pagination

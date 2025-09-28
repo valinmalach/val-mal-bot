@@ -3,7 +3,7 @@ from typing import List
 from pydantic import BaseModel
 
 
-class ChannelInfo(BaseModel):
+class Channel(BaseModel):
     broadcaster_id: str
     broadcaster_login: str
     broadcaster_name: str
@@ -17,5 +17,5 @@ class ChannelInfo(BaseModel):
     is_branded_content: bool
 
 
-class ChannelInfoResponse(BaseModel):
-    data: List[ChannelInfo]
+class ChannelResponse(BaseModel):
+    data: List[Channel]

@@ -15,7 +15,7 @@ class MutedSegment(BaseModel):
     offset: int
 
 
-class VideoInfo(BaseModel):
+class Video(BaseModel):
     id: str
     stream_id: Optional[str] = None
     user_id: str
@@ -39,6 +39,6 @@ class Pagination(BaseModel):
     cursor: Optional[str] = None
 
 
-class VideoInfoResponse(BaseModel):
-    data: List[VideoInfo]
+class VideoResponse(BaseModel):
+    data: List[Video]
     pagination: Pagination

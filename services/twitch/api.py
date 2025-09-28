@@ -13,16 +13,16 @@ from dotenv import load_dotenv
 
 from constants import BOT_ADMIN_CHANNEL, LIVE_ALERTS_ROLE, STREAM_ALERTS_CHANNEL
 from models import (
-    ChannelInfo,
-    ChannelInfoResponse,
-    StreamInfo,
-    StreamInfoResponse,
-    SubscriptionInfo,
-    SubscriptionInfoResponse,
-    UserInfo,
-    UserInfoResponse,
-    VideoInfo,
-    VideoInfoResponse,
+    Channel,
+    ChannelResponse,
+    Stream,
+    StreamResponse,
+    Subscription,
+    SubscriptionResponse,
+    User,
+    UserResponse,
+    Video,
+    VideoResponse,
 )
 
 from .. import (
@@ -44,13 +44,13 @@ logger = logging.getLogger(__name__)
 
 
 @sentry_sdk.trace()
-async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
+async def get_subscriptions() -> Optional[List[Subscription]]:
     if not token_manager.access_token:
         refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
             return
 
-    all_subscriptions: List[SubscriptionInfo] = []
+    all_subscriptions: List[Subscription] = []
     cursor: Optional[str] = None
 
     url = "https://api.twitch.tv/helix/eventsub/subscriptions"
@@ -73,7 +73,7 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
             )
             return
 
-        subscription_info_response = SubscriptionInfoResponse.model_validate(
+        subscription_info_response = SubscriptionResponse.model_validate(
             response.json()
         )
         data = subscription_info_response.data
@@ -89,7 +89,7 @@ async def get_subscriptions() -> Optional[List[SubscriptionInfo]]:
 
 
 @sentry_sdk.trace()
-async def get_user(id: int) -> Optional[UserInfo]:
+async def get_user(id: int) -> Optional[User]:
     if not token_manager.access_token:
         refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
@@ -106,12 +106,12 @@ async def get_user(id: int) -> Optional[UserInfo]:
             BOT_ADMIN_CHANNEL,
         )
         return
-    user_info_response = UserInfoResponse.model_validate(response.json())
+    user_info_response = UserResponse.model_validate(response.json())
     return user_info_response.data[0] if user_info_response.data else None
 
 
 @sentry_sdk.trace()
-async def get_user_by_username(username: str) -> Optional[UserInfo]:
+async def get_user_by_username(username: str) -> Optional[User]:
     if not token_manager.access_token:
         refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
@@ -128,7 +128,7 @@ async def get_user_by_username(username: str) -> Optional[UserInfo]:
             BOT_ADMIN_CHANNEL,
         )
         return
-    user_info_response = UserInfoResponse.model_validate(response.json())
+    user_info_response = UserResponse.model_validate(response.json())
     return user_info_response.data[0] if user_info_response.data else None
 
 
@@ -194,7 +194,7 @@ async def subscribe_to_user(username: str) -> bool:
 
 
 @sentry_sdk.trace()
-async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
+async def get_users(ids: List[str]) -> Optional[List[User]]:
     if not token_manager.access_token:
         refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
@@ -203,7 +203,7 @@ async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
     batches_iterator = itertools.batched(ids, 100)
     batches_list = [list(batch) for batch in batches_iterator]
 
-    users: List[UserInfo] = []
+    users: List[User] = []
 
     for batch in batches_list:
         if not batch:
@@ -223,14 +223,14 @@ async def get_users(ids: List[str]) -> Optional[List[UserInfo]]:
                 BOT_ADMIN_CHANNEL,
             )
             return
-        user_info_response = UserInfoResponse.model_validate(response.json())
+        user_info_response = UserResponse.model_validate(response.json())
         users.extend(user_info_response.data)
 
     return users
 
 
 @sentry_sdk.trace()
-async def get_channel(id: int) -> Optional[ChannelInfo]:
+async def get_channel(id: int) -> Optional[Channel]:
     if not token_manager.access_token:
         refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
@@ -247,12 +247,12 @@ async def get_channel(id: int) -> Optional[ChannelInfo]:
             BOT_ADMIN_CHANNEL,
         )
         return
-    channel_info_response = ChannelInfoResponse.model_validate(response.json())
+    channel_info_response = ChannelResponse.model_validate(response.json())
     return channel_info_response.data[0] if channel_info_response.data else None
 
 
 @sentry_sdk.trace()
-async def get_stream_info(broadcaster_id: int) -> Optional[StreamInfo]:
+async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
     if not token_manager.access_token:
         refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
@@ -269,12 +269,12 @@ async def get_stream_info(broadcaster_id: int) -> Optional[StreamInfo]:
             BOT_ADMIN_CHANNEL,
         )
         return
-    stream_info_response = StreamInfoResponse.model_validate(response.json())
+    stream_info_response = StreamResponse.model_validate(response.json())
     return stream_info_response.data[0] if stream_info_response.data else None
 
 
 @sentry_sdk.trace()
-async def get_stream_vod(user_id: int, stream_id: int) -> Optional[VideoInfo]:
+async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
     if not token_manager.access_token:
         refresh_success = await token_manager.refresh_access_token()
         if not refresh_success:
@@ -291,7 +291,7 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[VideoInfo]:
             BOT_ADMIN_CHANNEL,
         )
         return
-    video_info_response = VideoInfoResponse.model_validate(response.json())
+    video_info_response = VideoResponse.model_validate(response.json())
     return next(
         (
             video
@@ -306,15 +306,15 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[VideoInfo]:
 async def trigger_offline_sequence(
     broadcaster_id: int,
     stream_id: int,
-    stream_info: Optional[StreamInfo],
+    stream_info: Optional[Stream],
     now: pendulum.DateTime,
-    user_info: Optional[UserInfo],
+    user_info: Optional[User],
     url: str,
     age: str,
     message_id: int,
     channel_id: int,
     content: Optional[str],
-    channel: Optional[ChannelInfo],
+    channel: Optional[Channel],
 ) -> None:
     vod_info = None
     try:

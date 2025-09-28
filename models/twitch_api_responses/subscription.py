@@ -15,7 +15,7 @@ class SubscriptionTransport(BaseModel):
     disconnected_at: Optional[str] = None
 
 
-class SubscriptionInfo(BaseModel):
+class Subscription(BaseModel):
     id: str
     status: str
     type: str
@@ -30,8 +30,8 @@ class Pagination(BaseModel):
     cursor: Optional[str] = None
 
 
-class SubscriptionInfoResponse(BaseModel):
-    data: List[SubscriptionInfo]
+class SubscriptionResponse(BaseModel):
+    data: List[Subscription]
     total: int
     total_cost: int
     max_total_cost: int
