@@ -8,8 +8,7 @@ from dotenv import load_dotenv
 
 from constants import BOT_ADMIN_CHANNEL
 from models import AuthResponse
-
-from .. import send_message
+from services import send_message
 
 load_dotenv()
 
