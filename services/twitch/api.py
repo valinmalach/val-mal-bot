@@ -24,15 +24,8 @@ from models import (
     Video,
     VideoResponse,
 )
+from services.helper.helper import delete_row_from_parquet, edit_embed, get_age, parse_rfc3339, send_message
 from services.helper.twitch import call_twitch
-
-from .. import (
-    delete_row_from_parquet,
-    edit_embed,
-    get_age,
-    parse_rfc3339,
-    send_message,
-)
 
 load_dotenv()
 
