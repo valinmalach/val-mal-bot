@@ -7,7 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "atproto>=0.0.62",
     "discord>=2.3.2",
-    "fastapi>=0.117.1",
+    "fastapi>=0.118.0",
     "httpx>=0.28.1",
     "orjson>=3.11.3",
     "pendulum>=3.1.0",
