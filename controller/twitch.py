@@ -4,6 +4,7 @@ import os
 from typing import Any, Awaitable, Callable
 
 import discord
+import httpx
 import pendulum
 import polars as pl
 import sentry_sdk
@@ -24,10 +25,11 @@ from constants import (
 )
 from models import (
     ChannelChatMessageEventSub,
+    ChannelFollowEventSub,
+    RefreshResponse,
     StreamOfflineEventSub,
     StreamOnlineEventSub,
 )
-from models.twitch_event_subs.channel_follow import ChannelFollowEventSub
 from services import (
     delete_row_from_parquet,
     discord_command,
@@ -58,10 +60,12 @@ from services import (
     verify_message,
 )
 from services.twitch.shoutout_queue import shoutout_queue
+from services.twitch.token_manager import token_manager
 
 load_dotenv()
 
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
+TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 TWITCH_BOT_USER_ID = os.getenv("TWITCH_BOT_USER_ID")
 
@@ -395,6 +399,63 @@ async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
         await send_message(
             f"Error processing Twitch follow webhook task: {e}", BOT_ADMIN_CHANNEL
         )
+
+
+@twitch_router.get("/twitch/oauth/callback")
+async def twitch_oauth_callback(code: str, state: str) -> Response:
+    try:
+        if state != TWITCH_WEBHOOK_SECRET:
+            logger.warning(f"400: Bad request. Invalid state: {state}")
+            await send_message(
+                "400: Bad request on /twitch/oauth/callback. Invalid state.",
+                BOT_ADMIN_CHANNEL,
+            )
+            raise HTTPException(status_code=400)
+
+        params = {
+            "client_id": TWITCH_CLIENT_ID,
+            "client_secret": TWITCH_CLIENT_SECRET,
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": "https://val-mal-bot.com/twitch/oauth/callback",
+        }
+        response = httpx.post("https://id.twitch.tv/oauth2/token", params=params)
+
+        if response.status_code < 200 or response.status_code >= 300:
+            logger.error(
+                f"Token exchange failed with status={response.status_code}, response={response.text}"
+            )
+            await send_message(
+                f"Failed to exchange token: {response.status_code} {response.text}",
+                BOT_ADMIN_CHANNEL,
+            )
+            raise HTTPException(status_code=500)
+
+        auth_response = RefreshResponse.model_validate(response.json())
+        if auth_response.token_type != "bearer":
+            logger.error(
+                f"Token exchange failed: unexpected token type {auth_response.token_type}"
+            )
+            await send_message(
+                f"Failed to exchange token: unexpected token type {auth_response.token_type}",
+                BOT_ADMIN_CHANNEL,
+            )
+            raise HTTPException(status_code=500)
+
+        await token_manager.set_user_access_token(auth_response)
+        return Response(
+            "Authorization successful! You can close this tab.", status_code=200
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"500: Internal server error on /twitch/oauth/callback: {e}")
+        sentry_sdk.capture_exception(e)
+        await send_message(
+            f"500: Internal server error on /twitch/oauth/callback: {e}",
+            BOT_ADMIN_CHANNEL,
+        )
+        raise HTTPException(status_code=500) from e
 
 
 @twitch_router.post("/webhook/twitch")

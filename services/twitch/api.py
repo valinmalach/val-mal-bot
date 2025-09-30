@@ -33,7 +33,6 @@ from .. import (
     parse_rfc3339,
     send_message,
 )
-from .token_manager import token_manager
 
 load_dotenv()
 
@@ -45,11 +44,6 @@ logger = logging.getLogger(__name__)
 
 @sentry_sdk.trace()
 async def get_subscriptions() -> Optional[List[Subscription]]:
-    if not token_manager.access_token:
-        refresh_success = await token_manager.refresh_access_token()
-        if not refresh_success:
-            return
-
     all_subscriptions: List[Subscription] = []
     cursor: Optional[str] = None
 
@@ -90,11 +84,6 @@ async def get_subscriptions() -> Optional[List[Subscription]]:
 
 @sentry_sdk.trace()
 async def get_user(id: int) -> Optional[User]:
-    if not token_manager.access_token:
-        refresh_success = await token_manager.refresh_access_token()
-        if not refresh_success:
-            return
-
     url = f"https://api.twitch.tv/helix/users?id={id}"
     response = await call_twitch("GET", url, None)
     if response is None or response.status_code < 200 or response.status_code >= 300:
@@ -112,11 +101,6 @@ async def get_user(id: int) -> Optional[User]:
 
 @sentry_sdk.trace()
 async def get_user_by_username(username: str) -> Optional[User]:
-    if not token_manager.access_token:
-        refresh_success = await token_manager.refresh_access_token()
-        if not refresh_success:
-            return
-
     url = f"https://api.twitch.tv/helix/users?login={username}"
     response = await call_twitch("GET", url, None)
     if response is None or response.status_code < 200 or response.status_code >= 300:
@@ -134,11 +118,6 @@ async def get_user_by_username(username: str) -> Optional[User]:
 
 @sentry_sdk.trace()
 async def subscribe_to_user(username: str) -> bool:
-    if not token_manager.access_token:
-        refresh_success = await token_manager.refresh_access_token()
-        if not refresh_success:
-            return False
-
     user = await get_user_by_username(username)
     if not user:
         logger.warning(f"User not found: {username}")
@@ -195,11 +174,6 @@ async def subscribe_to_user(username: str) -> bool:
 
 @sentry_sdk.trace()
 async def get_users(ids: List[str]) -> Optional[List[User]]:
-    if not token_manager.access_token:
-        refresh_success = await token_manager.refresh_access_token()
-        if not refresh_success:
-            return
-
     batches_iterator = itertools.batched(ids, 100)
     batches_list = [list(batch) for batch in batches_iterator]
 
@@ -231,11 +205,6 @@ async def get_users(ids: List[str]) -> Optional[List[User]]:
 
 @sentry_sdk.trace()
 async def get_channel(id: int) -> Optional[Channel]:
-    if not token_manager.access_token:
-        refresh_success = await token_manager.refresh_access_token()
-        if not refresh_success:
-            return
-
     url = f"https://api.twitch.tv/helix/channels?broadcaster_id={id}"
     response = await call_twitch("GET", url, None)
     if response is None or response.status_code < 200 or response.status_code >= 300:
@@ -253,11 +222,6 @@ async def get_channel(id: int) -> Optional[Channel]:
 
 @sentry_sdk.trace()
 async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
-    if not token_manager.access_token:
-        refresh_success = await token_manager.refresh_access_token()
-        if not refresh_success:
-            return
-
     url = f"https://api.twitch.tv/helix/streams?user_id={broadcaster_id}"
     response = await call_twitch("GET", url, None)
     if response is None or response.status_code < 200 or response.status_code >= 300:
@@ -275,11 +239,6 @@ async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
 
 @sentry_sdk.trace()
 async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
-    if not token_manager.access_token:
-        refresh_success = await token_manager.refresh_access_token()
-        if not refresh_success:
-            return
-
     url = f"https://api.twitch.tv/helix/videos?user_id={user_id}&type=archive"
     response = await call_twitch("GET", url, None)
     if response is None or response.status_code < 200 or response.status_code >= 300:

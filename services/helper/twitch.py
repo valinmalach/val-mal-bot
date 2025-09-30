@@ -26,12 +26,29 @@ logger = logging.getLogger(__name__)
 
 @sentry_sdk.trace()
 async def call_twitch(
-    method: Literal["GET", "POST"], url: str, json: Optional[dict]
+    method: Literal["GET", "POST"],
+    url: str,
+    json: Optional[dict],
+    user_token: bool = False,
 ) -> Optional[httpx.Response]:
     try:
+        refresh_success = True
+        if user_token and not token_manager.user_access_token:
+            refresh_success = await token_manager.refresh_user_access_token()
+        elif not user_token and not token_manager.app_access_token:
+            refresh_success = await token_manager.refresh_app_access_token()
+
+        if not refresh_success:
+            logger.warning("No access token available and failed to refresh")
+            await send_message(
+                "No access token available and failed to refresh",
+                BOT_ADMIN_CHANNEL,
+            )
+            return None
+
         headers = {
             "Client-ID": TWITCH_CLIENT_ID,
-            "Authorization": f"Bearer {token_manager.access_token}",
+            "Authorization": f"Bearer {token_manager.user_access_token if user_token else token_manager.app_access_token}",
         }
 
         if method.upper() == "GET":
@@ -48,8 +65,15 @@ async def call_twitch(
 
         if response.status_code == 401:
             logger.warning("Unauthorized request, refreshing token...")
-            if await token_manager.refresh_access_token():
-                headers["Authorization"] = f"Bearer {token_manager.access_token}"
+            if user_token:
+                refresh_success = await token_manager.refresh_user_access_token()
+            else:
+                refresh_success = await token_manager.refresh_app_access_token()
+
+            if refresh_success:
+                headers["Authorization"] = (
+                    f"Bearer {token_manager.user_access_token if user_token else token_manager.app_access_token}"
+                )
                 if method.upper() == "GET":
                     response = httpx.get(url, headers=headers, params=json)
                 elif method.upper() == "POST":
@@ -86,16 +110,6 @@ async def check_mod(event_sub: ChannelChatMessageEventSub) -> bool:
 @sentry_sdk.trace()
 async def twitch_send_message(broadcaster_id: str, message: str) -> None:
     try:
-        if not token_manager.access_token:
-            refresh_success = await token_manager.refresh_access_token()
-            if not refresh_success:
-                logger.warning("No access token available and failed to refresh")
-                await send_message(
-                    "No access token available and failed to refresh",
-                    BOT_ADMIN_CHANNEL,
-                )
-                return
-
         url = "https://api.twitch.tv/helix/chat/messages"
         data = {
             "broadcaster_id": broadcaster_id,
