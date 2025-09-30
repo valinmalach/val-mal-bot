@@ -12,10 +12,6 @@ from constants import (
 from models import ChannelChatMessageEventSub
 from services.twitch.token_manager import token_manager
 
-from . import (
-    send_message,
-)
-
 load_dotenv()
 
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
@@ -31,6 +27,8 @@ async def call_twitch(
     json: Optional[dict],
     user_token: bool = False,
 ) -> Optional[httpx.Response]:
+    from services.helper import send_message
+
     try:
         refresh_success = True
         if user_token and not token_manager.user_access_token:
@@ -70,17 +68,16 @@ async def call_twitch(
             else:
                 refresh_success = await token_manager.refresh_app_access_token()
 
-            if refresh_success:
-                headers["Authorization"] = (
-                    f"Bearer {token_manager.user_access_token if user_token else token_manager.app_access_token}"
-                )
-                if method.upper() == "GET":
-                    response = httpx.get(url, headers=headers, params=json)
-                elif method.upper() == "POST":
-                    response = httpx.post(url, headers=headers, json=json)
-            else:
+            if not refresh_success:
                 return None
 
+            headers["Authorization"] = (
+                f"Bearer {token_manager.user_access_token if user_token else token_manager.app_access_token}"
+            )
+            if method.upper() == "GET":
+                response = httpx.get(url, headers=headers, params=json)
+            elif method.upper() == "POST":
+                response = httpx.post(url, headers=headers, json=json)
         return response
 
     except Exception as e:
@@ -109,6 +106,8 @@ async def check_mod(event_sub: ChannelChatMessageEventSub) -> bool:
 
 @sentry_sdk.trace()
 async def twitch_send_message(broadcaster_id: str, message: str) -> None:
+    from services.helper import send_message
+
     try:
         url = "https://api.twitch.tv/helix/chat/messages"
         data = {
