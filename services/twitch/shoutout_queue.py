@@ -9,10 +9,8 @@ from dotenv import load_dotenv
 from pendulum import DateTime
 
 from constants import BOT_ADMIN_CHANNEL
-
-from ..helper.helper import send_message
-from ..helper.twitch import call_twitch
-from ..twitch.api import get_user_by_username
+from services.helper.twitch import call_twitch
+from services.twitch.api import get_user_by_username
 
 load_dotenv()
 
@@ -66,6 +64,8 @@ class TwitchShoutoutQueue:
 
     @sentry_sdk.trace()
     async def activate(self) -> None:
+        from services.helper.helper import send_message
+
         try:
             self._activated = True
             while self._activated:
