@@ -36,6 +36,7 @@ from .. import (
 
 load_dotenv()
 
+APP_URL = os.getenv("APP_URL")
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 
@@ -133,7 +134,7 @@ async def subscribe_to_user(username: str) -> bool:
         "condition": {"broadcaster_user_id": user_id},
         "transport": {
             "method": "webhook",
-            "callback": "https://valin.loclx.io/webhook/twitch",
+            "callback": f"{APP_URL}/webhook/twitch",
             "secret": TWITCH_WEBHOOK_SECRET,
         },
     }
@@ -154,7 +155,7 @@ async def subscribe_to_user(username: str) -> bool:
         "condition": {"broadcaster_user_id": user_id},
         "transport": {
             "method": "webhook",
-            "callback": "https://valin.loclx.io/webhook/twitch/offline",
+            "callback": f"{APP_URL}/webhook/twitch/offline",
             "secret": TWITCH_WEBHOOK_SECRET,
         },
     }

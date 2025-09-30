@@ -64,6 +64,7 @@ from services.twitch.token_manager import token_manager
 
 load_dotenv()
 
+APP_URL = os.getenv("APP_URL")
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
@@ -417,7 +418,7 @@ async def twitch_oauth_callback(code: str, state: str) -> Response:
             "client_secret": TWITCH_CLIENT_SECRET,
             "code": code,
             "grant_type": "authorization_code",
-            "redirect_uri": "https://val-mal-bot.com/twitch/oauth/callback",
+            "redirect_uri": f"{APP_URL}/twitch/oauth/callback",
         }
         response = httpx.post("https://id.twitch.tv/oauth2/token", params=params)
 

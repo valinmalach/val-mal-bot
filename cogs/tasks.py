@@ -7,6 +7,7 @@ import polars as pl
 import sentry_sdk
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
+from dotenv import load_dotenv
 from polars import DataFrame
 
 from constants import (
@@ -17,6 +18,10 @@ from constants import (
 )
 from init import at_client
 from services import get_next_leap, send_message, update_birthday, upsert_row_to_parquet
+
+load_dotenv()
+
+APP_URL = os.getenv("APP_URL")
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +51,7 @@ class Tasks(Cog):
         logger.info("Renewing YouTube webhook subscription")
         try:
             YOUTUBE_CHANNEL_ID = "UC7BVlWSXIU4hKtWkBqEgZMA"
-            CALLBACK_URL = "https://valin.loclx.io/youtube/webhook"
+            CALLBACK_URL = f"{APP_URL}/youtube/webhook"
 
             response = httpx.post(
                 "https://pubsubhubbub.appspot.com/subscribe",
