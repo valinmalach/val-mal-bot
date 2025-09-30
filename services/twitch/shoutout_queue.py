@@ -10,7 +10,9 @@ from pendulum import DateTime
 
 from constants import BOT_ADMIN_CHANNEL
 
-from .. import call_twitch, get_user_by_username, send_message
+from ..helper.helper import send_message
+from ..helper.twitch import call_twitch
+from ..twitch.api import get_user_by_username
 
 load_dotenv()
 
