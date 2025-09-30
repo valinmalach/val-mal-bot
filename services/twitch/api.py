@@ -24,9 +24,9 @@ from models import (
     Video,
     VideoResponse,
 )
+from services.helper.twitch import call_twitch
 
 from .. import (
-    call_twitch,
     delete_row_from_parquet,
     edit_embed,
     get_age,
