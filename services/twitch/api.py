@@ -37,7 +37,6 @@ from .. import (
 load_dotenv()
 
 APP_URL = os.getenv("APP_URL")
-TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 
 logger = logging.getLogger(__name__)

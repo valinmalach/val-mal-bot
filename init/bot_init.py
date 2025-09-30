@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 
 import discord
 import polars as pl
@@ -7,13 +8,22 @@ import sentry_sdk
 from discord import CategoryChannel, ForumChannel
 from discord.abc import PrivateChannel
 from discord.ext.commands import Bot
+from dotenv import load_dotenv
 
 from constants import BOT_ADMIN_CHANNEL, GUILD_ID
+from services import get_stream_info
+from services.twitch.shoutout_queue import shoutout_queue
 
 MY_GUILD = discord.Object(id=GUILD_ID)
+
+load_dotenv()
+
+TWITCH_BROADCASTER_ID = os.getenv("TWITCH_BROADCASTER_ID")
+
 logger = logging.getLogger(__name__)
 
 
+@sentry_sdk.trace()
 async def restart_live_alert_tasks() -> None:
     from services import update_alert
 
@@ -35,6 +45,16 @@ async def restart_live_alert_tasks() -> None:
             )
         )
         await asyncio.sleep(1)
+
+
+@sentry_sdk.trace()
+async def activate_if_live() -> None:
+    if not TWITCH_BROADCASTER_ID:
+        return
+
+    stream_info = await get_stream_info(int(TWITCH_BROADCASTER_ID))
+    if stream_info and stream_info.type == "live":
+        asyncio.create_task(shoutout_queue.activate())
 
 
 class MyBot(Bot):
@@ -71,6 +91,7 @@ bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 @sentry_sdk.trace()
 async def on_ready() -> None:
     asyncio.create_task(restart_live_alert_tasks())
+    asyncio.create_task(activate_if_live())
 
     channel = bot.get_channel(BOT_ADMIN_CHANNEL)
     if channel is None or isinstance(

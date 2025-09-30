@@ -11,7 +11,6 @@ from pendulum import DateTime
 from constants import BOT_ADMIN_CHANNEL
 
 from .. import call_twitch, get_user_by_username, send_message
-from .api import get_stream_info
 
 load_dotenv()
 
@@ -30,17 +29,7 @@ class TwitchShoutoutQueue:
     def __new__(cls) -> "TwitchShoutoutQueue":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            asyncio.create_task(cls._instance._activate_if_live())
         return cls._instance
-
-    @sentry_sdk.trace()
-    async def _activate_if_live(self) -> None:
-        if not TWITCH_BROADCASTER_ID:
-            return
-
-        stream_info = await get_stream_info(int(TWITCH_BROADCASTER_ID))
-        if stream_info and stream_info.type == "live":
-            asyncio.create_task(self.activate())
 
     @property
     def activated(self) -> bool:
