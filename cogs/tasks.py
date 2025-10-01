@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 
 import httpx
 import pendulum
@@ -153,22 +154,27 @@ class Tasks(Cog):
     async def backup_data(self) -> None:
         try:
             date_string = pendulum.now().format("YYYY-MM-DD")
-            backup_path = f"C:/backups/data/{date_string}/"
+            backup_path = f"C:/backups/data_{date_string}/"
 
             if not os.path.exists(backup_path):
                 os.makedirs(backup_path)
 
-            for filename in os.listdir("data/"):
-                source_file = os.path.join("data/", filename)
-                dest_file = os.path.join(backup_path, filename)
+            for item in os.listdir("data/"):
+                source_path = os.path.join("data/", item)
+                dest_path = os.path.join(backup_path, item)
                 try:
-                    with open(source_file, "rb") as src, open(dest_file, "wb") as dst:
-                        dst.write(src.read())
+                    if os.path.isdir(source_path):
+                        shutil.copytree(source_path, dest_path, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(source_path, dest_path)
                 except Exception as e:
-                    logger.error(f"Error backing up file {filename}: {e}")
+                    is_dir = os.path.isdir(source_path)
+                    logger.error(
+                        f"Error backing up {'directory' if is_dir else 'file'} {item}: {e}"
+                    )
                     sentry_sdk.capture_exception(e)
                     await send_message(
-                        f"Error backing up file {filename}: {e}",
+                        f"Error backing up {'directory' if is_dir else 'file'} {item}: {e}",
                         BOT_ADMIN_CHANNEL,
                     )
         except Exception as e:
