@@ -95,8 +95,11 @@ class Tasks(Cog):
             try:
                 author_feed = at_client.get_author_feed(actor="valinmalach.bsky.social")
             except Exception as e:
-                logger.error(f"Error fetching Bluesky author feed: {e}")
-                sentry_sdk.capture_exception(e)
+                logger.warning(f"Error fetching Bluesky author feed: {e}")
+                await send_message(
+                    f"Error fetching Bluesky author feed: {e}",
+                    BOT_ADMIN_CHANNEL,
+                )
                 return
 
             posts = sorted(
