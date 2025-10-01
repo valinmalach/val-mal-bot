@@ -108,3 +108,9 @@ EMOJI_ROLE_MAP = {
     "🟨": "🟨Ask to DM",
     "🟥": "🟥DMs Closed",
 }
+
+
+class TokenType(str, Enum):
+    App = "app"
+    User = "user"
+    Broadcaster = "broadcaster"

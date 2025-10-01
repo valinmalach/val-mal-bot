@@ -84,7 +84,7 @@ async def get_subscriptions() -> Optional[List[Subscription]]:
 @sentry_sdk.trace()
 async def get_user(id: int) -> Optional[User]:
     url = f"https://api.twitch.tv/helix/users?id={id}"
-    response = await call_twitch("GET", url, None)
+    response = await call_twitch("GET", url)
     if response is None or response.status_code < 200 or response.status_code >= 300:
         logger.warning(
             f"Failed to fetch user info: {response.status_code if response else 'No response'}"
@@ -101,7 +101,7 @@ async def get_user(id: int) -> Optional[User]:
 @sentry_sdk.trace()
 async def get_user_by_username(username: str) -> Optional[User]:
     url = f"https://api.twitch.tv/helix/users?login={username}"
-    response = await call_twitch("GET", url, None)
+    response = await call_twitch("GET", url)
     if response is None or response.status_code < 200 or response.status_code >= 300:
         logger.warning(
             f"Failed to fetch user info: {response.status_code if response else 'No response'}"
@@ -182,7 +182,7 @@ async def get_users(ids: List[str]) -> Optional[List[User]]:
         if not batch:
             continue
         url = f"https://api.twitch.tv/helix/users?id={'&id='.join(batch)}"
-        response = await call_twitch("GET", url, None)
+        response = await call_twitch("GET", url)
         if (
             response is None
             or response.status_code < 200
@@ -205,7 +205,7 @@ async def get_users(ids: List[str]) -> Optional[List[User]]:
 @sentry_sdk.trace()
 async def get_channel(id: int) -> Optional[Channel]:
     url = f"https://api.twitch.tv/helix/channels?broadcaster_id={id}"
-    response = await call_twitch("GET", url, None)
+    response = await call_twitch("GET", url)
     if response is None or response.status_code < 200 or response.status_code >= 300:
         logger.warning(
             f"Failed to fetch channel info: {response.status_code if response else 'No response'}"
@@ -222,7 +222,7 @@ async def get_channel(id: int) -> Optional[Channel]:
 @sentry_sdk.trace()
 async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
     url = f"https://api.twitch.tv/helix/streams?user_id={broadcaster_id}"
-    response = await call_twitch("GET", url, None)
+    response = await call_twitch("GET", url)
     if response is None or response.status_code < 200 or response.status_code >= 300:
         logger.warning(
             f"Failed to fetch stream info: {response.status_code if response else 'No response'}"
@@ -239,7 +239,7 @@ async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
 @sentry_sdk.trace()
 async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
     url = f"https://api.twitch.tv/helix/videos?user_id={user_id}&type=archive"
-    response = await call_twitch("GET", url, None)
+    response = await call_twitch("GET", url)
     if response is None or response.status_code < 200 or response.status_code >= 300:
         logger.warning(
             f"Failed to fetch VOD info: {response.status_code if response else 'No response'}"

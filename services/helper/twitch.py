@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 from constants import (
     BOT_ADMIN_CHANNEL,
+    TokenType,
 )
 from models import ChannelChatMessageEventSub
 from services.helper.helper import send_message
@@ -25,15 +26,20 @@ logger = logging.getLogger(__name__)
 async def call_twitch(
     method: Literal["GET", "POST"],
     url: str,
-    json: Optional[dict],
-    user_token: bool = False,
+    json: Optional[dict] = None,
+    token_type: TokenType = TokenType.App,
 ) -> Optional[httpx.Response]:
     try:
         refresh_success = True
-        if user_token and not token_manager.user_access_token:
-            refresh_success = await token_manager.refresh_user_access_token()
-        elif not user_token and not token_manager.app_access_token:
+        if token_type == TokenType.App and not token_manager.app_access_token:
             refresh_success = await token_manager.refresh_app_access_token()
+        elif token_type == TokenType.User and not token_manager.user_access_token:
+            refresh_success = await token_manager.refresh_user_access_token()
+        elif (
+            token_type == TokenType.Broadcaster
+            and not token_manager.broadcaster_access_token
+        ):
+            refresh_success = await token_manager.refresh_broadcaster_access_token()
 
         if not refresh_success:
             logger.warning("No access token available and failed to refresh")
@@ -43,9 +49,16 @@ async def call_twitch(
             )
             return None
 
+        token = (
+            token_manager.app_access_token
+            if token_type == TokenType.App
+            else token_manager.user_access_token
+            if token_type == TokenType.User
+            else token_manager.broadcaster_access_token
+        )
         headers = {
             "Client-ID": TWITCH_CLIENT_ID,
-            "Authorization": f"Bearer {token_manager.user_access_token if user_token else token_manager.app_access_token}",
+            "Authorization": f"Bearer {token}",
         }
 
         if method.upper() == "GET":
@@ -62,17 +75,24 @@ async def call_twitch(
 
         if response.status_code == 401:
             logger.warning("Unauthorized request, refreshing token...")
-            if user_token:
+            if token_type == TokenType.App:
+                refresh_success = await token_manager.refresh_app_access_token()
+            elif token_type == TokenType.User:
                 refresh_success = await token_manager.refresh_user_access_token()
             else:
-                refresh_success = await token_manager.refresh_app_access_token()
+                refresh_success = await token_manager.refresh_broadcaster_access_token()
 
             if not refresh_success:
                 return None
 
-            headers["Authorization"] = (
-                f"Bearer {token_manager.user_access_token if user_token else token_manager.app_access_token}"
+            token = (
+                token_manager.app_access_token
+                if token_type == TokenType.App
+                else token_manager.user_access_token
+                if token_type == TokenType.User
+                else token_manager.broadcaster_access_token
             )
+            headers["Authorization"] = f"Bearer {token}"
             if method.upper() == "GET":
                 response = httpx.get(url, headers=headers, params=json)
             elif method.upper() == "POST":

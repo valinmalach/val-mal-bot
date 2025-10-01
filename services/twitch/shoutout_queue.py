@@ -8,7 +8,7 @@ import sentry_sdk
 from dotenv import load_dotenv
 from pendulum import DateTime
 
-from constants import BOT_ADMIN_CHANNEL
+from constants import BOT_ADMIN_CHANNEL, TokenType
 from services.helper.helper import send_message
 from services.helper.twitch import call_twitch
 from services.twitch.api import get_user_by_username
@@ -92,7 +92,7 @@ class TwitchShoutoutQueue:
                     "to_broadcaster_id": user.id,
                     "moderator_id": TWITCH_BOT_USER_ID,
                 }
-                response = await call_twitch("POST", url, data, user_token=True)
+                response = await call_twitch("POST", url, data, TokenType.User)
                 if (
                     response is None
                     or response.status_code < 200
