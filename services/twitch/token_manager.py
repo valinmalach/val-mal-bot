@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 from constants import BOT_ADMIN_CHANNEL
 from models import AuthResponse, RefreshResponse
+from services.helper.helper import send_message
 
 load_dotenv()
 
@@ -77,8 +78,6 @@ class TwitchTokenManager:
 
     @sentry_sdk.trace()
     async def refresh_app_access_token(self) -> bool:
-        from services.helper import send_message
-
         scopes = [
             "channel:bot",
             "channel:read:ads",
@@ -142,8 +141,6 @@ class TwitchTokenManager:
 
     @sentry_sdk.trace()
     async def refresh_user_access_token(self) -> bool:
-        from services.helper import send_message
-
         if not self._user_refresh_token:
             logger.error("No user refresh token available")
             await send_message("No user refresh token available", BOT_ADMIN_CHANNEL)

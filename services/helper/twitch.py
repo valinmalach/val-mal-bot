@@ -10,6 +10,7 @@ from constants import (
     BOT_ADMIN_CHANNEL,
 )
 from models import ChannelChatMessageEventSub
+from services.helper.helper import send_message
 from services.twitch.token_manager import token_manager
 
 load_dotenv()
@@ -27,8 +28,6 @@ async def call_twitch(
     json: Optional[dict],
     user_token: bool = False,
 ) -> Optional[httpx.Response]:
-    from services.helper import send_message
-
     try:
         refresh_success = True
         if user_token and not token_manager.user_access_token:
@@ -106,8 +105,6 @@ async def check_mod(event_sub: ChannelChatMessageEventSub) -> bool:
 
 @sentry_sdk.trace()
 async def twitch_send_message(broadcaster_id: str, message: str) -> None:
-    from services.helper import send_message
-
     try:
         url = "https://api.twitch.tv/helix/chat/messages"
         data = {

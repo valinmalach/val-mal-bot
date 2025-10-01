@@ -11,7 +11,6 @@ from discord.ext.commands import Bot
 from dotenv import load_dotenv
 
 from constants import BOT_ADMIN_CHANNEL, GUILD_ID
-from services.twitch.shoutout_queue import shoutout_queue
 
 MY_GUILD = discord.Object(id=GUILD_ID)
 
@@ -49,6 +48,7 @@ async def restart_live_alert_tasks() -> None:
 @sentry_sdk.trace()
 async def activate_if_live() -> None:
     from services import get_stream_info
+    from services.twitch.shoutout_queue import shoutout_queue
 
     if not TWITCH_BROADCASTER_ID:
         return

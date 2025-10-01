@@ -24,6 +24,13 @@ from models import (
     Video,
     VideoResponse,
 )
+from services.helper.helper import (
+    delete_row_from_parquet,
+    edit_embed,
+    get_age,
+    parse_rfc3339,
+    send_message,
+)
 from services.helper.twitch import call_twitch
 
 load_dotenv()
@@ -36,8 +43,6 @@ logger = logging.getLogger(__name__)
 
 @sentry_sdk.trace()
 async def get_subscriptions() -> Optional[List[Subscription]]:
-    from services.helper.helper import send_message
-
     all_subscriptions: List[Subscription] = []
     cursor: Optional[str] = None
 
@@ -78,8 +83,6 @@ async def get_subscriptions() -> Optional[List[Subscription]]:
 
 @sentry_sdk.trace()
 async def get_user(id: int) -> Optional[User]:
-    from services.helper.helper import send_message
-
     url = f"https://api.twitch.tv/helix/users?id={id}"
     response = await call_twitch("GET", url, None)
     if response is None or response.status_code < 200 or response.status_code >= 300:
@@ -97,8 +100,6 @@ async def get_user(id: int) -> Optional[User]:
 
 @sentry_sdk.trace()
 async def get_user_by_username(username: str) -> Optional[User]:
-    from services.helper.helper import send_message
-
     url = f"https://api.twitch.tv/helix/users?login={username}"
     response = await call_twitch("GET", url, None)
     if response is None or response.status_code < 200 or response.status_code >= 300:
@@ -116,8 +117,6 @@ async def get_user_by_username(username: str) -> Optional[User]:
 
 @sentry_sdk.trace()
 async def subscribe_to_user(username: str) -> bool:
-    from services.helper.helper import send_message
-
     user = await get_user_by_username(username)
     if not user:
         logger.warning(f"User not found: {username}")
@@ -174,8 +173,6 @@ async def subscribe_to_user(username: str) -> bool:
 
 @sentry_sdk.trace()
 async def get_users(ids: List[str]) -> Optional[List[User]]:
-    from services.helper.helper import send_message
-
     batches_iterator = itertools.batched(ids, 100)
     batches_list = [list(batch) for batch in batches_iterator]
 
@@ -207,8 +204,6 @@ async def get_users(ids: List[str]) -> Optional[List[User]]:
 
 @sentry_sdk.trace()
 async def get_channel(id: int) -> Optional[Channel]:
-    from services.helper.helper import send_message
-
     url = f"https://api.twitch.tv/helix/channels?broadcaster_id={id}"
     response = await call_twitch("GET", url, None)
     if response is None or response.status_code < 200 or response.status_code >= 300:
@@ -226,8 +221,6 @@ async def get_channel(id: int) -> Optional[Channel]:
 
 @sentry_sdk.trace()
 async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
-    from services.helper.helper import send_message
-
     url = f"https://api.twitch.tv/helix/streams?user_id={broadcaster_id}"
     response = await call_twitch("GET", url, None)
     if response is None or response.status_code < 200 or response.status_code >= 300:
@@ -245,8 +238,6 @@ async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
 
 @sentry_sdk.trace()
 async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
-    from services.helper.helper import send_message
-
     url = f"https://api.twitch.tv/helix/videos?user_id={user_id}&type=archive"
     response = await call_twitch("GET", url, None)
     if response is None or response.status_code < 200 or response.status_code >= 300:
@@ -283,8 +274,6 @@ async def trigger_offline_sequence(
     content: Optional[str],
     channel: Optional[Channel],
 ) -> None:
-    from services.helper.helper import delete_row_from_parquet, edit_embed, send_message
-
     vod_info = None
     try:
         vod_info = await get_stream_vod(broadcaster_id, stream_id)
@@ -351,14 +340,6 @@ async def update_alert(
     stream_id: int,
     stream_started_at: str,
 ) -> None:
-    from services.helper.helper import (
-        delete_row_from_parquet,
-        edit_embed,
-        get_age,
-        parse_rfc3339,
-        send_message,
-    )
-
     try:
         await asyncio.sleep(60)
 
