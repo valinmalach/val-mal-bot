@@ -411,7 +411,10 @@ class Events(Cog):
     @sentry_sdk.trace()
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent) -> None:
         try:
-            if payload.cached_message is not None and payload.cached_message.author == self.bot.user:
+            if (
+                payload.cached_message is not None
+                and payload.cached_message.author == self.bot.user
+            ):
                 return
 
             user_who_deleted = None
@@ -596,16 +599,8 @@ class Events(Cog):
     @sentry_sdk.trace()
     async def on_invite_create(self, invite: Invite) -> None:
         try:
-            guild = invite.guild
-            guild_name = (
-                guild.name
-                if guild and not isinstance(guild, Object)
-                else "Unknown Guild"
-            )
-            guild_icon = (
-                guild.icon.url
-                if guild and not isinstance(guild, Object) and guild.icon
-                else None
+            guild_name, guild_icon = await self._get_guild_name_and_icon_from_invite(
+                invite
             )
             channel_mention = get_channel_mention(invite.channel)
             inviter_mention = f" by {invite.inviter.mention}" if invite.inviter else ""
@@ -635,16 +630,8 @@ class Events(Cog):
     @sentry_sdk.trace()
     async def on_invite_delete(self, invite: Invite) -> None:
         try:
-            guild = invite.guild
-            guild_name = (
-                guild.name
-                if guild and not isinstance(guild, Object)
-                else "Unknown Guild"
-            )
-            guild_icon = (
-                guild.icon.url
-                if guild and not isinstance(guild, Object) and guild.icon
-                else None
+            guild_name, guild_icon = await self._get_guild_name_and_icon_from_invite(
+                invite
             )
             description = f"**Invite [{invite.code}]({invite.url}) deleted**"
             embed = Embed(
@@ -968,6 +955,21 @@ class Events(Cog):
                     .set_image(url=attachment.url)
                 )
                 await send_embed(embed, AUDIT_LOGS_CHANNEL)
+
+    @sentry_sdk.trace()
+    async def _get_guild_name_and_icon_from_invite(
+        self, invite: Invite
+    ) -> tuple[str, str | None]:
+        guild = invite.guild
+        guild_name = (
+            guild.name if guild and not isinstance(guild, Object) else "Unknown Guild"
+        )
+        guild_icon = (
+            guild.icon.url
+            if guild and not isinstance(guild, Object) and guild.icon
+            else None
+        )
+        return guild_name, guild_icon
 
 
 async def setup(bot: Bot) -> None:

@@ -184,45 +184,12 @@ class TwitchTokenManager:
             f.write(self._broadcaster_refresh_token)
 
     @sentry_sdk.trace()
-    async def refresh_user_access_token(self) -> bool:
-        if not self._user_refresh_token:
+    async def refresh_user_access_token(self, broadcaster: bool = False) -> bool:
+        if not broadcaster and not self._user_refresh_token:
             logger.error("No user refresh token available")
             await send_message("No user refresh token available", BOT_ADMIN_CHANNEL)
             return False
-
-        params = {
-            "client_id": TWITCH_CLIENT_ID,
-            "client_secret": TWITCH_CLIENT_SECRET,
-            "grant_type": "refresh_token",
-            "refresh_token": self._user_refresh_token,
-        }
-        response = httpx.post("https://id.twitch.tv/oauth2/token", params=params)
-
-        if response.status_code < 200 or response.status_code >= 300:
-            logger.error(
-                f"User token refresh failed with status={response.status_code}"
-            )
-            await send_message(
-                f"Failed to refresh user access token: {response.status_code} {response.text}",
-                BOT_ADMIN_CHANNEL,
-            )
-            return False
-
-        auth_response = RefreshResponse.model_validate(response.json())
-
-        if auth_response.token_type == "bearer":
-            await self.set_user_access_token(auth_response)
-            return True
-        else:
-            logger.error(f"Unexpected token type received: {auth_response.token_type}")
-            await send_message(
-                f"Unexpected token type: {auth_response.token_type}", BOT_ADMIN_CHANNEL
-            )
-            return False
-
-    @sentry_sdk.trace()
-    async def refresh_broadcaster_access_token(self) -> bool:
-        if not self._broadcaster_refresh_token:
+        elif broadcaster and not self._broadcaster_refresh_token:
             logger.error("No broadcaster refresh token available")
             await send_message(
                 "No broadcaster refresh token available", BOT_ADMIN_CHANNEL
@@ -233,16 +200,18 @@ class TwitchTokenManager:
             "client_id": TWITCH_CLIENT_ID,
             "client_secret": TWITCH_CLIENT_SECRET,
             "grant_type": "refresh_token",
-            "refresh_token": self._broadcaster_refresh_token,
+            "refresh_token": self._broadcaster_refresh_token
+            if broadcaster
+            else self._user_refresh_token,
         }
         response = httpx.post("https://id.twitch.tv/oauth2/token", params=params)
 
         if response.status_code < 200 or response.status_code >= 300:
             logger.error(
-                f"Broadcaster token refresh failed with status={response.status_code}"
+                f"{'Broadcaster' if broadcaster else 'User'} token refresh failed with status={response.status_code}"
             )
             await send_message(
-                f"Failed to refresh broadcaster access token: {response.status_code} {response.text}",
+                f"Failed to refresh {'broadcaster' if broadcaster else 'user'} access token: {response.status_code} {response.text}",
                 BOT_ADMIN_CHANNEL,
             )
             return False
@@ -250,7 +219,9 @@ class TwitchTokenManager:
         auth_response = RefreshResponse.model_validate(response.json())
 
         if auth_response.token_type == "bearer":
-            await self.set_broadcaster_access_token(auth_response)
+            await self.set_broadcaster_access_token(
+                auth_response
+            ) if broadcaster else await self.set_user_access_token(auth_response)
             return True
         else:
             logger.error(f"Unexpected token type received: {auth_response.token_type}")

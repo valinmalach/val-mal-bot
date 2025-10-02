@@ -39,7 +39,7 @@ async def call_twitch(
             token_type == TokenType.Broadcaster
             and not token_manager.broadcaster_access_token
         ):
-            refresh_success = await token_manager.refresh_broadcaster_access_token()
+            refresh_success = await token_manager.refresh_user_access_token(True)
 
         if not refresh_success:
             logger.warning("No access token available and failed to refresh")
@@ -80,7 +80,7 @@ async def call_twitch(
             elif token_type == TokenType.User:
                 refresh_success = await token_manager.refresh_user_access_token()
             else:
-                refresh_success = await token_manager.refresh_broadcaster_access_token()
+                refresh_success = await token_manager.refresh_user_access_token(True)
 
             if not refresh_success:
                 return None
