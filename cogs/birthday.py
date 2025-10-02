@@ -159,9 +159,7 @@ class Birthday(GroupCog):
             }
             success, error = update_birthday(record)
             if not success:
-                logger.error(
-                    f"Failed to remove birthday for user {interaction.user.id}: {error}"
-                )
+                logger.error(f"Failed to remove birthday for user: {error}")
                 await self._forget_birthday_failed(interaction, error)
                 return
 

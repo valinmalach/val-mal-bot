@@ -107,9 +107,7 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
 
     twitch_message_signature = headers.get(TWITCH_MESSAGE_SIGNATURE, "")
     if not verify_message(secret_hmac, twitch_message_signature):
-        logger.warning(
-            f"403: Forbidden. Signature does not match: computed={secret_hmac}, received={twitch_message_signature}"
-        )
+        logger.warning("403: Forbidden. Signature does not match.")
         await send_message(
             "403: Forbidden request on /webhook/twitch. Signature does not match.",
             BOT_ADMIN_CHANNEL,

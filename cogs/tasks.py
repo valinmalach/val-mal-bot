@@ -253,9 +253,7 @@ class Tasks(Cog):
             }
             success, error = update_birthday(updated_record)
             if not success:
-                logger.error(
-                    f"Failed to update birthday for user ID {user_id}: {error}"
-                )
+                logger.error(f"Failed to update birthday for user: {error}")
                 await send_message(
                     f"Failed to update birthday for {updated_record['username']}: {error}",
                     BOT_ADMIN_CHANNEL,
