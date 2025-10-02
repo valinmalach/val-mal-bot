@@ -227,6 +227,11 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
     try:
         if event_sub.event.broadcaster_user_login == "valinmalach":
             await shoutout_queue.deactivate()
+            existing_task = _ad_break_notification_tasks.get(
+                event_sub.event.broadcaster_user_id
+            )
+            if existing_task and not existing_task.done():
+                existing_task.cancel()
 
         user_info = await get_user(int(broadcaster_id))
         channel_info = await get_channel(int(broadcaster_id))

@@ -298,6 +298,17 @@ async def trigger_offline_sequence(
     content: Optional[str],
     channel: Optional[Channel],
 ) -> None:
+    if (stream_info and stream_info.user_login == "valinmalach") or (
+        user_info and user_info.login == "valinmalach"
+    ):
+        from controller.twitch import _ad_break_notification_tasks
+        from services.twitch.shoutout_queue import shoutout_queue
+
+        await shoutout_queue.deactivate()
+        existing_task = _ad_break_notification_tasks.get(str(broadcaster_id))
+        if existing_task and not existing_task.done():
+            existing_task.cancel()
+
     vod_info = None
     try:
         vod_info = await get_stream_vod(broadcaster_id, stream_id)
