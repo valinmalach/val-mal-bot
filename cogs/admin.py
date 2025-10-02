@@ -52,16 +52,6 @@ class Admin(Cog):
             "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
         )
 
-    @app_commands.command(description="Restarts the bot without uv sync")
-    @app_commands.commands.default_permissions(administrator=True)
-    async def raw_restart(self, interaction: Interaction) -> None:
-        await interaction.response.send_message("Restarting without uv sync...")
-        await asyncio.create_subprocess_exec(
-            "powershell.exe",
-            "-File",
-            "C:\\val-mal-bot\\restart_bot_without_uv_sync.ps1",
-        )
-
     @app_commands.command(description="Deletes all messages in the channel")
     @app_commands.commands.default_permissions(administrator=True)
     @sentry_sdk.trace()
