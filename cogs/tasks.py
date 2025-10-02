@@ -7,6 +7,7 @@ import httpx
 import pendulum
 import polars as pl
 import sentry_sdk
+from atproto import exceptions
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
 from dotenv import load_dotenv
@@ -95,6 +96,8 @@ class Tasks(Cog):
 
             try:
                 author_feed = at_client.get_author_feed(actor="valinmalach.bsky.social")
+            except exceptions.InvokeTimeoutError:
+                return
             except Exception as e:
                 error_details = {
                     "type": type(e).__name__,
