@@ -46,6 +46,7 @@ sentry_sdk.profiler.start_profiler()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
