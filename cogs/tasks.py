@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+import traceback
 
 import httpx
 import pendulum
@@ -95,9 +96,16 @@ class Tasks(Cog):
             try:
                 author_feed = at_client.get_author_feed(actor="valinmalach.bsky.social")
             except Exception as e:
-                logger.warning(f"Error fetching Bluesky author feed: {e}")
+                error_details = {
+                    "type": type(e).__name__,
+                    "message": str(e),
+                    "args": e.args,
+                    "traceback": traceback.format_exc(),
+                }
+                error_msg = f"Error fetching Bluesky author feed - Type: {error_details['type']}, Message: {error_details['message']}"
+                logger.warning(f"{error_msg}\nTraceback: {error_details['traceback']}")
                 await send_message(
-                    f"Error fetching Bluesky author feed: {e}",
+                    error_msg,
                     BOT_ADMIN_CHANNEL,
                 )
                 return
