@@ -102,10 +102,14 @@ class Tasks(Cog):
                     "args": e.args,
                     "traceback": traceback.format_exc(),
                 }
-                error_msg = f"Error fetching Bluesky author feed - Type: {error_details['type']}, Message: {error_details['message']}"
+                error_msg = f"Error fetching Bluesky author feed - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
                 logger.warning(f"{error_msg}\nTraceback: {error_details['traceback']}")
                 await send_message(
                     error_msg,
+                    BOT_ADMIN_CHANNEL,
+                )
+                await send_message(
+                    f"Traceback:\n{error_details['traceback']}",
                     BOT_ADMIN_CHANNEL,
                 )
                 return
