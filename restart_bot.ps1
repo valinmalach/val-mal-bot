@@ -3,7 +3,7 @@ $AppPath = "C:\val-mal-bot"
 $BotScript = "main.py"
 
 # Kill the running bot by filtering processes whose command line contains the bot script name
-Write-Host "Stopping existing bot processes..."
+Write-Output "Stopping existing bot processes..."
 $processes = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $BotScript }
 foreach ($process in $processes) {
     Stop-Process -Id $process.ProcessId -Force
@@ -13,14 +13,14 @@ foreach ($process in $processes) {
 Set-Location $AppPath
 
 # Pull the latest code from Git
-Write-Host "Updating from Git..."
+Write-Output "Updating from Git..."
 git pull
 
 # Install or update the required packages
-Write-Host "Installing requirements..."
+Write-Output "Installing requirements..."
 uv self update
 uv sync
 
 # Restart the bot
-Write-Host "Restarting the bot..."
+Write-Output "Restarting the bot..."
 uv run $BotScript
