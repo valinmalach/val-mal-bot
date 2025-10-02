@@ -60,6 +60,7 @@ from services import (
     upsert_row_to_parquet,
     verify_message,
 )
+from services.twitch.api import get_ad_schedule
 from services.twitch.shoutout_queue import shoutout_queue
 from services.twitch.token_manager import token_manager
 
@@ -394,6 +395,39 @@ async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
         )
 
 
+_ad_break_notification_tasks: dict[str, asyncio.Task] = {}
+
+
+async def _schedule_next_ad_break_notification(broadcaster_id: str) -> None:
+    try:
+        ad_schedule = await get_ad_schedule(int(broadcaster_id))
+        if not ad_schedule:
+            return
+
+        next_ad_time = parse_rfc3339(ad_schedule.next_ad_at)
+        notify_time = next_ad_time.subtract(minutes=5)
+        now = pendulum.now()
+        wait_seconds = (notify_time - now).total_seconds()
+        if wait_seconds > 0:
+            await asyncio.sleep(wait_seconds)
+            await twitch_send_message(
+                broadcaster_id,
+                "The next ad break will start in 5 minutes! Feel free to take a quick break while the ads run! valinmHeart",
+            )
+    except asyncio.CancelledError:
+        logger.info(
+            "Cancelled ad break notification task for broadcaster_id=%s",
+            broadcaster_id,
+        )
+        raise
+    except Exception as e:
+        logger.error(f"Error scheduling next ad break notification: {e}")
+        sentry_sdk.capture_exception(e)
+        await send_message(
+            f"Error scheduling next ad break notification: {e}", BOT_ADMIN_CHANNEL
+        )
+
+
 @sentry_sdk.trace()
 async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -> None:
     try:
@@ -406,6 +440,21 @@ async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -
         await twitch_send_message(
             event_sub.event.broadcaster_user_id,
             "The ad break is finishing now! valinmArrive",
+        )
+        existing_task = _ad_break_notification_tasks.get(
+            event_sub.event.broadcaster_user_id
+        )
+        if existing_task and not existing_task.done():
+            existing_task.cancel()
+        task = asyncio.create_task(
+            _schedule_next_ad_break_notification(event_sub.event.broadcaster_user_id)
+        )
+        _ad_break_notification_tasks[event_sub.event.broadcaster_user_id] = task
+        task.add_done_callback(
+            lambda t,
+            broadcaster_id=event_sub.event.broadcaster_user_id: _ad_break_notification_tasks.pop(
+                broadcaster_id, None
+            )
         )
     except Exception as e:
         logger.error(f"Error processing Twitch ad break webhook task: {e}")

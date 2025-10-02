@@ -1,4 +1,5 @@
 from .auth.auth_response import AuthResponse, RefreshResponse
+from .twitch_api_responses.ad_schedule import AdSchedule, AdScheduleResponse
 from .twitch_api_responses.channel import Channel, ChannelResponse
 from .twitch_api_responses.stream import Stream, StreamResponse
 from .twitch_api_responses.subscription import (
@@ -16,6 +17,8 @@ from .twitch_event_subs.stream_online import StreamOnlineEventSub
 __all__ = [
     "AuthResponse",
     "RefreshResponse",
+    "AdSchedule",
+    "AdScheduleResponse",
     "Channel",
     "ChannelResponse",
     "Stream",

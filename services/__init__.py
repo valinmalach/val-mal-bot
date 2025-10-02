@@ -23,6 +23,7 @@ from .helper.helper import (
 )
 from .helper.twitch import call_twitch, check_mod, twitch_send_message
 from .twitch.api import (
+    get_ad_schedule,
     get_channel,
     get_stream_info,
     get_stream_vod,
@@ -83,6 +84,7 @@ __all__ = [
     "call_twitch",
     "check_mod",
     "twitch_send_message",
+    "get_ad_schedule",
     "get_channel",
     "get_stream_info",
     "get_stream_vod",

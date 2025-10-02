@@ -11,8 +11,15 @@ import sentry_sdk
 from discord.ui import View
 from dotenv import load_dotenv
 
-from constants import BOT_ADMIN_CHANNEL, LIVE_ALERTS_ROLE, STREAM_ALERTS_CHANNEL
+from constants import (
+    BOT_ADMIN_CHANNEL,
+    LIVE_ALERTS_ROLE,
+    STREAM_ALERTS_CHANNEL,
+    TokenType,
+)
 from models import (
+    AdSchedule,
+    AdScheduleResponse,
     Channel,
     ChannelResponse,
     Stream,
@@ -258,6 +265,23 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
         ),
         None,
     )
+
+
+@sentry_sdk.trace()
+async def get_ad_schedule(broadcaster_id: int) -> Optional[AdSchedule]:
+    url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={broadcaster_id}"
+    response = await call_twitch("GET", url, None, TokenType.Broadcaster)
+    if response is None or response.status_code < 200 or response.status_code >= 300:
+        logger.warning(
+            f"Failed to fetch ad schedule: {response.status_code if response else 'No response'}"
+        )
+        await send_message(
+            f"Failed to fetch ad schedule: {response.status_code if response else 'No response'} {response.text if response else ''}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return
+    ad_schedule_response = AdScheduleResponse.model_validate(response.json())
+    return ad_schedule_response.data[0] if ad_schedule_response.data else None
 
 
 @sentry_sdk.trace()
