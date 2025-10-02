@@ -108,10 +108,6 @@ class Tasks(Cog):
                     error_msg,
                     BOT_ADMIN_CHANNEL,
                 )
-                await send_message(
-                    f"Traceback:\n{error_details['traceback']}",
-                    BOT_ADMIN_CHANNEL,
-                )
                 return
 
             posts = sorted(
