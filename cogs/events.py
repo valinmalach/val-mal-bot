@@ -51,6 +51,21 @@ class Events(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
 
+    @sentry_sdk.trace()
+    async def _get_message_object(self, message: Message) -> dict:
+        guild = message.guild
+        guild_id = GUILD_ID if guild is None else guild.id
+        return {
+            "id": message.id,
+            "contents": message.content,
+            "guild_id": guild_id,
+            "author_id": message.author.id,
+            "channel_id": message.channel.id,
+            "attachment_urls": orjson.dumps(
+                [attachment.url for attachment in message.attachments]
+            ).decode("utf-8"),
+        }
+
     @Cog.listener()
     @sentry_sdk.trace()
     async def on_message(self, message: Message) -> None:
@@ -58,18 +73,7 @@ class Events(Cog):
             if message.author == self.bot.user:
                 return
 
-            guild = message.guild
-            guild_id = GUILD_ID if guild is None else guild.id
-            message_obj = {
-                "id": message.id,
-                "contents": message.content,
-                "guild_id": guild_id,
-                "author_id": message.author.id,
-                "channel_id": message.channel.id,
-                "attachment_urls": orjson.dumps(
-                    [attachment.url for attachment in message.attachments]
-                ).decode("utf-8"),
-            }
+            message_obj = await self._get_message_object(message)
             try:
                 success, error = upsert_row_to_parquet(
                     message_obj,
@@ -372,19 +376,7 @@ class Events(Cog):
             )
 
             try:
-                guild = after.guild
-                guild_id = GUILD_ID if guild is None else guild.id
-                after_message_obj = {
-                    "id": after.id,
-                    "contents": after.content,
-                    "guild_id": guild_id,
-                    "author_id": after.author.id,
-                    "channel_id": after.channel.id,
-                    "attachment_urls": orjson.dumps(
-                        [attachment.url for attachment in after.attachments]
-                    ).decode("utf-8"),
-                }
-
+                after_message_obj = await self._get_message_object(after)
                 success, error = upsert_row_to_parquet(
                     after_message_obj,
                     "data/messages.parquet",

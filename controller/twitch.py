@@ -117,7 +117,15 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
 
 
 @sentry_sdk.trace()
-async def _stream_online_task(broadcaster_id: int) -> None:
+async def log_error(e: Exception, message: str) -> None:
+    logger.error(message)
+    sentry_sdk.capture_exception(e)
+    await send_message(message, BOT_ADMIN_CHANNEL)
+
+
+@sentry_sdk.trace()
+async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
+    broadcaster_id = int(event_sub.event.broadcaster_user_id)
     try:
         stream_info = await get_stream_info(broadcaster_id)
         user_info = await get_user(broadcaster_id)
@@ -211,14 +219,8 @@ async def _stream_online_task(broadcaster_id: int) -> None:
                 BOT_ADMIN_CHANNEL,
             )
     except Exception as e:
-        logger.error(
-            f"Error in _stream_online_task for broadcaster_id={broadcaster_id}: {e}"
-        )
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"Error in _stream_online_task for {broadcaster_id}: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        message = f"Error in _stream_online_task for {broadcaster_id}: {e}"
+        await log_error(e, message)
 
 
 @sentry_sdk.trace()
@@ -326,14 +328,8 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
                 BOT_ADMIN_CHANNEL,
             )
     except Exception as e:
-        logger.error(
-            f"Error in _stream_offline_task for broadcaster_id={broadcaster_id}: {e}"
-        )
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"Error in _stream_offline_task for {broadcaster_id}: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        message = f"Error in _stream_offline_task for {broadcaster_id}: {e}"
+        await log_error(e, message)
 
 
 @sentry_sdk.trace()
@@ -393,11 +389,8 @@ async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
             f"Thank you for following, {event_sub.event.user_name}! valinmHeart Your support means a lot to me! I hope you enjoy your stay! valinmHeart",
         )
     except Exception as e:
-        logger.error(f"Error processing Twitch follow webhook task: {e}")
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"Error processing Twitch follow webhook task: {e}", BOT_ADMIN_CHANNEL
-        )
+        message = f"Error processing Twitch follow webhook task: {e}"
+        await log_error(e, message)
 
 
 _ad_break_notification_tasks: dict[str, asyncio.Task] = {}
@@ -426,11 +419,8 @@ async def _schedule_next_ad_break_notification(broadcaster_id: str) -> None:
         )
         raise
     except Exception as e:
-        logger.error(f"Error scheduling next ad break notification: {e}")
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"Error scheduling next ad break notification: {e}", BOT_ADMIN_CHANNEL
-        )
+        message = f"Error scheduling next ad break notification: {e}"
+        await log_error(e, message)
 
 
 @sentry_sdk.trace()
@@ -462,20 +452,19 @@ async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -
             )
         )
     except Exception as e:
-        logger.error(f"Error processing Twitch ad break webhook task: {e}")
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"Error processing Twitch ad break webhook task: {e}", BOT_ADMIN_CHANNEL
-        )
+        message = f"Error processing Twitch ad break webhook task: {e}"
+        await log_error(e, message)
 
 
-@twitch_router.get("/twitch/oauth/callback")
-async def twitch_oauth_callback(code: str, state: str) -> Response:
+@sentry_sdk.trace()
+async def _oauth_callback_common(
+    code: str, state: str, endpoint: str
+) -> RefreshResponse:
     try:
         if state != TWITCH_WEBHOOK_SECRET:
             logger.warning(f"400: Bad request. Invalid state: {state}")
             await send_message(
-                "400: Bad request on /twitch/oauth/callback. Invalid state.",
+                f"400: Bad request on {endpoint}. Invalid state.",
                 BOT_ADMIN_CHANNEL,
             )
             raise HTTPException(status_code=400)
@@ -485,7 +474,7 @@ async def twitch_oauth_callback(code: str, state: str) -> Response:
             "client_secret": TWITCH_CLIENT_SECRET,
             "code": code,
             "grant_type": "authorization_code",
-            "redirect_uri": f"{APP_URL}/twitch/oauth/callback",
+            "redirect_uri": f"{APP_URL}{endpoint}",
         }
         response = httpx.post("https://id.twitch.tv/oauth2/token", params=params)
 
@@ -509,7 +498,17 @@ async def twitch_oauth_callback(code: str, state: str) -> Response:
                 BOT_ADMIN_CHANNEL,
             )
             raise HTTPException(status_code=500)
+        return auth_response
+    except Exception as e:
+        raise e
 
+
+@twitch_router.get("/twitch/oauth/callback")
+async def twitch_oauth_callback(code: str, state: str) -> Response:
+    try:
+        auth_response = await _oauth_callback_common(
+            code, state, "/twitch/oauth/callback"
+        )
         await token_manager.set_user_access_token(auth_response)
         return Response(
             "Authorization successful! You can close this tab.", status_code=200
@@ -517,56 +516,17 @@ async def twitch_oauth_callback(code: str, state: str) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        logger.error(f"500: Internal server error on /twitch/oauth/callback: {e}")
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"500: Internal server error on /twitch/oauth/callback: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        message = f"500: Internal server error on /twitch/oauth/callback: {e}"
+        await log_error(e, message)
         raise HTTPException(status_code=500) from e
 
 
 @twitch_router.get("/twitch/oauth/callback/broadcaster")
 async def twitch_oauth_callback_broadcaster(code: str, state: str) -> Response:
     try:
-        if state != TWITCH_WEBHOOK_SECRET:
-            logger.warning(f"400: Bad request. Invalid state: {state}")
-            await send_message(
-                "400: Bad request on /twitch/oauth/callback/broadcaster. Invalid state.",
-                BOT_ADMIN_CHANNEL,
-            )
-            raise HTTPException(status_code=400)
-
-        params = {
-            "client_id": TWITCH_CLIENT_ID,
-            "client_secret": TWITCH_CLIENT_SECRET,
-            "code": code,
-            "grant_type": "authorization_code",
-            "redirect_uri": f"{APP_URL}/twitch/oauth/callback/broadcaster",
-        }
-        response = httpx.post("https://id.twitch.tv/oauth2/token", params=params)
-
-        if response.status_code < 200 or response.status_code >= 300:
-            logger.error(
-                f"Token exchange failed with status={response.status_code}, response={response.text}"
-            )
-            await send_message(
-                f"Failed to exchange token: {response.status_code} {response.text}",
-                BOT_ADMIN_CHANNEL,
-            )
-            raise HTTPException(status_code=500)
-
-        auth_response = RefreshResponse.model_validate(response.json())
-        if auth_response.token_type != "bearer":
-            logger.error(
-                f"Token exchange failed: unexpected token type {auth_response.token_type}"
-            )
-            await send_message(
-                f"Failed to exchange token: unexpected token type {auth_response.token_type}",
-                BOT_ADMIN_CHANNEL,
-            )
-            raise HTTPException(status_code=500)
-
+        auth_response = await _oauth_callback_common(
+            code, state, "/twitch/oauth/callback/broadcaster"
+        )
         await token_manager.set_broadcaster_access_token(auth_response)
         return Response(
             "Authorization successful! You can close this tab.", status_code=200
@@ -574,14 +534,10 @@ async def twitch_oauth_callback_broadcaster(code: str, state: str) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        logger.error(
+        message = (
             f"500: Internal server error on /twitch/oauth/callback/broadcaster: {e}"
         )
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"500: Internal server error on /twitch/oauth/callback/broadcaster: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        await log_error(e, message)
         raise HTTPException(status_code=500) from e
 
 
@@ -604,20 +560,14 @@ async def stream_online_webhook(request: Request) -> Response:
             )
             raise HTTPException(status_code=400)
 
-        asyncio.create_task(
-            _stream_online_task(int(event_sub.event.broadcaster_user_id))
-        )
+        asyncio.create_task(_stream_online_task(event_sub))
 
         return Response(status_code=202)
     except HTTPException as e:
         raise e
     except Exception as e:
-        logger.error(f"500: Internal server error on /webhook/twitch: {e}")
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"500: Internal server error on /webhook/twitch: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        message = f"500: Internal server error on /webhook/twitch: {e}"
+        await log_error(e, message)
         raise HTTPException(status_code=500) from e
 
 
@@ -646,12 +596,8 @@ async def stream_offline_webhook(request: Request) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        logger.error(f"500: Internal server error on /webhook/twitch/offline: {e}")
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"500: Internal server error on /webhook/twitch/offline: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        message = f"500: Internal server error on /webhook/twitch/offline: {e}"
+        await log_error(e, message)
         raise HTTPException(status_code=500) from e
 
 
@@ -680,12 +626,8 @@ async def channel_chat_message_webhook(request: Request) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        logger.error(f"500: Internal server error on /webhook/twitch/chat: {e}")
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"500: Internal server error on /webhook/twitch/chat: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        message = f"500: Internal server error on /webhook/twitch/chat: {e}"
+        await log_error(e, message)
         raise HTTPException(status_code=500) from e
 
 
@@ -714,12 +656,8 @@ async def channel_follow_webhook(request: Request) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        logger.error(f"500: Internal server error on /webhook/twitch/follow: {e}")
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"500: Internal server error on /webhook/twitch/follow: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        message = f"500: Internal server error on /webhook/twitch/follow: {e}"
+        await log_error(e, message)
         raise HTTPException(status_code=500) from e
 
 
@@ -748,10 +686,6 @@ async def channel_ad_break_begin_webhook(request: Request) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        logger.error(f"500: Internal server error on /webhook/twitch/adbreak: {e}")
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"500: Internal server error on /webhook/twitch/adbreak: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        message = f"500: Internal server error on /webhook/twitch/adbreak: {e}"
+        await log_error(e, message)
         raise HTTPException(status_code=500) from e

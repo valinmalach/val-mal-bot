@@ -48,6 +48,12 @@ class Tasks(Cog):
         pendulum.Time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
     ]
 
+    @sentry_sdk.trace()
+    async def log_error(self, e: Exception, message: str) -> None:
+        logger.error(message)
+        sentry_sdk.capture_exception(e)
+        await send_message(message, BOT_ADMIN_CHANNEL)
+
     @tasks.loop(hours=24)
     @sentry_sdk.trace()
     async def renew_youtube_webhook_subscription(self) -> None:
@@ -78,12 +84,8 @@ class Tasks(Cog):
                     BOT_ADMIN_CHANNEL,
                 )
         except Exception as e:
-            logger.error(f"Exception during YouTube webhook renewal: {e}")
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Exception during YouTube webhook renewal: {e}",
-                BOT_ADMIN_CHANNEL,
-            )
+            message = f"Exception during YouTube webhook renewal: {e}"
+            await self.log_error(e, message)
 
     @tasks.loop(minutes=1)
     @sentry_sdk.trace()
@@ -156,12 +158,8 @@ class Tasks(Cog):
                         BOT_ADMIN_CHANNEL,
                     )
         except Exception as e:
-            logger.error(f"Fatal error during Bluesky posts sync: {e}")
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with Bluesky posts check: {e}",
-                BOT_ADMIN_CHANNEL,
-            )
+            message = f"Fatal error during Bluesky posts sync: {e}"
+            await self.log_error(e, message)
 
     @tasks.loop(time=pendulum.Time(0, 0, 0, 0))
     @sentry_sdk.trace()
@@ -192,12 +190,8 @@ class Tasks(Cog):
                         BOT_ADMIN_CHANNEL,
                     )
         except Exception as e:
-            logger.error(f"Fatal error during backup data task: {e}")
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with backup data task: {e}",
-                BOT_ADMIN_CHANNEL,
-            )
+            message = f"Fatal error during backup data task: {e}"
+            await self.log_error(e, message)
 
     @tasks.loop(time=_quarter_hours)
     @sentry_sdk.trace()
@@ -213,12 +207,8 @@ class Tasks(Cog):
             birthday_users = df.filter(pl.col("birthday") == now)
             await self._process_birthday_records(birthday_users)
         except Exception as e:
-            logger.error(f"Fatal error during birthday check task: {e}")
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with birthday check: {e}",
-                BOT_ADMIN_CHANNEL,
-            )
+            message = f"Fatal error during birthday check task: {e}"
+            await self.log_error(e, message)
 
     @sentry_sdk.trace()
     async def _process_birthday_records(self, birthdays_now: DataFrame) -> None:
