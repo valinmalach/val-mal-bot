@@ -2,7 +2,7 @@ import asyncio
 import itertools
 import logging
 import os
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 import discord
 import pendulum
@@ -123,6 +123,34 @@ async def get_user_by_username(username: str) -> Optional[User]:
 
 
 @sentry_sdk.trace()
+async def twitch_event_subscription(
+    type: Literal["online", "offline"], user_id: str
+) -> bool:
+    url = "https://api.twitch.tv/helix/eventsub/subscriptions"
+    body = {
+        "type": f"stream.{type}",
+        "version": "1",
+        "condition": {"broadcaster_user_id": user_id},
+        "transport": {
+            "method": "webhook",
+            "callback": f"{APP_URL}/webhook/twitch{'' if type == 'online' else '/offline'}",
+            "secret": TWITCH_WEBHOOK_SECRET,
+        },
+    }
+    response = await call_twitch("POST", url, body)
+    if response is None or response.status_code < 200 or response.status_code >= 300:
+        logger.warning(
+            f"Failed to subscribe to {type} event: {response.status_code if response else 'No response'}"
+        )
+        await send_message(
+            f"Failed to subscribe to {type} event: {response.status_code if response else 'No response'} {response.text if response else ''}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return False
+    return True
+
+
+@sentry_sdk.trace()
 async def subscribe_to_user(username: str) -> bool:
     user = await get_user_by_username(username)
     if not user:
@@ -130,52 +158,9 @@ async def subscribe_to_user(username: str) -> bool:
         await send_message(f"User not found: {username}", BOT_ADMIN_CHANNEL)
         return False
 
-    user_id = user.id
-
-    url = "https://api.twitch.tv/helix/eventsub/subscriptions"
-    body = {
-        "type": "stream.online",
-        "version": "1",
-        "condition": {"broadcaster_user_id": user_id},
-        "transport": {
-            "method": "webhook",
-            "callback": f"{APP_URL}/webhook/twitch",
-            "secret": TWITCH_WEBHOOK_SECRET,
-        },
-    }
-    response = await call_twitch("POST", url, body)
-    if response is None or response.status_code < 200 or response.status_code >= 300:
-        logger.warning(
-            f"Failed to subscribe to online event: {response.status_code if response else 'No response'}"
-        )
-        await send_message(
-            f"Failed to subscribe to online event: {response.status_code if response else 'No response'} {response.text if response else ''}",
-            BOT_ADMIN_CHANNEL,
-        )
-        return False
-
-    body = {
-        "type": "stream.offline",
-        "version": "1",
-        "condition": {"broadcaster_user_id": user_id},
-        "transport": {
-            "method": "webhook",
-            "callback": f"{APP_URL}/webhook/twitch/offline",
-            "secret": TWITCH_WEBHOOK_SECRET,
-        },
-    }
-    response = await call_twitch("POST", url, body)
-    if response is None or response.status_code < 200 or response.status_code >= 300:
-        logger.warning(
-            f"Failed to subscribe to offline event: {response.status_code if response else 'No response'}"
-        )
-        await send_message(
-            f"Failed to subscribe to offline event: {response.status_code if response else 'No response'} {response.text if response else ''}",
-            BOT_ADMIN_CHANNEL,
-        )
-        return False
-
-    return True
+    return await twitch_event_subscription(
+        "online", user.id
+    ) and await twitch_event_subscription("offline", user.id)
 
 
 @sentry_sdk.trace()

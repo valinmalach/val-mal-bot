@@ -1,3 +1,5 @@
+from typing import Literal
+
 import discord
 import orjson
 import pendulum
@@ -107,8 +109,7 @@ class Events(Cog):
     @sentry_sdk.trace()
     async def on_member_join(self, member: Member) -> None:
         try:
-            discriminator = get_discriminator(member)
-            url = get_pfp(member)
+            discriminator, url = await self._get_user_data(member)
             embed = (
                 Embed(
                     description=f"**Welcome to Malachar, {member.mention}**",
@@ -177,13 +178,16 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @sentry_sdk.trace()
+    async def _get_user_data(self, user: User | Member) -> tuple[str, str]:
+        return get_discriminator(user), get_pfp(user)
+
     @Cog.listener()
     @sentry_sdk.trace()
     async def on_raw_member_remove(self, payload: RawMemberRemoveEvent) -> None:
         try:
             member = payload.user
-            discriminator = get_discriminator(member)
-            url = get_pfp(member)
+            discriminator, url = await self._get_user_data(member)
             embed = (
                 Embed(
                     description=f"**{member.mention} has left. Goodbye!**",
@@ -254,8 +258,7 @@ class Events(Cog):
     @sentry_sdk.trace()
     async def on_member_update(self, before: Member, after: Member) -> None:
         try:
-            discriminator = get_discriminator(after)
-            url = get_pfp(after)
+            discriminator, url = await self._get_user_data(after)
 
             before_url = get_pfp(before)
             if url != before_url:
@@ -318,8 +321,7 @@ class Events(Cog):
             before = payload.cached_message
             after = payload.message
 
-            discriminator = get_discriminator(after.author)
-            url = get_pfp(after.author)
+            discriminator, url = await self._get_user_data(after.author)
 
             if before and before.pinned != after.pinned:
                 await self._log_message_pin(after, discriminator, url)
@@ -428,17 +430,9 @@ class Events(Cog):
                 return
 
             author = message.author
-            discriminator = get_discriminator(author)
-            url = get_pfp(author)
 
             await self._log_message_delete(
-                message,
-                payload.message_id,
-                author,
-                user_who_deleted,
-                channel,
-                discriminator,
-                url,
+                message, payload.message_id, author, user_who_deleted, channel
             )
 
             try:
@@ -489,8 +483,7 @@ class Events(Cog):
                 url = None
                 user_who_deleted_name = "Unknown User"
             else:
-                discriminator = get_discriminator(user_who_deleted)
-                url = get_pfp(user_who_deleted)
+                discriminator, url = await self._get_user_data(user_who_deleted)
                 user_who_deleted_name = user_who_deleted.name
 
             embed = Embed(
@@ -527,29 +520,33 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
+    @sentry_sdk.trace()
+    async def _log_ban_unban(
+        self, user: User | Member, action: Literal["ban", "unban"]
+    ) -> None:
+        discriminator, url = await self._get_user_data(user)
+        embed = (
+            Embed(
+                description=f"{user.mention} {user.name}{discriminator}",
+                color=0xFF470F if action == "ban" else 0x337FD5,
+                timestamp=pendulum.now(),
+            )
+            .set_author(
+                name=f"User {action.capitalize()}ed",
+                icon_url=url,
+            )
+            .set_thumbnail(
+                url=url,
+            )
+            .set_footer(text=f"ID: {user.id}")
+        )
+        await send_embed(embed, AUDIT_LOGS_CHANNEL)
+
     @Cog.listener()
     @sentry_sdk.trace()
     async def on_member_ban(self, guild: Guild, user: User | Member) -> None:
         try:
-            discriminator = get_discriminator(user)
-            url = get_pfp(user)
-
-            embed = (
-                Embed(
-                    description=f"{user.mention} {user.name}{discriminator}",
-                    color=0xFF470F,
-                    timestamp=pendulum.now(),
-                )
-                .set_author(
-                    name="User Banned",
-                    icon_url=url,
-                )
-                .set_thumbnail(
-                    url=url,
-                )
-                .set_footer(text=f"ID: {user.id}")
-            )
-            await send_embed(embed, AUDIT_LOGS_CHANNEL)
+            await self._log_ban_unban(user, "ban")
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
@@ -561,25 +558,7 @@ class Events(Cog):
     @sentry_sdk.trace()
     async def on_member_unban(self, guild: Guild, user: User | Member) -> None:
         try:
-            discriminator = get_discriminator(user)
-            url = get_pfp(user)
-
-            embed = (
-                Embed(
-                    description=f"{user.mention} {user.name}{discriminator}",
-                    color=0x337FD5,
-                    timestamp=pendulum.now(),
-                )
-                .set_author(
-                    name="User Unbanned",
-                    icon_url=url,
-                )
-                .set_thumbnail(
-                    url=url,
-                )
-                .set_footer(text=f"ID: {user.id}")
-            )
-            await send_embed(embed, AUDIT_LOGS_CHANNEL)
+            await self._log_ban_unban(user, "unban")
         except Exception as e:
             sentry_sdk.capture_exception(e)
             await send_message(
@@ -811,8 +790,7 @@ class Events(Cog):
             user_name = "Unknown User"
             user_id = "Unknown ID"
         else:
-            discriminator = get_discriminator(user)
-            url = get_pfp(user)
+            discriminator, url = await self._get_user_data(user)
             user_mention = user.mention
             user_name = user.name
             user_id = user.id
@@ -872,8 +850,6 @@ class Events(Cog):
             | PrivateChannel
             | None
         ),
-        discriminator: str,
-        url: str,
     ) -> None:
         try:
             message_content = message.content
@@ -885,6 +861,7 @@ class Events(Cog):
         )
         channel_mention = get_channel_mention(channel)
         description = f"**Message sent by {author.mention} deleted{user_who_deleted_mention} in {channel_mention}**"
+        discriminator, url = await self._get_user_data(author)
         embed = (
             Embed(
                 description=description,

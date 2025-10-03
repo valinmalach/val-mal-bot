@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 
 import pendulum
 import polars as pl
@@ -92,7 +93,7 @@ class Birthday(GroupCog):
             }
             success, error = update_birthday(record)
             if not success:
-                await self._set_birthday_failed(interaction, error)
+                await self._birthday_operation_failed(interaction, error, "set")
                 return
 
             if month == Months.February and day == 29:
@@ -110,7 +111,7 @@ class Birthday(GroupCog):
                 f"Exception in set_birthday for user={interaction.user.id}: {e}"
             )
             sentry_sdk.capture_exception(e)
-            await self._set_birthday_failed(interaction, e)
+            await self._birthday_operation_failed(interaction, e, "set")
 
     @set_birthday.autocomplete("timezone")
     @sentry_sdk.trace()
@@ -160,7 +161,7 @@ class Birthday(GroupCog):
             success, error = update_birthday(record)
             if not success:
                 logger.error(f"Failed to remove birthday for user: {error}")
-                await self._forget_birthday_failed(interaction, error)
+                await self._birthday_operation_failed(interaction, error, "forget")
                 return
 
             try:
@@ -177,17 +178,20 @@ class Birthday(GroupCog):
             except Exception as e:
                 logger.error(f"Error while sending response for birthday removal: {e}")
                 sentry_sdk.capture_exception(e)
-                await self._forget_birthday_failed(interaction, e)
+                await self._birthday_operation_failed(interaction, e, "forget")
         except Exception as e:
             logger.error(
                 f"Exception in remove_birthday for user={interaction.user.id}: {e}"
             )
             sentry_sdk.capture_exception(e)
-            await self._forget_birthday_failed(interaction, e)
+            await self._birthday_operation_failed(interaction, e, "forget")
 
     @sentry_sdk.trace()
-    async def _set_birthday_failed(
-        self, interaction: Interaction, e: Exception | str | None
+    async def _birthday_operation_failed(
+        self,
+        interaction: Interaction,
+        e: Exception | str | None,
+        set_forget: Literal["set", "forget"],
     ) -> None:
         mention = (
             interaction.guild.owner.mention
@@ -195,29 +199,11 @@ class Birthday(GroupCog):
             else f"<@{OWNER_ID}>"
         )
         await interaction.response.send_message(
-            "Sorry, it seems like I couldn't set your birthday...\n\n"
+            f"Oops, it seems like I couldn't {set_forget} your birthday...\n\n"
             + f"# {mention} FIX MEEEE!!!"
         )
         await send_message(
-            f"Failed to set birthday for {interaction.user.name}: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
-
-    @sentry_sdk.trace()
-    async def _forget_birthday_failed(
-        self, interaction: Interaction, e: Exception | str | None
-    ) -> None:
-        mention = (
-            interaction.guild.owner.mention
-            if interaction.guild and interaction.guild.owner
-            else f"<@{OWNER_ID}>"
-        )
-        await interaction.response.send_message(
-            "Oops, it seems like I couldn't forget your birthday...\n\n"
-            + f"# {mention} FIX MEEEE!!!"
-        )
-        await send_message(
-            f"Failed to remove birthday for {interaction.user.name}: {e}",
+            f"Failed to {set_forget} birthday for {interaction.user.name}: {e}",
             BOT_ADMIN_CHANNEL,
         )
 
