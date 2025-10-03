@@ -51,6 +51,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
+access_logger = logging.getLogger("uvicorn.access")
+access_logger.handlers = [RichHandler()]
+access_logger.setLevel(logging.INFO)
+
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 
@@ -105,4 +109,11 @@ async def robots_txt() -> Response:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000,
+        log_level="info",
+        access_log=True,
+        log_config=None,
+    )
