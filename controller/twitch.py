@@ -27,6 +27,7 @@ from models import (
     ChannelAdBreakBeginEventSub,
     ChannelChatMessageEventSub,
     ChannelFollowEventSub,
+    ChannelRaidEventSub,
     RefreshResponse,
     StreamOfflineEventSub,
     StreamOnlineEventSub,
@@ -36,6 +37,7 @@ from services import (
     discord_command,
     edit_embed,
     everything,
+    get_ad_schedule,
     get_age,
     get_channel,
     get_hmac,
@@ -60,13 +62,13 @@ from services import (
     upsert_row_to_parquet,
     verify_message,
 )
-from services.twitch.api import get_ad_schedule
 from services.twitch.shoutout_queue import shoutout_queue
 from services.twitch.token_manager import token_manager
 
 load_dotenv()
 
 APP_URL = os.getenv("APP_URL")
+TWITCH_BROADCASTER_ID = os.getenv("TWITCH_BROADCASTER_ID")
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
@@ -77,9 +79,6 @@ logger = logging.getLogger(__name__)
 
 # Raid start
 # Have a great rest of your day! valinmHeart Don't forget to stay hydrated and take care of yourself! valinmHeart
-
-# Post-raid message
-# We just raided ${raidtargetname}. In case you got left behind, you can find them here: https://www.twitch.tv/${raidtargetlogin}
 
 
 @sentry_sdk.trace()
@@ -687,5 +686,53 @@ async def channel_ad_break_begin_webhook(request: Request) -> Response:
         raise e
     except Exception as e:
         message = f"500: Internal server error on /webhook/twitch/adbreak: {e}"
+        await log_error(e, message)
+        raise HTTPException(status_code=500) from e
+
+
+@sentry_sdk.trace()
+async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
+    try:
+        if event_sub.event.from_broadcaster_user_id == TWITCH_BROADCASTER_ID:
+            await twitch_send_message(
+                event_sub.event.from_broadcaster_user_id,
+                f"We just raided {event_sub.event.to_broadcaster_user_name}. In case you got left behind, you can find them here: https://www.twitch.tv/{event_sub.event.to_broadcaster_user_login} valinmHeart",
+            )
+        elif event_sub.event.to_broadcaster_user_id == TWITCH_BROADCASTER_ID:
+            await twitch_send_message(
+                event_sub.event.to_broadcaster_user_id,
+                f"!so {event_sub.event.from_broadcaster_user_login}",
+            )
+    except Exception as e:
+        message = f"Error processing Twitch raid webhook task: {e}"
+        await log_error(e, message)
+
+
+@twitch_router.post("/webhook/twitch/raid")
+async def channel_raid_webhook(request: Request) -> Response:
+    try:
+        validation = await validate_call(request, "/webhook/twitch/raid")
+        if validation:
+            return validation
+
+        body: dict[str, Any] = await request.json()
+        event_sub = ChannelRaidEventSub.model_validate(body)
+        if event_sub.subscription.type != "channel.raid":
+            logger.warning(
+                f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
+            )
+            await send_message(
+                "400: Bad request on /webhook/twitch/raid. Invalid subscription type.",
+                BOT_ADMIN_CHANNEL,
+            )
+            raise HTTPException(status_code=400)
+
+        asyncio.create_task(_channel_raid_task(event_sub))
+
+        return Response(status_code=202)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        message = f"500: Internal server error on /webhook/twitch/raid: {e}"
         await log_error(e, message)
         raise HTTPException(status_code=500) from e

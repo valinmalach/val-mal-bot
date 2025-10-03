@@ -11,6 +11,7 @@ from .twitch_api_responses.video import Video, VideoResponse
 from .twitch_event_subs.channel_ad_break_begin import ChannelAdBreakBeginEventSub
 from .twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
 from .twitch_event_subs.channel_follow import ChannelFollowEventSub
+from .twitch_event_subs.channel_raid import ChannelRaidEventSub
 from .twitch_event_subs.stream_offline import StreamOfflineEventSub
 from .twitch_event_subs.stream_online import StreamOnlineEventSub
 
@@ -32,6 +33,7 @@ __all__ = [
     "ChannelAdBreakBeginEventSub",
     "ChannelChatMessageEventSub",
     "ChannelFollowEventSub",
+    "ChannelRaidEventSub",
     "StreamOfflineEventSub",
     "StreamOnlineEventSub",
 ]
