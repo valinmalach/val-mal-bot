@@ -51,10 +51,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
-# access_logger = logging.getLogger("uvicorn.access")
-# access_logger.handlers = [RichHandler()]
-# access_logger.setLevel(logging.INFO)
-
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 
