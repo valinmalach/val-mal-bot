@@ -401,9 +401,9 @@ async def _schedule_next_ad_break_notification(broadcaster_id: str) -> None:
         if not ad_schedule:
             return
 
-        next_ad_time = parse_rfc3339(ad_schedule.next_ad_at)
+        next_ad_time = pendulum.from_timestamp(ad_schedule.next_ad_at)
         notify_time = next_ad_time.subtract(minutes=5)
-        now = pendulum.now()
+        now = pendulum.now(tz=pendulum.UTC)
         wait_seconds = (notify_time - now).total_seconds()
         if wait_seconds > 0:
             await asyncio.sleep(wait_seconds)
