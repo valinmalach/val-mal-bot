@@ -7,8 +7,6 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-import pendulum
-import psutil
 import sentry_sdk
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Response
@@ -20,8 +18,6 @@ from sentry_sdk.integrations.logging import LoggingIntegration
 from constants import COGS
 from controller import twitch_router, youtube_router
 from init import bot
-
-_last_heartbeat = pendulum.now().int_timestamp
 
 load_dotenv()
 
@@ -74,22 +70,6 @@ app.include_router(youtube_router)
 @app.get("/health")
 async def health() -> Response:
     return Response("Health check OK", status_code=204)
-
-
-@app.get("/health/detailed")
-@sentry_sdk.trace()
-async def detailed_health() -> dict:
-    process = psutil.Process()
-    cpu_percent = process.cpu_percent()
-    memory_info = process.memory_info()
-
-    return {
-        "status": "OK",
-        "cpu_percent": cpu_percent,
-        "memory_mb": memory_info.rss / 1024 / 1024,
-        "bot_latency": bot.latency if bot.is_ready() else None,
-        "last_heartbeat_age": pendulum.now().int_timestamp - _last_heartbeat,
-    }
 
 
 @app.get("/robots.txt")
