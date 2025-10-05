@@ -2,6 +2,8 @@
 $AppPath = "C:\val-mal-bot"
 $BotScript = "main.py"
 
+Write-Output "Restarting API and bot processes..."
+
 # Change to the application directory
 Set-Location $AppPath
 
@@ -15,5 +17,5 @@ uv self update
 uv sync
 
 # Restart the bot
-Write-Output "Restarting the API and bot..."
+Write-Output "Restarting the bot..."
 uv run $BotScript
