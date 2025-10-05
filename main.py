@@ -18,6 +18,7 @@ from sentry_sdk.integrations.logging import LoggingIntegration
 from constants import COGS
 from controller import twitch_router, youtube_router
 from init import bot
+from services.helper.http_client import http_client_manager
 
 load_dotenv()
 
@@ -60,11 +61,17 @@ async def main() -> None:
 async def lifespan(app: FastAPI):
     asyncio.create_task(main())
     yield
+    await http_client_manager.close()
 
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(twitch_router)
 app.include_router(youtube_router)
+
+
+@app.get("/")
+async def root() -> Response:
+    return Response(status_code=204)
 
 
 @app.get("/health")
@@ -78,6 +85,14 @@ async def robots_txt() -> Response:
         logger.warning("robots.txt file not found, returning empty response")
         raise HTTPException(status_code=404)
     return FileResponse("robots.txt")
+
+
+@app.get("/favicon.ico")
+async def favicon() -> Response:
+    if not os.path.exists("favicon.ico"):
+        logger.warning("favicon.ico file not found, returning empty response")
+        raise HTTPException(status_code=404)
+    return FileResponse("favicon.ico")
 
 
 if __name__ == "__main__":
