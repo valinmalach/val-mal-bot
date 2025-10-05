@@ -162,9 +162,7 @@ cython_debug/
 #Ignore vscode AI rules
 .github/
 
-test.py
-setup.cfg
-upgrade_packages_uv.py
+at_client_session.txt
 *.code-workspace
 data/
 .codacy/
