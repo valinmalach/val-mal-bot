@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import signal
+import sys
 from contextlib import asynccontextmanager, suppress
 
 import sentry_sdk
@@ -39,21 +40,44 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Global shutdown event for signal coordination
 shutdown_event = asyncio.Event()
+restart_requested = False
 
 
 class GracefulShutdown:
     def __init__(self):
-        signal.signal(signal.SIGINT, self._handle_signal)
-        signal.signal(signal.SIGTERM, self._handle_signal)
+        if hasattr(signal, "SIGTERM"):
+            signal.signal(signal.SIGTERM, self._handle_signal)
+        if hasattr(signal, "SIGINT"):
+            signal.signal(signal.SIGINT, self._handle_signal)
+        logger.info("Signal handlers registered for graceful shutdown")
 
     def _handle_signal(self, signum, frame):
-        logger.info(f"Received signal {signum}, initiating graceful shutdown...")
-        # Set the shutdown event to trigger graceful shutdown
-        if not shutdown_event.is_set():
-            shutdown_event.set()
+        signal_name = (
+            signal.Signals(signum).name if hasattr(signal, "Signals") else str(signum)
+        )
+        logger.info(
+            f"Received signal {signal_name} ({signum}), initiating graceful shutdown..."
+        )
+
+        try:
+            loop = asyncio.get_running_loop()
+            loop.call_soon_threadsafe(shutdown_event.set)
+        except RuntimeError:
+            asyncio.run(self._set_shutdown_event())
+
+    async def _set_shutdown_event(self):
+        shutdown_event.set()
 
 
 shutdown_handler = GracefulShutdown()
+
+
+async def request_restart():
+    """Request a restart by setting the restart flag and shutting down gracefully."""
+    global restart_requested
+    logger.info("Restart requested - initiating graceful shutdown...")
+    restart_requested = True
+    shutdown_event.set()
 
 
 async def start_bot() -> None:
@@ -103,20 +127,17 @@ async def start_bot() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     logger.info("Starting FastAPI application...")
     bot_task = asyncio.create_task(start_bot())
 
     yield
 
-    # Shutdown
     logger.info("Shutting down FastAPI application...")
 
-    # Signal shutdown to the bot
     if not shutdown_event.is_set():
+        logger.info("Setting shutdown event from lifespan")
         shutdown_event.set()
 
-    # Wait for bot task to complete with timeout
     if bot_task and not bot_task.done():
         logger.info("Stopping Discord bot...")
         try:
@@ -127,7 +148,6 @@ async def lifespan(app: FastAPI):
             with suppress(asyncio.CancelledError):
                 await bot_task
 
-    # Then close HTTP client
     await http_client_manager.close()
     logger.info("Application shutdown complete")
 
@@ -135,6 +155,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.include_router(twitch_router)
 app.include_router(youtube_router)
+
+app.state.request_restart = request_restart
 
 
 @app.get("/")
@@ -163,14 +185,64 @@ async def favicon() -> Response:
     return FileResponse("favicon.ico")
 
 
-if __name__ == "__main__":
-    import uvicorn
+async def main():
+    """Main function that handles restart loop."""
+    global restart_requested, shutdown_event
 
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8000,
-        log_level="info",
-        access_log=True,
-        log_config=None,
-    )
+    restart_requested = False
+    while True:
+        shutdown_event = asyncio.Event()  # Reset the event for each iteration
+
+        try:
+            import uvicorn
+
+            config = uvicorn.Config(
+                app,
+                host="0.0.0.0",
+                port=8000,
+                log_level="info",
+                access_log=True,
+                log_config=None,
+            )
+            server = uvicorn.Server(config)
+
+            logger.info("Starting FastAPI server...")
+            await server.serve()
+
+        except Exception as e:
+            logger.error(f"Server error: {e}")
+            sentry_sdk.capture_exception(e)
+
+        if restart_requested:
+            logger.info("Restart was requested - calling restart script...")
+
+            # Call the restart script (which now only handles git pull and restart)
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    "powershell.exe",
+                    "-File",
+                    "d:\\Projects\\val-mal-bot\\restart_only.ps1",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await process.communicate()
+
+                if stdout:
+                    logger.info(f"Restart script output: {stdout.decode()}")
+                if stderr:
+                    logger.error(f"Restart script errors: {stderr.decode()}")
+
+            except Exception as e:
+                logger.error(f"Failed to execute restart script: {e}")
+
+            # Exit the current process - the script will start a new one
+            logger.info("Exiting current process for restart...")
+            sys.exit(0)
+        else:
+            # Normal shutdown, exit the loop
+            logger.info("Normal shutdown - exiting...")
+            break
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

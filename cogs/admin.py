@@ -47,18 +47,16 @@ class Admin(Cog):
     @app_commands.commands.default_permissions(administrator=True)
     async def restart(self, interaction: Interaction) -> None:
         await interaction.response.send_message("Restarting...")
-
-        # Schedule graceful shutdown after allowing response to send
         asyncio.create_task(self._initiate_restart())
 
     async def _initiate_restart(self):
-        await asyncio.sleep(2)  # Allow response to send
         logger.info("Initiating application restart...")
+        from main import app
 
-        # Send shutdown signal to the FastAPI app
-        await asyncio.create_subprocess_exec(
-            "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
-        )
+        if hasattr(app.state, "request_restart"):
+            await app.state.request_restart()
+        else:
+            logger.error("Restart function not available")
 
     @app_commands.command(description="Deletes all messages in the channel")
     @app_commands.commands.default_permissions(administrator=True)
