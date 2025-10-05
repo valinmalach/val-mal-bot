@@ -2,12 +2,12 @@ import logging
 import os
 from typing import Optional
 
-import httpx
 from dotenv import load_dotenv
 
 from constants import BOT_ADMIN_CHANNEL
 from models import AuthResponse, RefreshResponse
 from services.helper.helper import send_message
+from services.helper.http_client import http_client_manager
 
 load_dotenv()
 
@@ -129,7 +129,9 @@ class TwitchTokenManager:
             "grant_type": "client_credentials",
             "scope": " ".join(scopes),
         }
-        response = httpx.post("https://id.twitch.tv/oauth2/token", params=params)
+        response = await http_client_manager.request(
+            "POST", "https://id.twitch.tv/oauth2/token", params=params
+        )
 
         if response.status_code < 200 or response.status_code >= 300:
             logger.error(f"Token refresh failed with status={response.status_code}")
@@ -194,7 +196,9 @@ class TwitchTokenManager:
             if broadcaster
             else self._user_refresh_token,
         }
-        response = httpx.post("https://id.twitch.tv/oauth2/token", params=params)
+        response = await http_client_manager.request(
+            "POST", "https://id.twitch.tv/oauth2/token", params=params
+        )
 
         if response.status_code < 200 or response.status_code >= 300:
             logger.error(

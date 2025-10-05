@@ -90,7 +90,7 @@ class Birthday(GroupCog):
                 ),
                 "isBirthdayLeap": month == Months.February and day == 29,
             }
-            success, error = update_birthday(record)
+            success, error = await update_birthday(record)
             if not success:
                 await self._birthday_operation_failed(interaction, error, "set")
                 return
@@ -155,7 +155,7 @@ class Birthday(GroupCog):
                 "birthday": None,
                 "isBirthdayLeap": None,
             }
-            success, error = update_birthday(record)
+            success, error = await update_birthday(record)
             if not success:
                 logger.error(f"Failed to remove birthday for user: {error}")
                 await self._birthday_operation_failed(interaction, error, "forget")

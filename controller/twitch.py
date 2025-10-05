@@ -4,7 +4,6 @@ import os
 from typing import Any, Awaitable, Callable
 
 import discord
-import httpx
 import pendulum
 import polars as pl
 import sentry_sdk
@@ -59,9 +58,10 @@ from services import (
     twitch_send_message,
     unlurk,
     update_alert,
-    upsert_row_to_parquet,
+    upsert_row_to_parquet_async,
     verify_message,
 )
+from services.helper.http_client import http_client_manager
 from services.twitch.shoutout_queue import shoutout_queue
 from services.twitch.token_manager import token_manager
 
@@ -195,7 +195,9 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
             "stream_id": int(stream_info.id),
             "stream_started_at": stream_info.started_at,
         }
-        success, error = upsert_row_to_parquet(alert, "data/live_alerts.parquet")
+        success, error = await upsert_row_to_parquet_async(
+            alert, "data/live_alerts.parquet"
+        )
         if success:
             asyncio.create_task(
                 update_alert(
@@ -467,7 +469,9 @@ async def _oauth_callback_common(
             "grant_type": "authorization_code",
             "redirect_uri": f"{APP_URL}{endpoint}",
         }
-        response = httpx.post("https://id.twitch.tv/oauth2/token", params=params)
+        response = await http_client_manager.request(
+            "POST", "https://id.twitch.tv/oauth2/token", params=params
+        )
 
         if response.status_code < 200 or response.status_code >= 300:
             logger.error(

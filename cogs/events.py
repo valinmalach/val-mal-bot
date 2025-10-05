@@ -45,7 +45,7 @@ from services import (
     get_pfp,
     send_embed,
     send_message,
-    upsert_row_to_parquet,
+    upsert_row_to_parquet_async,
 )
 
 
@@ -75,7 +75,7 @@ class Events(Cog):
 
             message_obj = await self._get_message_object(message)
             try:
-                success, error = upsert_row_to_parquet(
+                success, error = await upsert_row_to_parquet_async(
                     message_obj,
                     "data/messages.parquet",
                 )
@@ -159,7 +159,7 @@ class Events(Cog):
                 "birthday": None,
                 "isBirthdayLeap": None,
             }
-            success, error = upsert_row_to_parquet(
+            success, error = await upsert_row_to_parquet_async(
                 user,
                 "data/users.parquet",
             )
@@ -371,7 +371,7 @@ class Events(Cog):
 
             try:
                 after_message_obj = await self._get_message_object(after)
-                success, error = upsert_row_to_parquet(
+                success, error = await upsert_row_to_parquet_async(
                     after_message_obj,
                     "data/messages.parquet",
                 )

@@ -3,7 +3,6 @@ import os
 import shutil
 import traceback
 
-import httpx
 import pendulum
 import polars as pl
 import sentry_sdk
@@ -20,7 +19,13 @@ from constants import (
     SHOUTOUTS_CHANNEL,
 )
 from init import at_client
-from services import get_next_leap, send_message, update_birthday, upsert_row_to_parquet
+from services import (
+    get_next_leap,
+    send_message,
+    update_birthday,
+    upsert_row_to_parquet_async,
+)
+from services.helper.http_client import http_client_manager
 
 load_dotenv()
 
@@ -60,7 +65,8 @@ class Tasks(Cog):
             YOUTUBE_CHANNEL_ID = "UC7BVlWSXIU4hKtWkBqEgZMA"
             CALLBACK_URL = f"{APP_URL}/youtube/webhook"
 
-            response = httpx.post(
+            response = await http_client_manager.request(
+                "POST",
                 "https://pubsubhubbub.appspot.com/subscribe",
                 data={
                     "hub.mode": "subscribe",
@@ -133,7 +139,9 @@ class Tasks(Cog):
 
             for post in posts:
                 try:
-                    success, error = upsert_row_to_parquet(post, "data/bluesky.parquet")
+                    success, error = await upsert_row_to_parquet_async(
+                        post, "data/bluesky.parquet"
+                    )
                     if success:
                         await send_message(
                             f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
@@ -234,7 +242,7 @@ class Tasks(Cog):
                 "birthday": next_birthday,
                 "isBirthdayLeap": leap,
             }
-            success, error = update_birthday(updated_record)
+            success, error = await update_birthday(updated_record)
             if not success:
                 logger.error(f"Failed to update birthday for user: {error}")
                 await send_message(

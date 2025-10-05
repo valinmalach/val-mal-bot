@@ -1,7 +1,8 @@
+import asyncio
 import hashlib
 import hmac
 import logging
-from functools import cache
+from functools import cache, partial
 from typing import Optional
 
 import discord
@@ -37,25 +38,34 @@ from init import bot
 logger = logging.getLogger(__name__)
 
 
-def upsert_row_to_parquet(
+async def upsert_row_to_parquet_async(
     row_data: dict, filepath: str, id_column: str = "id"
 ) -> tuple[bool, Exception | None]:
     try:
-        new_row_df = pl.DataFrame([row_data])
-        existing_df = pl.read_parquet(filepath)
-
-        id_value = row_data[id_column]
-        if id_value in existing_df[id_column].to_list():
-            existing_df = existing_df.filter(pl.col(id_column) != id_value)
-
-        combined_df = pl.concat([existing_df, new_row_df])
-
-        combined_df.write_parquet(filepath)
-        return True, None
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, partial(upsert_row_to_parquet_task, row_data, filepath, id_column)
+        )
     except Exception as e:
         logger.error(f"Error upserting row to parquet: {e}")
         sentry_sdk.capture_exception(e)
         return False, e
+
+
+def upsert_row_to_parquet_task(
+    row_data: dict, filepath: str, id_column: str = "id"
+) -> tuple[bool, Exception | None]:
+    new_row_df = pl.DataFrame([row_data])
+    existing_df = pl.read_parquet(filepath)
+
+    id_value = row_data[id_column]
+    if id_value in existing_df[id_column].to_list():
+        existing_df = existing_df.filter(pl.col(id_column) != id_value)
+
+    combined_df = pl.concat([existing_df, new_row_df])
+
+    combined_df.write_parquet(filepath)
+    return True, None
 
 
 def delete_row_from_parquet(
@@ -126,8 +136,8 @@ def get_discriminator(member: User | Member) -> str:
     return "" if member.discriminator == "0" else f"#{member.discriminator}"
 
 
-def update_birthday(record: dict[str, str]) -> tuple[bool, Exception | None]:
-    return upsert_row_to_parquet(record, "data/users.parquet")
+async def update_birthday(record: dict[str, str]) -> tuple[bool, Exception | None]:
+    return await upsert_row_to_parquet_async(record, "data/users.parquet")
 
 
 def get_channel_mention(

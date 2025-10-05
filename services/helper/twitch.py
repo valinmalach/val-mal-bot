@@ -2,9 +2,9 @@ import logging
 import os
 from typing import Literal, Optional
 
-import httpx
 import sentry_sdk
 from dotenv import load_dotenv
+from httpx import Response
 
 from constants import (
     BOT_ADMIN_CHANNEL,
@@ -12,6 +12,7 @@ from constants import (
 )
 from models import ChannelChatMessageEventSub
 from services.helper.helper import send_message
+from services.helper.http_client import http_client_manager
 from services.twitch.token_manager import token_manager
 
 load_dotenv()
@@ -27,7 +28,7 @@ async def call_twitch(
     url: str,
     json: Optional[dict] = None,
     token_type: TokenType = TokenType.App,
-) -> Optional[httpx.Response]:
+) -> Optional[Response]:
     try:
         refresh_success = True
         if token_type == TokenType.App and not token_manager.app_access_token:
@@ -61,9 +62,13 @@ async def call_twitch(
         }
 
         if method.upper() == "GET":
-            response = httpx.get(url, headers=headers, params=json)
+            response = await http_client_manager.request(
+                "GET", url, headers=headers, params=json
+            )
         elif method.upper() == "POST":
-            response = httpx.post(url, headers=headers, json=json)
+            response = await http_client_manager.request(
+                "POST", url, headers=headers, json=json
+            )
         else:
             logger.error(f"Unsupported HTTP method: {method}")
             await send_message(
@@ -93,9 +98,13 @@ async def call_twitch(
             )
             headers["Authorization"] = f"Bearer {token}"
             if method.upper() == "GET":
-                response = httpx.get(url, headers=headers, params=json)
+                response = await http_client_manager.request(
+                    "GET", url, headers=headers, params=json
+                )
             elif method.upper() == "POST":
-                response = httpx.post(url, headers=headers, json=json)
+                response = await http_client_manager.request(
+                    "POST", url, headers=headers, json=json
+                )
         return response
 
     except Exception as e:
