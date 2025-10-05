@@ -48,14 +48,12 @@ class Tasks(Cog):
         pendulum.Time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
     ]
 
-    @sentry_sdk.trace()
     async def log_error(self, e: Exception, message: str) -> None:
         logger.error(message)
         sentry_sdk.capture_exception(e)
         await send_message(message, BOT_ADMIN_CHANNEL)
 
     @tasks.loop(hours=24)
-    @sentry_sdk.trace()
     async def renew_youtube_webhook_subscription(self) -> None:
         logger.info("Renewing YouTube webhook subscription")
         try:
@@ -88,7 +86,6 @@ class Tasks(Cog):
             await self.log_error(e, message)
 
     @tasks.loop(minutes=1)
-    @sentry_sdk.trace()
     async def check_posts(self) -> None:
         try:
             df = pl.read_parquet("data/bluesky.parquet")
@@ -162,7 +159,6 @@ class Tasks(Cog):
             await self.log_error(e, message)
 
     @tasks.loop(time=pendulum.Time(0, 0, 0, 0))
-    @sentry_sdk.trace()
     async def backup_data(self) -> None:
         try:
             date_string = pendulum.now().format("YYYY-MM-DD")
@@ -194,7 +190,6 @@ class Tasks(Cog):
             await self.log_error(e, message)
 
     @tasks.loop(time=_quarter_hours)
-    @sentry_sdk.trace()
     async def check_birthdays(self) -> None:
         try:
             now = (
@@ -210,7 +205,6 @@ class Tasks(Cog):
             message = f"Fatal error during birthday check task: {e}"
             await self.log_error(e, message)
 
-    @sentry_sdk.trace()
     async def _process_birthday_records(self, birthdays_now: DataFrame) -> None:
         now = pendulum.now()
         for record in birthdays_now.iter_rows(named=True):

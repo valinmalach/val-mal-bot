@@ -48,7 +48,6 @@ TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 logger = logging.getLogger(__name__)
 
 
-@sentry_sdk.trace()
 async def get_subscriptions() -> Optional[List[Subscription]]:
     all_subscriptions: List[Subscription] = []
     cursor: Optional[str] = None
@@ -88,7 +87,6 @@ async def get_subscriptions() -> Optional[List[Subscription]]:
     return all_subscriptions
 
 
-@sentry_sdk.trace()
 async def get_user(id: int) -> Optional[User]:
     url = f"https://api.twitch.tv/helix/users?id={id}"
     response = await call_twitch("GET", url)
@@ -105,7 +103,6 @@ async def get_user(id: int) -> Optional[User]:
     return user_info_response.data[0] if user_info_response.data else None
 
 
-@sentry_sdk.trace()
 async def get_user_by_username(username: str) -> Optional[User]:
     url = f"https://api.twitch.tv/helix/users?login={username}"
     response = await call_twitch("GET", url)
@@ -122,7 +119,6 @@ async def get_user_by_username(username: str) -> Optional[User]:
     return user_info_response.data[0] if user_info_response.data else None
 
 
-@sentry_sdk.trace()
 async def twitch_event_subscription(
     type: Literal["online", "offline"], user_id: str
 ) -> bool:
@@ -150,7 +146,6 @@ async def twitch_event_subscription(
     return True
 
 
-@sentry_sdk.trace()
 async def subscribe_to_user(username: str) -> bool:
     user = await get_user_by_username(username)
     if not user:
@@ -163,7 +158,6 @@ async def subscribe_to_user(username: str) -> bool:
     ) and await twitch_event_subscription("offline", user.id)
 
 
-@sentry_sdk.trace()
 async def get_users(ids: List[str]) -> Optional[List[User]]:
     batches_iterator = itertools.batched(ids, 100)
     batches_list = [list(batch) for batch in batches_iterator]
@@ -194,7 +188,6 @@ async def get_users(ids: List[str]) -> Optional[List[User]]:
     return users
 
 
-@sentry_sdk.trace()
 async def get_channel(id: int) -> Optional[Channel]:
     url = f"https://api.twitch.tv/helix/channels?broadcaster_id={id}"
     response = await call_twitch("GET", url)
@@ -211,7 +204,6 @@ async def get_channel(id: int) -> Optional[Channel]:
     return channel_info_response.data[0] if channel_info_response.data else None
 
 
-@sentry_sdk.trace()
 async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
     url = f"https://api.twitch.tv/helix/streams?user_id={broadcaster_id}"
     response = await call_twitch("GET", url)
@@ -228,7 +220,6 @@ async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
     return stream_info_response.data[0] if stream_info_response.data else None
 
 
-@sentry_sdk.trace()
 async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
     url = f"https://api.twitch.tv/helix/videos?user_id={user_id}&type=archive"
     response = await call_twitch("GET", url)
@@ -252,7 +243,6 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
     )
 
 
-@sentry_sdk.trace()
 async def get_ad_schedule(broadcaster_id: int) -> Optional[AdSchedule]:
     url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={broadcaster_id}"
     response = await call_twitch("GET", url, None, TokenType.Broadcaster)
@@ -269,7 +259,6 @@ async def get_ad_schedule(broadcaster_id: int) -> Optional[AdSchedule]:
     return ad_schedule_response.data[0] if ad_schedule_response.data else None
 
 
-@sentry_sdk.trace()
 async def trigger_offline_sequence(
     broadcaster_id: int,
     stream_id: int,
@@ -352,7 +341,6 @@ async def trigger_offline_sequence(
         )
 
 
-@sentry_sdk.trace()
 async def update_alert(
     broadcaster_id: int,
     channel_id: int,

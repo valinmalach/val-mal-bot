@@ -81,7 +81,6 @@ logger = logging.getLogger(__name__)
 # Have a great rest of your day! valinmHeart Don't forget to stay hydrated and take care of yourself! valinmHeart
 
 
-@sentry_sdk.trace()
 async def validate_call(request: Request, endpoint: str) -> Response | None:
     headers = request.headers
     body: dict[str, Any] = await request.json()
@@ -115,14 +114,12 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
         raise HTTPException(status_code=403)
 
 
-@sentry_sdk.trace()
 async def log_error(e: Exception, message: str) -> None:
     logger.error(message)
     sentry_sdk.capture_exception(e)
     await send_message(message, BOT_ADMIN_CHANNEL)
 
 
-@sentry_sdk.trace()
 async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
     broadcaster_id = int(event_sub.event.broadcaster_user_id)
     try:
@@ -222,7 +219,6 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
         await log_error(e, message)
 
 
-@sentry_sdk.trace()
 async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     try:
@@ -331,7 +327,6 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
         await log_error(e, message)
 
 
-@sentry_sdk.trace()
 async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> None:
     user_command_dict: dict[
         str, Callable[[ChannelChatMessageEventSub, str], Awaitable[None]]
@@ -380,7 +375,6 @@ async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> N
         )
 
 
-@sentry_sdk.trace()
 async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
     try:
         await twitch_send_message(
@@ -422,7 +416,6 @@ async def _schedule_next_ad_break_notification(broadcaster_id: str) -> None:
         await log_error(e, message)
 
 
-@sentry_sdk.trace()
 async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -> None:
     try:
         ad_duration = event_sub.event.duration_seconds
@@ -455,7 +448,6 @@ async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -
         await log_error(e, message)
 
 
-@sentry_sdk.trace()
 async def _oauth_callback_common(
     code: str, state: str, endpoint: str
 ) -> RefreshResponse:
@@ -690,7 +682,6 @@ async def channel_ad_break_begin_webhook(request: Request) -> Response:
         raise HTTPException(status_code=500) from e
 
 
-@sentry_sdk.trace()
 async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
     try:
         if event_sub.event.from_broadcaster_user_id == TWITCH_BROADCASTER_ID:

@@ -24,26 +24,8 @@ load_dotenv()
 sentry_sdk.init(
     dsn="https://8a7232f8683fae9b47c91b194053ed11@o4508900413865984.ingest.us.sentry.io/4508900418584576",
     integrations=[FastApiIntegration(), LoggingIntegration()],
-    # Add data like request headers and IP for users,
-    # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-    send_default_pii=True,
-    # Set traces_sample_rate to 1.0 to capture 100%
-    # of transactions for tracing.
-    traces_sample_rate=1.0,
-    # Set profile_session_sample_rate to 1.0 to profile 100%
-    # of profile sessions.
-    profile_session_sample_rate=1.0,
-    # Set profile_lifecycle to "trace" to automatically
-    # run the profiler on when there is an active transaction
-    profile_lifecycle="trace",
     enable_logs=True,
-    _experiments={
-        "continuous_profiling_auto_start": True,  # Automatically start the profiler
-        "enable_metrics": True,  # Enable metrics collection
-    },
 )
-
-sentry_sdk.profiler.start_profiler()
 
 logging.basicConfig(
     level=logging.INFO, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
@@ -54,7 +36,6 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 
-@sentry_sdk.trace()
 async def main() -> None:
     try:
         if not DISCORD_TOKEN:
@@ -76,7 +57,6 @@ async def main() -> None:
 
 
 @asynccontextmanager
-@sentry_sdk.trace()
 async def lifespan(app: FastAPI):
     asyncio.create_task(main())
     yield
@@ -88,13 +68,11 @@ app.include_router(youtube_router)
 
 
 @app.get("/health")
-@sentry_sdk.trace()
 async def health() -> Response:
     return Response("Health check OK", status_code=204)
 
 
 @app.get("/robots.txt")
-@sentry_sdk.trace()
 async def robots_txt() -> Response:
     if not os.path.exists("robots.txt"):
         logger.warning("robots.txt file not found, returning empty response")

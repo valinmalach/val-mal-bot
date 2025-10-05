@@ -22,7 +22,6 @@ TWITCH_BOT_USER_ID = os.getenv("TWITCH_BOT_USER_ID")
 logger = logging.getLogger(__name__)
 
 
-@sentry_sdk.trace()
 async def call_twitch(
     method: Literal["GET", "POST"],
     url: str,
@@ -109,7 +108,6 @@ async def call_twitch(
         return None
 
 
-@sentry_sdk.trace()
 async def check_mod(event_sub: ChannelChatMessageEventSub) -> bool:
     has_mod = any(
         badge.set_id in {"moderator", "broadcaster"}
@@ -123,7 +121,6 @@ async def check_mod(event_sub: ChannelChatMessageEventSub) -> bool:
     return True
 
 
-@sentry_sdk.trace()
 async def twitch_send_message(broadcaster_id: str, message: str) -> None:
     try:
         url = "https://api.twitch.tv/helix/chat/messages"

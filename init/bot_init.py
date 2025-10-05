@@ -4,7 +4,6 @@ import os
 
 import discord
 import polars as pl
-import sentry_sdk
 from discord import CategoryChannel, ForumChannel
 from discord.abc import PrivateChannel
 from discord.ext.commands import Bot
@@ -21,7 +20,6 @@ TWITCH_BROADCASTER_ID = os.getenv("TWITCH_BROADCASTER_ID")
 logger = logging.getLogger(__name__)
 
 
-@sentry_sdk.trace()
 async def restart_live_alert_tasks() -> None:
     from services import update_alert
 
@@ -45,7 +43,6 @@ async def restart_live_alert_tasks() -> None:
         await asyncio.sleep(1)
 
 
-@sentry_sdk.trace()
 async def activate_if_live() -> None:
     from services import get_stream_info
     from services.twitch.shoutout_queue import shoutout_queue
@@ -89,7 +86,6 @@ bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 
 @bot.event
-@sentry_sdk.trace()
 async def on_ready() -> None:
     asyncio.create_task(restart_live_alert_tasks())
     asyncio.create_task(activate_if_live())

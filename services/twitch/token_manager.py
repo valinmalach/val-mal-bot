@@ -3,7 +3,6 @@ import os
 from typing import Optional
 
 import httpx
-import sentry_sdk
 from dotenv import load_dotenv
 
 from constants import BOT_ADMIN_CHANNEL
@@ -36,7 +35,6 @@ class TwitchTokenManager:
             cls._instance._load_broadcaster_access_token()
         return cls._instance
 
-    @sentry_sdk.trace()
     def _load_app_access_token(self) -> None:
         """Load app access token from file if it exists."""
         try:
@@ -48,7 +46,6 @@ class TwitchTokenManager:
         except Exception as e:
             logger.error(f"Error loading app access token from file: {e}")
 
-    @sentry_sdk.trace()
     def _load_user_refresh_token(self) -> None:
         """Load user refresh token from file if it exists."""
         try:
@@ -60,7 +57,6 @@ class TwitchTokenManager:
         except Exception as e:
             logger.error(f"Error loading user refresh token from file: {e}")
 
-    @sentry_sdk.trace()
     def _load_user_access_token(self) -> None:
         """Load user access token from file if it exists."""
         try:
@@ -72,7 +68,6 @@ class TwitchTokenManager:
         except Exception as e:
             logger.error(f"Error loading user access token from file: {e}")
 
-    @sentry_sdk.trace()
     def _load_broadcaster_refresh_token(self) -> None:
         """Load broadcaster refresh token from file if it exists."""
         try:
@@ -84,7 +79,6 @@ class TwitchTokenManager:
         except Exception as e:
             logger.error(f"Error loading broadcaster refresh token from file: {e}")
 
-    @sentry_sdk.trace()
     def _load_broadcaster_access_token(self) -> None:
         """Load broadcaster access token from file if it exists."""
         try:
@@ -108,7 +102,6 @@ class TwitchTokenManager:
     def broadcaster_access_token(self) -> str:
         return self._broadcaster_access_token
 
-    @sentry_sdk.trace()
     async def refresh_app_access_token(self) -> bool:
         scopes = [
             "channel:bot",
@@ -161,7 +154,6 @@ class TwitchTokenManager:
             )
             return False
 
-    @sentry_sdk.trace()
     async def set_user_access_token(self, auth_response: RefreshResponse) -> None:
         self._user_access_token = auth_response.access_token
         self._user_refresh_token = auth_response.refresh_token
@@ -171,7 +163,6 @@ class TwitchTokenManager:
         with open("data/twitch/user_refresh_token.txt", "w") as f:
             f.write(self._user_refresh_token)
 
-    @sentry_sdk.trace()
     async def set_broadcaster_access_token(
         self, auth_response: RefreshResponse
     ) -> None:
@@ -183,7 +174,6 @@ class TwitchTokenManager:
         with open("data/twitch/broadcaster_refresh_token.txt", "w") as f:
             f.write(self._broadcaster_refresh_token)
 
-    @sentry_sdk.trace()
     async def refresh_user_access_token(self, broadcaster: bool = False) -> bool:
         if not broadcaster and not self._user_refresh_token:
             logger.error("No user refresh token available")

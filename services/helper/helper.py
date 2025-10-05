@@ -37,7 +37,6 @@ from init import bot
 logger = logging.getLogger(__name__)
 
 
-@sentry_sdk.trace()
 def upsert_row_to_parquet(
     row_data: dict, filepath: str, id_column: str = "id"
 ) -> tuple[bool, Exception | None]:
@@ -59,7 +58,6 @@ def upsert_row_to_parquet(
         return False, e
 
 
-@sentry_sdk.trace()
 def delete_row_from_parquet(
     id_value: str | int, filepath: str, id_column: str = "id"
 ) -> tuple[bool, Exception | None]:
@@ -76,7 +74,6 @@ def delete_row_from_parquet(
         return False, e
 
 
-@sentry_sdk.trace()
 async def send_message(content: str, channel_id: int) -> Optional[int]:
     channel = bot.get_channel(channel_id)
     if channel is None or isinstance(
@@ -86,7 +83,6 @@ async def send_message(content: str, channel_id: int) -> Optional[int]:
     return (await channel.send(content)).id
 
 
-@sentry_sdk.trace()
 async def send_embed(
     embed: Embed,
     channel_id: int,
@@ -103,7 +99,6 @@ async def send_embed(
     return (await channel.send(content=content, embed=embed)).id
 
 
-@sentry_sdk.trace()
 async def edit_embed(
     message_id: int,
     embed: Embed,
@@ -123,22 +118,18 @@ async def edit_embed(
         await message.edit(content=content, embed=embed, view=None)
 
 
-@sentry_sdk.trace()
 def get_pfp(member: User | Member) -> str:
     return member.avatar.url if member.avatar else member.default_avatar.url
 
 
-@sentry_sdk.trace()
 def get_discriminator(member: User | Member) -> str:
     return "" if member.discriminator == "0" else f"#{member.discriminator}"
 
 
-@sentry_sdk.trace()
 def update_birthday(record: dict[str, str]) -> tuple[bool, Exception | None]:
     return upsert_row_to_parquet(record, "data/users.parquet")
 
 
-@sentry_sdk.trace()
 def get_channel_mention(
     channel: (
         VoiceChannel
@@ -168,7 +159,6 @@ def get_channel_mention(
     return f"{channel.mention}"
 
 
-@sentry_sdk.trace()
 def get_age(date_time: DateTime, limit_units: int = -1) -> str:
     now = pendulum.now("UTC")
     age = now - date_time if date_time <= now else date_time - now
@@ -204,13 +194,11 @@ def get_age(date_time: DateTime, limit_units: int = -1) -> str:
     return ", ".join(parts)
 
 
-@sentry_sdk.trace()
 @cache
 def is_leap(year: int) -> bool:
     return (year % 400 == 0) or (year % 100 != 0) and (year % 4 == 0)
 
 
-@sentry_sdk.trace()
 @cache
 def get_next_leap(year: int) -> int:
     while not is_leap(year):
@@ -218,7 +206,6 @@ def get_next_leap(year: int) -> int:
     return year
 
 
-@sentry_sdk.trace()
 @cache
 def get_ordinal_suffix(n: int) -> str:
     if 10 <= n % 100 <= 13:
@@ -233,13 +220,11 @@ def get_ordinal_suffix(n: int) -> str:
     return f"{n}th"
 
 
-@sentry_sdk.trace()
 @cache
 def format_unit(value: int, unit: str) -> str:
     return f"{value} {f'{unit}s' if value != 1 else unit}"
 
 
-@sentry_sdk.trace()
 @cache
 def get_hmac_message(
     twitch_message_id: str, twitch_message_timestamp: str, body: str
@@ -247,7 +232,6 @@ def get_hmac_message(
     return twitch_message_id + twitch_message_timestamp + body
 
 
-@sentry_sdk.trace()
 @cache
 def get_hmac(secret: str, message: str) -> str:
     return hmac.new(
@@ -255,13 +239,11 @@ def get_hmac(secret: str, message: str) -> str:
     ).hexdigest()
 
 
-@sentry_sdk.trace()
 @cache
 def verify_message(hmac_str: str, verify_signature: str) -> bool:
     return hmac.compare_digest(hmac_str, verify_signature)
 
 
-@sentry_sdk.trace()
 @cache
 def parse_rfc3339(date_str: str) -> DateTime:
     """
@@ -274,7 +256,6 @@ def parse_rfc3339(date_str: str) -> DateTime:
     return parsed
 
 
-@sentry_sdk.trace()
 def get_member_role(
     guild_id: int, user_id: int, emoji: PartialEmoji
 ) -> tuple[Member | None, Role | None]:
@@ -294,7 +275,6 @@ def get_member_role(
     return (member, role) if role else (None, None)
 
 
-@sentry_sdk.trace()
 async def toggle_role(
     guild_id: int, user_id: int, emoji: PartialEmoji
 ) -> Optional[tuple[bool, Role]]:
@@ -310,7 +290,6 @@ async def toggle_role(
         return False, role
 
 
-@sentry_sdk.trace()
 async def roles_button_pressed(interaction: Interaction, button: Button) -> None:
     guild_id = interaction.guild_id
     member_id = interaction.user.id

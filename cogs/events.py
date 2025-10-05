@@ -53,7 +53,6 @@ class Events(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
 
-    @sentry_sdk.trace()
     async def _get_message_object(self, message: Message) -> dict:
         guild = message.guild
         guild_id = GUILD_ID if guild is None else guild.id
@@ -69,7 +68,6 @@ class Events(Cog):
         }
 
     @Cog.listener()
-    @sentry_sdk.trace()
     async def on_message(self, message: Message) -> None:
         try:
             if message.author == self.bot.user:
@@ -106,7 +104,6 @@ class Events(Cog):
             )
 
     @Cog.listener()
-    @sentry_sdk.trace()
     async def on_member_join(self, member: Member) -> None:
         try:
             discriminator, url = await self._get_user_data(member)
@@ -178,12 +175,10 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
     async def _get_user_data(self, user: User | Member) -> tuple[str, str]:
         return get_discriminator(user), get_pfp(user)
 
     @Cog.listener()
-    @sentry_sdk.trace()
     async def on_raw_member_remove(self, payload: RawMemberRemoveEvent) -> None:
         try:
             member = payload.user
@@ -248,14 +243,12 @@ class Events(Cog):
             )
 
     @Cog.listener()
-    @sentry_sdk.trace()
     async def on_command_error(self, ctx: Context, error: CommandError) -> None:
         channel_mention = get_channel_mention(ctx.channel)
         message = f"Command not found: {ctx.message.content}\nSent by: {ctx.author.mention} in {channel_mention}\n{error}"
         await send_message(message, AUDIT_LOGS_CHANNEL)
 
     @Cog.listener()
-    @sentry_sdk.trace()
     async def on_member_update(self, before: Member, after: Member) -> None:
         try:
             discriminator, url = await self._get_user_data(after)
@@ -309,7 +302,6 @@ class Events(Cog):
             )
 
     @Cog.listener()
-    @sentry_sdk.trace()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent) -> None:
         try:
             if payload.message.author == self.bot.user or (
@@ -402,7 +394,6 @@ class Events(Cog):
             )
 
     @Cog.listener()
-    @sentry_sdk.trace()
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent) -> None:
         try:
             if (
@@ -459,7 +450,6 @@ class Events(Cog):
             )
 
     @Cog.listener()
-    @sentry_sdk.trace()
     async def on_raw_bulk_message_delete(
         self, payload: RawBulkMessageDeleteEvent
     ) -> None:
@@ -520,7 +510,6 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
     async def _log_ban_unban(
         self, user: User | Member, action: Literal["ban", "unban"]
     ) -> None:
@@ -543,7 +532,6 @@ class Events(Cog):
         await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
     @Cog.listener()
-    @sentry_sdk.trace()
     async def on_member_ban(self, guild: Guild, user: User | Member) -> None:
         try:
             await self._log_ban_unban(user, "ban")
@@ -555,7 +543,6 @@ class Events(Cog):
             )
 
     @Cog.listener()
-    @sentry_sdk.trace()
     async def on_member_unban(self, guild: Guild, user: User | Member) -> None:
         try:
             await self._log_ban_unban(user, "unban")
@@ -567,7 +554,6 @@ class Events(Cog):
             )
 
     @Cog.listener()
-    @sentry_sdk.trace()
     async def on_invite_create(self, invite: Invite) -> None:
         try:
             guild_name, guild_icon = await self._get_guild_name_and_icon_from_invite(
@@ -598,7 +584,6 @@ class Events(Cog):
             )
 
     @Cog.listener()
-    @sentry_sdk.trace()
     async def on_invite_delete(self, invite: Invite) -> None:
         try:
             guild_name, guild_icon = await self._get_guild_name_and_icon_from_invite(
@@ -621,7 +606,6 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
     async def _get_message_content(self, message_id: int) -> str:
         df = pl.read_parquet("data/messages.parquet")
         message_row = df.filter(pl.col("id") == message_id)
@@ -629,7 +613,6 @@ class Events(Cog):
             return message_row.row(0, named=True)["content"]
         return DEFAULT_MISSING_CONTENT
 
-    @sentry_sdk.trace()
     async def _log_role_change(
         self, member: Member, discriminator: str, url: str, roles: list[Role], add: bool
     ) -> None:
@@ -652,7 +635,6 @@ class Events(Cog):
             AUDIT_LOGS_CHANNEL,
         )
 
-    @sentry_sdk.trace()
     async def _log_nickname_change(
         self, member: Member, discriminator: str, url: str, before: str, after: str
     ) -> None:
@@ -675,7 +657,6 @@ class Events(Cog):
             AUDIT_LOGS_CHANNEL,
         )
 
-    @sentry_sdk.trace()
     async def _log_pfp_change(
         self, member: Member, discriminator: str, url: str
     ) -> None:
@@ -699,7 +680,6 @@ class Events(Cog):
             AUDIT_LOGS_CHANNEL,
         )
 
-    @sentry_sdk.trace()
     async def _log_timeout(
         self, member: Member, discriminator: str, url: str, timeout: DateTime
     ) -> None:
@@ -721,7 +701,6 @@ class Events(Cog):
             AUDIT_LOGS_CHANNEL,
         )
 
-    @sentry_sdk.trace()
     async def _log_untimeout(
         self, member: Member, discriminator: str, url: str
     ) -> None:
@@ -742,7 +721,6 @@ class Events(Cog):
             AUDIT_LOGS_CHANNEL,
         )
 
-    @sentry_sdk.trace()
     async def _log_message_pin(
         self, message: Message, discriminator: str, url: str
     ) -> None:
@@ -765,7 +743,6 @@ class Events(Cog):
             AUDIT_LOGS_CHANNEL,
         )
 
-    @sentry_sdk.trace()
     async def _log_deleted_missing_message(
         self,
         message_id: int,
@@ -833,7 +810,6 @@ class Events(Cog):
                 BOT_ADMIN_CHANNEL,
             )
 
-    @sentry_sdk.trace()
     async def _log_message_delete(
         self,
         message: Message,
@@ -888,7 +864,6 @@ class Events(Cog):
             message, message_id, author, channel, discriminator, url
         )
 
-    @sentry_sdk.trace()
     async def _log_message_attachments_delete(
         self,
         message: Message,
@@ -925,7 +900,6 @@ class Events(Cog):
                 )
                 await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
-    @sentry_sdk.trace()
     async def _get_guild_name_and_icon_from_invite(
         self, invite: Invite
     ) -> tuple[str, str | None]:

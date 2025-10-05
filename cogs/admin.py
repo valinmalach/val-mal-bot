@@ -4,7 +4,6 @@ from typing import List
 
 import discord
 import polars as pl
-import sentry_sdk
 from discord import (
     CategoryChannel,
     DMChannel,
@@ -54,7 +53,6 @@ class Admin(Cog):
 
     @app_commands.command(description="Deletes all messages in the channel")
     @app_commands.commands.default_permissions(administrator=True)
-    @sentry_sdk.trace()
     async def nuke(self, interaction: Interaction) -> None:
         if interaction.channel is None or isinstance(
             interaction.channel,

@@ -36,12 +36,10 @@ class TwitchShoutoutQueue:
     def activated(self) -> bool:
         return self._activated
 
-    @sentry_sdk.trace()
     def add_to_queue(self, username: str) -> None:
         if username not in self._shoutout_queue:
             self._shoutout_queue.append(username)
 
-    @sentry_sdk.trace()
     def _can_shoutout_user(self, username: str) -> bool:
         """Check if a user can be shouted out (60-minute rate limit)"""
         if username not in self._last_shoutout_times:
@@ -51,7 +49,6 @@ class TwitchShoutoutQueue:
         time_since_last = pendulum.now() - last_shoutout
         return time_since_last.total_minutes() >= 59
 
-    @sentry_sdk.trace()
     def _get_next_available_user(self) -> Optional[str]:
         """Get the next user that can be shouted out, or None if none available"""
         return next(
@@ -63,7 +60,6 @@ class TwitchShoutoutQueue:
             None,
         )
 
-    @sentry_sdk.trace()
     async def activate(self) -> None:
         try:
             self._activated = True
