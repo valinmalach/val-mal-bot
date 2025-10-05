@@ -25,7 +25,7 @@ _last_heartbeat = pendulum.now().int_timestamp
 
 load_dotenv()
 
-DISCORD_TOKEN = os.getenv("TEST_DISCORD_TOKEN")
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 sentry_sdk.init(
     dsn="https://8a7232f8683fae9b47c91b194053ed11@o4508900413865984.ingest.us.sentry.io/4508900418584576",
