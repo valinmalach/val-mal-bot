@@ -18,6 +18,8 @@ git pull
 
 # Install or update the required packages
 Write-Output "Installing requirements..."
+choco upgrade all -y
+rustup update
 uv cache clean
 uv self update
 uv sync
