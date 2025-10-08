@@ -325,16 +325,10 @@ class Events(Cog):
                     before_content = before.content
                 else:
                     before_content = await self._get_message_content(after.id)
-
-                after_content = after.content
             except KeyError:
-                message = f"Embed-only edit detected. Audit log not supported.\nMessage ID: {after.id}\nChannel: {channel_mention}\n[Jump to Message]({after.jump_url})"
-                await send_message(
-                    message,
-                    AUDIT_LOGS_CHANNEL,
-                )
-                return
+                before_content = DEFAULT_MISSING_CONTENT
 
+            after_content = after.content
             if before_content == after_content:
                 return
 
