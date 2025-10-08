@@ -159,33 +159,6 @@ class Admin(Cog):
             else f"Failed to subscribe to {username}"
         )
 
-    @app_commands.command(
-        description="Delete all messages sent by the bot in messages.parquet"
-    )
-    @app_commands.commands.default_permissions(administrator=True)
-    async def delete_messages(self, interaction: Interaction) -> None:
-        try:
-            df = pl.read_parquet("data/messages.parquet")
-            if self.bot.user is None:
-                await interaction.response.send_message(
-                    "Bot user is not available. Cannot delete messages."
-                )
-                return
-            rows_to_delete = df.filter(pl.col("author_id") == self.bot.user.id)
-            for row in rows_to_delete.iter_rows(named=True):
-                message_id = row["id"]
-                if message_id in df["id"].to_list():
-                    df = df.filter(pl.col("id") != message_id)
-            df.write_parquet("data/messages.parquet")
-            await interaction.response.send_message(
-                content="Deleted all messages sent by the bot"
-            )
-        except Exception as e:
-            logger.error("Failed to delete messages sent by the bot", exc_info=e)
-            await interaction.response.send_message(
-                f"Failed to delete messages sent by the bot: {e}"
-            )
-
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(Admin(bot))
