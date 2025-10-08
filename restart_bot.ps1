@@ -18,8 +18,10 @@ git pull
 
 # Install or update the required packages
 Write-Output "Installing requirements..."
+uv cache clean
 uv self update
 uv sync
+uv cache clean
 
 # Restart the bot
 Write-Output "Restarting the bot..."
