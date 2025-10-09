@@ -21,6 +21,7 @@ from constants import (
 from init import at_client
 from services import (
     get_next_leap,
+    read_parquet_cached,
     send_message,
     update_birthday,
     upsert_row_to_parquet_async,
@@ -94,7 +95,7 @@ class Tasks(Cog):
     @tasks.loop(minutes=1)
     async def check_posts(self) -> None:
         try:
-            df = pl.read_parquet("data/bluesky.parquet")
+            df = await read_parquet_cached("data/bluesky.parquet")
             last_sync_date_time = (
                 "1970-01-01T00:00:00.000Z" if df.height == 0 else str(df["date"].max())
             )
@@ -206,7 +207,7 @@ class Tasks(Cog):
                 .strftime("%Y-%m-%dT%H:%M:%S.000Z")
             )
 
-            df = pl.read_parquet("data/users.parquet")
+            df = await read_parquet_cached("data/users.parquet")
             birthday_users = df.filter(pl.col("birthday") == now)
             await self._process_birthday_records(birthday_users)
         except Exception as e:

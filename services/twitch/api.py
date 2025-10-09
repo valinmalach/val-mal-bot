@@ -36,6 +36,7 @@ from services.helper.helper import (
     edit_embed,
     get_age,
     parse_rfc3339,
+    read_parquet_cached,
     send_message,
 )
 from services.helper.twitch import call_twitch
@@ -357,7 +358,7 @@ async def update_alert(
         started_at = parse_rfc3339(stream_started_at)
         started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
 
-        df = pl.read_parquet("data/live_alerts.parquet")
+        df = await read_parquet_cached("data/live_alerts.parquet")
         alert_row = df.filter(pl.col("id") == broadcaster_id)
         if alert_row.height == 0:
             logger.warning(
@@ -463,7 +464,7 @@ async def update_alert(
                     f"Error on live embed edit; Continuing without aborting: {e}"
                 )
             await asyncio.sleep(60)
-            df = pl.read_parquet("data/live_alerts.parquet")
+            df = await read_parquet_cached("data/live_alerts.parquet")
             alert_row = df.filter(pl.col("id") == broadcaster_id)
             stream_info = await get_stream_info(broadcaster_id)
 

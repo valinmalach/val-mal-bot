@@ -43,6 +43,7 @@ from services import (
     get_discriminator,
     get_ordinal_suffix,
     get_pfp,
+    read_parquet_cached,
     send_embed,
     send_message,
     upsert_row_to_parquet_async,
@@ -601,10 +602,10 @@ class Events(Cog):
             )
 
     async def _get_message_content(self, message_id: int) -> str:
-        df = pl.read_parquet("data/messages.parquet")
+        df = await read_parquet_cached("data/messages.parquet")
         message_row = df.filter(pl.col("id") == message_id)
         if message_row.height != 0:
-            return message_row.row(0, named=True)["content"]
+            return message_row.row(0, named=True)["contents"]
         return DEFAULT_MISSING_CONTENT
 
     async def _log_role_change(

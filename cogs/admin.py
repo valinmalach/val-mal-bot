@@ -46,7 +46,10 @@ class Admin(Cog):
     @app_commands.command(description="Restarts the bot")
     @app_commands.commands.default_permissions(administrator=True)
     async def restart(self, interaction: Interaction) -> None:
+        from services.helper.parquet_cache import parquet_cache
+
         await interaction.response.send_message("Restarting...")
+        await parquet_cache.stop()
         await asyncio.create_subprocess_exec(
             "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
         )

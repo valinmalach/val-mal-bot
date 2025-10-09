@@ -50,6 +50,7 @@ from services import (
     megathon,
     parse_rfc3339,
     raid,
+    read_parquet_cached,
     send_embed,
     send_message,
     shoutout,
@@ -235,7 +236,7 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
         user_info = await get_user(int(broadcaster_id))
         channel_info = await get_channel(int(broadcaster_id))
 
-        df = pl.read_parquet("data/live_alerts.parquet")
+        df = await read_parquet_cached("data/live_alerts.parquet")
         alert_row = df.filter(pl.col("id") == int(broadcaster_id))
         if alert_row.height == 0:
             logger.warning(

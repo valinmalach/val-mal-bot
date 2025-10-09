@@ -3,13 +3,14 @@ import logging
 import os
 
 import discord
-import polars as pl
 from discord import CategoryChannel, ForumChannel
 from discord.abc import PrivateChannel
 from discord.ext.commands import Bot
 from dotenv import load_dotenv
 
 from constants import BOT_ADMIN_CHANNEL, GUILD_ID
+from services import read_parquet_cached
+from services.helper.parquet_cache import parquet_cache
 
 MY_GUILD = discord.Object(id=GUILD_ID)
 
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 async def restart_live_alert_tasks() -> None:
     from services import update_alert
 
-    df = pl.read_parquet("data/live_alerts.parquet")
+    df = await read_parquet_cached("data/live_alerts.parquet")
 
     for alert in df.iter_rows(named=True):
         broadcaster_id = alert["id"]
@@ -61,6 +62,8 @@ class MyBot(Bot):
         self.case_insensitive = True
 
     async def setup_hook(self) -> None:
+        await parquet_cache.start()
+
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
 
@@ -80,6 +83,10 @@ class MyBot(Bot):
         self.add_view(PronounRolesView())
         self.add_view(OtherRolesView())
         self.add_view(DMsOpenView())
+
+    async def close(self) -> None:
+        await parquet_cache.stop()
+        await super().close()
 
 
 bot = MyBot(command_prefix="$", intents=discord.Intents.all())

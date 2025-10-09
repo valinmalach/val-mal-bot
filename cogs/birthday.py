@@ -10,7 +10,7 @@ from discord.ext.commands import Bot, GroupCog
 from pendulum import DateTime
 
 from constants import BOT_ADMIN_CHANNEL, FOLLOWER_ROLE, MAX_DAYS, OWNER_ID, Months
-from services import get_next_leap, send_message, update_birthday
+from services import get_next_leap, read_parquet_cached, send_message, update_birthday
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ class Birthday(GroupCog):
         interaction: Interaction,
     ) -> None:
         try:
-            df = pl.read_parquet("data/users.parquet")
+            df = await read_parquet_cached("data/users.parquet")
             existing_user_row = df.filter(pl.col("id") == interaction.user.id)
             if existing_user_row.height == 0:
                 existing_user = None
