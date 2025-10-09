@@ -297,11 +297,6 @@ async def trigger_offline_sequence(
             BOT_ADMIN_CHANNEL,
         )
 
-    if not vod_info:
-        logger.warning(
-            f"No VOD info found for broadcaster_id={broadcaster_id}, stream_id={stream_id}",
-        )
-
     embed = (
         discord.Embed(
             description=f"**{stream_info.title if stream_info else vod_info.title if vod_info else channel.title if channel else 'Unknown'}**",

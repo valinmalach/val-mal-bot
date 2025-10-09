@@ -263,11 +263,6 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
                 BOT_ADMIN_CHANNEL,
             )
 
-        if not vod_info:
-            logger.warning(
-                f"No VOD info found for broadcaster_id={broadcaster_id}, {stream_id}"
-            )
-
         content = (
             f"<@&{LIVE_ALERTS_ROLE}>" if channel_id == STREAM_ALERTS_CHANNEL else None
         )

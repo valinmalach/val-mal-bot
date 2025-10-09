@@ -221,7 +221,6 @@ class Tasks(Cog):
             user = self.bot.get_user(int(user_id))
             if user is None:
                 logger.warning(f"Discord user ID {user_id} not found in guild cache")
-                sentry_sdk.capture_message(f"User with ID {user_id} not found.")
                 await send_message(
                     f"_process_birthday_records: User with ID {user_id} not found.",
                     BOT_ADMIN_CHANNEL,
