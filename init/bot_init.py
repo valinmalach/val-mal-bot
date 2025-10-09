@@ -9,7 +9,7 @@ from discord.ext.commands import Bot
 from dotenv import load_dotenv
 
 from constants import BOT_ADMIN_CHANNEL, GUILD_ID
-from services import read_parquet_cached
+from services.helper.helper import read_parquet_cached
 from services.helper.parquet_cache import parquet_cache
 
 MY_GUILD = discord.Object(id=GUILD_ID)
