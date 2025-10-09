@@ -3,7 +3,6 @@ import logging
 from typing import List
 
 import discord
-import polars as pl
 from discord import (
     CategoryChannel,
     DMChannel,
