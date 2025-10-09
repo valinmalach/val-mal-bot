@@ -314,7 +314,7 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
                 f"Error while editing embed; Continuing without aborting: {e}"
             )
 
-        success, error = delete_row_from_parquet(
+        success, error = await delete_row_from_parquet(
             int(broadcaster_id), "data/live_alerts.parquet"
         )
         if not success:

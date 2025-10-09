@@ -44,13 +44,10 @@ async def upsert_row_to_parquet_async(
     return await parquet_cache.upsert_row(row_data, filepath, id_column)
 
 
-def delete_row_from_parquet(
+async def delete_row_from_parquet(
     id_value: str | int, filepath: str, id_column: str = "id"
 ) -> tuple[bool, Exception | None]:
-    loop = asyncio.get_event_loop()
-    return loop.run_until_complete(
-        parquet_cache.delete_row(id_value, filepath, id_column)
-    )
+    return await parquet_cache.delete_row(id_value, filepath, id_column)
 
 
 async def read_parquet_cached(filepath: str) -> DataFrame:

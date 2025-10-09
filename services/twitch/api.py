@@ -335,7 +335,17 @@ async def trigger_offline_sequence(
         logger.warning(
             f"Message not found when editing offline embed for message_id={message_id}; aborting"
         )
-        delete_row_from_parquet(broadcaster_id, "data/live_alerts.parquet")
+        success, error = await delete_row_from_parquet(
+            broadcaster_id, "data/live_alerts.parquet"
+        )
+        if not success:
+            logger.error(
+                f"Failed to delete live alert record for broadcaster_id={broadcaster_id}: {error}"
+            )
+            await send_message(
+                f"Failed to delete live alert record for broadcaster_id={broadcaster_id}: {error}",
+                BOT_ADMIN_CHANNEL,
+            )
     except Exception as e:
         logger.warning(
             f"Error encountered while editing offline embed; Continuing without aborting...\n{e}"
@@ -457,7 +467,17 @@ async def update_alert(
                 logger.warning(
                     f"Message not found when editing offline embed for message_id={message_id}; aborting"
                 )
-                delete_row_from_parquet(broadcaster_id, "data/live_alerts.parquet")
+                success, error = await delete_row_from_parquet(
+                    broadcaster_id, "data/live_alerts.parquet"
+                )
+                if not success:
+                    logger.error(
+                        f"Failed to delete live alert record for broadcaster_id={broadcaster_id}: {error}"
+                    )
+                    await send_message(
+                        f"Failed to delete live alert record for broadcaster_id={broadcaster_id}: {error}",
+                        BOT_ADMIN_CHANNEL,
+                    )
                 return
             except Exception as e:
                 logger.warning(
