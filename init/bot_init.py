@@ -9,7 +9,6 @@ from discord.ext.commands import Bot
 from dotenv import load_dotenv
 
 from constants import BOT_ADMIN_CHANNEL, GUILD_ID
-from services.helper.helper import read_parquet_cached
 from services.helper.parquet_cache import parquet_cache
 
 MY_GUILD = discord.Object(id=GUILD_ID)
@@ -22,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 async def restart_live_alert_tasks() -> None:
-    from services import update_alert
+    from services import read_parquet_cached, update_alert
 
     df = await read_parquet_cached("data/live_alerts.parquet")
 
