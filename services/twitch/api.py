@@ -474,9 +474,24 @@ async def update_alert(
                         BOT_ADMIN_CHANNEL,
                     )
                 return
+            except discord.HTTPException as e:
+                if e.status == 503:
+                    logger.warning(
+                        f"Discord API temporarily unavailable (503) for message_id={message_id}; will retry next cycle"
+                    )
+                else:
+                    logger.warning(
+                        f"Discord HTTP error {e.status} when editing live embed for message_id={message_id}: {e}"
+                    )
+                    sentry_sdk.capture_exception(e)
             except Exception as e:
                 logger.warning(
                     f"Error on live embed edit; Continuing without aborting: {e}"
+                )
+                sentry_sdk.capture_exception(e)
+                await send_message(
+                    f"Error on live embed edit for message_id={message_id}: {e}",
+                    BOT_ADMIN_CHANNEL,
                 )
             await asyncio.sleep(60)
             df = await read_parquet_cached("data/live_alerts.parquet")
