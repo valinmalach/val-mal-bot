@@ -1,17 +1,76 @@
 import logging
+from pathlib import Path
 from typing import Optional
 from xml.etree.ElementTree import ParseError
 
+import polars as pl
 import xmltodict
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import PlainTextResponse
 
 from constants import PROMO_CHANNEL
 from services import send_message
+from services.helper.helper import read_parquet_cached, upsert_row_to_parquet_async
+
+logger = logging.getLogger(__name__)
 
 youtube_router = APIRouter()
 
-logger = logging.getLogger(__name__)
+VIDEOS_PARQUET_PATH = Path("data/youtube/videos.parquet")
+
+
+def ensure_parquet_file_exists():
+    """Ensure the parquet file and its directory exist."""
+    VIDEOS_PARQUET_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    if not VIDEOS_PARQUET_PATH.exists():
+        # Create empty DataFrame with required columns
+        empty_df = pl.DataFrame(schema={"channel_id": pl.Utf8, "video_id": pl.Utf8})
+        empty_df.write_parquet(VIDEOS_PARQUET_PATH)
+
+
+async def is_new_video(channel_id: str, video_id: str) -> bool:
+    """Check if the video is new by looking it up in the parquet file."""
+    try:
+        ensure_parquet_file_exists()
+
+        df = await read_parquet_cached("data/youtube/videos.parquet")
+
+        # Check if this video already exists for this channel
+        existing = df.filter(
+            (pl.col("channel_id") == channel_id) & (pl.col("video_id") == video_id)
+        )
+
+        return existing.height == 0
+
+    except Exception as e:
+        logger.error(f"Error checking if video is new: {e}")
+        # If we can't check, assume it's new to avoid missing videos
+        return True
+
+
+async def add_video_to_parquet(channel_id: str, video_id: str):
+    """Add a new video to the parquet file."""
+    try:
+        ensure_parquet_file_exists()
+
+        success, error = await upsert_row_to_parquet_async(
+            {"channel_id": channel_id, "video_id": video_id},
+            "data/youtube/videos.parquet",
+            id_column="video_id",
+        )
+
+        if success:
+            logger.info(
+                f"Added video {video_id} from channel {channel_id} to parquet file"
+            )
+        else:
+            logger.error(
+                f"Failed to add video {video_id} from channel {channel_id} to parquet file: {error}"
+            )
+
+    except Exception as e:
+        logger.error(f"Error adding video to parquet: {e}")
 
 
 @youtube_router.get("/youtube/webhook")
@@ -47,6 +106,7 @@ async def youtube_webhook_notification(request: Request):
 
         if entry := data.get("feed", {}).get("entry"):
             video_id = entry.get("yt:videoId")
+            channel_id = entry.get("yt:channelId")
             author = entry.get("author", {}).get("name", "Unknown")
             published = entry.get("published")
             updated = entry.get("updated")
@@ -54,6 +114,7 @@ async def youtube_webhook_notification(request: Request):
             if video_id:
                 await handle_new_video(
                     video_id=video_id,
+                    channel_id=channel_id,
                     author=author,
                     published=published,
                     updated=updated,
@@ -71,21 +132,26 @@ async def youtube_webhook_notification(request: Request):
 
 async def handle_new_video(
     video_id: str,
+    channel_id: str,
     author: str,
     published: Optional[str] = None,
     updated: Optional[str] = None,
 ):
     try:
-        is_new_video = published == updated if published and updated else True
-
-        if not is_new_video:
-            logger.info(f"Ignoring video update for: {video_id}")
+        if not is_new_video(channel_id, video_id):
+            logger.info(
+                f"Ignoring existing video for: {video_id} from channel {channel_id}"
+            )
             return
+
+        await add_video_to_parquet(channel_id, video_id)
 
         url = f"https://www.youtube.com/watch?v={video_id}"
         message = f"New video uploaded by {author}!\n{url}"
 
         await send_message(message, PROMO_CHANNEL)
+
+        logger.info(f"Processed new video: {video_id} from {author}")
 
     except Exception as e:
         logger.error(f"Error handling new video notification: {e}")
