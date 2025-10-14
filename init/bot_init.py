@@ -11,13 +11,13 @@ from dotenv import load_dotenv
 from constants import BOT_ADMIN_CHANNEL, GUILD_ID
 from services.helper.parquet_cache import parquet_cache
 
-MY_GUILD = discord.Object(id=GUILD_ID)
-
 load_dotenv()
 
-TWITCH_BROADCASTER_ID = os.getenv("TWITCH_BROADCASTER_ID")
-
 logger = logging.getLogger(__name__)
+
+MY_GUILD = discord.Object(id=GUILD_ID)
+
+TWITCH_BROADCASTER_ID = os.getenv("TWITCH_BROADCASTER_ID")
 
 
 async def restart_live_alert_tasks() -> None:

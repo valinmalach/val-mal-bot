@@ -43,10 +43,10 @@ from services.helper.twitch import call_twitch
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 APP_URL = os.getenv("APP_URL")
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
-
-logger = logging.getLogger(__name__)
 
 
 async def get_subscriptions() -> Optional[List[Subscription]]:

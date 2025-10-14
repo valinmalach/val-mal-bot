@@ -11,10 +11,10 @@ from services.helper.http_client import http_client_manager
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
-
-logger = logging.getLogger(__name__)
 
 
 class TwitchTokenManager:

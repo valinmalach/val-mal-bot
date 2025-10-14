@@ -22,6 +22,12 @@ from services.helper.http_client import http_client_manager
 
 load_dotenv()
 
+logging.basicConfig(
+    level=logging.INFO, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
+)
+logger = logging.getLogger(__name__)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 sentry_sdk.init(
@@ -29,12 +35,6 @@ sentry_sdk.init(
     integrations=[FastApiIntegration(), LoggingIntegration()],
     enable_logs=True,
 )
-
-logging.basicConfig(
-    level=logging.INFO, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
-)
-logger = logging.getLogger(__name__)
-logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 async def main() -> None:

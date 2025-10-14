@@ -7,10 +7,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 BLUESKY_LOGIN = os.getenv("BLUESKY_LOGIN")
 BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_APP_PASSWORD")
-
-logger = logging.getLogger(__name__)
 
 
 def get_session() -> Optional[str]:

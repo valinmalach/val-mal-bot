@@ -30,9 +30,9 @@ from services.helper.http_client import http_client_manager
 
 load_dotenv()
 
-APP_URL = os.getenv("APP_URL")
-
 logger = logging.getLogger(__name__)
+
+APP_URL = os.getenv("APP_URL")
 
 
 class Tasks(Cog):

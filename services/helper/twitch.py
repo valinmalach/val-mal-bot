@@ -17,10 +17,10 @@ from services.twitch.token_manager import token_manager
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_BOT_USER_ID = os.getenv("TWITCH_BOT_USER_ID")
-
-logger = logging.getLogger(__name__)
 
 
 async def call_twitch(

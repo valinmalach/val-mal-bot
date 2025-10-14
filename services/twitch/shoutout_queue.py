@@ -15,10 +15,10 @@ from services.twitch.api import get_user_by_username
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 TWITCH_BOT_USER_ID = os.getenv("TWITCH_BOT_USER_ID")
 TWITCH_BROADCASTER_ID = os.getenv("TWITCH_BROADCASTER_ID")
-
-logger = logging.getLogger(__name__)
 
 
 class TwitchShoutoutQueue:

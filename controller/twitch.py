@@ -74,9 +74,9 @@ TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 
-twitch_router = APIRouter()
-
 logger = logging.getLogger(__name__)
+
+twitch_router = APIRouter()
 
 # Raid start
 # Have a great rest of your day! valinmHeart Don't forget to stay hydrated and take care of yourself! valinmHeart
