@@ -342,10 +342,7 @@ async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> N
         "everything": everything,
     }
     try:
-        has_bot_badge = any(
-            badge.set_id == "bot-badge" for badge in event_sub.event.badges or []
-        )
-        if not event_sub.event.message.text.startswith("!") or has_bot_badge:
+        if not event_sub.event.message.text.startswith("!"):
             return
         text_without_prefix = event_sub.event.message.text[1:]
         command_parts = text_without_prefix.split(" ", 1)
