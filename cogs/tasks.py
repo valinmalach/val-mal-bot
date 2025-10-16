@@ -105,6 +105,14 @@ class Tasks(Cog):
             except exceptions.InvokeTimeoutError:
                 return
             except Exception as e:
+                if hasattr(e, "args") and len(e.args) > 0:
+                    response = e.args[0]
+                    if hasattr(response, "status_code") and response.status_code == 503:
+                        logger.info(
+                            "Bluesky API temporarily unavailable (503 NotEnoughResources)"
+                        )
+                        return
+
                 error_details = {
                     "type": type(e).__name__,
                     "message": str(e),
