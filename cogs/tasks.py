@@ -107,9 +107,12 @@ class Tasks(Cog):
             except Exception as e:
                 if hasattr(e, "args") and len(e.args) > 0:
                     response = e.args[0]
-                    if hasattr(response, "status_code") and response.status_code == 503:
+                    if hasattr(response, "status_code") and response.status_code in {
+                        502,
+                        503,
+                    }:
                         logger.info(
-                            "Bluesky API temporarily unavailable (503 NotEnoughResources)"
+                            f"Bluesky API temporarily unavailable ({response.status_code} {response.content.error if hasattr(response, 'content') and hasattr(response.content, 'error') else 'ErrorNotProvided'})"
                         )
                         return
 
