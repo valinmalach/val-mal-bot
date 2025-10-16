@@ -49,6 +49,33 @@ APP_URL = os.getenv("APP_URL")
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 
 
+async def retry_api_call(func, *args, max_retries=3, delay=1, **kwargs):
+    """Retry API calls with exponential backoff for connection issues."""
+    for attempt in range(max_retries):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise e
+
+            error_str = str(e).lower()
+            if all(
+                term not in error_str
+                for term in [
+                    "connectionterminated",
+                    "connection",
+                    "timeout",
+                    "network",
+                ]
+            ):
+                raise e
+            wait_time = delay * (2**attempt)
+            logger.warning(
+                f"Connection error on attempt {attempt + 1}, retrying in {wait_time}s: {e}"
+            )
+            await asyncio.sleep(wait_time)
+
+
 async def get_subscriptions() -> Optional[List[Subscription]]:
     all_subscriptions: List[Subscription] = []
     cursor: Optional[str] = None
@@ -58,7 +85,17 @@ async def get_subscriptions() -> Optional[List[Subscription]]:
         params = {"status": "enabled"}
         if cursor:
             params["after"] = cursor
-        response = await call_twitch("GET", url, params)
+
+        try:
+            response = await retry_api_call(call_twitch, "GET", url, params)
+        except Exception as e:
+            logger.warning(f"Error fetching subscriptions after retries: {e}")
+            await send_message(
+                f"Failed to fetch subscriptions after retries: {e}",
+                BOT_ADMIN_CHANNEL,
+            )
+            return None
+
         if (
             response is None
             or response.status_code < 200
@@ -71,7 +108,7 @@ async def get_subscriptions() -> Optional[List[Subscription]]:
                 f"Failed to fetch subscriptions: {response.status_code if response else 'No response'} {response.text if response else ''}",
                 BOT_ADMIN_CHANNEL,
             )
-            return
+            return None
 
         subscription_info_response = SubscriptionResponse.model_validate(
             response.json()
@@ -90,7 +127,17 @@ async def get_subscriptions() -> Optional[List[Subscription]]:
 
 async def get_user(id: int) -> Optional[User]:
     url = f"https://api.twitch.tv/helix/users?id={id}"
-    response = await call_twitch("GET", url)
+
+    try:
+        response = await retry_api_call(call_twitch, "GET", url)
+    except Exception as e:
+        logger.warning(f"Failed to fetch user info after retries: {e}")
+        await send_message(
+            f"Failed to fetch user info after retries: {e}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return None
+
     if response is None or response.status_code < 200 or response.status_code >= 300:
         logger.warning(
             f"Failed to fetch user info: {response.status_code if response else 'No response'}"
@@ -99,14 +146,24 @@ async def get_user(id: int) -> Optional[User]:
             f"Failed to fetch user info: {response.status_code if response else 'No response'} {response.text if response else ''}",
             BOT_ADMIN_CHANNEL,
         )
-        return
+        return None
     user_info_response = UserResponse.model_validate(response.json())
     return user_info_response.data[0] if user_info_response.data else None
 
 
 async def get_user_by_username(username: str) -> Optional[User]:
     url = f"https://api.twitch.tv/helix/users?login={username}"
-    response = await call_twitch("GET", url)
+
+    try:
+        response = await retry_api_call(call_twitch, "GET", url)
+    except Exception as e:
+        logger.warning(f"Failed to fetch user info after retries: {e}")
+        await send_message(
+            f"Failed to fetch user info after retries: {e}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return None
+
     if response is None or response.status_code < 200 or response.status_code >= 300:
         logger.warning(
             f"Failed to fetch user info: {response.status_code if response else 'No response'}"
@@ -134,7 +191,17 @@ async def twitch_event_subscription(
             "secret": TWITCH_WEBHOOK_SECRET,
         },
     }
-    response = await call_twitch("POST", url, body)
+
+    try:
+        response = await retry_api_call(call_twitch, "POST", url, body)
+    except Exception as e:
+        logger.warning(f"Failed to subscribe to {type} event after retries: {e}")
+        await send_message(
+            f"Failed to subscribe to {type} event after retries: {e}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return False
+
     if response is None or response.status_code < 200 or response.status_code >= 300:
         logger.warning(
             f"Failed to subscribe to {type} event: {response.status_code if response else 'No response'}"
@@ -169,7 +236,17 @@ async def get_users(ids: List[str]) -> Optional[List[User]]:
         if not batch:
             continue
         url = f"https://api.twitch.tv/helix/users?id={'&id='.join(batch)}"
-        response = await call_twitch("GET", url)
+
+        try:
+            response = await retry_api_call(call_twitch, "GET", url)
+        except Exception as e:
+            logger.warning(f"Failed batch fetch of user infos after retries: {e}")
+            await send_message(
+                f"Failed to fetch users infos after retries: {e}",
+                BOT_ADMIN_CHANNEL,
+            )
+            return None
+
         if (
             response is None
             or response.status_code < 200
@@ -191,7 +268,17 @@ async def get_users(ids: List[str]) -> Optional[List[User]]:
 
 async def get_channel(id: int) -> Optional[Channel]:
     url = f"https://api.twitch.tv/helix/channels?broadcaster_id={id}"
-    response = await call_twitch("GET", url)
+
+    try:
+        response = await retry_api_call(call_twitch, "GET", url)
+    except Exception as e:
+        logger.warning(f"Failed to fetch channel info after retries: {e}")
+        await send_message(
+            f"Failed to fetch channel info after retries: {e}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return None
+
     if response is None or response.status_code < 200 or response.status_code >= 300:
         logger.warning(
             f"Failed to fetch channel info: {response.status_code if response else 'No response'}"
@@ -207,7 +294,17 @@ async def get_channel(id: int) -> Optional[Channel]:
 
 async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
     url = f"https://api.twitch.tv/helix/streams?user_id={broadcaster_id}"
-    response = await call_twitch("GET", url)
+
+    try:
+        response = await retry_api_call(call_twitch, "GET", url)
+    except Exception as e:
+        logger.warning(f"Failed to fetch stream info after retries: {e}")
+        await send_message(
+            f"Failed to fetch stream info after retries: {e}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return None
+
     if response is None or response.status_code < 200 or response.status_code >= 300:
         logger.warning(
             f"Failed to fetch stream info: {response.status_code if response else 'No response'}"
@@ -223,7 +320,17 @@ async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
 
 async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
     url = f"https://api.twitch.tv/helix/videos?user_id={user_id}&type=archive"
-    response = await call_twitch("GET", url)
+
+    try:
+        response = await retry_api_call(call_twitch, "GET", url)
+    except Exception as e:
+        logger.warning(f"Failed to fetch VOD info after retries: {e}")
+        await send_message(
+            f"Failed to fetch VOD info after retries: {e}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return None
+
     if response is None or response.status_code < 200 or response.status_code >= 300:
         logger.warning(
             f"Failed to fetch VOD info: {response.status_code if response else 'No response'}"
@@ -246,7 +353,19 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
 
 async def get_ad_schedule(broadcaster_id: int) -> Optional[AdSchedule]:
     url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={broadcaster_id}"
-    response = await call_twitch("GET", url, None, TokenType.Broadcaster)
+
+    try:
+        response = await retry_api_call(
+            call_twitch, "GET", url, None, TokenType.Broadcaster
+        )
+    except Exception as e:
+        logger.warning(f"Failed to fetch ad schedule after retries: {e}")
+        await send_message(
+            f"Failed to fetch ad schedule after retries: {e}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return None
+
     if response is None or response.status_code < 200 or response.status_code >= 300:
         logger.warning(
             f"Failed to fetch ad schedule: {response.status_code if response else 'No response'}"
