@@ -7,7 +7,7 @@ from .common import Subscription
 
 class ChannelModerateCondition(BaseModel):
     broadcaster_user_id: str
-    user_id: str
+    moderator_user_id: str
 
 
 class ChannelModerateSubscription(Subscription):
@@ -67,9 +67,9 @@ class ChannelModerateEvent(BaseModel):
     broadcaster_user_id: str
     broadcaster_user_login: str
     broadcaster_user_name: str
-    source_broadcaster_user_id: str
-    source_broadcaster_user_login: str
-    source_broadcaster_user_name: str
+    source_broadcaster_user_id: Optional[str]
+    source_broadcaster_user_login: Optional[str]
+    source_broadcaster_user_name: Optional[str]
     moderator_user_id: str
     moderator_user_login: str
     moderator_user_name: str

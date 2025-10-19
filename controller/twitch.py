@@ -729,11 +729,10 @@ async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
         if (
             event_sub.event.action != "raid"
             or event_sub.event.broadcaster_user_id != TWITCH_BROADCASTER_ID
-            or event_sub.event.source_broadcaster_user_id != TWITCH_BROADCASTER_ID
         ):
             return
         await twitch_send_message(
-            event_sub.event.source_broadcaster_user_id,
+            event_sub.event.broadcaster_user_id,
             "Have a great rest of your day! valinmHeart Don't forget to stay hydrated and take care of yourself! valinmHeart",
         )
     except Exception as e:
