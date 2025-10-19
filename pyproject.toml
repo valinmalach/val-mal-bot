@@ -17,6 +17,6 @@ dependencies = [
     "rich>=14.2.0",
     "sentry-sdk>=2.42.0",
     "truststore>=0.10.4",
-    "uvicorn[standard]>=0.37.0",
+    "uvicorn[standard]>=0.38.0",
     "xmltodict>=1.0.2",
 ]

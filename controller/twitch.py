@@ -26,6 +26,7 @@ from models import (
     ChannelAdBreakBeginEventSub,
     ChannelChatMessageEventSub,
     ChannelFollowEventSub,
+    ChannelModerateEventSub,
     ChannelRaidEventSub,
     RefreshResponse,
     StreamOfflineEventSub,
@@ -78,9 +79,6 @@ logger = logging.getLogger(__name__)
 
 twitch_router = APIRouter()
 
-# Raid start
-# Have a great rest of your day! valinmHeart Don't forget to stay hydrated and take care of yourself! valinmHeart
-
 
 async def validate_call(request: Request, endpoint: str) -> Response | None:
     headers = request.headers
@@ -109,7 +107,7 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
     if not verify_message(secret_hmac, twitch_message_signature):
         logger.warning("403: Forbidden. Signature does not match.")
         await send_message(
-            "403: Forbidden request on /webhook/twitch. Signature does not match.",
+            f"403: Forbidden request on {endpoint}. Signature does not match.",
             BOT_ADMIN_CHANNEL,
         )
         raise HTTPException(status_code=403)
@@ -722,5 +720,52 @@ async def channel_raid_webhook(request: Request) -> Response:
         raise e
     except Exception as e:
         message = f"500: Internal server error on /webhook/twitch/raid: {e}"
+        await log_error(e, message)
+        raise HTTPException(status_code=500) from e
+
+
+async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
+    try:
+        if (
+            event_sub.event.action != "raid"
+            or event_sub.event.broadcaster_user_id != TWITCH_BROADCASTER_ID
+            or event_sub.event.source_broadcaster_user_id != TWITCH_BROADCASTER_ID
+        ):
+            return
+        await twitch_send_message(
+            event_sub.event.source_broadcaster_user_id,
+            "Have a great rest of your day! valinmHeart Don't forget to stay hydrated and take care of yourself! valinmHeart",
+        )
+    except Exception as e:
+        message = f"Error processing Twitch moderate webhook task: {e}"
+        await log_error(e, message)
+
+
+@twitch_router.post("/webhook/twitch/moderate")
+async def channel_moderate_webhook(request: Request) -> Response:
+    try:
+        validation = await validate_call(request, "/webhook/twitch/moderate")
+        if validation:
+            return validation
+
+        body: dict[str, Any] = await request.json()
+        event_sub = ChannelModerateEventSub.model_validate(body)
+        if event_sub.subscription.type != "channel.moderate":
+            logger.warning(
+                f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
+            )
+            await send_message(
+                "400: Bad request on /webhook/twitch/moderate. Invalid subscription type.",
+                BOT_ADMIN_CHANNEL,
+            )
+            raise HTTPException(status_code=400)
+
+        asyncio.create_task(_channel_moderate_task(event_sub))
+
+        return Response(status_code=202)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        message = f"500: Internal server error on /webhook/twitch/moderate: {e}"
         await log_error(e, message)
         raise HTTPException(status_code=500) from e
