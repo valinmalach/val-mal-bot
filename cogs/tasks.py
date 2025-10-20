@@ -1,8 +1,10 @@
+import io
 import logging
 import os
 import shutil
 import traceback
 
+import discord
 import pendulum
 import polars as pl
 import sentry_sdk
@@ -17,6 +19,7 @@ from constants import (
     BLUESKY_ROLE,
     BOT_ADMIN_CHANNEL,
     SHOUTOUTS_CHANNEL,
+    ErrorDetails,
 )
 from init import at_client
 from services import (
@@ -116,18 +119,21 @@ class Tasks(Cog):
                         )
                         return
 
-                error_details = {
+                error_details: ErrorDetails = {
                     "type": type(e).__name__,
                     "message": str(e),
                     "args": e.args,
                     "traceback": traceback.format_exc(),
                 }
                 error_msg = f"Error fetching Bluesky author feed - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                logger.warning(f"{error_msg}\nTraceback: {error_details['traceback']}")
-                await send_message(
-                    error_msg,
-                    BOT_ADMIN_CHANNEL,
+                logger.error(f"{error_msg}\nTraceback: {error_details['traceback']}")
+                traceback_buffer = io.BytesIO(
+                    error_details["traceback"].encode("utf-8")
                 )
+                traceback_file = discord.File(
+                    traceback_buffer, filename="traceback.txt"
+                )
+                await send_message(error_msg, BOT_ADMIN_CHANNEL, file=traceback_file)
                 return
 
             posts = sorted(

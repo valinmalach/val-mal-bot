@@ -53,12 +53,16 @@ async def read_parquet_cached(filepath: str) -> DataFrame:
     return await parquet_cache.read_df(filepath)
 
 
-async def send_message(content: str, channel_id: int) -> Optional[int]:
+async def send_message(
+    content: str, channel_id: int, file: Optional[discord.File] = None
+) -> Optional[int]:
     channel = bot.get_channel(channel_id)
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
     ):
         return
+    if file:
+        return (await channel.send(content, file=file)).id
     return (await channel.send(content)).id
 
 

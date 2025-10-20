@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import TypedDict
 
 TWITCH_MESSAGE_ID = "Twitch-Eventsub-Message-Id"
 TWITCH_MESSAGE_TYPE = "Twitch-Eventsub-Message-Type"
@@ -114,3 +115,10 @@ class TokenType(str, Enum):
     App = "app"
     User = "user"
     Broadcaster = "broadcaster"
+
+
+class ErrorDetails(TypedDict):
+    type: str
+    message: str
+    args: tuple
+    traceback: str
