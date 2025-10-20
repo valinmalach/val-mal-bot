@@ -1,13 +1,14 @@
 import asyncio
+import io
 import itertools
 import logging
 import os
+import traceback
 from typing import List, Literal, Optional
 
 import discord
 import pendulum
 import polars as pl
-import sentry_sdk
 from discord.ui import View
 from dotenv import load_dotenv
 
@@ -15,6 +16,7 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     LIVE_ALERTS_ROLE,
     STREAM_ALERTS_CHANNEL,
+    ErrorDetails,
     TokenType,
 )
 from models import (
@@ -47,6 +49,12 @@ logger = logging.getLogger(__name__)
 
 APP_URL = os.getenv("APP_URL")
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
+
+
+async def log_error(message: str, traceback_str: str) -> None:
+    traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
+    traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
+    await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
 
 
 async def retry_api_call(func, *args, max_retries=3, delay=1, **kwargs):
@@ -89,11 +97,15 @@ async def get_subscriptions() -> Optional[List[Subscription]]:
         try:
             response = await retry_api_call(call_twitch, "GET", url, params)
         except Exception as e:
-            logger.warning(f"Error fetching subscriptions after retries: {e}")
-            await send_message(
-                f"Failed to fetch subscriptions after retries: {e}",
-                BOT_ADMIN_CHANNEL,
-            )
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Error fetching subscriptions after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await log_error(error_msg, error_details["traceback"])
             return None
 
         if (
@@ -131,11 +143,15 @@ async def get_user(id: int) -> Optional[User]:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:
-        logger.warning(f"Failed to fetch user info after retries: {e}")
-        await send_message(
-            f"Failed to fetch user info after retries: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error fetching user info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         return None
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
@@ -157,11 +173,15 @@ async def get_user_by_username(username: str) -> Optional[User]:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:
-        logger.warning(f"Failed to fetch user info after retries: {e}")
-        await send_message(
-            f"Failed to fetch user info after retries: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Failed to fetch user info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         return None
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
@@ -178,16 +198,16 @@ async def get_user_by_username(username: str) -> Optional[User]:
 
 
 async def twitch_event_subscription(
-    type: Literal["online", "offline"], user_id: str
+    sub_type: Literal["online", "offline"], user_id: str
 ) -> bool:
     url = "https://api.twitch.tv/helix/eventsub/subscriptions"
     body = {
-        "type": f"stream.{type}",
+        "type": f"stream.{sub_type}",
         "version": "1",
         "condition": {"broadcaster_user_id": user_id},
         "transport": {
             "method": "webhook",
-            "callback": f"{APP_URL}/webhook/twitch{'' if type == 'online' else '/offline'}",
+            "callback": f"{APP_URL}/webhook/twitch{'' if sub_type == 'online' else '/offline'}",
             "secret": TWITCH_WEBHOOK_SECRET,
         },
     }
@@ -195,11 +215,15 @@ async def twitch_event_subscription(
     try:
         response = await retry_api_call(call_twitch, "POST", url, body)
     except Exception as e:
-        logger.warning(f"Failed to subscribe to {type} event after retries: {e}")
-        await send_message(
-            f"Failed to subscribe to {type} event after retries: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Failed to subscribe to {type} event after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         return False
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
@@ -240,11 +264,15 @@ async def get_users(ids: List[str]) -> Optional[List[User]]:
         try:
             response = await retry_api_call(call_twitch, "GET", url)
         except Exception as e:
-            logger.warning(f"Failed batch fetch of user infos after retries: {e}")
-            await send_message(
-                f"Failed to fetch users infos after retries: {e}",
-                BOT_ADMIN_CHANNEL,
-            )
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Error fetching user infos after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await log_error(error_msg, error_details["traceback"])
             return None
 
         if (
@@ -272,11 +300,15 @@ async def get_channel(id: int) -> Optional[Channel]:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:
-        logger.warning(f"Failed to fetch channel info after retries: {e}")
-        await send_message(
-            f"Failed to fetch channel info after retries: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Failed to fetch channel info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         return None
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
@@ -298,10 +330,18 @@ async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:
-        logger.warning(f"Failed to fetch stream info after retries: {e}")
-        await send_message(
-            f"Failed to fetch stream info after retries: {e}",
-            BOT_ADMIN_CHANNEL,
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        logger.error(
+            f"Failed to fetch stream info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        )
+        await log_error(
+            f"Failed to fetch stream info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}",
+            error_details["traceback"],
         )
         return None
 
@@ -324,10 +364,18 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:
-        logger.warning(f"Failed to fetch VOD info after retries: {e}")
-        await send_message(
-            f"Failed to fetch VOD info after retries: {e}",
-            BOT_ADMIN_CHANNEL,
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        logger.error(
+            f"Failed to fetch VOD info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        )
+        await log_error(
+            f"Failed to fetch VOD info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}",
+            error_details["traceback"],
         )
         return None
 
@@ -359,11 +407,15 @@ async def get_ad_schedule(broadcaster_id: int) -> Optional[AdSchedule]:
             call_twitch, "GET", url, None, TokenType.Broadcaster
         )
     except Exception as e:
-        logger.warning(f"Failed to fetch ad schedule after retries: {e}")
-        await send_message(
-            f"Failed to fetch ad schedule after retries: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Failed to fetch ad schedule after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         return None
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
@@ -407,14 +459,15 @@ async def trigger_offline_sequence(
     try:
         vod_info = await get_stream_vod(broadcaster_id, stream_id)
     except Exception as e:
-        sentry_sdk.capture_exception(e)
-        logger.warning(
-            f"Failed to fetch VOD info for broadcaster_id={broadcaster_id}: {e}",
-        )
-        await send_message(
-            f"Failed to fetch VOD info for {broadcaster_id}: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Failed to fetch VOD info for broadcaster_id={broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
 
     embed = (
         discord.Embed(
@@ -452,18 +505,26 @@ async def trigger_offline_sequence(
         success, error = await delete_row_from_parquet(
             broadcaster_id, "data/live_alerts.parquet"
         )
-        if not success:
-            logger.error(
-                f"Failed to delete live alert record for broadcaster_id={broadcaster_id}: {error}"
-            )
-            await send_message(
-                f"Failed to delete live alert record for broadcaster_id={broadcaster_id}: {error}",
-                BOT_ADMIN_CHANNEL,
-            )
+        if not success and error:
+            error_details: ErrorDetails = {
+                "type": type(error).__name__,
+                "message": str(error),
+                "args": error.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Failed to delete live alert record for broadcaster_id={broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await log_error(error_msg, error_details["traceback"])
     except Exception as e:
-        logger.warning(
-            f"Error encountered while editing offline embed; Continuing without aborting...\n{e}"
-        )
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error editing offline embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
 
 
 async def update_alert(
@@ -584,14 +645,18 @@ async def update_alert(
                 success, error = await delete_row_from_parquet(
                     broadcaster_id, "data/live_alerts.parquet"
                 )
-                if not success:
+                if not success and error:
+                    error_details: ErrorDetails = {
+                        "type": type(error).__name__,
+                        "message": str(error),
+                        "args": error.args,
+                        "traceback": traceback.format_exc(),
+                    }
+                    error_msg = f"Failed to delete live alert record for broadcaster_id={broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
                     logger.error(
-                        f"Failed to delete live alert record for broadcaster_id={broadcaster_id}: {error}"
+                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
                     )
-                    await send_message(
-                        f"Failed to delete live alert record for broadcaster_id={broadcaster_id}: {error}",
-                        BOT_ADMIN_CHANNEL,
-                    )
+                    await log_error(error_msg, error_details["traceback"])
                 return
             except discord.HTTPException as e:
                 if e.status == 503:
@@ -599,30 +664,39 @@ async def update_alert(
                         f"Discord API temporarily unavailable (503) for message_id={message_id}; will retry next cycle"
                     )
                 else:
-                    logger.warning(
-                        f"Discord HTTP error {e.status} when editing live embed for message_id={message_id}: {e}"
+                    error_details: ErrorDetails = {
+                        "type": type(e).__name__,
+                        "message": str(e),
+                        "args": e.args,
+                        "traceback": traceback.format_exc(),
+                    }
+                    error_msg = f"Discord HTTP error {e.status} when editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                    logger.error(
+                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
                     )
-                    sentry_sdk.capture_exception(e)
+                    await log_error(error_msg, error_details["traceback"])
             except Exception as e:
-                logger.warning(
-                    f"Error on live embed edit; Continuing without aborting: {e}"
-                )
-                sentry_sdk.capture_exception(e)
-                await send_message(
-                    f"Error on live embed edit for message_id={message_id}: {e}",
-                    BOT_ADMIN_CHANNEL,
-                )
+                error_details: ErrorDetails = {
+                    "type": type(e).__name__,
+                    "message": str(e),
+                    "args": e.args,
+                    "traceback": traceback.format_exc(),
+                }
+                error_msg = f"Error editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+                await log_error(error_msg, error_details["traceback"])
             await asyncio.sleep(60)
             df = await read_parquet_cached("data/live_alerts.parquet")
             alert_row = df.filter(pl.col("id") == broadcaster_id)
             stream_info = await get_stream_info(broadcaster_id)
 
     except Exception as e:
-        logger.warning(
-            f"Error updating live alert message for broadcaster_id={broadcaster_id}: {e}"
-        )
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"Failed to update live alert message: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error updating live alert message for broadcaster_id={broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])

@@ -7,7 +7,6 @@ import traceback
 import discord
 import pendulum
 import polars as pl
-import sentry_sdk
 from atproto import exceptions
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
@@ -58,10 +57,10 @@ class Tasks(Cog):
         pendulum.Time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
     ]
 
-    async def log_error(self, e: Exception, message: str) -> None:
-        logger.error(message)
-        sentry_sdk.capture_exception(e)
-        await send_message(message, BOT_ADMIN_CHANNEL)
+    async def log_error(self, message: str, traceback_str: str) -> None:
+        traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
+        traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
+        await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
 
     @tasks.loop(hours=24)
     async def renew_youtube_webhook_subscription(self) -> None:
@@ -93,8 +92,15 @@ class Tasks(Cog):
                     BOT_ADMIN_CHANNEL,
                 )
         except Exception as e:
-            message = f"Exception during YouTube webhook renewal: {e}"
-            await self.log_error(e, message)
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Error renewing YouTube webhook subscription - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self.log_error(error_msg, error_details["traceback"])
 
     @tasks.loop(minutes=1)
     async def check_posts(self) -> None:
@@ -127,14 +133,8 @@ class Tasks(Cog):
                     "traceback": traceback.format_exc(),
                 }
                 error_msg = f"Error fetching Bluesky author feed - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                logger.error(f"{error_msg}\nTraceback: {error_details['traceback']}")
-                traceback_buffer = io.BytesIO(
-                    error_details["traceback"].encode("utf-8")
-                )
-                traceback_file = discord.File(
-                    traceback_buffer, filename="traceback.txt"
-                )
-                await send_message(error_msg, BOT_ADMIN_CHANNEL, file=traceback_file)
+                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+                await self.log_error(error_msg, error_details["traceback"])
                 return
 
             posts = sorted(
@@ -161,29 +161,46 @@ class Tasks(Cog):
                     success, error = await upsert_row_to_parquet_async(
                         post, "data/bluesky.parquet"
                     )
-                    if success:
+                    if not success and error:
+                        error_details: ErrorDetails = {
+                            "type": type(error).__name__,
+                            "message": str(error),
+                            "args": error.args,
+                            "traceback": traceback.format_exc(),
+                        }
+                        error_msg = f"Failed to insert Bluesky post {post['id']} into parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                        logger.error(
+                            f"{error_msg}\nTraceback:\n{error_details['traceback']}"
+                        )
+                        await self.log_error(error_msg, error_details["traceback"])
+                        continue
+                    else:
                         await send_message(
                             f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
                             BLUESKY_CHANNEL,
                         )
-                    else:
-                        logger.warning(
-                            f"Failed to insert post {post['id']} into parquet: {error}",
-                        )
-                        await send_message(
-                            f"Failed to insert post {post['id']} into parquet: {error}",
-                            BOT_ADMIN_CHANNEL,
-                        )
                 except Exception as e:
-                    logger.error(f"Exception upserting Bluesky post {post['id']}: {e}")
-                    sentry_sdk.capture_exception(e)
-                    await send_message(
-                        f"Failed to insert post {post['id']} into parquet: {e}",
-                        BOT_ADMIN_CHANNEL,
+                    error_details: ErrorDetails = {
+                        "type": type(e).__name__,
+                        "message": str(e),
+                        "args": e.args,
+                        "traceback": traceback.format_exc(),
+                    }
+                    error_msg = f"Exception upserting Bluesky post {post['id']} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                    logger.error(
+                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
                     )
+                    await self.log_error(error_msg, error_details["traceback"])
         except Exception as e:
-            message = f"Fatal error during Bluesky posts sync: {e}"
-            await self.log_error(e, message)
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Fatal error during Bluesky posts sync - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self.log_error(error_msg, error_details["traceback"])
 
     @tasks.loop(time=pendulum.Time(0, 0, 0, 0))
     async def backup_data(self) -> None:
@@ -204,17 +221,27 @@ class Tasks(Cog):
                         shutil.copy2(source_path, dest_path)
                 except Exception as e:
                     is_dir = os.path.isdir(source_path)
+                    error_details: ErrorDetails = {
+                        "type": type(e).__name__,
+                        "message": str(e),
+                        "args": e.args,
+                        "traceback": traceback.format_exc(),
+                    }
+                    error_msg = f"Error backing up {'directory' if is_dir else 'file'} {item} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
                     logger.error(
-                        f"Error backing up {'directory' if is_dir else 'file'} {item}: {e}"
+                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
                     )
-                    sentry_sdk.capture_exception(e)
-                    await send_message(
-                        f"Error backing up {'directory' if is_dir else 'file'} {item}: {e}",
-                        BOT_ADMIN_CHANNEL,
-                    )
+                    await self.log_error(error_msg, error_details["traceback"])
         except Exception as e:
-            message = f"Fatal error during backup data task: {e}"
-            await self.log_error(e, message)
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Fatal error during backup data task - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self.log_error(error_msg, error_details["traceback"])
 
     @tasks.loop(time=_quarter_hours)
     async def check_birthdays(self) -> None:
@@ -229,8 +256,15 @@ class Tasks(Cog):
             birthday_users = df.filter(pl.col("birthday") == now)
             await self._process_birthday_records(birthday_users)
         except Exception as e:
-            message = f"Fatal error during birthday check task: {e}"
-            await self.log_error(e, message)
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Fatal error during birthday check task - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self.log_error(error_msg, error_details["traceback"])
 
     async def _process_birthday_records(self, birthdays_now: DataFrame) -> None:
         now = pendulum.now()
@@ -261,12 +295,16 @@ class Tasks(Cog):
                 "isBirthdayLeap": leap,
             }
             success, error = await update_birthday(updated_record)
-            if not success:
-                logger.error(f"Failed to update birthday for user: {error}")
-                await send_message(
-                    f"Failed to update birthday for {updated_record['username']}: {error}",
-                    BOT_ADMIN_CHANNEL,
-                )
+            if not success and error:
+                error_details: ErrorDetails = {
+                    "type": type(error).__name__,
+                    "message": str(error),
+                    "args": error.args,
+                    "traceback": traceback.format_exc(),
+                }
+                error_msg = f"Failed to update birthday for user {record['username']} (ID: {user_id}) - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+                await self.log_error(error_msg, error_details["traceback"])
 
 
 async def setup(bot: Bot) -> None:

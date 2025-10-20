@@ -1,10 +1,12 @@
+import io
+import logging
+import traceback
 from typing import Literal
 
 import discord
 import orjson
 import pendulum
 import polars as pl
-import sentry_sdk
 from discord import (
     CategoryChannel,
     Embed,
@@ -35,6 +37,7 @@ from constants import (
     DEFAULT_MISSING_CONTENT,
     GUILD_ID,
     WELCOME_CHANNEL,
+    ErrorDetails,
     UserRecord,
 )
 from services import (
@@ -49,6 +52,8 @@ from services import (
     send_message,
     upsert_row_to_parquet_async,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class Events(Cog):
@@ -69,6 +74,19 @@ class Events(Cog):
             ).decode("utf-8"),
         }
 
+    async def _send_error_message(
+        self,
+        error_msg: str,
+        traceback_str: str,
+    ) -> None:
+        traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
+        traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
+        await send_message(
+            error_msg,
+            BOT_ADMIN_CHANNEL,
+            file=traceback_file,
+        )
+
     @Cog.listener()
     async def on_message(self, message: Message) -> None:
         try:
@@ -81,16 +99,33 @@ class Events(Cog):
                     message_obj,
                     "data/messages.parquet",
                 )
-                if not success:
-                    await send_message(
-                        f"Failed to save message {message.id} in parquet: {error}",
-                        BOT_ADMIN_CHANNEL,
+                if not success and error:
+                    error_details: ErrorDetails = {
+                        "type": type(error).__name__,
+                        "message": str(error),
+                        "args": error.args,
+                        "traceback": traceback.format_exc(),
+                    }
+                    error_msg = f"Failed to save message {message.id} in parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                    logger.error(
+                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
+                    )
+                    await self._send_error_message(
+                        error_msg,
+                        error_details["traceback"],
                     )
             except Exception as e:
-                sentry_sdk.capture_exception(e)
-                await send_message(
-                    f"Failed to save message {message.id}: {e}",
-                    BOT_ADMIN_CHANNEL,
+                error_details: ErrorDetails = {
+                    "type": type(e).__name__,
+                    "message": str(e),
+                    "args": e.args,
+                    "traceback": traceback.format_exc(),
+                }
+                error_msg = f"Failed to save message {message.id} in parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+                await self._send_error_message(
+                    error_msg,
+                    error_details["traceback"],
                 )
 
             content = message.content.lower()
@@ -99,10 +134,17 @@ class Events(Cog):
             elif content == "plap":
                 await message.channel.send("clank")
         except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with on_message event: {e}",
-                BOT_ADMIN_CHANNEL,
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Fatal error with on_message event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._send_error_message(
+                error_msg,
+                error_details["traceback"],
             )
 
     @Cog.listener()
@@ -165,16 +207,31 @@ class Events(Cog):
                 user,
                 "data/users.parquet",
             )
-            if not success:
-                await send_message(
-                    f"Failed to insert user {member.name} ({member.id}) in parquet: {error}",
-                    BOT_ADMIN_CHANNEL,
+            if not success and error:
+                error_details: ErrorDetails = {
+                    "type": type(error).__name__,
+                    "message": str(error),
+                    "args": error.args,
+                    "traceback": traceback.format_exc(),
+                }
+                error_msg = f"Failed to insert user {member.name} ({member.id}) in parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+                await self._send_error_message(
+                    error_msg,
+                    error_details["traceback"],
                 )
         except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with on_member_join event: {e}",
-                BOT_ADMIN_CHANNEL,
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Fatal error with on_member_join event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._send_error_message(
+                error_msg,
+                error_details["traceback"],
             )
 
     async def _get_user_data(self, user: User | Member) -> tuple[str, str]:
@@ -232,16 +289,31 @@ class Events(Cog):
                 member.id,
                 "data/users.parquet",
             )
-            if not success:
-                await send_message(
-                    f"Failed to remove user {member.name} ({member.id}) from parquet: {error}",
-                    BOT_ADMIN_CHANNEL,
+            if not success and error:
+                error_details: ErrorDetails = {
+                    "type": type(error).__name__,
+                    "message": str(error),
+                    "args": error.args,
+                    "traceback": traceback.format_exc(),
+                }
+                error_msg = f"Failed to remove user {member.name} ({member.id}) from parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+                await self._send_error_message(
+                    error_msg,
+                    error_details["traceback"],
                 )
         except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with on_raw_member_remove event: {e}",
-                BOT_ADMIN_CHANNEL,
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Fatal error with on_raw_member_remove event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._send_error_message(
+                error_msg,
+                error_details["traceback"],
             )
 
     @Cog.listener()
@@ -297,10 +369,17 @@ class Events(Cog):
             ):
                 await self._log_untimeout(after, discriminator, url)
         except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with on_member_update event: {e}",
-                BOT_ADMIN_CHANNEL,
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Fatal error with on_member_update event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._send_error_message(
+                error_msg,
+                error_details["traceback"],
             )
 
     @Cog.listener()
@@ -371,22 +450,46 @@ class Events(Cog):
                     after_message_obj,
                     "data/messages.parquet",
                 )
-                if not success:
-                    await send_message(
-                        f"Failed to upsert message {after.id} in parquet: {error}",
-                        BOT_ADMIN_CHANNEL,
+                if not success and error:
+                    error_details: ErrorDetails = {
+                        "type": type(error).__name__,
+                        "message": str(error),
+                        "args": error.args,
+                        "traceback": traceback.format_exc(),
+                    }
+                    error_msg = f"Failed to upsert message {after.id} in parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                    logger.error(
+                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
+                    )
+                    await self._send_error_message(
+                        error_msg,
+                        error_details["traceback"],
                     )
             except Exception as e:
-                sentry_sdk.capture_exception(e)
-                await send_message(
-                    f"Failed to upsert message {after.id} in parquet: {e}",
-                    BOT_ADMIN_CHANNEL,
+                error_details: ErrorDetails = {
+                    "type": type(e).__name__,
+                    "message": str(e),
+                    "args": e.args,
+                    "traceback": traceback.format_exc(),
+                }
+                error_msg = f"Failed to upsert message {after.id} in parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+                await self._send_error_message(
+                    error_msg,
+                    error_details["traceback"],
                 )
         except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with on_raw_message_edit event: {e}",
-                BOT_ADMIN_CHANNEL,
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Fatal error with on_raw_message_edit event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._send_error_message(
+                error_msg,
+                error_details["traceback"],
             )
 
     @Cog.listener()
@@ -427,22 +530,46 @@ class Events(Cog):
                     payload.message_id,
                     "data/messages.parquet",
                 )
-                if not success:
-                    await send_message(
-                        f"Failed to delete message {payload.message_id} from parquet: {error}",
-                        BOT_ADMIN_CHANNEL,
+                if not success and error:
+                    error_details: ErrorDetails = {
+                        "type": type(error).__name__,
+                        "message": str(error),
+                        "args": error.args,
+                        "traceback": traceback.format_exc(),
+                    }
+                    error_msg = f"Failed to delete message {payload.message_id} from parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                    logger.error(
+                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
+                    )
+                    await self._send_error_message(
+                        error_msg,
+                        error_details["traceback"],
                     )
             except Exception as e:
-                sentry_sdk.capture_exception(e)
-                await send_message(
-                    f"Failed to delete message {payload.message_id} from parquet: {e}",
-                    BOT_ADMIN_CHANNEL,
+                error_details: ErrorDetails = {
+                    "type": type(e).__name__,
+                    "message": str(e),
+                    "args": e.args,
+                    "traceback": traceback.format_exc(),
+                }
+                error_msg = f"Failed to delete message {payload.message_id} from parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+                await self._send_error_message(
+                    error_msg,
+                    error_details["traceback"],
                 )
         except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with on_raw_message_delete event: {e}",
-                BOT_ADMIN_CHANNEL,
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Fatal error with on_raw_message_delete event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._send_error_message(
+                error_msg,
+                error_details["traceback"],
             )
 
     @Cog.listener()
@@ -488,22 +615,48 @@ class Events(Cog):
                         message_id,
                         "data/messages.parquet",
                     )
-                    if not success:
-                        await send_message(
-                            f"Failed to delete message {message_id} from parquet: {error}",
-                            BOT_ADMIN_CHANNEL,
+                    if not success and error:
+                        error_details: ErrorDetails = {
+                            "type": type(error).__name__,
+                            "message": str(error),
+                            "args": error.args,
+                            "traceback": traceback.format_exc(),
+                        }
+                        error_msg = f"Failed to delete message {message_id} from parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                        logger.error(
+                            f"{error_msg}\nTraceback:\n{error_details['traceback']}"
+                        )
+                        await self._send_error_message(
+                            error_msg,
+                            error_details["traceback"],
                         )
                 except Exception as e:
-                    sentry_sdk.capture_exception(e)
-                    await send_message(
-                        f"Failed to delete message {message_id} from parquet: {e}",
-                        BOT_ADMIN_CHANNEL,
+                    error_details: ErrorDetails = {
+                        "type": type(e).__name__,
+                        "message": str(e),
+                        "args": e.args,
+                        "traceback": traceback.format_exc(),
+                    }
+                    error_msg = f"Failed to delete message {message_id} from parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                    logger.error(
+                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
+                    )
+                    await self._send_error_message(
+                        error_msg,
+                        error_details["traceback"],
                     )
         except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with on_raw_bulk_message_delete event: {e}",
-                BOT_ADMIN_CHANNEL,
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Fatal error with on_raw_bulk_message_delete event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._send_error_message(
+                error_msg,
+                error_details["traceback"],
             )
 
     async def _log_ban_unban(
@@ -532,10 +685,17 @@ class Events(Cog):
         try:
             await self._log_ban_unban(user, "ban")
         except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with on_member_ban event: {e}",
-                BOT_ADMIN_CHANNEL,
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Fatal error with on_member_ban event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._send_error_message(
+                error_msg,
+                error_details["traceback"],
             )
 
     @Cog.listener()
@@ -543,10 +703,17 @@ class Events(Cog):
         try:
             await self._log_ban_unban(user, "unban")
         except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with on_member_unban event: {e}",
-                BOT_ADMIN_CHANNEL,
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Fatal error with on_member_unban event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._send_error_message(
+                error_msg,
+                error_details["traceback"],
             )
 
     @Cog.listener()
@@ -573,10 +740,17 @@ class Events(Cog):
             )
             await send_embed(embed, AUDIT_LOGS_CHANNEL)
         except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with on_invite_create event: {e}",
-                BOT_ADMIN_CHANNEL,
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Fatal error with on_invite_create event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._send_error_message(
+                error_msg,
+                error_details["traceback"],
             )
 
     @Cog.listener()
@@ -596,10 +770,17 @@ class Events(Cog):
             )
             await send_embed(embed, AUDIT_LOGS_CHANNEL)
         except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Fatal error with on_invite_delete event: {e}",
-                BOT_ADMIN_CHANNEL,
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Fatal error with on_invite_delete event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._send_error_message(
+                error_msg,
+                error_details["traceback"],
             )
 
     async def _get_message_content(self, message_id: int) -> str:
@@ -794,16 +975,31 @@ class Events(Cog):
                 message_id,
                 "data/messages.parquet",
             )
-            if not success:
-                await send_message(
-                    f"Failed to delete message {message_id} from parquet: {error}",
-                    BOT_ADMIN_CHANNEL,
+            if not success and error:
+                error_details: ErrorDetails = {
+                    "type": type(error).__name__,
+                    "message": str(error),
+                    "args": error.args,
+                    "traceback": traceback.format_exc(),
+                }
+                error_msg = f"Failed to delete message {message_id} from parquet: {error_details['message']}"
+                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+                await self._send_error_message(
+                    error_msg,
+                    error_details["traceback"],
                 )
         except Exception as e:
-            sentry_sdk.capture_exception(e)
-            await send_message(
-                f"Failed to delete message {message_id} from parquet: {e}",
-                BOT_ADMIN_CHANNEL,
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Failed to delete message {message_id} from parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._send_error_message(
+                error_msg,
+                error_details["traceback"],
             )
 
     async def _log_message_delete(

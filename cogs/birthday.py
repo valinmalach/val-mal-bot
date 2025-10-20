@@ -1,9 +1,11 @@
+import io
 import logging
+import traceback
 from typing import Literal
 
+import discord
 import pendulum
 import polars as pl
-import sentry_sdk
 from discord import Interaction, app_commands
 from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
@@ -14,6 +16,7 @@ from constants import (
     FOLLOWER_ROLE,
     MAX_DAYS,
     OWNER_ID,
+    ErrorDetails,
     Months,
     UserRecord,
 )
@@ -98,8 +101,18 @@ class Birthday(GroupCog):
                 "isBirthdayLeap": month == Months.February and day == 29,
             }
             success, error = await update_birthday(record)
-            if not success:
-                await self._birthday_operation_failed(interaction, error, "set")
+            if not success and error:
+                error_details: ErrorDetails = {
+                    "type": type(error).__name__,
+                    "message": str(error),
+                    "args": error.args,
+                    "traceback": traceback.format_exc(),
+                }
+                error_msg = f"Exception in set_birthday for user={interaction.user.id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+                await self._birthday_operation_failed(
+                    interaction, error_msg, "set", error_details["traceback"]
+                )
                 return
 
             if month == Months.February and day == 29:
@@ -113,11 +126,17 @@ class Birthday(GroupCog):
                     + "I'll wish you at midnight of your selected timezone!"
                 )
         except Exception as e:
-            logger.error(
-                f"Exception in set_birthday for user={interaction.user.id}: {e}"
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Exception in set_birthday for user={interaction.user.id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._birthday_operation_failed(
+                interaction, error_msg, "set", error_details["traceback"]
             )
-            sentry_sdk.capture_exception(e)
-            await self._birthday_operation_failed(interaction, e, "set")
 
     @set_birthday.autocomplete("timezone")
     async def timezone_autocomplete(
@@ -163,9 +182,18 @@ class Birthday(GroupCog):
                 "isBirthdayLeap": None,
             }
             success, error = await update_birthday(record)
-            if not success:
-                logger.error(f"Failed to remove birthday for user: {error}")
-                await self._birthday_operation_failed(interaction, error, "forget")
+            if not success and error:
+                error_details: ErrorDetails = {
+                    "type": type(error).__name__,
+                    "message": str(error),
+                    "args": error.args,
+                    "traceback": traceback.format_exc(),
+                }
+                error_msg = f"Failed to remove birthday for user={interaction.user.id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+                await self._birthday_operation_failed(
+                    interaction, error_msg, "forget", error_details["traceback"]
+                )
                 return
 
             try:
@@ -180,21 +208,36 @@ class Birthday(GroupCog):
                     + "Maybe try setting one first before asking me to remove it?"
                 )
             except Exception as e:
-                logger.error(f"Error while sending response for birthday removal: {e}")
-                sentry_sdk.capture_exception(e)
-                await self._birthday_operation_failed(interaction, e, "forget")
+                error_details: ErrorDetails = {
+                    "type": type(e).__name__,
+                    "message": str(e),
+                    "args": e.args,
+                    "traceback": traceback.format_exc(),
+                }
+                error_msg = f"Error while sending response for birthday removal: {error_details['message']}"
+                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+                await self._birthday_operation_failed(
+                    interaction, error_msg, "forget", error_details["traceback"]
+                )
         except Exception as e:
-            logger.error(
-                f"Exception in remove_birthday for user={interaction.user.id}: {e}"
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Exception in remove_birthday for user={interaction.user.id}: {error_details['message']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._birthday_operation_failed(
+                interaction, error_msg, "forget", error_details["traceback"]
             )
-            sentry_sdk.capture_exception(e)
-            await self._birthday_operation_failed(interaction, e, "forget")
 
     async def _birthday_operation_failed(
         self,
         interaction: Interaction,
-        e: Exception | str | None,
+        error_msg: str,
         set_forget: Literal["set", "forget"],
+        traceback_str: str,
     ) -> None:
         mention = (
             interaction.guild.owner.mention
@@ -205,9 +248,12 @@ class Birthday(GroupCog):
             f"Oops, it seems like I couldn't {set_forget} your birthday...\n\n"
             + f"# {mention} FIX MEEEE!!!"
         )
+        traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
+        traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
         await send_message(
-            f"Failed to {set_forget} birthday for {interaction.user.name}: {e}",
+            f"Failed to {set_forget} birthday for {interaction.user.name}: {error_msg}",
             BOT_ADMIN_CHANNEL,
+            file=traceback_file,
         )
 
 

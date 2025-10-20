@@ -1,12 +1,13 @@
 import asyncio
+import io
 import logging
 import os
+import traceback
 from typing import Any, Awaitable, Callable
 
 import discord
 import pendulum
 import polars as pl
-import sentry_sdk
 from discord.ui import View
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException, Request, Response
@@ -21,6 +22,7 @@ from constants import (
     TWITCH_MESSAGE_SIGNATURE,
     TWITCH_MESSAGE_TIMESTAMP,
     TWITCH_MESSAGE_TYPE,
+    ErrorDetails,
     LiveAlert,
 )
 from models import (
@@ -114,10 +116,10 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
         raise HTTPException(status_code=403)
 
 
-async def log_error(e: Exception, message: str) -> None:
-    logger.error(message)
-    sentry_sdk.capture_exception(e)
-    await send_message(message, BOT_ADMIN_CHANNEL)
+async def log_error(message: str, traceback_str: str) -> None:
+    traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
+    traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
+    await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
 
 
 async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
@@ -198,7 +200,17 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
         success, error = await upsert_row_to_parquet_async(
             alert, "data/live_alerts.parquet"
         )
-        if success:
+        if not success and error:
+            error_details: ErrorDetails = {
+                "type": type(error).__name__,
+                "message": str(error),
+                "args": error.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Failed to insert live alert message into parquet for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await log_error(error_msg, error_details["traceback"])
+        else:
             asyncio.create_task(
                 update_alert(
                     broadcaster_id,
@@ -208,17 +220,16 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
                     stream_info.started_at,
                 )
             )
-        else:
-            logger.error(
-                f"Failed to insert live alert message into parquet: {error}",
-            )
-            await send_message(
-                f"Failed to insert live alert message into parquet\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}\n message_id: {message_id}\n\n{error}",
-                BOT_ADMIN_CHANNEL,
-            )
     except Exception as e:
-        message = f"Error in _stream_online_task for {broadcaster_id}: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error in _stream_online_task for {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
 
 
 async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
@@ -253,14 +264,15 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
         try:
             vod_info = await get_stream_vod(int(broadcaster_id), stream_id)
         except Exception as e:
-            sentry_sdk.capture_exception(e)
-            logger.error(
-                f"Failed to fetch VOD info for broadcaster_id={broadcaster_id}: {e}"
-            )
-            await send_message(
-                f"Failed to fetch VOD info for {broadcaster_id}: {e}",
-                BOT_ADMIN_CHANNEL,
-            )
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Failed to fetch VOD info for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await log_error(error_msg, error_details["traceback"])
 
         content = (
             f"<@&{LIVE_ALERTS_ROLE}>" if channel_id == STREAM_ALERTS_CHANNEL else None
@@ -304,24 +316,39 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
                 f"Message not found when editing offline embed for message_id={message_id}; continuing"
             )
         except Exception as e:
-            logger.warning(
-                f"Error while editing embed; Continuing without aborting: {e}"
-            )
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Error editing offline embed for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await log_error(error_msg, error_details["traceback"])
 
         success, error = await delete_row_from_parquet(
             int(broadcaster_id), "data/live_alerts.parquet"
         )
-        if not success:
-            logger.error(
-                f"Failed to delete live alert for broadcaster_id={broadcaster_id}: {error}"
-            )
-            await send_message(
-                f"Failed to delete live alert for {broadcaster_id}: {error}",
-                BOT_ADMIN_CHANNEL,
-            )
+        if not success and error:
+            error_details: ErrorDetails = {
+                "type": type(error).__name__,
+                "message": str(error),
+                "args": error.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Failed to delete live alert for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(error_msg)
+            await log_error(error_msg, error_details["traceback"])
     except Exception as e:
-        message = f"Error in _stream_offline_task for {broadcaster_id}: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error in _stream_offline_task for {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
 
 
 async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> None:
@@ -362,11 +389,15 @@ async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> N
 
         await user_command_dict.get(command, default_command)(event_sub, args)
     except Exception as e:
-        logger.error(f"Error processing Twitch chat webhook task: {e}")
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"Error processing Twitch chat webhook task: {e}", BOT_ADMIN_CHANNEL
-        )
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error processing Twitch chat webhook task - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
 
 
 async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
@@ -376,8 +407,15 @@ async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
             f"Thank you for following, {event_sub.event.user_name}! valinmHeart Your support means a lot to me! I hope you enjoy your stay! valinmHeart",
         )
     except Exception as e:
-        message = f"Error processing Twitch follow webhook task: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error processing Twitch follow webhook task - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
 
 
 _ad_break_notification_tasks: dict[str, asyncio.Task] = {}
@@ -406,8 +444,15 @@ async def _schedule_next_ad_break_notification(broadcaster_id: str) -> None:
         )
         raise
     except Exception as e:
-        message = f"Error scheduling next ad break notification: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error scheduling next ad break notification - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
 
 
 async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -> None:
@@ -438,8 +483,15 @@ async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -
             )
         )
     except Exception as e:
-        message = f"Error processing Twitch ad break webhook task: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error processing Twitch ad break webhook task - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
 
 
 async def _oauth_callback_common(
@@ -503,8 +555,15 @@ async def twitch_oauth_callback(code: str, state: str) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        message = f"500: Internal server error on /twitch/oauth/callback: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"500: Internal server error on /twitch/oauth/callback - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         raise HTTPException(status_code=500) from e
 
 
@@ -521,10 +580,15 @@ async def twitch_oauth_callback_broadcaster(code: str, state: str) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        message = (
-            f"500: Internal server error on /twitch/oauth/callback/broadcaster: {e}"
-        )
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"500: Internal server error on /twitch/oauth/callback/broadcaster - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         raise HTTPException(status_code=500) from e
 
 
@@ -553,8 +617,15 @@ async def stream_online_webhook(request: Request) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        message = f"500: Internal server error on /webhook/twitch: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"500: Internal server error on /webhook/twitch - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         raise HTTPException(status_code=500) from e
 
 
@@ -583,8 +654,15 @@ async def stream_offline_webhook(request: Request) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        message = f"500: Internal server error on /webhook/twitch/offline: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"500: Internal server error on /webhook/twitch/offline - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         raise HTTPException(status_code=500) from e
 
 
@@ -613,8 +691,15 @@ async def channel_chat_message_webhook(request: Request) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        message = f"500: Internal server error on /webhook/twitch/chat: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"500: Internal server error on /webhook/twitch/chat - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         raise HTTPException(status_code=500) from e
 
 
@@ -643,8 +728,15 @@ async def channel_follow_webhook(request: Request) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        message = f"500: Internal server error on /webhook/twitch/follow: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"500: Internal server error on /webhook/twitch/follow - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         raise HTTPException(status_code=500) from e
 
 
@@ -673,8 +765,15 @@ async def channel_ad_break_begin_webhook(request: Request) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        message = f"500: Internal server error on /webhook/twitch/adbreak: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"500: Internal server error on /webhook/twitch/adbreak - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         raise HTTPException(status_code=500) from e
 
 
@@ -691,8 +790,15 @@ async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
                 f"!so {event_sub.event.from_broadcaster_user_login}",
             )
     except Exception as e:
-        message = f"Error processing Twitch raid webhook task: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error processing Twitch raid webhook task - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
 
 
 @twitch_router.post("/webhook/twitch/raid")
@@ -720,8 +826,15 @@ async def channel_raid_webhook(request: Request) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        message = f"500: Internal server error on /webhook/twitch/raid: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"500: Internal server error on /webhook/twitch/raid - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         raise HTTPException(status_code=500) from e
 
 
@@ -737,8 +850,15 @@ async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
             "Have a great rest of your day! valinmHeart Don't forget to stay hydrated and take care of yourself! valinmHeart",
         )
     except Exception as e:
-        message = f"Error processing Twitch moderate webhook task: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error processing Twitch moderate webhook task - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
 
 
 @twitch_router.post("/webhook/twitch/moderate")
@@ -766,6 +886,13 @@ async def channel_moderate_webhook(request: Request) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        message = f"500: Internal server error on /webhook/twitch/moderate: {e}"
-        await log_error(e, message)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"500: Internal server error on /webhook/twitch/moderate - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         raise HTTPException(status_code=500) from e

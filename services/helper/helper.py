@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import logging
 from functools import cache
-from typing import Optional
+from typing import Literal, Optional
 
 import discord
 import pendulum
@@ -39,13 +39,13 @@ logger = logging.getLogger(__name__)
 
 async def upsert_row_to_parquet_async(
     row_data: dict | UserRecord | LiveAlert, filepath: str, id_column: str = "id"
-) -> tuple[bool, Exception | None]:
+) -> tuple[Literal[True], None] | tuple[Literal[False], Exception]:
     return await parquet_cache.upsert_row(row_data, filepath, id_column)
 
 
 async def delete_row_from_parquet(
     id_value: str | int, filepath: str, id_column: str = "id"
-) -> tuple[bool, Exception | None]:
+) -> tuple[Literal[True], None] | tuple[Literal[False], Exception]:
     return await parquet_cache.delete_row(id_value, filepath, id_column)
 
 

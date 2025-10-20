@@ -1,14 +1,16 @@
 import asyncio
+import io
 import logging
 import os
+import traceback
 from typing import Optional
 
+import discord
 import pendulum
-import sentry_sdk
 from dotenv import load_dotenv
 from pendulum import DateTime
 
-from constants import BOT_ADMIN_CHANNEL, TokenType
+from constants import BOT_ADMIN_CHANNEL, ErrorDetails, TokenType
 from services.helper.helper import send_message
 from services.helper.twitch import call_twitch
 from services.twitch.api import get_user_by_username
@@ -107,9 +109,17 @@ class TwitchShoutoutQueue:
                     # Twitch rate limit: 1 shoutout per 2 minutes + 5 seconds buffer
                     await asyncio.sleep(125)
         except Exception as e:
-            logger.error(f"Error in activate method: {e}")
-            sentry_sdk.capture_exception(e)
-            await send_message(f"Error in shoutout queue: {e}", BOT_ADMIN_CHANNEL)
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Error in activate method - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            traceback_buffer = io.BytesIO(error_details["traceback"].encode("utf-8"))
+            traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
+            await send_message(error_msg, BOT_ADMIN_CHANNEL, file=traceback_file)
 
     async def deactivate(self) -> None:
         self._activated = False

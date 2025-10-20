@@ -1,9 +1,13 @@
 import asyncio
+import io
 import logging
+import traceback
 from typing import Optional
 
+import discord
 import httpx
-import sentry_sdk
+
+from constants import BOT_ADMIN_CHANNEL, ErrorDetails
 
 logger = logging.getLogger(__name__)
 
@@ -78,8 +82,19 @@ class HttpClientManager:
                 **kwargs,
             )
         except Exception as e:
-            logger.error(f"HTTP request failed: {method} {url} - {e}")
-            sentry_sdk.capture_exception(e)
+            from services.helper.helper import send_message
+
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"HTTP request failed: {method} {url} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            traceback_buffer = io.BytesIO(error_details["traceback"].encode("utf-8"))
+            traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
+            await send_message(error_msg, BOT_ADMIN_CHANNEL, file=traceback_file)
             raise
 
 

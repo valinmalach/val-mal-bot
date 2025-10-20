@@ -1,3 +1,5 @@
+import traceback
+
 import truststore
 
 truststore.inject_into_ssl()
@@ -7,15 +9,12 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-import sentry_sdk
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse
 from rich.logging import RichHandler
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.logging import LoggingIntegration
 
-from constants import COGS
+from constants import COGS, ErrorDetails
 from controller import twitch_router, youtube_router
 from init import bot
 from services.helper.http_client import http_client_manager
@@ -30,12 +29,6 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
-sentry_sdk.init(
-    dsn="https://8a7232f8683fae9b47c91b194053ed11@o4508900413865984.ingest.us.sentry.io/4508900418584576",
-    integrations=[FastApiIntegration(), LoggingIntegration()],
-    enable_logs=True,
-)
-
 
 async def main() -> None:
     try:
@@ -48,13 +41,25 @@ async def main() -> None:
         )
         for ext, res in zip(COGS, results):
             if isinstance(res, Exception):
-                logger.error(f"Failed to load extension {ext}: {res}")
-                sentry_sdk.capture_exception(res)
+                error_details: ErrorDetails = {
+                    "type": type(res).__name__,
+                    "message": str(res),
+                    "args": res.args,
+                    "traceback": traceback.format_exc(),
+                }
+                error_msg = f"Failed to load extension {ext} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
 
         await bot.start(DISCORD_TOKEN)
     except Exception as e:
-        logger.error(f"Error in main: {e}")
-        sentry_sdk.capture_exception(e)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Unhandled exception in main - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
 
 
 @asynccontextmanager

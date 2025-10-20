@@ -1,13 +1,16 @@
+import io
 import logging
 import os
+import traceback
 from typing import Literal, Optional
 
-import sentry_sdk
+import discord
 from dotenv import load_dotenv
 from httpx import Response
 
 from constants import (
     BOT_ADMIN_CHANNEL,
+    ErrorDetails,
     TokenType,
 )
 from models import ChannelChatMessageEventSub
@@ -21,6 +24,12 @@ logger = logging.getLogger(__name__)
 
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_BOT_USER_ID = os.getenv("TWITCH_BOT_USER_ID")
+
+
+async def log_error(message: str, traceback_str: str) -> None:
+    traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
+    traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
+    await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
 
 
 async def call_twitch(
@@ -108,12 +117,15 @@ async def call_twitch(
         return response
 
     except Exception as e:
-        logger.error(f"Exception during Twitch API call: {e}")
-        sentry_sdk.capture_exception(e)
-        await send_message(
-            f"Exception during Twitch API call: {e}",
-            BOT_ADMIN_CHANNEL,
-        )
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Exception during Twitch API call - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         return None
 
 
@@ -154,6 +166,12 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
             )
             return
     except Exception as e:
-        logger.error(f"Error sending Twitch message: {e}")
-        sentry_sdk.capture_exception(e)
-        await send_message(f"Error sending Twitch message: {e}", BOT_ADMIN_CHANNEL)
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error sending Twitch message - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])

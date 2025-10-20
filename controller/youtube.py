@@ -1,14 +1,16 @@
+import io
 import logging
+import traceback
 from pathlib import Path
-from typing import Optional
 from xml.etree.ElementTree import ParseError
 
+import discord
 import polars as pl
 import xmltodict
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import PlainTextResponse
 
-from constants import PROMO_CHANNEL
+from constants import BOT_ADMIN_CHANNEL, PROMO_CHANNEL, ErrorDetails
 from services import send_message
 from services.helper.helper import read_parquet_cached, upsert_row_to_parquet_async
 
@@ -49,6 +51,12 @@ async def is_new_video(channel_id: str, video_id: str) -> bool:
         return True
 
 
+async def log_error(message: str, traceback_str: str) -> None:
+    traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
+    traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
+    await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
+
+
 async def add_video_to_parquet(channel_id: str, video_id: str):
     """Add a new video to the parquet file."""
     try:
@@ -60,17 +68,31 @@ async def add_video_to_parquet(channel_id: str, video_id: str):
             id_column="video_id",
         )
 
-        if success:
+        if not success and error:
+            error_details: ErrorDetails = {
+                "type": type(error).__name__,
+                "message": str(error),
+                "args": error.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Failed to add video {video_id} from channel {channel_id} to parquet file - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await log_error(error_msg, error_details["traceback"])
+        else:
             logger.info(
                 f"Added video {video_id} from channel {channel_id} to parquet file"
             )
-        else:
-            logger.error(
-                f"Failed to add video {video_id} from channel {channel_id} to parquet file: {error}"
-            )
 
     except Exception as e:
-        logger.error(f"Error adding video to parquet: {e}")
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error adding video {video_id} from channel {channel_id} to parquet file - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
 
 
 @youtube_router.get("/youtube/webhook")
@@ -108,25 +130,37 @@ async def youtube_webhook_notification(request: Request):
             video_id = entry.get("yt:videoId")
             channel_id = entry.get("yt:channelId")
             author = entry.get("author", {}).get("name", "Unknown")
-            published = entry.get("published")
-            updated = entry.get("updated")
 
             if video_id:
                 await handle_new_video(
                     video_id=video_id,
                     channel_id=channel_id,
                     author=author,
-                    published=published,
-                    updated=updated,
                 )
 
         return Response(content="OK", status_code=200)
 
     except ParseError as e:
-        logger.error(f"Failed to parse YouTube webhook XML: {e}")
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Failed to parse YouTube webhook XML - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         raise HTTPException(status_code=400, detail="Invalid XML format") from e
     except Exception as e:
-        logger.error(f"Error processing YouTube webhook: {e}")
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error processing YouTube webhook - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
@@ -134,8 +168,6 @@ async def handle_new_video(
     video_id: str,
     channel_id: str,
     author: str,
-    published: Optional[str] = None,
-    updated: Optional[str] = None,
 ):
     try:
         if not is_new_video(channel_id, video_id):
@@ -154,4 +186,12 @@ async def handle_new_video(
         logger.info(f"Processed new video: {video_id} from {author}")
 
     except Exception as e:
-        logger.error(f"Error handling new video notification: {e}")
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error handling new video notification for video {video_id} from channel {channel_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])

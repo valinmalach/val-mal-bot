@@ -15,7 +15,6 @@ dependencies = [
     "pydantic>=2.12.3",
     "python-dotenv>=1.1.1",
     "rich>=14.2.0",
-    "sentry-sdk>=2.42.0",
     "truststore>=0.10.4",
     "uvicorn[standard]>=0.38.0",
     "xmltodict>=1.0.2",
