@@ -20,6 +20,7 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     SHOUTOUTS_CHANNEL,
     ErrorDetails,
+    UserRecord,
 )
 from init import at_client
 from services import (
@@ -253,7 +254,7 @@ class Tasks(Cog):
             else:
                 leap = False
                 next_birthday = f"{now.year + 1}{record['birthday'][4:]}"
-            updated_record = {
+            updated_record: UserRecord = {
                 "id": user_id,
                 "username": record["username"],
                 "birthday": next_birthday,

@@ -21,6 +21,7 @@ from constants import (
     TWITCH_MESSAGE_SIGNATURE,
     TWITCH_MESSAGE_TIMESTAMP,
     TWITCH_MESSAGE_TYPE,
+    LiveAlert,
 )
 from models import (
     ChannelAdBreakBeginEventSub,
@@ -187,7 +188,7 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
             logger.error(f"Failed to send embed for broadcaster {broadcaster_id}")
             return
 
-        alert = {
+        alert: LiveAlert = {
             "id": broadcaster_id,
             "channel_id": channel,
             "message_id": message_id,

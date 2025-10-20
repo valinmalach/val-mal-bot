@@ -9,7 +9,14 @@ from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
 from pendulum import DateTime
 
-from constants import BOT_ADMIN_CHANNEL, FOLLOWER_ROLE, MAX_DAYS, OWNER_ID, Months
+from constants import (
+    BOT_ADMIN_CHANNEL,
+    FOLLOWER_ROLE,
+    MAX_DAYS,
+    OWNER_ID,
+    Months,
+    UserRecord,
+)
 from services import get_next_leap, read_parquet_cached, send_message, update_birthday
 
 logger = logging.getLogger(__name__)
@@ -76,7 +83,7 @@ class Birthday(GroupCog):
                 if birthday_this_year <= now:
                     year += 1
 
-            record = {
+            record: UserRecord = {
                 "id": interaction.user.id,
                 "username": interaction.user.name,
                 "birthday": (
@@ -149,7 +156,7 @@ class Birthday(GroupCog):
                 )
                 return
 
-            record = {
+            record: UserRecord = {
                 "id": interaction.user.id,
                 "username": interaction.user.name,
                 "birthday": None,

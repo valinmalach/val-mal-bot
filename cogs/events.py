@@ -35,6 +35,7 @@ from constants import (
     DEFAULT_MISSING_CONTENT,
     GUILD_ID,
     WELCOME_CHANNEL,
+    UserRecord,
 )
 from services import (
     delete_row_from_parquet,
@@ -154,7 +155,7 @@ class Events(Cog):
                 AUDIT_LOGS_CHANNEL,
             )
 
-            user = {
+            user: UserRecord = {
                 "id": member.id,
                 "username": member.name,
                 "birthday": None,

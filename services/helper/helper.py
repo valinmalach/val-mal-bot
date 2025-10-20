@@ -30,7 +30,7 @@ from discord.ui import Button, View
 from pendulum import DateTime
 from polars import DataFrame
 
-from constants import EMOJI_ROLE_MAP
+from constants import EMOJI_ROLE_MAP, LiveAlert, UserRecord
 from init import bot
 from services.helper.parquet_cache import parquet_cache
 
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 async def upsert_row_to_parquet_async(
-    row_data: dict, filepath: str, id_column: str = "id"
+    row_data: dict | UserRecord | LiveAlert, filepath: str, id_column: str = "id"
 ) -> tuple[bool, Exception | None]:
     return await parquet_cache.upsert_row(row_data, filepath, id_column)
 
@@ -109,7 +109,7 @@ def get_discriminator(member: User | Member) -> str:
     return "" if member.discriminator == "0" else f"#{member.discriminator}"
 
 
-async def update_birthday(record: dict[str, str]) -> tuple[bool, Exception | None]:
+async def update_birthday(record: UserRecord) -> tuple[bool, Exception | None]:
     return await upsert_row_to_parquet_async(record, "data/users.parquet")
 
 

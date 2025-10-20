@@ -6,6 +6,8 @@ from typing import Any, Dict, Optional, Set
 
 import polars as pl
 
+from constants import LiveAlert, UserRecord
+
 logger = logging.getLogger(__name__)
 
 
@@ -95,7 +97,10 @@ class ParquetCache:
             df.write_parquet(filepath)
 
     async def upsert_row(
-        self, row_data: dict, filepath: str, id_column: str = "id"
+        self,
+        row_data: dict | UserRecord | LiveAlert,
+        filepath: str,
+        id_column: str = "id",
     ) -> tuple[bool, Optional[Exception]]:
         """Queue a row for upserting"""
         try:
