@@ -95,25 +95,10 @@ class Events(Cog):
 
             message_obj = await self._get_message_object(message)
             try:
-                success, error = await upsert_row_to_parquet_async(
+                await upsert_row_to_parquet_async(
                     message_obj,
                     "data/messages.parquet",
                 )
-                if not success and error:
-                    error_details: ErrorDetails = {
-                        "type": type(error).__name__,
-                        "message": str(error),
-                        "args": error.args,
-                        "traceback": traceback.format_exc(),
-                    }
-                    error_msg = f"Failed to save message {message.id} in parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                    logger.error(
-                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
-                    )
-                    await self._send_error_message(
-                        error_msg,
-                        error_details["traceback"],
-                    )
             except Exception as e:
                 error_details: ErrorDetails = {
                     "type": type(e).__name__,
@@ -203,15 +188,16 @@ class Events(Cog):
                 "birthday": None,
                 "isBirthdayLeap": None,
             }
-            success, error = await upsert_row_to_parquet_async(
-                user,
-                "data/users.parquet",
-            )
-            if not success and error:
+            try:
+                await upsert_row_to_parquet_async(
+                    user,
+                    "data/users.parquet",
+                )
+            except Exception as e:
                 error_details: ErrorDetails = {
-                    "type": type(error).__name__,
-                    "message": str(error),
-                    "args": error.args,
+                    "type": type(e).__name__,
+                    "message": str(e),
+                    "args": e.args,
                     "traceback": traceback.format_exc(),
                 }
                 error_msg = f"Failed to insert user {member.name} ({member.id}) in parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
@@ -285,15 +271,16 @@ class Events(Cog):
                 )
             await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
-            success, error = await delete_row_from_parquet(
-                member.id,
-                "data/users.parquet",
-            )
-            if not success and error:
+            try:
+                await delete_row_from_parquet(
+                    member.id,
+                    "data/users.parquet",
+                )
+            except Exception as e:
                 error_details: ErrorDetails = {
-                    "type": type(error).__name__,
-                    "message": str(error),
-                    "args": error.args,
+                    "type": type(e).__name__,
+                    "message": str(e),
+                    "args": e.args,
                     "traceback": traceback.format_exc(),
                 }
                 error_msg = f"Failed to remove user {member.name} ({member.id}) from parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
@@ -446,25 +433,10 @@ class Events(Cog):
 
             try:
                 after_message_obj = await self._get_message_object(after)
-                success, error = await upsert_row_to_parquet_async(
+                await upsert_row_to_parquet_async(
                     after_message_obj,
                     "data/messages.parquet",
                 )
-                if not success and error:
-                    error_details: ErrorDetails = {
-                        "type": type(error).__name__,
-                        "message": str(error),
-                        "args": error.args,
-                        "traceback": traceback.format_exc(),
-                    }
-                    error_msg = f"Failed to upsert message {after.id} in parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                    logger.error(
-                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
-                    )
-                    await self._send_error_message(
-                        error_msg,
-                        error_details["traceback"],
-                    )
             except Exception as e:
                 error_details: ErrorDetails = {
                     "type": type(e).__name__,
@@ -526,25 +498,10 @@ class Events(Cog):
             )
 
             try:
-                success, error = await delete_row_from_parquet(
+                await delete_row_from_parquet(
                     payload.message_id,
                     "data/messages.parquet",
                 )
-                if not success and error:
-                    error_details: ErrorDetails = {
-                        "type": type(error).__name__,
-                        "message": str(error),
-                        "args": error.args,
-                        "traceback": traceback.format_exc(),
-                    }
-                    error_msg = f"Failed to delete message {payload.message_id} from parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                    logger.error(
-                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
-                    )
-                    await self._send_error_message(
-                        error_msg,
-                        error_details["traceback"],
-                    )
             except Exception as e:
                 error_details: ErrorDetails = {
                     "type": type(e).__name__,
@@ -611,25 +568,10 @@ class Events(Cog):
 
             for message_id in payload.message_ids:
                 try:
-                    success, error = await delete_row_from_parquet(
+                    await delete_row_from_parquet(
                         message_id,
                         "data/messages.parquet",
                     )
-                    if not success and error:
-                        error_details: ErrorDetails = {
-                            "type": type(error).__name__,
-                            "message": str(error),
-                            "args": error.args,
-                            "traceback": traceback.format_exc(),
-                        }
-                        error_msg = f"Failed to delete message {message_id} from parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                        logger.error(
-                            f"{error_msg}\nTraceback:\n{error_details['traceback']}"
-                        )
-                        await self._send_error_message(
-                            error_msg,
-                            error_details["traceback"],
-                        )
                 except Exception as e:
                     error_details: ErrorDetails = {
                         "type": type(e).__name__,
@@ -971,23 +913,10 @@ class Events(Cog):
         await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
         try:
-            success, error = await delete_row_from_parquet(
+            await delete_row_from_parquet(
                 message_id,
                 "data/messages.parquet",
             )
-            if not success and error:
-                error_details: ErrorDetails = {
-                    "type": type(error).__name__,
-                    "message": str(error),
-                    "args": error.args,
-                    "traceback": traceback.format_exc(),
-                }
-                error_msg = f"Failed to delete message {message_id} from parquet: {error_details['message']}"
-                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-                await self._send_error_message(
-                    error_msg,
-                    error_details["traceback"],
-                )
         except Exception as e:
             error_details: ErrorDetails = {
                 "type": type(e).__name__,

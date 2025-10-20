@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import logging
 from functools import cache
-from typing import Literal, Optional
+from typing import Optional
 
 import discord
 import pendulum
@@ -39,14 +39,20 @@ logger = logging.getLogger(__name__)
 
 async def upsert_row_to_parquet_async(
     row_data: dict | UserRecord | LiveAlert, filepath: str, id_column: str = "id"
-) -> tuple[Literal[True], None] | tuple[Literal[False], Exception]:
-    return await parquet_cache.upsert_row(row_data, filepath, id_column)
+) -> None:
+    try:
+        await parquet_cache.upsert_row(row_data, filepath, id_column)
+    except Exception as e:
+        raise e
 
 
 async def delete_row_from_parquet(
     id_value: str | int, filepath: str, id_column: str = "id"
-) -> tuple[Literal[True], None] | tuple[Literal[False], Exception]:
-    return await parquet_cache.delete_row(id_value, filepath, id_column)
+) -> None:
+    try:
+        await parquet_cache.delete_row(id_value, filepath, id_column)
+    except Exception as e:
+        raise e
 
 
 async def read_parquet_cached(filepath: str) -> DataFrame:
@@ -109,8 +115,11 @@ def get_discriminator(member: User | Member) -> str:
     return "" if member.discriminator == "0" else f"#{member.discriminator}"
 
 
-async def update_birthday(record: UserRecord) -> tuple[bool, Exception | None]:
-    return await upsert_row_to_parquet_async(record, "data/users.parquet")
+async def update_birthday(record: UserRecord) -> None:
+    try:
+        await upsert_row_to_parquet_async(record, "data/users.parquet")
+    except Exception as e:
+        raise e
 
 
 def get_channel_mention(

@@ -100,12 +100,13 @@ class Birthday(GroupCog):
                 ),
                 "isBirthdayLeap": month == Months.February and day == 29,
             }
-            success, error = await update_birthday(record)
-            if not success and error:
+            try:
+                await update_birthday(record)
+            except Exception as e:
                 error_details: ErrorDetails = {
-                    "type": type(error).__name__,
-                    "message": str(error),
-                    "args": error.args,
+                    "type": type(e).__name__,
+                    "message": str(e),
+                    "args": e.args,
                     "traceback": traceback.format_exc(),
                 }
                 error_msg = f"Exception in set_birthday for user={interaction.user.id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
@@ -181,12 +182,13 @@ class Birthday(GroupCog):
                 "birthday": None,
                 "isBirthdayLeap": None,
             }
-            success, error = await update_birthday(record)
-            if not success and error:
+            try:
+                await update_birthday(record)
+            except Exception as e:
                 error_details: ErrorDetails = {
-                    "type": type(error).__name__,
-                    "message": str(error),
-                    "args": error.args,
+                    "type": type(e).__name__,
+                    "message": str(e),
+                    "args": e.args,
                     "traceback": traceback.format_exc(),
                 }
                 error_msg = f"Failed to remove birthday for user={interaction.user.id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"

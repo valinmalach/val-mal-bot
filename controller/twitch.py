@@ -197,20 +197,9 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
             "stream_id": int(stream_info.id),
             "stream_started_at": stream_info.started_at,
         }
-        success, error = await upsert_row_to_parquet_async(
-            alert, "data/live_alerts.parquet"
-        )
-        if not success and error:
-            error_details: ErrorDetails = {
-                "type": type(error).__name__,
-                "message": str(error),
-                "args": error.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Failed to insert live alert message into parquet for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await log_error(error_msg, error_details["traceback"])
-        else:
+
+        try:
+            await upsert_row_to_parquet_async(alert, "data/live_alerts.parquet")
             asyncio.create_task(
                 update_alert(
                     broadcaster_id,
@@ -220,6 +209,16 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
                     stream_info.started_at,
                 )
             )
+        except Exception as e:
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Failed to insert live alert message into parquet for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await log_error(error_msg, error_details["traceback"])
     except Exception as e:
         error_details: ErrorDetails = {
             "type": type(e).__name__,
@@ -326,14 +325,15 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
             logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
             await log_error(error_msg, error_details["traceback"])
 
-        success, error = await delete_row_from_parquet(
-            int(broadcaster_id), "data/live_alerts.parquet"
-        )
-        if not success and error:
+        try:
+            await delete_row_from_parquet(
+                int(broadcaster_id), "data/live_alerts.parquet"
+            )
+        except Exception as e:
             error_details: ErrorDetails = {
-                "type": type(error).__name__,
-                "message": str(error),
-                "args": error.args,
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
                 "traceback": traceback.format_exc(),
             }
             error_msg = f"Failed to delete live alert for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"

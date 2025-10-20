@@ -2,7 +2,7 @@ import asyncio
 import logging
 from collections import defaultdict
 from threading import Lock
-from typing import Any, Dict, Literal, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 import polars as pl
 
@@ -101,20 +101,19 @@ class ParquetCache:
         row_data: dict | UserRecord | LiveAlert,
         filepath: str,
         id_column: str = "id",
-    ) -> tuple[Literal[True], None] | tuple[Literal[False], Exception]:
+    ) -> None:
         """Queue a row for upserting"""
         try:
             with self._lock:
                 id_value = row_data[id_column]
                 self._pending_writes[filepath][id_value] = row_data
                 self._dirty_files.add(filepath)
-            return True, None
         except Exception as e:
-            return False, e
+            raise e
 
     async def delete_row(
         self, id_value: Any, filepath: str, id_column: str = "id"
-    ) -> tuple[Literal[True], None] | tuple[Literal[False], Exception]:
+    ) -> None:
         """Queue a row for deletion"""
         try:
             with self._lock:
@@ -123,9 +122,8 @@ class ParquetCache:
                 if id_value in self._pending_writes[filepath]:
                     del self._pending_writes[filepath][id_value]
                 self._dirty_files.add(filepath)
-            return True, None
         except Exception as e:
-            return False, e
+            raise e
 
     async def read_df(self, filepath: str) -> pl.DataFrame:
         """Read DataFrame with cache"""

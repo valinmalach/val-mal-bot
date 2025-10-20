@@ -158,27 +158,11 @@ class Tasks(Cog):
 
             for post in posts:
                 try:
-                    success, error = await upsert_row_to_parquet_async(
-                        post, "data/bluesky.parquet"
+                    await upsert_row_to_parquet_async(post, "data/bluesky.parquet")
+                    await send_message(
+                        f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
+                        BLUESKY_CHANNEL,
                     )
-                    if not success and error:
-                        error_details: ErrorDetails = {
-                            "type": type(error).__name__,
-                            "message": str(error),
-                            "args": error.args,
-                            "traceback": traceback.format_exc(),
-                        }
-                        error_msg = f"Failed to insert Bluesky post {post['id']} into parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                        logger.error(
-                            f"{error_msg}\nTraceback:\n{error_details['traceback']}"
-                        )
-                        await self.log_error(error_msg, error_details["traceback"])
-                        continue
-                    else:
-                        await send_message(
-                            f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
-                            BLUESKY_CHANNEL,
-                        )
                 except Exception as e:
                     error_details: ErrorDetails = {
                         "type": type(e).__name__,
@@ -294,12 +278,13 @@ class Tasks(Cog):
                 "birthday": next_birthday,
                 "isBirthdayLeap": leap,
             }
-            success, error = await update_birthday(updated_record)
-            if not success and error:
+            try:
+                await update_birthday(updated_record)
+            except Exception as e:
                 error_details: ErrorDetails = {
-                    "type": type(error).__name__,
-                    "message": str(error),
-                    "args": error.args,
+                    "type": type(e).__name__,
+                    "message": str(e),
+                    "args": e.args,
                     "traceback": traceback.format_exc(),
                 }
                 error_msg = f"Failed to update birthday for user {record['username']} (ID: {user_id}) - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"

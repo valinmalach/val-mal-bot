@@ -62,27 +62,25 @@ async def add_video_to_parquet(channel_id: str, video_id: str):
     try:
         ensure_parquet_file_exists()
 
-        success, error = await upsert_row_to_parquet_async(
-            {"channel_id": channel_id, "video_id": video_id},
-            "data/youtube/videos.parquet",
-            id_column="video_id",
-        )
-
-        if not success and error:
+        try:
+            await upsert_row_to_parquet_async(
+                {"channel_id": channel_id, "video_id": video_id},
+                "data/youtube/videos.parquet",
+                id_column="video_id",
+            )
+            logger.info(
+                f"Added video {video_id} from channel {channel_id} to parquet file"
+            )
+        except Exception as e:
             error_details: ErrorDetails = {
-                "type": type(error).__name__,
-                "message": str(error),
-                "args": error.args,
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
                 "traceback": traceback.format_exc(),
             }
             error_msg = f"Failed to add video {video_id} from channel {channel_id} to parquet file - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
             logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
             await log_error(error_msg, error_details["traceback"])
-        else:
-            logger.info(
-                f"Added video {video_id} from channel {channel_id} to parquet file"
-            )
-
     except Exception as e:
         error_details: ErrorDetails = {
             "type": type(e).__name__,

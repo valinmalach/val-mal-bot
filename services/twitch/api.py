@@ -502,14 +502,13 @@ async def trigger_offline_sequence(
         logger.warning(
             f"Message not found when editing offline embed for message_id={message_id}; aborting"
         )
-        success, error = await delete_row_from_parquet(
-            broadcaster_id, "data/live_alerts.parquet"
-        )
-        if not success and error:
+        try:
+            await delete_row_from_parquet(broadcaster_id, "data/live_alerts.parquet")
+        except Exception as e:
             error_details: ErrorDetails = {
-                "type": type(error).__name__,
-                "message": str(error),
-                "args": error.args,
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
                 "traceback": traceback.format_exc(),
             }
             error_msg = f"Failed to delete live alert record for broadcaster_id={broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
@@ -642,14 +641,15 @@ async def update_alert(
                 logger.warning(
                     f"Message not found when editing offline embed for message_id={message_id}; aborting"
                 )
-                success, error = await delete_row_from_parquet(
-                    broadcaster_id, "data/live_alerts.parquet"
-                )
-                if not success and error:
+                try:
+                    await delete_row_from_parquet(
+                        broadcaster_id, "data/live_alerts.parquet"
+                    )
+                except Exception as e:
                     error_details: ErrorDetails = {
-                        "type": type(error).__name__,
-                        "message": str(error),
-                        "args": error.args,
+                        "type": type(e).__name__,
+                        "message": str(e),
+                        "args": e.args,
                         "traceback": traceback.format_exc(),
                     }
                     error_msg = f"Failed to delete live alert record for broadcaster_id={broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
