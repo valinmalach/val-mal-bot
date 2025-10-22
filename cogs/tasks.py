@@ -77,7 +77,7 @@ class Tasks(Cog):
                     "hub.callback": CALLBACK_URL,
                     "hub.topic": f"https://www.youtube.com/xml/feeds/videos.xml?channel_id={YOUTUBE_CHANNEL_ID}",
                     "hub.verify": "async",
-                    "hub.lease_seconds": str(864000),  # 10 days
+                    "hub.lease_seconds": str(1),  # 1 second
                 },
             )
 
