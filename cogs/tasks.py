@@ -29,7 +29,7 @@ from services import (
     update_birthday,
     upsert_row_to_parquet_async,
 )
-from services.helper.http_client import http_client_manager
+# from services.helper.http_client import http_client_manager
 
 load_dotenv()
 
@@ -48,8 +48,8 @@ class Tasks(Cog):
             self.check_posts.start()
         if not self.check_birthdays.is_running():
             self.check_birthdays.start()
-        if not self.renew_youtube_webhook_subscription.is_running():
-            self.renew_youtube_webhook_subscription.start()
+        # if not self.renew_youtube_webhook_subscription.is_running():
+        #     self.renew_youtube_webhook_subscription.start()
         if not self.backup_data.is_running():
             self.backup_data.start()
 
@@ -62,45 +62,45 @@ class Tasks(Cog):
         traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
         await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
 
-    @tasks.loop(hours=24)
-    async def renew_youtube_webhook_subscription(self) -> None:
-        logger.info("Renewing YouTube webhook subscription")
-        try:
-            YOUTUBE_CHANNEL_ID = "UC7BVlWSXIU4hKtWkBqEgZMA"
-            CALLBACK_URL = f"{APP_URL}/youtube/webhook"
+    # @tasks.loop(hours=24)
+    # async def renew_youtube_webhook_subscription(self) -> None:
+    #     logger.info("Renewing YouTube webhook subscription")
+    #     try:
+    #         YOUTUBE_CHANNEL_ID = "UC7BVlWSXIU4hKtWkBqEgZMA"
+    #         CALLBACK_URL = f"{APP_URL}/youtube/webhook"
 
-            response = await http_client_manager.request(
-                "POST",
-                "https://pubsubhubbub.appspot.com/subscribe",
-                data={
-                    "hub.mode": "subscribe",
-                    "hub.callback": CALLBACK_URL,
-                    "hub.topic": f"https://www.youtube.com/xml/feeds/videos.xml?channel_id={YOUTUBE_CHANNEL_ID}",
-                    "hub.verify": "async",
-                    "hub.lease_seconds": str(1),  # 1 second
-                },
-            )
+    #         response = await http_client_manager.request(
+    #             "POST",
+    #             "https://pubsubhubbub.appspot.com/subscribe",
+    #             data={
+    #                 "hub.mode": "subscribe",
+    #                 "hub.callback": CALLBACK_URL,
+    #                 "hub.topic": f"https://www.youtube.com/xml/feeds/videos.xml?channel_id={YOUTUBE_CHANNEL_ID}",
+    #                 "hub.verify": "async",
+    #                 "hub.lease_seconds": str(1),  # 1 second
+    #             },
+    #         )
 
-            if response.status_code == 202:
-                logger.info("YouTube webhook subscription renewed successfully")
-            else:
-                logger.error(
-                    f"Failed to renew YouTube webhook subscription: {response.status_code} - {response.text}"
-                )
-                await send_message(
-                    f"Failed to renew YouTube webhook subscription: {response.status_code} - {response.text}",
-                    BOT_ADMIN_CHANNEL,
-                )
-        except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Error renewing YouTube webhook subscription - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self.log_error(error_msg, error_details["traceback"])
+    #         if response.status_code == 202:
+    #             logger.info("YouTube webhook subscription renewed successfully")
+    #         else:
+    #             logger.error(
+    #                 f"Failed to renew YouTube webhook subscription: {response.status_code} - {response.text}"
+    #             )
+    #             await send_message(
+    #                 f"Failed to renew YouTube webhook subscription: {response.status_code} - {response.text}",
+    #                 BOT_ADMIN_CHANNEL,
+    #             )
+    #     except Exception as e:
+    #         error_details: ErrorDetails = {
+    #             "type": type(e).__name__,
+    #             "message": str(e),
+    #             "args": e.args,
+    #             "traceback": traceback.format_exc(),
+    #         }
+    #         error_msg = f"Error renewing YouTube webhook subscription - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+    #         logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+    #         await self.log_error(error_msg, error_details["traceback"])
 
     @tasks.loop(minutes=1)
     async def check_posts(self) -> None:
