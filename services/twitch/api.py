@@ -623,6 +623,219 @@ async def trigger_offline_sequence(
         await _handle_embed_edit_error(e, message_id, broadcaster_id)
 
 
+async def _validate_alert_exists(broadcaster_id: int) -> Optional[dict]:
+    """Check if alert record exists and return it."""
+    df = await read_parquet_cached(LIVE_ALERTS)
+    alert_row = df.filter(pl.col("id") == broadcaster_id)
+    if alert_row.height == 0:
+        logger.warning(
+            f"No live alert record found for broadcaster_id={broadcaster_id}; exiting"
+        )
+        return None
+    return alert_row.row(0, named=True)
+
+
+def _should_trigger_offline_sequence(
+    alert: dict, stream_info: Optional[Stream], stream_id: int
+) -> bool:
+    """Determine if offline sequence should be triggered."""
+    return (
+        stream_info is None
+        or alert.get("stream_id", "") != stream_id
+        or stream_info.id != str(stream_id)
+    )
+
+
+def _create_live_embed(
+    stream_info: Stream,
+    user_info: Optional[User],
+    url: str,
+    age: str,
+    started_at_timestamp: str,
+    now: pendulum.DateTime,
+) -> discord.Embed:
+    """Create the live stream embed."""
+    raw_thumb_url = stream_info.thumbnail_url.replace("{width}x{height}", "400x225")
+    cache_busted_thumb_url = f"{raw_thumb_url}?cb={int(pendulum.now().timestamp())}"
+
+    return (
+        discord.Embed(
+            description=f"[**{stream_info.title}**]({url})",
+            color=0x9046FF,
+            timestamp=now,
+        )
+        .set_author(
+            name=f"{stream_info.user_name} is now live!",
+            icon_url=user_info.profile_image_url if user_info else None,
+            url=url,
+        )
+        .add_field(
+            name="**Game**",
+            value=f"{stream_info.game_name}",
+            inline=True,
+        )
+        .add_field(
+            name="**Viewers**",
+            value=f"{stream_info.viewer_count}",
+            inline=True,
+        )
+        .add_field(
+            name="**Started At**",
+            value=started_at_timestamp,
+            inline=True,
+        )
+        .set_image(url=cache_busted_thumb_url)
+        .set_footer(
+            text=f"Online for {age} | Last updated",
+        )
+    )
+
+
+def _create_live_view(url: str) -> View:
+    """Create the view with watch stream button."""
+    view = View(timeout=None)
+    view.add_item(
+        discord.ui.Button(label="Watch Stream", style=discord.ButtonStyle.link, url=url)
+    )
+    return view
+
+
+async def _handle_live_embed_edit_error(
+    e: Exception, message_id: int, broadcaster_id: int
+) -> bool:
+    """Handle errors when editing live embed. Returns True if should continue, False if should abort."""
+    if isinstance(e, discord.NotFound):
+        logger.warning(
+            f"Message not found when editing live embed for message_id={message_id}; aborting"
+        )
+        try:
+            delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
+        except Exception as delete_error:
+            error_details: ErrorDetails = {
+                "type": type(delete_error).__name__,
+                "message": str(delete_error),
+                "args": delete_error.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Failed to delete live alert record for broadcaster_id={broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await log_error(error_msg, error_details["traceback"])
+        return False
+    elif isinstance(e, discord.HTTPException) and e.status == 503:
+        logger.warning(
+            f"Discord API temporarily unavailable (503) for message_id={message_id}; will retry next cycle"
+        )
+        return True
+    else:
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        if isinstance(e, discord.HTTPException):
+            error_msg = f"Discord HTTP error {e.status} when editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        else:
+            error_msg = f"Error editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
+        return True
+
+
+async def _update_live_embed(
+    message_id: int,
+    channel_id: int,
+    broadcaster_id: int,
+    stream_info: Stream,
+    user_info: Optional[User],
+    url: str,
+    age: str,
+    started_at_timestamp: str,
+    content: Optional[str],
+    now: pendulum.DateTime,
+) -> bool:
+    """Update the live embed. Returns True if should continue, False if should abort."""
+    embed = _create_live_embed(
+        stream_info, user_info, url, age, started_at_timestamp, now
+    )
+    view = _create_live_view(url)
+
+    try:
+        await edit_embed(message_id, embed, channel_id, view, content=content)
+        return True
+    except Exception as e:
+        return await _handle_live_embed_edit_error(e, message_id, broadcaster_id)
+
+
+async def _run_update_cycle(
+    broadcaster_id: int,
+    channel_id: int,
+    message_id: int,
+    stream_id: int,
+    started_at: pendulum.DateTime,
+    started_at_timestamp: str,
+    content: Optional[str],
+) -> None:
+    """Run a single update cycle for the live alert."""
+    # Fetch current data
+    alert = await _validate_alert_exists(broadcaster_id)
+    if alert is None:
+        return
+
+    stream_info = await get_stream_info(broadcaster_id)
+    user_info = await get_user(broadcaster_id)
+    channel_info = await get_channel(broadcaster_id)
+
+    # Check if we should trigger offline sequence
+    if stream_info is None or _should_trigger_offline_sequence(
+        alert, stream_info, stream_id
+    ):
+        if user_info:
+            login = user_info.login
+        elif channel_info:
+            login = channel_info.broadcaster_login
+        else:
+            login = ""
+        url = f"https://www.twitch.tv/{login}"
+        now = pendulum.now()
+        age = get_age(started_at, limit_units=2)
+        await trigger_offline_sequence(
+            broadcaster_id,
+            stream_id,
+            stream_info,
+            now,
+            user_info,
+            url,
+            age,
+            message_id,
+            channel_id,
+            content,
+            channel_info,
+        )
+        return
+
+    # Update live embed
+    url = f"https://www.twitch.tv/{stream_info.user_login}"
+    now = pendulum.now()
+    age = get_age(started_at, limit_units=2)
+
+    should_continue = await _update_live_embed(
+        message_id,
+        channel_id,
+        broadcaster_id,
+        stream_info,
+        user_info,
+        url,
+        age,
+        started_at_timestamp,
+        content,
+        now,
+    )
+
+    if not should_continue:
+        return
+
+
 async def update_alert(
     broadcaster_id: int,
     channel_id: int,
@@ -639,151 +852,33 @@ async def update_alert(
         started_at = parse_rfc3339(stream_started_at)
         started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
 
-        df = await read_parquet_cached(LIVE_ALERTS)
-        alert_row = df.filter(pl.col("id") == broadcaster_id)
-        if alert_row.height == 0:
-            logger.warning(
-                f"No live alert record found for broadcaster_id={broadcaster_id}; exiting"
-            )
+        # Initial validation
+        alert = await _validate_alert_exists(broadcaster_id)
+        if alert is None:
             return
-        stream_info = await get_stream_info(broadcaster_id)
-        user_info = await get_user(broadcaster_id)
-        channel_info = await get_channel(broadcaster_id)
-        if alert_row.height == 0 or stream_info is None:
-            url = f"https://www.twitch.tv/{user_info.login if user_info else channel_info.broadcaster_login if channel_info else ''}"
-            now = pendulum.now()
-            age = get_age(started_at, limit_units=2)
-            await trigger_offline_sequence(
+
+        # Main update loop
+        while True:
+            await _run_update_cycle(
                 broadcaster_id,
-                stream_id,
-                stream_info,
-                now,
-                user_info,
-                url,
-                age,
-                message_id,
                 channel_id,
+                message_id,
+                stream_id,
+                started_at,
+                started_at_timestamp,
                 content,
-                channel_info,
             )
-            return
-        while alert_row.height != 0 and stream_info is not None:
-            alert = alert_row.row(0, named=True)
-            url = f"https://www.twitch.tv/{stream_info.user_login}"
-            now = pendulum.now()
-            age = get_age(started_at, limit_units=2)
-            if alert.get("stream_id", "") != stream_id or stream_info.id != str(
-                stream_id
-            ):
-                await trigger_offline_sequence(
-                    broadcaster_id,
-                    stream_id,
-                    stream_info,
-                    now,
-                    user_info,
-                    url,
-                    age,
-                    message_id,
-                    channel_id,
-                    content,
-                    channel_info,
-                )
-                return
-            raw_thumb_url = stream_info.thumbnail_url.replace(
-                "{width}x{height}", "400x225"
-            )
-            cache_busted_thumb_url = (
-                f"{raw_thumb_url}?cb={int(pendulum.now().timestamp())}"
-            )
-            embed = (
-                discord.Embed(
-                    description=f"[**{stream_info.title}**]({url})",
-                    color=0x9046FF,
-                    timestamp=now,
-                )
-                .set_author(
-                    name=f"{stream_info.user_name} is now live!",
-                    icon_url=user_info.profile_image_url if user_info else None,
-                    url=url,
-                )
-                .add_field(
-                    name="**Game**",
-                    value=f"{stream_info.game_name}",
-                    inline=True,
-                )
-                .add_field(
-                    name="**Viewers**",
-                    value=f"{stream_info.viewer_count}",
-                    inline=True,
-                )
-                .add_field(
-                    name="**Started At**",
-                    value=started_at_timestamp,
-                    inline=True,
-                )
-                .set_image(url=cache_busted_thumb_url)
-                .set_footer(
-                    text=f"Online for {age} | Last updated",
-                )
-            )
-            view = View(timeout=None)
-            view.add_item(
-                discord.ui.Button(
-                    label="Watch Stream", style=discord.ButtonStyle.link, url=url
-                )
-            )
-            try:
-                await edit_embed(message_id, embed, channel_id, view, content=content)
-            except discord.NotFound:
-                logger.warning(
-                    f"Message not found when editing offline embed for message_id={message_id}; aborting"
-                )
-                try:
-                    delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
-                except Exception as e:
-                    error_details: ErrorDetails = {
-                        "type": type(e).__name__,
-                        "message": str(e),
-                        "args": e.args,
-                        "traceback": traceback.format_exc(),
-                    }
-                    error_msg = f"Failed to delete live alert record for broadcaster_id={broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                    logger.error(
-                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
-                    )
-                    await log_error(error_msg, error_details["traceback"])
-                return
-            except discord.HTTPException as e:
-                if e.status == 503:
-                    logger.warning(
-                        f"Discord API temporarily unavailable (503) for message_id={message_id}; will retry next cycle"
-                    )
-                else:
-                    error_details: ErrorDetails = {
-                        "type": type(e).__name__,
-                        "message": str(e),
-                        "args": e.args,
-                        "traceback": traceback.format_exc(),
-                    }
-                    error_msg = f"Discord HTTP error {e.status} when editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                    logger.error(
-                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
-                    )
-                    await log_error(error_msg, error_details["traceback"])
-            except Exception as e:
-                error_details: ErrorDetails = {
-                    "type": type(e).__name__,
-                    "message": str(e),
-                    "args": e.args,
-                    "traceback": traceback.format_exc(),
-                }
-                error_msg = f"Error editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-                await log_error(error_msg, error_details["traceback"])
+
             await asyncio.sleep(60)
-            df = await read_parquet_cached(LIVE_ALERTS)
-            alert_row = df.filter(pl.col("id") == broadcaster_id)
+
+            # Check if alert still exists and stream is still live
+            alert = await _validate_alert_exists(broadcaster_id)
+            if alert is None:
+                break
+
             stream_info = await get_stream_info(broadcaster_id)
+            if stream_info is None:
+                break
 
     except Exception as e:
         error_details: ErrorDetails = {
