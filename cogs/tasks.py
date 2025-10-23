@@ -111,81 +111,96 @@ class Tasks(Cog):
                 "1970-01-01T00:00:00.000Z" if df.height == 0 else str(df["date"].max())
             )
 
-            try:
-                author_feed = at_client.get_author_feed(actor="valinmalach.bsky.social")
-            except exceptions.InvokeTimeoutError:
-                return
-            except Exception as e:
-                if hasattr(e, "args") and len(e.args) > 0:
-                    response = e.args[0]
-                    if hasattr(response, "status_code") and response.status_code in {
-                        502,
-                        503,
-                    }:
-                        logger.info(
-                            f"Bluesky API temporarily unavailable ({response.status_code} {response.content.error if hasattr(response, 'content') and hasattr(response.content, 'error') else 'ErrorNotProvided'})"
-                        )
-                        return
-
-                error_details: ErrorDetails = {
-                    "type": type(e).__name__,
-                    "message": str(e),
-                    "args": e.args,
-                    "traceback": traceback.format_exc(),
-                }
-                error_msg = f"Error fetching Bluesky author feed - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-                await self.log_error(error_msg, error_details["traceback"])
+            author_feed = await self._fetch_author_feed()
+            if author_feed is None:
                 return
 
-            posts = sorted(
-                [
-                    feed.post
-                    for feed in author_feed.feed
-                    if feed.post.author.handle == "valinmalach.bsky.social"
-                    and feed.post.indexed_at > last_sync_date_time
-                ],
-                key=lambda post: post.indexed_at,
-            )
+            posts = self._extract_new_posts(author_feed, last_sync_date_time)
+            await self._process_posts(posts)
 
-            posts = [
-                {
-                    "id": post.uri.split("/")[-1],
-                    "date": post.indexed_at,
-                    "url": f"https://bsky.app/profile/valinmalach.bsky.social/post/{post.uri.split('/')[-1]}",
-                }
-                for post in posts
-            ]
-
-            for post in posts:
-                try:
-                    await upsert_row_to_parquet_async(post, "data/bluesky.parquet")
-                    await send_message(
-                        f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
-                        BLUESKY_CHANNEL,
-                    )
-                except Exception as e:
-                    error_details: ErrorDetails = {
-                        "type": type(e).__name__,
-                        "message": str(e),
-                        "args": e.args,
-                        "traceback": traceback.format_exc(),
-                    }
-                    error_msg = f"Exception upserting Bluesky post {post['id']} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                    logger.error(
-                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
-                    )
-                    await self.log_error(error_msg, error_details["traceback"])
         except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
+            await self._handle_fatal_error(e, "Fatal error during Bluesky posts sync")
+
+    async def _fetch_author_feed(self):
+        """Fetch author feed from Bluesky API with error handling."""
+        try:
+            return at_client.get_author_feed(actor="valinmalach.bsky.social")
+        except exceptions.InvokeTimeoutError:
+            return None
+        except Exception as e:
+            if self._is_temporary_api_error(e):
+                return None
+
+            await self._handle_fatal_error(e, "Error fetching Bluesky author feed")
+            return None
+
+    def _is_temporary_api_error(self, e: Exception) -> bool:
+        """Check if the exception is a temporary API error (502/503)."""
+        if not (hasattr(e, "args") and len(e.args) > 0):
+            return False
+
+        response = e.args[0]
+        if not hasattr(response, "status_code"):
+            return False
+
+        if response.status_code in {502, 503}:
+            error_msg = (
+                response.content.error
+                if hasattr(response, "content") and hasattr(response.content, "error")
+                else "ErrorNotProvided"
+            )
+            logger.info(
+                f"Bluesky API temporarily unavailable ({response.status_code} {error_msg})"
+            )
+            return True
+
+        return False
+
+    def _extract_new_posts(self, author_feed, last_sync_date_time: str) -> list[dict]:
+        """Extract and format new posts from the author feed."""
+        posts = sorted(
+            [
+                feed.post
+                for feed in author_feed.feed
+                if feed.post.author.handle == "valinmalach.bsky.social"
+                and feed.post.indexed_at > last_sync_date_time
+            ],
+            key=lambda post: post.indexed_at,
+        )
+
+        return [
+            {
+                "id": post.uri.split("/")[-1],
+                "date": post.indexed_at,
+                "url": f"https://bsky.app/profile/valinmalach.bsky.social/post/{post.uri.split('/')[-1]}",
             }
-            error_msg = f"Fatal error during Bluesky posts sync - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self.log_error(error_msg, error_details["traceback"])
+            for post in posts
+        ]
+
+    async def _process_posts(self, posts: list[dict]) -> None:
+        """Process and send notifications for new posts."""
+        for post in posts:
+            try:
+                await upsert_row_to_parquet_async(post, "data/bluesky.parquet")
+                await send_message(
+                    f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
+                    BLUESKY_CHANNEL,
+                )
+            except Exception as e:
+                error_msg = f"Exception upserting Bluesky post {post['id']}"
+                await self._handle_fatal_error(e, error_msg)
+
+    async def _handle_fatal_error(self, e: Exception, context: str) -> None:
+        """Handle fatal errors with consistent logging and notification."""
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"{context} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await self.log_error(error_msg, error_details["traceback"])
 
     @tasks.loop(time=pendulum.Time(0, 0, 0, 0))
     async def backup_data(self) -> None:
