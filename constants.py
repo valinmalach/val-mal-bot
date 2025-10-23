@@ -56,9 +56,18 @@ DEFAULT_MISSING_CONTENT = "`Message content not found in cache`"
 YOUTUBE_CHANNEL_IDS = ["UC0mQZHMy8vp-r7KD3-r6S3A"]
 
 BROADCASTER_USERNAME = "valinmalach"
+
+APP_ACCESS_TOKEN_FILE = "data/twitch/app_access_token.txt"
+USER_REFRESH_TOKEN_FILE = "data/twitch/user_refresh_token.txt"
+USER_ACCESS_TOKEN_FILE = "data/twitch/user_access_token.txt"
+BROADCASTER_REFRESH_TOKEN_FILE = "data/twitch/broadcaster_refresh_token.txt"
+BROADCASTER_ACCESS_TOKEN_FILE = "data/twitch/broadcaster_access_token.txt"
+
 TWITCH_DIR = "data/twitch"
+BLUESKY = "data/bluesky.parquet"
 LIVE_ALERTS = "data/live_alerts.parquet"
 MESSAGES = "data/messages.parquet"
+USERS = "data/users.parquet"
 VIDEOS = "data/youtube/videos.parquet"
 
 

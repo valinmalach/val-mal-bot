@@ -1,8 +1,6 @@
 import io
 import logging
 import traceback
-from pathlib import Path
-from xml.etree.ElementTree import ParseError
 
 import discord
 import polars as pl
@@ -18,24 +16,10 @@ logger = logging.getLogger(__name__)
 
 youtube_router = APIRouter()
 
-VIDEOS_PARQUET_PATH = Path(VIDEOS)
-
-
-def ensure_parquet_file_exists():
-    """Ensure the parquet file and its directory exist."""
-    VIDEOS_PARQUET_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-    if not VIDEOS_PARQUET_PATH.exists():
-        # Create empty DataFrame with required columns
-        empty_df = pl.DataFrame(schema={"channel_id": pl.Utf8, "video_id": pl.Utf8})
-        empty_df.write_parquet(VIDEOS_PARQUET_PATH)
-
 
 async def is_new_video(channel_id: str, video_id: str) -> bool:
     """Check if the video is new by looking it up in the parquet file."""
     try:
-        ensure_parquet_file_exists()
-
         df = await read_parquet_cached(VIDEOS)
 
         # Check if this video already exists for this channel
@@ -60,27 +44,12 @@ async def log_error(message: str, traceback_str: str) -> None:
 async def add_video_to_parquet(channel_id: str, video_id: str):
     """Add a new video to the parquet file."""
     try:
-        ensure_parquet_file_exists()
-
-        try:
-            upsert_row_to_parquet(
-                {"channel_id": channel_id, "video_id": video_id},
-                VIDEOS,
-                id_column="video_id",
-            )
-            logger.info(
-                f"Added video {video_id} from channel {channel_id} to parquet file"
-            )
-        except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Failed to add video {video_id} from channel {channel_id} to parquet file - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await log_error(error_msg, error_details["traceback"])
+        upsert_row_to_parquet(
+            {"channel_id": channel_id, "video_id": video_id},
+            VIDEOS,
+            id_column="video_id",
+        )
+        logger.info(f"Added video {video_id} from channel {channel_id} to parquet file")
     except Exception as e:
         error_details: ErrorDetails = {
             "type": type(e).__name__,
@@ -137,18 +106,6 @@ async def youtube_webhook_notification(request: Request):
                 )
 
         return Response(content="OK", status_code=200)
-
-    except ParseError as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Failed to parse YouTube webhook XML - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
-        raise HTTPException(status_code=400, detail="Invalid XML format") from e
     except Exception as e:
         error_details: ErrorDetails = {
             "type": type(e).__name__,

@@ -8,16 +8,19 @@ import discord
 import pendulum
 import polars as pl
 from atproto import exceptions
+from atproto_client.models import AppBskyFeedGetAuthorFeed
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
 from dotenv import load_dotenv
 from polars import DataFrame
 
 from constants import (
+    BLUESKY,
     BLUESKY_CHANNEL,
     BLUESKY_ROLE,
     BOT_ADMIN_CHANNEL,
     SHOUTOUTS_CHANNEL,
+    USERS,
     YOUTUBE_CHANNEL_IDS,
     ErrorDetails,
     UserRecord,
@@ -106,7 +109,7 @@ class Tasks(Cog):
     @tasks.loop(minutes=1)
     async def check_posts(self) -> None:
         try:
-            df = await read_parquet_cached("data/bluesky.parquet")
+            df = await read_parquet_cached(BLUESKY)
             last_sync_date_time = (
                 "1970-01-01T00:00:00.000Z" if df.height == 0 else str(df["date"].max())
             )
@@ -156,7 +159,11 @@ class Tasks(Cog):
 
         return False
 
-    def _extract_new_posts(self, author_feed, last_sync_date_time: str) -> list[dict]:
+    def _extract_new_posts(
+        self,
+        author_feed: AppBskyFeedGetAuthorFeed.Response,
+        last_sync_date_time: str,
+    ) -> list[dict]:
         """Extract and format new posts from the author feed."""
         posts = sorted(
             [
@@ -181,7 +188,7 @@ class Tasks(Cog):
         """Process and send notifications for new posts."""
         for post in posts:
             try:
-                upsert_row_to_parquet(post, "data/bluesky.parquet")
+                upsert_row_to_parquet(post, BLUESKY)
                 await send_message(
                     f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
                     BLUESKY_CHANNEL,
@@ -208,8 +215,7 @@ class Tasks(Cog):
             date_string = pendulum.now().format("YYYY-MM-DD")
             backup_path = f"C:/backups/data_{date_string}/"
 
-            if not os.path.exists(backup_path):
-                os.makedirs(backup_path)
+            os.makedirs(backup_path, exist_ok=True)
 
             for item in os.listdir("data/"):
                 source_path = os.path.join("data/", item)
@@ -252,7 +258,7 @@ class Tasks(Cog):
                 .strftime("%Y-%m-%dT%H:%M:%S.000Z")
             )
 
-            df = await read_parquet_cached("data/users.parquet")
+            df = await read_parquet_cached(USERS)
             birthday_users = df.filter(pl.col("birthday") == now)
             await self._process_birthday_records(birthday_users)
         except Exception as e:

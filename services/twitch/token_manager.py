@@ -5,7 +5,14 @@ from typing import Optional
 import aiofiles
 from dotenv import load_dotenv
 
-from constants import BOT_ADMIN_CHANNEL, TWITCH_DIR
+from constants import (
+    APP_ACCESS_TOKEN_FILE,
+    BOT_ADMIN_CHANNEL,
+    BROADCASTER_ACCESS_TOKEN_FILE,
+    BROADCASTER_REFRESH_TOKEN_FILE,
+    USER_ACCESS_TOKEN_FILE,
+    USER_REFRESH_TOKEN_FILE,
+)
 from models import AuthResponse, RefreshResponse
 from services.helper.helper import send_message
 from services.helper.http_client import http_client_manager
@@ -39,7 +46,7 @@ class TwitchTokenManager:
     def _load_app_access_token(self) -> None:
         """Load app access token from file if it exists."""
         try:
-            with open(f"{TWITCH_DIR}/app_access_token.txt", "r") as f:
+            with open(APP_ACCESS_TOKEN_FILE, "r") as f:
                 self._app_access_token = f.read().strip()
                 logger.info("App access token loaded from file")
         except FileNotFoundError:
@@ -50,7 +57,7 @@ class TwitchTokenManager:
     def _load_user_refresh_token(self) -> None:
         """Load user refresh token from file if it exists."""
         try:
-            with open(f"{TWITCH_DIR}/user_refresh_token.txt", "r") as f:
+            with open(USER_REFRESH_TOKEN_FILE, "r") as f:
                 self._user_refresh_token = f.read().strip()
                 logger.info("User refresh token loaded from file")
         except FileNotFoundError:
@@ -61,7 +68,7 @@ class TwitchTokenManager:
     def _load_user_access_token(self) -> None:
         """Load user access token from file if it exists."""
         try:
-            with open(f"{TWITCH_DIR}/user_access_token.txt", "r") as f:
+            with open(USER_ACCESS_TOKEN_FILE, "r") as f:
                 self._user_access_token = f.read().strip()
                 logger.info("User access token loaded from file")
         except FileNotFoundError:
@@ -72,7 +79,7 @@ class TwitchTokenManager:
     def _load_broadcaster_refresh_token(self) -> None:
         """Load broadcaster refresh token from file if it exists."""
         try:
-            with open(f"{TWITCH_DIR}/broadcaster_refresh_token.txt", "r") as f:
+            with open(BROADCASTER_REFRESH_TOKEN_FILE, "r") as f:
                 self._broadcaster_refresh_token = f.read().strip()
                 logger.info("Broadcaster refresh token loaded from file")
         except FileNotFoundError:
@@ -83,7 +90,7 @@ class TwitchTokenManager:
     def _load_broadcaster_access_token(self) -> None:
         """Load broadcaster access token from file if it exists."""
         try:
-            with open(f"{TWITCH_DIR}/broadcaster_access_token.txt", "r") as f:
+            with open(BROADCASTER_ACCESS_TOKEN_FILE, "r") as f:
                 self._broadcaster_access_token = f.read().strip()
                 logger.info("Broadcaster access token loaded from file")
         except FileNotFoundError:
@@ -146,8 +153,7 @@ class TwitchTokenManager:
 
         if auth_response.token_type == "bearer":
             self._app_access_token = auth_response.access_token
-            os.makedirs(TWITCH_DIR, exist_ok=True)
-            async with aiofiles.open(f"{TWITCH_DIR}/app_access_token.txt", "w") as f:
+            async with aiofiles.open(APP_ACCESS_TOKEN_FILE, "w") as f:
                 await f.write(self._app_access_token)
             return True
         else:
@@ -160,10 +166,9 @@ class TwitchTokenManager:
     async def set_user_access_token(self, auth_response: RefreshResponse) -> None:
         self._user_access_token = auth_response.access_token
         self._user_refresh_token = auth_response.refresh_token
-        os.makedirs(TWITCH_DIR, exist_ok=True)
-        async with aiofiles.open(f"{TWITCH_DIR}/user_access_token.txt", "w") as f:
+        async with aiofiles.open(USER_ACCESS_TOKEN_FILE, "w") as f:
             await f.write(self._user_access_token)
-        async with aiofiles.open(f"{TWITCH_DIR}/user_refresh_token.txt", "w") as f:
+        async with aiofiles.open(USER_REFRESH_TOKEN_FILE, "w") as f:
             await f.write(self._user_refresh_token)
 
     async def set_broadcaster_access_token(
@@ -171,14 +176,9 @@ class TwitchTokenManager:
     ) -> None:
         self._broadcaster_access_token = auth_response.access_token
         self._broadcaster_refresh_token = auth_response.refresh_token
-        os.makedirs(TWITCH_DIR, exist_ok=True)
-        async with aiofiles.open(
-            f"{TWITCH_DIR}/broadcaster_access_token.txt", "w"
-        ) as f:
+        async with aiofiles.open(BROADCASTER_ACCESS_TOKEN_FILE, "w") as f:
             await f.write(self._broadcaster_access_token)
-        async with aiofiles.open(
-            f"{TWITCH_DIR}/broadcaster_refresh_token.txt", "w"
-        ) as f:
+        async with aiofiles.open(BROADCASTER_REFRESH_TOKEN_FILE, "w") as f:
             await f.write(self._broadcaster_refresh_token)
 
     async def refresh_user_access_token(self, broadcaster: bool = False) -> bool:

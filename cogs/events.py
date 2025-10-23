@@ -38,6 +38,7 @@ from constants import (
     GUILD_ID,
     MESSAGES,
     UNKNOWN_USER,
+    USERS,
     WELCOME_CHANNEL,
     ErrorDetails,
     UserRecord,
@@ -193,7 +194,7 @@ class Events(Cog):
             try:
                 upsert_row_to_parquet(
                     user,
-                    "data/users.parquet",
+                    USERS,
                 )
             except Exception as e:
                 error_details: ErrorDetails = {
@@ -276,7 +277,7 @@ class Events(Cog):
             try:
                 delete_row_from_parquet(
                     member.id,
-                    "data/users.parquet",
+                    USERS,
                 )
             except Exception as e:
                 error_details: ErrorDetails = {

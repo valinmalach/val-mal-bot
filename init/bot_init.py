@@ -3,12 +3,22 @@ import logging
 import os
 
 import discord
+import polars as pl
 from discord import CategoryChannel, ForumChannel
 from discord.abc import PrivateChannel
 from discord.ext.commands import Bot
 from dotenv import load_dotenv
 
-from constants import BOT_ADMIN_CHANNEL, GUILD_ID, LIVE_ALERTS
+from constants import (
+    BLUESKY,
+    BOT_ADMIN_CHANNEL,
+    GUILD_ID,
+    LIVE_ALERTS,
+    MESSAGES,
+    TWITCH_DIR,
+    USERS,
+    VIDEOS,
+)
 from services.helper.parquet_cache import parquet_cache
 
 load_dotenv()
@@ -55,6 +65,46 @@ async def activate_if_live() -> None:
         asyncio.create_task(shoutout_queue.activate())
 
 
+def check_data_files_exist() -> None:
+    os.makedirs(TWITCH_DIR, exist_ok=True)
+
+    # Define schemas for each parquet file
+    schemas = {
+        BLUESKY: {
+            "id": pl.String,
+            "date": pl.String,
+            "url": pl.String,
+        },
+        LIVE_ALERTS: {
+            "id": pl.Int64,
+            "channel_id": pl.Int64,
+            "message_id": pl.Int64,
+            "stream_id": pl.Int64,
+            "stream_started_at": pl.String,
+        },
+        MESSAGES: {
+            "id": pl.Int64,
+            "contents": pl.String,
+            "guild_id": pl.Int64,
+            "author_id": pl.Int64,
+            "channel_id": pl.Int64,
+            "attachment_urls": pl.String,
+        },
+        USERS: {
+            "id": pl.Int64,
+            "username": pl.String,
+            "birthday": pl.String,
+            "isBirthdayLeap": pl.Boolean,
+        },
+        VIDEOS: {"channel_id": pl.String, "video_id": pl.String},
+    }
+
+    for file_path, schema in schemas.items():
+        if not os.path.isfile(file_path):
+            empty_df = pl.DataFrame(schema=schema)
+            empty_df.write_parquet(file_path)
+
+
 class MyBot(Bot):
     def __init__(self, *, command_prefix: str, intents: discord.Intents) -> None:
         super().__init__(command_prefix=command_prefix, intents=intents)
@@ -93,6 +143,7 @@ bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 @bot.event
 async def on_ready() -> None:
+    check_data_files_exist()
     asyncio.create_task(restart_live_alert_tasks())
     asyncio.create_task(activate_if_live())
 

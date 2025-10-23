@@ -30,7 +30,7 @@ from discord.ui import Button, View
 from pendulum import DateTime
 from polars import DataFrame
 
-from constants import EMOJI_ROLE_MAP, LiveAlert, UserRecord
+from constants import EMOJI_ROLE_MAP, USERS, LiveAlert, UserRecord
 from init import bot
 from services.helper.parquet_cache import parquet_cache
 
@@ -110,7 +110,7 @@ def get_discriminator(member: User | Member) -> str:
 
 
 def update_birthday(record: UserRecord) -> None:
-    upsert_row_to_parquet(record, "data/users.parquet")
+    upsert_row_to_parquet(record, USERS)
 
 
 def get_channel_mention(
