@@ -55,6 +55,7 @@ DEFAULT_MISSING_CONTENT = "`Message content not found in cache`"
 
 YOUTUBE_CHANNEL_IDS = ["UC0mQZHMy8vp-r7KD3-r6S3A"]
 
+LIVE_ALERTS = "data/live_alerts.parquet"
 MESSAGES = "data/messages.parquet"
 VIDEOS = "data/youtube/videos.parquet"
 

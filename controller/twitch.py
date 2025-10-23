@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from constants import (
     BOT_ADMIN_CHANNEL,
     HMAC_PREFIX,
+    LIVE_ALERTS,
     LIVE_ALERTS_ROLE,
     PROMO_CHANNEL,
     STREAM_ALERTS_CHANNEL,
@@ -199,7 +200,7 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
         }
 
         try:
-            await upsert_row_to_parquet_async(alert, "data/live_alerts.parquet")
+            await upsert_row_to_parquet_async(alert, LIVE_ALERTS)
             asyncio.create_task(
                 update_alert(
                     broadcaster_id,
@@ -245,7 +246,7 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
         user_info = await get_user(int(broadcaster_id))
         channel_info = await get_channel(int(broadcaster_id))
 
-        df = await read_parquet_cached("data/live_alerts.parquet")
+        df = await read_parquet_cached(LIVE_ALERTS)
         alert_row = df.filter(pl.col("id") == int(broadcaster_id))
         if alert_row.height == 0:
             logger.warning(
@@ -326,9 +327,7 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
             await log_error(error_msg, error_details["traceback"])
 
         try:
-            await delete_row_from_parquet(
-                int(broadcaster_id), "data/live_alerts.parquet"
-            )
+            await delete_row_from_parquet(int(broadcaster_id), LIVE_ALERTS)
         except Exception as e:
             error_details: ErrorDetails = {
                 "type": type(e).__name__,
@@ -385,6 +384,7 @@ async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> N
         async def default_command(
             event_sub: ChannelChatMessageEventSub, args: str
         ) -> None:
+            """Default no-op command handler."""
             pass
 
         await user_command_dict.get(command, default_command)(event_sub, args)
@@ -497,49 +497,46 @@ async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -
 async def _oauth_callback_common(
     code: str, state: str, endpoint: str
 ) -> RefreshResponse:
-    try:
-        if state != TWITCH_WEBHOOK_SECRET:
-            logger.warning(f"400: Bad request. Invalid state: {state}")
-            await send_message(
-                f"400: Bad request on {endpoint}. Invalid state.",
-                BOT_ADMIN_CHANNEL,
-            )
-            raise HTTPException(status_code=400)
-
-        params = {
-            "client_id": TWITCH_CLIENT_ID,
-            "client_secret": TWITCH_CLIENT_SECRET,
-            "code": code,
-            "grant_type": "authorization_code",
-            "redirect_uri": f"{APP_URL}{endpoint}",
-        }
-        response = await http_client_manager.request(
-            "POST", "https://id.twitch.tv/oauth2/token", params=params
+    if state != TWITCH_WEBHOOK_SECRET:
+        logger.warning(f"400: Bad request. Invalid state: {state}")
+        await send_message(
+            f"400: Bad request on {endpoint}. Invalid state.",
+            BOT_ADMIN_CHANNEL,
         )
+        raise HTTPException(status_code=400)
 
-        if response.status_code < 200 or response.status_code >= 300:
-            logger.error(
-                f"Token exchange failed with status={response.status_code}, response={response.text}"
-            )
-            await send_message(
-                f"Failed to exchange token: {response.status_code} {response.text}",
-                BOT_ADMIN_CHANNEL,
-            )
-            raise HTTPException(status_code=500)
+    params = {
+        "client_id": TWITCH_CLIENT_ID,
+        "client_secret": TWITCH_CLIENT_SECRET,
+        "code": code,
+        "grant_type": "authorization_code",
+        "redirect_uri": f"{APP_URL}{endpoint}",
+    }
+    response = await http_client_manager.request(
+        "POST", "https://id.twitch.tv/oauth2/token", params=params
+    )
 
-        auth_response = RefreshResponse.model_validate(response.json())
-        if auth_response.token_type != "bearer":
-            logger.error(
-                f"Token exchange failed: unexpected token type {auth_response.token_type}"
-            )
-            await send_message(
-                f"Failed to exchange token: unexpected token type {auth_response.token_type}",
-                BOT_ADMIN_CHANNEL,
-            )
-            raise HTTPException(status_code=500)
-        return auth_response
-    except Exception as e:
-        raise e
+    if response.status_code < 200 or response.status_code >= 300:
+        logger.error(
+            f"Token exchange failed with status={response.status_code}, response={response.text}"
+        )
+        await send_message(
+            f"Failed to exchange token: {response.status_code} {response.text}",
+            BOT_ADMIN_CHANNEL,
+        )
+        raise HTTPException(status_code=500)
+
+    auth_response = RefreshResponse.model_validate(response.json())
+    if auth_response.token_type != "bearer":
+        logger.error(
+            f"Token exchange failed: unexpected token type {auth_response.token_type}"
+        )
+        await send_message(
+            f"Failed to exchange token: unexpected token type {auth_response.token_type}",
+            BOT_ADMIN_CHANNEL,
+        )
+        raise HTTPException(status_code=500)
+    return auth_response
 
 
 @twitch_router.get("/twitch/oauth/callback")
