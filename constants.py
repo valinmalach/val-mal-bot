@@ -56,6 +56,7 @@ DEFAULT_MISSING_CONTENT = "`Message content not found in cache`"
 YOUTUBE_CHANNEL_IDS = ["UC0mQZHMy8vp-r7KD3-r6S3A"]
 
 MESSAGES = "data/messages.parquet"
+VIDEOS = "data/youtube/videos.parquet"
 
 
 class Months(Enum):

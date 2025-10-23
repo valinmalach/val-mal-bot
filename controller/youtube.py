@@ -10,7 +10,7 @@ import xmltodict
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import PlainTextResponse
 
-from constants import BOT_ADMIN_CHANNEL, PROMO_CHANNEL, ErrorDetails
+from constants import BOT_ADMIN_CHANNEL, PROMO_CHANNEL, VIDEOS, ErrorDetails
 from services import send_message
 from services.helper.helper import read_parquet_cached, upsert_row_to_parquet_async
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 youtube_router = APIRouter()
 
-VIDEOS_PARQUET_PATH = Path("data/youtube/videos.parquet")
+VIDEOS_PARQUET_PATH = Path(VIDEOS)
 
 
 def ensure_parquet_file_exists():
@@ -36,7 +36,7 @@ async def is_new_video(channel_id: str, video_id: str) -> bool:
     try:
         ensure_parquet_file_exists()
 
-        df = await read_parquet_cached("data/youtube/videos.parquet")
+        df = await read_parquet_cached(VIDEOS)
 
         # Check if this video already exists for this channel
         existing = df.filter(
@@ -65,7 +65,7 @@ async def add_video_to_parquet(channel_id: str, video_id: str):
         try:
             await upsert_row_to_parquet_async(
                 {"channel_id": channel_id, "video_id": video_id},
-                "data/youtube/videos.parquet",
+                VIDEOS,
                 id_column="video_id",
             )
             logger.info(
