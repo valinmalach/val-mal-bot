@@ -16,7 +16,10 @@ class ParquetCache:
         self._cache: Dict[str, pl.DataFrame] = {}
         self._dirty_files: Set[str] = set()
         self._pending_writes: Dict[str, Dict[str, Any]] = defaultdict(dict)
-        self._pending_deletes: Dict[str, Set[Any]] = defaultdict(set)
+        self._pending_deletes: Dict[str, Dict[str, Set[Any]]] = defaultdict(
+            lambda: defaultdict(set)
+        )
+        self._id_columns: Dict[str, str] = {}
         self._lock = Lock()
         self._flush_interval = flush_interval
         self._flush_task: Optional[asyncio.Task] = None
@@ -71,12 +74,14 @@ class ParquetCache:
                     self._cache[filepath] = pl.DataFrame()
 
             df = self._cache[filepath]
+            id_column = self._id_columns.get(filepath, "id")
 
             # Apply pending deletes
             if filepath in self._pending_deletes:
-                for id_value in self._pending_deletes[filepath]:
-                    df = df.filter(pl.col("id") != id_value)
-                self._pending_deletes[filepath].clear()
+                for column_name, id_values in self._pending_deletes[filepath].items():
+                    for id_value in id_values:
+                        df = df.filter(pl.col(column_name) != id_value)
+                    id_values.clear()
 
             # Apply pending writes
             if filepath in self._pending_writes:
@@ -84,9 +89,9 @@ class ParquetCache:
                     new_df = pl.DataFrame(new_rows)
 
                     # Remove existing rows with same IDs
-                    if not df.is_empty() and "id" in df.columns:
-                        existing_ids = set(new_df["id"].to_list())
-                        df = df.filter(~pl.col("id").is_in(existing_ids))
+                    if not df.is_empty() and id_column in df.columns:
+                        existing_ids = set(new_df[id_column].to_list())
+                        df = df.filter(~pl.col(id_column).is_in(existing_ids))
 
                     # Concat new data
                     df = new_df if df.is_empty() else pl.concat([df, new_df])
@@ -104,16 +109,16 @@ class ParquetCache:
     ) -> None:
         """Queue a row for upserting"""
         with self._lock:
+            self._id_columns[filepath] = id_column
             id_value = row_data[id_column]
             self._pending_writes[filepath][id_value] = row_data
             self._dirty_files.add(filepath)
 
-    def delete_row(
-        self, id_value: Any, filepath: str, id_column: str = "id"
-    ) -> None:
+    def delete_row(self, id_value: Any, filepath: str, id_column: str = "id") -> None:
         """Queue a row for deletion"""
         with self._lock:
-            self._pending_deletes[filepath].add(id_value)
+            self._id_columns[filepath] = id_column
+            self._pending_deletes[filepath][id_column].add(id_value)
             # Remove from pending writes if it exists
             if id_value in self._pending_writes[filepath]:
                 del self._pending_writes[filepath][id_value]
