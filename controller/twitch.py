@@ -127,6 +127,51 @@ async def log_error(message: str, traceback_str: str) -> None:
     await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
 
 
+def get_error_details(e: Exception) -> ErrorDetails:
+    return {
+        "type": type(e).__name__,
+        "message": str(e),
+        "args": e.args,
+        "traceback": traceback.format_exc(),
+    }
+
+
+async def handle_error(e: Exception, context: str) -> None:
+    error_details = get_error_details(e)
+    error_msg = f"{context} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+    logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+    await log_error(error_msg, error_details["traceback"])
+
+
+async def process_webhook(
+    request: Request, endpoint: str, event_model, expected_type: str, task_func
+) -> Response:
+    try:
+        validation = await validate_call(request, endpoint)
+        if validation:
+            return validation
+
+        body: dict[str, Any] = await request.json()
+        event_sub = event_model.model_validate(body)
+        if event_sub.subscription.type != expected_type:
+            logger.warning(
+                f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
+            )
+            await send_message(
+                f"400: Bad request on {endpoint}. Invalid subscription type.",
+                BOT_ADMIN_CHANNEL,
+            )
+            raise HTTPException(status_code=400)
+
+        _ = asyncio.create_task(task_func(event_sub))
+        return Response(status_code=202)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        await handle_error(e, f"500: Internal server error on {endpoint}")
+        raise HTTPException(status_code=500) from e
+
+
 async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
     broadcaster_id = int(event_sub.event.broadcaster_user_id)
     try:
@@ -645,187 +690,57 @@ async def twitch_oauth_callback_broadcaster(code: str, state: str) -> Response:
 
 @twitch_router.post("/webhook/twitch")
 async def stream_online_webhook(request: Request) -> Response:
-    try:
-        validation = await validate_call(request, "/webhook/twitch")
-        if validation:
-            return validation
-
-        body: dict[str, Any] = await request.json()
-        event_sub = StreamOnlineEventSub.model_validate(body)
-        if event_sub.subscription.type != "stream.online":
-            logger.warning(
-                f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
-            )
-            await send_message(
-                "400: Bad request on /webhook/twitch. Invalid subscription type.",
-                BOT_ADMIN_CHANNEL,
-            )
-            raise HTTPException(status_code=400)
-
-        _ = asyncio.create_task(_stream_online_task(event_sub))
-
-        return Response(status_code=202)
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"500: Internal server error on /webhook/twitch - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
-        raise HTTPException(status_code=500) from e
+    return await process_webhook(
+        request,
+        "/webhook/twitch",
+        StreamOnlineEventSub,
+        "stream.online",
+        _stream_online_task,
+    )
 
 
 @twitch_router.post("/webhook/twitch/offline")
 async def stream_offline_webhook(request: Request) -> Response:
-    try:
-        validation = await validate_call(request, "/webhook/twitch/offline")
-        if validation:
-            return validation
-
-        body: dict[str, Any] = await request.json()
-        event_sub = StreamOfflineEventSub.model_validate(body)
-        if event_sub.subscription.type != "stream.offline":
-            logger.warning(
-                f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
-            )
-            await send_message(
-                "400: Bad request on /webhook/twitch/offline. Invalid subscription type.",
-                BOT_ADMIN_CHANNEL,
-            )
-            raise HTTPException(status_code=400)
-
-        _ = asyncio.create_task(_stream_offline_task(event_sub))
-
-        return Response(status_code=202)
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"500: Internal server error on /webhook/twitch/offline - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
-        raise HTTPException(status_code=500) from e
+    return await process_webhook(
+        request,
+        "/webhook/twitch/offline",
+        StreamOfflineEventSub,
+        "stream.offline",
+        _stream_offline_task,
+    )
 
 
 @twitch_router.post("/webhook/twitch/chat")
 async def channel_chat_message_webhook(request: Request) -> Response:
-    try:
-        validation = await validate_call(request, "/webhook/twitch/chat")
-        if validation:
-            return validation
-
-        body: dict[str, Any] = await request.json()
-        event_sub = ChannelChatMessageEventSub.model_validate(body)
-        if event_sub.subscription.type != "channel.chat.message":
-            logger.warning(
-                f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
-            )
-            await send_message(
-                "400: Bad request on /webhook/twitch/chat. Invalid subscription type.",
-                BOT_ADMIN_CHANNEL,
-            )
-            raise HTTPException(status_code=400)
-
-        _ = asyncio.create_task(_channel_chat_message_task(event_sub))
-
-        return Response(status_code=202)
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"500: Internal server error on /webhook/twitch/chat - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
-        raise HTTPException(status_code=500) from e
+    return await process_webhook(
+        request,
+        "/webhook/twitch/chat",
+        ChannelChatMessageEventSub,
+        "channel.chat.message",
+        _channel_chat_message_task,
+    )
 
 
 @twitch_router.post("/webhook/twitch/follow")
 async def channel_follow_webhook(request: Request) -> Response:
-    try:
-        validation = await validate_call(request, "/webhook/twitch/follow")
-        if validation:
-            return validation
-
-        body: dict[str, Any] = await request.json()
-        event_sub = ChannelFollowEventSub.model_validate(body)
-        if event_sub.subscription.type != "channel.follow":
-            logger.warning(
-                f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
-            )
-            await send_message(
-                "400: Bad request on /webhook/twitch/follow. Invalid subscription type.",
-                BOT_ADMIN_CHANNEL,
-            )
-            raise HTTPException(status_code=400)
-
-        _ = asyncio.create_task(_channel_follow_task(event_sub))
-
-        return Response(status_code=202)
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"500: Internal server error on /webhook/twitch/follow - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
-        raise HTTPException(status_code=500) from e
+    return await process_webhook(
+        request,
+        "/webhook/twitch/follow",
+        ChannelFollowEventSub,
+        "channel.follow",
+        _channel_follow_task,
+    )
 
 
 @twitch_router.post("/webhook/twitch/adbreak")
 async def channel_ad_break_begin_webhook(request: Request) -> Response:
-    try:
-        validation = await validate_call(request, "/webhook/twitch/adbreak")
-        if validation:
-            return validation
-
-        body: dict[str, Any] = await request.json()
-        event_sub = ChannelAdBreakBeginEventSub.model_validate(body)
-        if event_sub.subscription.type != "channel.ad_break.begin":
-            logger.warning(
-                f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
-            )
-            await send_message(
-                "400: Bad request on /webhook/twitch/adbreak. Invalid subscription type.",
-                BOT_ADMIN_CHANNEL,
-            )
-            raise HTTPException(status_code=400)
-
-        _ = asyncio.create_task(_channel_ad_break_begin_task(event_sub))
-
-        return Response(status_code=202)
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"500: Internal server error on /webhook/twitch/adbreak - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
-        raise HTTPException(status_code=500) from e
+    return await process_webhook(
+        request,
+        "/webhook/twitch/adbreak",
+        ChannelAdBreakBeginEventSub,
+        "channel.ad_break.begin",
+        _channel_ad_break_begin_task,
+    )
 
 
 async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
@@ -854,39 +769,13 @@ async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
 
 @twitch_router.post("/webhook/twitch/raid")
 async def channel_raid_webhook(request: Request) -> Response:
-    try:
-        validation = await validate_call(request, "/webhook/twitch/raid")
-        if validation:
-            return validation
-
-        body: dict[str, Any] = await request.json()
-        event_sub = ChannelRaidEventSub.model_validate(body)
-        if event_sub.subscription.type != "channel.raid":
-            logger.warning(
-                f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
-            )
-            await send_message(
-                "400: Bad request on /webhook/twitch/raid. Invalid subscription type.",
-                BOT_ADMIN_CHANNEL,
-            )
-            raise HTTPException(status_code=400)
-
-        _ = asyncio.create_task(_channel_raid_task(event_sub))
-
-        return Response(status_code=202)
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"500: Internal server error on /webhook/twitch/raid - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
-        raise HTTPException(status_code=500) from e
+    return await process_webhook(
+        request,
+        "/webhook/twitch/raid",
+        ChannelRaidEventSub,
+        "channel.raid",
+        _channel_raid_task,
+    )
 
 
 async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
@@ -914,36 +803,10 @@ async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
 
 @twitch_router.post("/webhook/twitch/moderate")
 async def channel_moderate_webhook(request: Request) -> Response:
-    try:
-        validation = await validate_call(request, "/webhook/twitch/moderate")
-        if validation:
-            return validation
-
-        body: dict[str, Any] = await request.json()
-        event_sub = ChannelModerateEventSub.model_validate(body)
-        if event_sub.subscription.type != "channel.moderate":
-            logger.warning(
-                f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
-            )
-            await send_message(
-                "400: Bad request on /webhook/twitch/moderate. Invalid subscription type.",
-                BOT_ADMIN_CHANNEL,
-            )
-            raise HTTPException(status_code=400)
-
-        _ = asyncio.create_task(_channel_moderate_task(event_sub))
-
-        return Response(status_code=202)
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"500: Internal server error on /webhook/twitch/moderate - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
-        raise HTTPException(status_code=500) from e
+    return await process_webhook(
+        request,
+        "/webhook/twitch/moderate",
+        ChannelModerateEventSub,
+        "channel.moderate",
+        _channel_moderate_task,
+    )
