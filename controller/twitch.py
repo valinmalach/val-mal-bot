@@ -27,6 +27,7 @@ from constants import (
     LiveAlert,
 )
 from models import (
+    Channel,
     ChannelAdBreakBeginEventSub,
     ChannelChatMessageEventSub,
     ChannelFollowEventSub,
@@ -35,6 +36,8 @@ from models import (
     RefreshResponse,
     StreamOfflineEventSub,
     StreamOnlineEventSub,
+    User,
+    Video,
 )
 from services import (
     delete_row_from_parquet,
@@ -232,112 +235,162 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
         await log_error(error_msg, error_details["traceback"])
 
 
-async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
-    broadcaster_id = event_sub.event.broadcaster_user_id
+async def _cancel_ad_break_task_if_needed(broadcaster_user_login: str) -> None:
+    """Cancel ad break notification task for the broadcaster if it exists."""
+    if broadcaster_user_login == "valinmalach":
+        await shoutout_queue.deactivate()
+        existing_task = _ad_break_notification_tasks.get(broadcaster_user_login)
+        if existing_task and not existing_task.done():
+            existing_task.cancel()
+
+
+async def _fetch_stream_data(
+    broadcaster_id: int,
+) -> tuple[User | None, Channel | None, dict[str, Any] | None]:
+    """Fetch user info, channel info, and VOD info for the stream."""
+    user_info = await get_user(broadcaster_id)
+    channel_info = await get_channel(broadcaster_id)
+
+    df = await read_parquet_cached(LIVE_ALERTS)
+    alert_row = df.filter(pl.col("id") == broadcaster_id)
+    if alert_row.height == 0:
+        logger.warning(
+            f"Failed to fetch live alert for broadcaster_id={broadcaster_id}: No record found; Skipping"
+        )
+        return None, None, None
+
+    alert = alert_row.row(0, named=True)
+    return user_info, channel_info, alert
+
+
+async def _get_vod_info(broadcaster_id: int, stream_id: str) -> Video | None:
+    """Safely fetch VOD information with error handling."""
+    if not stream_id:
+        return None
+
     try:
-        if event_sub.event.broadcaster_user_login == "valinmalach":
-            await shoutout_queue.deactivate()
-            existing_task = _ad_break_notification_tasks.get(
-                event_sub.event.broadcaster_user_id
-            )
-            if existing_task and not existing_task.done():
-                existing_task.cancel()
+        return await get_stream_vod(broadcaster_id, int(stream_id))
+    except Exception as e:
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Failed to fetch VOD info for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
+        return None
 
-        user_info = await get_user(int(broadcaster_id))
-        channel_info = await get_channel(int(broadcaster_id))
 
-        df = await read_parquet_cached(LIVE_ALERTS)
-        alert_row = df.filter(pl.col("id") == int(broadcaster_id))
-        if alert_row.height == 0:
-            logger.warning(
-                f"Failed to fetch live alert for broadcaster_id={broadcaster_id}: No record found; Skipping"
-            )
+def _create_offline_embed(
+    event_sub: StreamOfflineEventSub,
+    user_info: User | None,
+    channel_info: Channel | None,
+    vod_info: Video | None,
+    stream_started_at: str | None,
+) -> discord.Embed:
+    """Create the offline embed with all necessary information."""
+    url = f"https://www.twitch.tv/{event_sub.event.broadcaster_user_login}"
+    embed = (
+        discord.Embed(
+            description=f"**{channel_info.title if channel_info else ''}**",
+            color=0x9046FF,
+            timestamp=pendulum.now(),
+        )
+        .set_author(
+            name=f"{event_sub.event.broadcaster_user_name} was live",
+            icon_url=user_info.profile_image_url if user_info else None,
+            url=url,
+        )
+        .add_field(
+            name="**Game**",
+            value=f"{channel_info.game_name if channel_info else ''}",
+            inline=True,
+        )
+    )
+
+    if vod_info:
+        vod_url = vod_info.url
+        embed = embed.add_field(
+            name="**VOD**",
+            value=f"[**Click to view**]({vod_url})",
+            inline=True,
+        )
+
+    if stream_started_at:
+        started_at = parse_rfc3339(stream_started_at)
+        age = get_age(started_at, limit_units=2)
+        embed = embed.set_footer(text=f"Online for {age} | Offline at")
+
+    return embed
+
+
+async def _update_offline_message(
+    message_id: int, embed: discord.Embed, channel_id: int, content: str | None
+) -> None:
+    """Update the live alert message to show offline status."""
+    try:
+        await edit_embed(message_id, embed, channel_id, content=content)
+    except discord.NotFound:
+        logger.warning(
+            f"Message not found when editing offline embed for message_id={message_id}; continuing"
+        )
+    except Exception as e:
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error editing offline embed - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
+
+
+async def _cleanup_live_alert(broadcaster_id: int) -> None:
+    """Remove the live alert from storage."""
+    try:
+        await delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
+    except Exception as e:
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Failed to delete live alert for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(error_msg)
+        await log_error(error_msg, error_details["traceback"])
+
+
+async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
+    broadcaster_id = int(event_sub.event.broadcaster_user_id)
+    try:
+        await _cancel_ad_break_task_if_needed(event_sub.event.broadcaster_user_login)
+
+        user_info, channel_info, alert = await _fetch_stream_data(broadcaster_id)
+        if alert is None:
             return
 
-        alert = alert_row.row(0, named=True)
         channel_id = alert.get("channel_id", 0)
         message_id = alert.get("message_id", 0)
         stream_id = alert.get("stream_id", "")
         stream_started_at = alert.get("stream_started_at", "")
 
-        vod_info = None
-        try:
-            vod_info = await get_stream_vod(int(broadcaster_id), stream_id)
-        except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Failed to fetch VOD info for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await log_error(error_msg, error_details["traceback"])
+        vod_info = await _get_vod_info(broadcaster_id, stream_id)
 
         content = (
             f"<@&{LIVE_ALERTS_ROLE}>" if channel_id == STREAM_ALERTS_CHANNEL else None
         )
 
-        url = f"https://www.twitch.tv/{event_sub.event.broadcaster_user_login}"
-        embed = (
-            discord.Embed(
-                description=f"**{channel_info.title if channel_info else ''}**",
-                color=0x9046FF,
-                timestamp=pendulum.now(),
-            )
-            .set_author(
-                name=f"{event_sub.event.broadcaster_user_name} was live",
-                icon_url=user_info.profile_image_url if user_info else None,
-                url=url,
-            )
-            .add_field(
-                name="**Game**",
-                value=f"{channel_info.game_name if channel_info else ''}",
-                inline=True,
-            )
+        embed = _create_offline_embed(
+            event_sub, user_info, channel_info, vod_info, stream_started_at
         )
-        if stream_id and vod_info:
-            vod_url = vod_info.url
-            embed = embed.add_field(
-                name="**VOD**",
-                value=f"[**Click to view**]({vod_url})",
-                inline=True,
-            )
-        if stream_started_at:
-            started_at = parse_rfc3339(stream_started_at)
-            age = get_age(started_at, limit_units=2)
-            embed = embed.set_footer(
-                text=f"Online for {age} | Offline at",
-            )
-        try:
-            await edit_embed(message_id, embed, channel_id, content=content)
-        except discord.NotFound:
-            logger.warning(
-                f"Message not found when editing offline embed for message_id={message_id}; continuing"
-            )
-        except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Error editing offline embed for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await log_error(error_msg, error_details["traceback"])
 
-        try:
-            await delete_row_from_parquet(int(broadcaster_id), LIVE_ALERTS)
-        except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Failed to delete live alert for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(error_msg)
-            await log_error(error_msg, error_details["traceback"])
+        await _update_offline_message(message_id, embed, channel_id, content)
+        await _cleanup_live_alert(broadcaster_id)
+
     except Exception as e:
         error_details: ErrorDetails = {
             "type": type(e).__name__,
