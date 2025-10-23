@@ -129,7 +129,7 @@ async def handle_new_video(
             logger.info(
                 f"Ignoring existing video for: {video_id} from channel {channel_id}"
             )
-            return
+            return None
 
         await add_video_to_parquet(channel_id, video_id)
 

@@ -63,7 +63,7 @@ class Admin(Cog):
             logger.warning(
                 f"Nuke aborted: invalid channel type {type(interaction.channel)}"
             )
-            return
+            return None
         await interaction.response.send_message("Nuking channel...")
         await interaction.channel.purge(limit=None)
 
@@ -113,7 +113,7 @@ class Admin(Cog):
                 color=discord.Color.red(),
             )
             await interaction.response.send_message(embed=embed)
-            return
+            return None
 
         grouped_subscriptions: dict[str, List[str]] = {}
         for subscription in subscriptions:

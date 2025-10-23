@@ -66,14 +66,14 @@ async def hug(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     if not target:
         message = f"{chatter_name} gives everyone a big warm hug. How sweet! <3"
         await twitch_send_message(broadcaster_id, message)
-        return
+        return None
     message = f"{chatter_name} gives {target} a big warm hug. How sweet! <3"
     await twitch_send_message(broadcaster_id, message)
 
 
 async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     if not await check_mod(event_sub):
-        return
+        return None
 
     broadcaster_id = event_sub.event.broadcaster_user_id
     target = (
@@ -87,7 +87,7 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     if not target_channel:
         message = "User not found."
         await twitch_send_message(broadcaster_id, message)
-        return
+        return None
 
     if shoutout_queue.activated:
         shoutout_queue.add_to_queue(target)
@@ -98,7 +98,7 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
 
 async def everything(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     if not await check_mod(event_sub):
-        return
+        return None
 
     await discord_command(event_sub, args)
     await socials(event_sub, args)

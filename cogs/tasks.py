@@ -116,7 +116,7 @@ class Tasks(Cog):
 
             author_feed = await self._fetch_author_feed()
             if author_feed is None:
-                return
+                return None
 
             posts = self._extract_new_posts(author_feed, last_sync_date_time)
             await self._process_posts(posts)

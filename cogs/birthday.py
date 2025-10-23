@@ -50,7 +50,7 @@ class Birthday(GroupCog):
                 interaction, month, day, timezone
             )
             if validation_error:
-                return
+                return None
 
             # Calculate next birthday year
             year = self._calculate_next_birthday_year(month, day, timezone)
@@ -222,7 +222,7 @@ class Birthday(GroupCog):
                 await interaction.response.send_message(
                     "An error occurred while trying to remove your birthday."
                 )
-                return
+                return None
 
             record: UserRecord = {
                 "id": interaction.user.id,
@@ -236,7 +236,7 @@ class Birthday(GroupCog):
                 await interaction.response.send_message(
                     "I've removed your birthday! I won't wish you anymore!"
                 )
-                return
+                return None
 
             await interaction.response.send_message(
                 "You had no birthday to remove. "

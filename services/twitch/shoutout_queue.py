@@ -74,12 +74,12 @@ class TwitchShoutoutQueue:
         """Process the shoutout queue once"""
         if len(self._shoutout_queue) == 0:
             await asyncio.sleep(5)
-            return
+            return None
 
         username = self._get_next_available_user()
         if username is None:
             await asyncio.sleep(5)
-            return
+            return None
 
         await self._execute_shoutout(username)
 
@@ -90,7 +90,7 @@ class TwitchShoutoutQueue:
         user = await get_user_by_username(username)
         if not user:
             await self._handle_user_not_found(username)
-            return
+            return None
 
         success = await self._send_shoutout_request(username, user.id)
         if success:

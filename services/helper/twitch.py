@@ -183,7 +183,7 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
                 f"Failed to send message: {response.status_code if response else 'No response'} {response.text if response else ''}",
                 BOT_ADMIN_CHANNEL,
             )
-            return
+            return None
     except Exception as e:
         error_details: ErrorDetails = {
             "type": type(e).__name__,

@@ -60,7 +60,7 @@ async def send_message(
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
     ):
-        return
+        return None
     if file:
         return (await channel.send(content, file=file)).id
     return (await channel.send(content)).id
@@ -76,7 +76,7 @@ async def send_embed(
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
     ):
-        return
+        return None
     if view:
         return (await channel.send(content=content, embed=embed, view=view)).id
     return (await channel.send(content=content, embed=embed)).id
@@ -93,7 +93,7 @@ async def edit_embed(
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
     ):
-        return
+        return None
     message = await channel.fetch_message(message_id)
     if view:
         await message.edit(content=content, embed=embed, view=view)
@@ -289,7 +289,7 @@ async def toggle_role(
 ) -> Optional[tuple[bool, Role]]:
     member, role = get_member_role(guild_id, user_id, emoji)
     if not member or not role:
-        return
+        return None
 
     if member.get_role(role.id) is None:
         await member.add_roles(role)
@@ -308,21 +308,21 @@ async def roles_button_pressed(interaction: Interaction, button: Button) -> None
             "An error has occurred. Contact an admin.",
             ephemeral=True,
         )
-        return
+        return None
     res = await toggle_role(guild_id, member_id, emoji)
     if res is None:
         await interaction.response.send_message(
             "An error has occured. Contact an admin.",
             ephemeral=True,
         )
-        return
+        return None
     success, role = res
     if not success:
         await interaction.response.send_message(
             f"Your {role.mention} role has been removed.",
             ephemeral=True,
         )
-        return
+        return None
     await interaction.response.send_message(
         f"You have received the {role.mention} role.",
         ephemeral=True,

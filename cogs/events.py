@@ -146,7 +146,7 @@ class Events(Cog):
     async def on_message(self, message: Message) -> None:
         try:
             if message.author == self.bot.user:
-                return
+                return None
 
             message_obj = await self._get_message_object(message)
             await self._safe_parquet_operation(
@@ -389,7 +389,7 @@ class Events(Cog):
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent) -> None:
         try:
             if await self._is_bot_message(payload):
-                return
+                return None
 
             before = payload.cached_message
             after = payload.message
@@ -403,7 +403,7 @@ class Events(Cog):
             after_content = after.content
 
             if before_content == after_content:
-                return
+                return None
 
             await self._log_message_edit(
                 after, before_content, after_content, discriminator, url
@@ -420,7 +420,7 @@ class Events(Cog):
                 payload.cached_message is not None
                 and payload.cached_message.author == self.bot.user
             ):
-                return
+                return None
 
             user_who_deleted = await self._get_audit_user(
                 payload.guild_id, discord.AuditLogAction.message_delete
@@ -433,7 +433,7 @@ class Events(Cog):
                 await self._log_deleted_missing_message(
                     payload.message_id, user_who_deleted, channel
                 )
-                return
+                return None
 
             author = message.author
 

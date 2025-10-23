@@ -298,7 +298,7 @@ async def get_channel(id: int) -> Optional[Channel]:
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
         await _handle_invalid_response(response, "Failed to fetch channel info")
-        return
+        return None
     channel_info_response = ChannelResponse.model_validate(response.json())
     return channel_info_response.data[0] if channel_info_response.data else None
 
@@ -316,7 +316,7 @@ async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
         await _handle_invalid_response(response, "Failed to fetch stream info")
-        return
+        return None
     stream_info_response = StreamResponse.model_validate(response.json())
     return stream_info_response.data[0] if stream_info_response.data else None
 
@@ -334,7 +334,7 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
         await _handle_invalid_response(response, "Failed to fetch VOD info")
-        return
+        return None
     video_info_response = VideoResponse.model_validate(response.json())
     return next(
         (
@@ -359,7 +359,7 @@ async def get_ad_schedule(broadcaster_id: int) -> Optional[AdSchedule]:
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
         await _handle_invalid_response(response, "Failed to fetch ad schedule")
-        return
+        return None
     ad_schedule_response = AdScheduleResponse.model_validate(response.json())
     return ad_schedule_response.data[0] if ad_schedule_response.data else None
 
@@ -652,7 +652,7 @@ async def _run_update_cycle(
     # Fetch current data
     alert = await _validate_alert_exists(broadcaster_id)
     if alert is None:
-        return
+        return None
 
     stream_info = await get_stream_info(broadcaster_id)
     user_info = await get_user(broadcaster_id)
@@ -684,7 +684,7 @@ async def _run_update_cycle(
             content,
             channel_info,
         )
-        return
+        return None
 
     # Update live embed
     url = f"https://www.twitch.tv/{stream_info.user_login}"
@@ -705,7 +705,7 @@ async def _run_update_cycle(
     )
 
     if not should_continue:
-        return
+        return None
 
 
 async def update_alert(
@@ -727,7 +727,7 @@ async def update_alert(
         # Initial validation
         alert = await _validate_alert_exists(broadcaster_id)
         if alert is None:
-            return
+            return None
 
         # Main update loop
         while True:

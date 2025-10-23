@@ -210,7 +210,7 @@ async def _handle_broadcaster_stream_start(
 ) -> None:
     """Send welcome messages when the main broadcaster goes live."""
     if not is_main_broadcaster:
-        return
+        return None
 
     _ = asyncio.create_task(shoutout_queue.activate())
     await twitch_send_message(
@@ -319,7 +319,7 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
                 BOT_ADMIN_CHANNEL,
             )
             logger.error(f"Failed to send embed for broadcaster {broadcaster_id}")
-            return
+            return None
 
         await _save_live_alert(broadcaster_id, channel, message_id, stream_info)
 
@@ -441,7 +441,7 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
 
         user_info, channel_info, alert = await _fetch_stream_data(broadcaster_id)
         if alert is None:
-            return
+            return None
 
         channel_id, message_id, stream_id, stream_started_at = _extract_alert_data(
             alert
@@ -480,7 +480,7 @@ async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> N
     }
     try:
         if not event_sub.event.message.text.startswith("!"):
-            return
+            return None
         text_without_prefix = event_sub.event.message.text[1:]
         command_parts = text_without_prefix.split(" ", 1)
         command = command_parts[0].lower()
@@ -491,7 +491,7 @@ async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> N
             and event_sub.event.source_broadcaster_user_id
             != event_sub.event.broadcaster_user_id
         ):
-            return
+            return None
 
         async def default_command(
             event_sub: ChannelChatMessageEventSub, args: str
@@ -536,7 +536,7 @@ async def _schedule_next_ad_break_notification(broadcaster_id: str) -> None:
     try:
         ad_schedule = await get_ad_schedule(int(broadcaster_id))
         if not ad_schedule:
-            return
+            return None
 
         next_ad_time = pendulum.from_timestamp(ad_schedule.next_ad_at)
         notify_time = next_ad_time.subtract(minutes=5)
@@ -749,7 +749,7 @@ async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
         if event_sub.event.action != "raid" or not _is_main_broadcaster(
             event_sub.event.broadcaster_user_id
         ):
-            return
+            return None
         await twitch_send_message(
             event_sub.event.broadcaster_user_id,
             "Have a great rest of your day! valinmHeart Don't forget to stay hydrated and take care of yourself! valinmHeart",
