@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 
 from constants import (
     BOT_ADMIN_CHANNEL,
+    BROADCASTER_USERNAME,
     HMAC_PREFIX,
     LIVE_ALERTS,
     LIVE_ALERTS_ROLE,
@@ -136,7 +137,7 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
             stream_info = await get_stream_info(broadcaster_id)
 
         channel = PROMO_CHANNEL
-        if stream_info.user_login == "valinmalach":
+        if stream_info.user_login == BROADCASTER_USERNAME:
             channel = STREAM_ALERTS_CHANNEL
             asyncio.create_task(shoutout_queue.activate())
             await twitch_send_message(
@@ -237,7 +238,7 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
 
 def _cancel_ad_break_task_if_needed(broadcaster_user_login: str) -> None:
     """Cancel ad break notification task for the broadcaster if it exists."""
-    if broadcaster_user_login == "valinmalach":
+    if broadcaster_user_login == BROADCASTER_USERNAME:
         shoutout_queue.deactivate()
         existing_task = _ad_break_notification_tasks.get(broadcaster_user_login)
         if existing_task and not existing_task.done():
