@@ -40,19 +40,13 @@ logger = logging.getLogger(__name__)
 async def upsert_row_to_parquet_async(
     row_data: dict | UserRecord | LiveAlert, filepath: str, id_column: str = "id"
 ) -> None:
-    try:
-        await parquet_cache.upsert_row(row_data, filepath, id_column)
-    except Exception as e:
-        raise e
+    await parquet_cache.upsert_row(row_data, filepath, id_column)
 
 
 async def delete_row_from_parquet(
     id_value: str | int, filepath: str, id_column: str = "id"
 ) -> None:
-    try:
-        await parquet_cache.delete_row(id_value, filepath, id_column)
-    except Exception as e:
-        raise e
+    await parquet_cache.delete_row(id_value, filepath, id_column)
 
 
 async def read_parquet_cached(filepath: str) -> DataFrame:
@@ -116,10 +110,7 @@ def get_discriminator(member: User | Member) -> str:
 
 
 async def update_birthday(record: UserRecord) -> None:
-    try:
-        await upsert_row_to_parquet_async(record, "data/users.parquet")
-    except Exception as e:
-        raise e
+    await upsert_row_to_parquet_async(record, "data/users.parquet")
 
 
 def get_channel_mention(
@@ -154,6 +145,7 @@ def get_channel_mention(
 def get_age(date_time: DateTime, limit_units: int = -1) -> str:
     now = pendulum.now("UTC")
     age = now - date_time if date_time <= now else date_time - now
+
     years, months, days, hours, minutes, seconds = (
         age.years,
         age.months,
@@ -162,28 +154,53 @@ def get_age(date_time: DateTime, limit_units: int = -1) -> str:
         age.minutes,
         age.remaining_seconds,
     )
-    parts = []
-    if years > 0 or months > 0:
-        if years:
-            parts.append(format_unit(years, "year"))
-        if months:
-            parts.append(format_unit(months, "month"))
-        if days:
-            parts.append(format_unit(days, "day"))
-    else:
-        if weeks := days // 7:
-            parts.append(format_unit(weeks, "week"))
-        if days := days % 7:
-            parts.append(format_unit(days, "day"))
-        if hours:
-            parts.append(format_unit(hours, "hour"))
-        if minutes:
-            parts.append(format_unit(minutes, "minute"))
-        if seconds or not parts:
-            seconds = round(seconds)
-            parts.append(format_unit(seconds, "second"))
-    parts = parts[:limit_units]
+
+    parts = _get_age_parts(years, months, days, hours, minutes, seconds)
+    parts = parts[:limit_units] if limit_units > 0 else parts
     return ", ".join(parts)
+
+
+def _get_age_parts(
+    years: int, months: int, days: int, hours: int, minutes: int, seconds: int
+) -> list[str]:
+    """Extract age parts based on the time units."""
+    if years > 0 or months > 0:
+        return _get_large_time_units(years, months, days)
+    return _get_small_time_units(days, hours, minutes, seconds)
+
+
+def _get_large_time_units(years: int, months: int, days: int) -> list[str]:
+    """Get age parts for years, months, and days."""
+    parts = []
+    if years:
+        parts.append(format_unit(years, "year"))
+    if months:
+        parts.append(format_unit(months, "month"))
+    if days:
+        parts.append(format_unit(days, "day"))
+    return parts
+
+
+def _get_small_time_units(
+    days: int, hours: int, minutes: int, seconds: int
+) -> list[str]:
+    """Get age parts for smaller time units (weeks, days, hours, minutes, seconds)."""
+    parts = []
+
+    weeks, remaining_days = divmod(days, 7)
+    if weeks:
+        parts.append(format_unit(weeks, "week"))
+    if remaining_days:
+        parts.append(format_unit(remaining_days, "day"))
+    if hours:
+        parts.append(format_unit(hours, "hour"))
+    if minutes:
+        parts.append(format_unit(minutes, "minute"))
+    if seconds or not parts:
+        seconds = round(seconds)
+        parts.append(format_unit(seconds, "second"))
+
+    return parts
 
 
 @cache
