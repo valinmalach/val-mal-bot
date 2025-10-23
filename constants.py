@@ -52,6 +52,8 @@ COGS = ["cogs.admin", "cogs.birthday", "cogs.events", "cogs.tasks"]
 
 DEFAULT_MISSING_CONTENT = "`Message content not found in cache`"
 
+YOUTUBE_CHANNEL_IDS = ["UC0mQZHMy8vp-r7KD3-r6S3A"]
+
 
 class Months(Enum):
     January = 1
