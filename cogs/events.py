@@ -393,13 +393,79 @@ class Events(Cog):
         """Check if a member is currently timed out."""
         return timeout_until is not None and timeout_until > pendulum.now()
 
+    async def _is_bot_message(self, payload: RawMessageUpdateEvent) -> bool:
+        """Check if the message was sent by the bot."""
+        return payload.message.author == self.bot.user or (
+            payload.cached_message is not None
+            and payload.cached_message.author == self.bot.user
+        )
+
+    async def _get_before_content(self, before: Message | None, message_id: int) -> str:
+        """Get the content of the message before editing."""
+        try:
+            if before:
+                return before.content
+            return await self._get_message_content(message_id)
+        except KeyError:
+            return DEFAULT_MISSING_CONTENT
+
+    def _truncate_content(self, content: str, max_length: int = 1024) -> str:
+        """Truncate content if it exceeds the maximum length."""
+        if len(content) > max_length:
+            return f"{content[: max_length - 3]}..."
+        return content
+
+    async def _log_message_edit(
+        self,
+        after: Message,
+        before_content: str,
+        after_content: str,
+        discriminator: str,
+        url: str,
+    ) -> None:
+        """Log the message edit to the audit logs channel."""
+        channel_mention = get_channel_mention(after.channel)
+        message = f"**Message edited in {channel_mention}** [Jump to Message]({after.jump_url})"
+
+        before_content = self._truncate_content(before_content)
+        after_content = self._truncate_content(after_content)
+
+        embed = (
+            Embed(
+                description=message,
+                color=0x337FD5,
+                timestamp=pendulum.now(),
+            )
+            .set_author(
+                name=f"{after.author.name}{discriminator}",
+                icon_url=url,
+            )
+            .set_footer(text=f"User ID: {after.author.id}")
+            .add_field(name="**Before**", value=f"{before_content}", inline=False)
+            .add_field(name="**After**", value=f"{after_content}", inline=False)
+        )
+        await send_embed(embed, AUDIT_LOGS_CHANNEL)
+
+    async def _update_message_in_parquet(self, message: Message) -> None:
+        """Update the message in the parquet file."""
+        try:
+            message_obj = await self._get_message_object(message)
+            upsert_row_to_parquet(message_obj, MESSAGES)
+        except Exception as e:
+            error_details: ErrorDetails = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "args": e.args,
+                "traceback": traceback.format_exc(),
+            }
+            error_msg = f"Failed to upsert message {message.id} in parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+            await self._send_error_message(error_msg, error_details["traceback"])
+
     @Cog.listener()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent) -> None:
         try:
-            if payload.message.author == self.bot.user or (
-                payload.cached_message is not None
-                and payload.cached_message.author == self.bot.user
-            ):
+            if await self._is_bot_message(payload):
                 return
 
             before = payload.cached_message
@@ -410,70 +476,17 @@ class Events(Cog):
             if before and before.pinned != after.pinned:
                 await self._log_message_pin(after, discriminator, url)
 
-            channel_mention = get_channel_mention(after.channel)
-
-            try:
-                if before:
-                    before_content = before.content
-                else:
-                    before_content = await self._get_message_content(after.id)
-            except KeyError:
-                before_content = DEFAULT_MISSING_CONTENT
-
+            before_content = await self._get_before_content(before, after.id)
             after_content = after.content
+
             if before_content == after_content:
                 return
 
-            before_content = (
-                f"{before_content[:1021]}..."
-                if len(before_content) > 1024
-                else before_content
+            await self._log_message_edit(
+                after, before_content, after_content, discriminator, url
             )
-            after_content = (
-                f"{after_content[:1021]}..."
-                if len(after_content) > 1024
-                else after_content
-            )
+            await self._update_message_in_parquet(after)
 
-            message = f"**Message edited in {channel_mention}** [Jump to Message]({after.jump_url})"
-            embed = (
-                Embed(
-                    description=message,
-                    color=0x337FD5,
-                    timestamp=pendulum.now(),
-                )
-                .set_author(
-                    name=f"{after.author.name}{discriminator}",
-                    icon_url=url,
-                )
-                .set_footer(text=f"User ID: {after.author.id}")
-                .add_field(name="**Before**", value=f"{before_content}", inline=False)
-                .add_field(name="**After**", value=f"{after_content}", inline=False)
-            )
-            await send_embed(
-                embed,
-                AUDIT_LOGS_CHANNEL,
-            )
-
-            try:
-                after_message_obj = await self._get_message_object(after)
-                upsert_row_to_parquet(
-                    after_message_obj,
-                    MESSAGES,
-                )
-            except Exception as e:
-                error_details: ErrorDetails = {
-                    "type": type(e).__name__,
-                    "message": str(e),
-                    "args": e.args,
-                    "traceback": traceback.format_exc(),
-                }
-                error_msg = f"Failed to upsert message {after.id} in parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-                await self._send_error_message(
-                    error_msg,
-                    error_details["traceback"],
-                )
         except Exception as e:
             error_details: ErrorDetails = {
                 "type": type(e).__name__,
