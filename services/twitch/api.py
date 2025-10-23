@@ -627,12 +627,7 @@ async def _validate_alert_exists(broadcaster_id: int) -> Optional[dict]:
     """Check if alert record exists and return it."""
     df = await read_parquet_cached(LIVE_ALERTS)
     alert_row = df.filter(pl.col("id") == broadcaster_id)
-    if alert_row.height == 0:
-        logger.warning(
-            f"No live alert record found for broadcaster_id={broadcaster_id}; exiting"
-        )
-        return None
-    return alert_row.row(0, named=True)
+    return None if alert_row.height == 0 else alert_row.row(0, named=True)
 
 
 def _should_trigger_offline_sequence(

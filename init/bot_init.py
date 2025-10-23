@@ -38,7 +38,7 @@ async def restart_live_alert_tasks() -> None:
         message_id = alert["message_id"]
         stream_id = alert["stream_id"]
         stream_started_at = alert["stream_started_at"]
-        asyncio.create_task(
+        _ = asyncio.create_task(
             update_alert(
                 broadcaster_id=broadcaster_id,
                 channel_id=channel_id,
@@ -59,7 +59,7 @@ async def activate_if_live() -> None:
 
     stream_info = await get_stream_info(int(TWITCH_BROADCASTER_ID))
     if stream_info and stream_info.type == "live":
-        asyncio.create_task(shoutout_queue.activate())
+        _ = asyncio.create_task(shoutout_queue.activate())
 
 
 def check_data_files_exist() -> None:
@@ -68,6 +68,12 @@ def check_data_files_exist() -> None:
         if not os.path.isfile(file_path):
             empty_df = pl.DataFrame(schema=schema)
             empty_df.write_parquet(file_path)
+
+
+async def run_background_tasks():
+    await asyncio.gather(
+        restart_live_alert_tasks(), activate_if_live(), return_exceptions=True
+    )
 
 
 class MyBot(Bot):
@@ -109,8 +115,8 @@ bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 @bot.event
 async def on_ready() -> None:
     check_data_files_exist()
-    asyncio.create_task(restart_live_alert_tasks())
-    asyncio.create_task(activate_if_live())
+
+    _ = asyncio.create_task(run_background_tasks())
 
     channel = bot.get_channel(BOT_ADMIN_CHANNEL)
     if channel is None or isinstance(

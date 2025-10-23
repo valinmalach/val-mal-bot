@@ -1,5 +1,3 @@
-import traceback
-
 import truststore
 
 truststore.inject_into_ssl()
@@ -7,6 +5,7 @@ truststore.inject_into_ssl()
 import asyncio
 import logging
 import os
+import traceback
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -64,7 +63,7 @@ async def main() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    asyncio.create_task(main())
+    _ = asyncio.create_task(main())
     yield
     await http_client_manager.close()
 

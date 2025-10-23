@@ -139,7 +139,7 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
         channel = PROMO_CHANNEL
         if stream_info.user_login == BROADCASTER_USERNAME:
             channel = STREAM_ALERTS_CHANNEL
-            asyncio.create_task(shoutout_queue.activate())
+            _ = asyncio.create_task(shoutout_queue.activate())
             await twitch_send_message(
                 str(broadcaster_id),
                 "NilavHcalam is here valinmArrive",
@@ -205,7 +205,7 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
 
         try:
             upsert_row_to_parquet(alert, LIVE_ALERTS)
-            asyncio.create_task(
+            _ = asyncio.create_task(
                 update_alert(
                     broadcaster_id,
                     channel,
@@ -662,7 +662,7 @@ async def stream_online_webhook(request: Request) -> Response:
             )
             raise HTTPException(status_code=400)
 
-        asyncio.create_task(_stream_online_task(event_sub))
+        _ = asyncio.create_task(_stream_online_task(event_sub))
 
         return Response(status_code=202)
     except HTTPException as e:
@@ -699,7 +699,7 @@ async def stream_offline_webhook(request: Request) -> Response:
             )
             raise HTTPException(status_code=400)
 
-        asyncio.create_task(_stream_offline_task(event_sub))
+        _ = asyncio.create_task(_stream_offline_task(event_sub))
 
         return Response(status_code=202)
     except HTTPException as e:
@@ -736,7 +736,7 @@ async def channel_chat_message_webhook(request: Request) -> Response:
             )
             raise HTTPException(status_code=400)
 
-        asyncio.create_task(_channel_chat_message_task(event_sub))
+        _ = asyncio.create_task(_channel_chat_message_task(event_sub))
 
         return Response(status_code=202)
     except HTTPException as e:
@@ -773,7 +773,7 @@ async def channel_follow_webhook(request: Request) -> Response:
             )
             raise HTTPException(status_code=400)
 
-        asyncio.create_task(_channel_follow_task(event_sub))
+        _ = asyncio.create_task(_channel_follow_task(event_sub))
 
         return Response(status_code=202)
     except HTTPException as e:
@@ -810,7 +810,7 @@ async def channel_ad_break_begin_webhook(request: Request) -> Response:
             )
             raise HTTPException(status_code=400)
 
-        asyncio.create_task(_channel_ad_break_begin_task(event_sub))
+        _ = asyncio.create_task(_channel_ad_break_begin_task(event_sub))
 
         return Response(status_code=202)
     except HTTPException as e:
@@ -871,7 +871,7 @@ async def channel_raid_webhook(request: Request) -> Response:
             )
             raise HTTPException(status_code=400)
 
-        asyncio.create_task(_channel_raid_task(event_sub))
+        _ = asyncio.create_task(_channel_raid_task(event_sub))
 
         return Response(status_code=202)
     except HTTPException as e:
@@ -931,7 +931,7 @@ async def channel_moderate_webhook(request: Request) -> Response:
             )
             raise HTTPException(status_code=400)
 
-        asyncio.create_task(_channel_moderate_task(event_sub))
+        _ = asyncio.create_task(_channel_moderate_task(event_sub))
 
         return Response(status_code=202)
     except HTTPException as e:
