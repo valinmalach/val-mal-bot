@@ -59,6 +59,37 @@ async def log_error(message: str, traceback_str: str) -> None:
     await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
 
 
+def _create_error_details(e: Exception) -> ErrorDetails:
+    """Create a standardized error details dictionary from an exception."""
+    return {
+        "type": type(e).__name__,
+        "message": str(e),
+        "args": e.args,
+        "traceback": traceback.format_exc(),
+    }
+
+
+async def _log_and_report_error(error_msg: str, error_details: ErrorDetails) -> None:
+    """Log an error and report it to the admin channel."""
+    logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+    await log_error(error_msg, error_details["traceback"])
+
+
+async def _handle_api_exception(e: Exception, context: str) -> None:
+    """Handle exceptions from API calls with standardized logging and reporting."""
+    error_details = _create_error_details(e)
+    error_msg = f"{context} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+    await _log_and_report_error(error_msg, error_details)
+
+
+async def _handle_invalid_response(response, context: str) -> None:
+    """Handle invalid HTTP responses with standardized logging and reporting."""
+    status = response.status_code if response else "No response"
+    text = response.text if response else ""
+    logger.warning(f"{context}: {status}")
+    await send_message(f"{context}: {status} {text}", BOT_ADMIN_CHANNEL)
+
+
 async def retry_api_call(func, *args, max_retries=3, delay=1, **kwargs):
     """Retry API calls with exponential backoff for connection issues."""
     for attempt in range(max_retries):
@@ -88,26 +119,12 @@ async def retry_api_call(func, *args, max_retries=3, delay=1, **kwargs):
 
 async def _handle_subscription_request_error(e: Exception) -> None:
     """Handle errors from subscription API requests."""
-    error_details: ErrorDetails = {
-        "type": type(e).__name__,
-        "message": str(e),
-        "args": e.args,
-        "traceback": traceback.format_exc(),
-    }
-    error_msg = f"Error fetching subscriptions after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-    logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-    await log_error(error_msg, error_details["traceback"])
+    await _handle_api_exception(e, "Error fetching subscriptions after retries")
 
 
 async def _handle_subscription_response_error(response) -> None:
     """Handle HTTP response errors from subscription API."""
-    logger.warning(
-        f"Error fetching subscriptions: {response.status_code if response else 'No response'}"
-    )
-    await send_message(
-        f"Failed to fetch subscriptions: {response.status_code if response else 'No response'} {response.text if response else ''}",
-        BOT_ADMIN_CHANNEL,
-    )
+    await _handle_invalid_response(response, "Error fetching subscriptions")
 
 
 def _is_valid_response(response) -> bool:
@@ -164,25 +181,11 @@ async def get_user(id: int) -> Optional[User]:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Error fetching user info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await _handle_api_exception(e, "Failed to fetch user info after retries")
         return None
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
-        logger.warning(
-            f"Failed to fetch user info: {response.status_code if response else 'No response'}"
-        )
-        await send_message(
-            f"Failed to fetch user info: {response.status_code if response else 'No response'} {response.text if response else ''}",
-            BOT_ADMIN_CHANNEL,
-        )
+        await _handle_invalid_response(response, "Failed to fetch user info")
         return None
     user_info_response = UserResponse.model_validate(response.json())
     return user_info_response.data[0] if user_info_response.data else None
@@ -194,26 +197,12 @@ async def get_user_by_username(username: str) -> Optional[User]:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Failed to fetch user info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await _handle_api_exception(e, "Failed to fetch user info after retries")
         return None
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
-        logger.warning(
-            f"Failed to fetch user info: {response.status_code if response else 'No response'}"
-        )
-        await send_message(
-            f"Failed to fetch user info: {response.status_code if response else 'No response'} {response.text if response else ''}",
-            BOT_ADMIN_CHANNEL,
-        )
-        return
+        await _handle_invalid_response(response, "Failed to fetch user info")
+        return None
     user_info_response = UserResponse.model_validate(response.json())
     return user_info_response.data[0] if user_info_response.data else None
 
@@ -236,24 +225,14 @@ async def twitch_event_subscription(
     try:
         response = await retry_api_call(call_twitch, "POST", url, body)
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Failed to subscribe to {type} event after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await _handle_api_exception(
+            e, f"Failed to subscribe to {sub_type} event after retries"
+        )
         return False
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
-        logger.warning(
-            f"Failed to subscribe to {type} event: {response.status_code if response else 'No response'}"
-        )
-        await send_message(
-            f"Failed to subscribe to {type} event: {response.status_code if response else 'No response'} {response.text if response else ''}",
-            BOT_ADMIN_CHANNEL,
+        await _handle_invalid_response(
+            response, f"Failed to subscribe to {sub_type} event"
         )
         return False
     return True
@@ -281,25 +260,11 @@ async def _fetch_user_batch(batch: List[str]) -> Optional[List[User]]:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Error fetching user infos after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await _handle_api_exception(e, "Error fetching user infos after retries")
         return None
 
     if response is None or not _is_valid_response(response):
-        logger.warning(
-            f"Failed batch fetch of user infos: {response.status_code if response else 'No response'}"
-        )
-        await send_message(
-            f"Failed to fetch users infos: {response.status_code if response else 'No response'} {response.text if response else ''}",
-            BOT_ADMIN_CHANNEL,
-        )
+        await _handle_invalid_response(response, "Failed to fetch users infos")
         return None
 
     user_info_response = UserResponse.model_validate(response.json())
@@ -328,25 +293,11 @@ async def get_channel(id: int) -> Optional[Channel]:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Failed to fetch channel info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await _handle_api_exception(e, "Failed to fetch channel info after retries")
         return None
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
-        logger.warning(
-            f"Failed to fetch channel info: {response.status_code if response else 'No response'}"
-        )
-        await send_message(
-            f"Failed to fetch channel info: {response.status_code if response else 'No response'} {response.text if response else ''}",
-            BOT_ADMIN_CHANNEL,
-        )
+        await _handle_invalid_response(response, "Failed to fetch channel info")
         return
     channel_info_response = ChannelResponse.model_validate(response.json())
     return channel_info_response.data[0] if channel_info_response.data else None
@@ -358,29 +309,13 @@ async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        logger.error(
-            f"Failed to fetch stream info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        )
-        await log_error(
-            f"Failed to fetch stream info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}",
-            error_details["traceback"],
-        )
+        error_details = _create_error_details(e)
+        error_msg = f"Failed to fetch stream info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        await _log_and_report_error(error_msg, error_details)
         return None
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
-        logger.warning(
-            f"Failed to fetch stream info: {response.status_code if response else 'No response'}"
-        )
-        await send_message(
-            f"Failed to fetch stream info: {response.status_code if response else 'No response'} {response.text if response else ''}",
-            BOT_ADMIN_CHANNEL,
-        )
+        await _handle_invalid_response(response, "Failed to fetch stream info")
         return
     stream_info_response = StreamResponse.model_validate(response.json())
     return stream_info_response.data[0] if stream_info_response.data else None
@@ -392,29 +327,13 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        logger.error(
-            f"Failed to fetch VOD info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        )
-        await log_error(
-            f"Failed to fetch VOD info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}",
-            error_details["traceback"],
-        )
+        error_details = _create_error_details(e)
+        error_msg = f"Failed to fetch VOD info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        await _log_and_report_error(error_msg, error_details)
         return None
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
-        logger.warning(
-            f"Failed to fetch VOD info: {response.status_code if response else 'No response'}"
-        )
-        await send_message(
-            f"Failed to fetch VOD info: {response.status_code if response else 'No response'} {response.text if response else ''}",
-            BOT_ADMIN_CHANNEL,
-        )
+        await _handle_invalid_response(response, "Failed to fetch VOD info")
         return
     video_info_response = VideoResponse.model_validate(response.json())
     return next(
@@ -435,25 +354,11 @@ async def get_ad_schedule(broadcaster_id: int) -> Optional[AdSchedule]:
             call_twitch, "GET", url, None, TokenType.Broadcaster
         )
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Failed to fetch ad schedule after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await _handle_api_exception(e, "Failed to fetch ad schedule after retries")
         return None
 
     if response is None or response.status_code < 200 or response.status_code >= 300:
-        logger.warning(
-            f"Failed to fetch ad schedule: {response.status_code if response else 'No response'}"
-        )
-        await send_message(
-            f"Failed to fetch ad schedule: {response.status_code if response else 'No response'} {response.text if response else ''}",
-            BOT_ADMIN_CHANNEL,
-        )
+        await _handle_invalid_response(response, "Failed to fetch ad schedule")
         return
     ad_schedule_response = AdScheduleResponse.model_validate(response.json())
     return ad_schedule_response.data[0] if ad_schedule_response.data else None
@@ -482,15 +387,9 @@ async def _fetch_vod_info_safely(
     try:
         return await get_stream_vod(broadcaster_id, stream_id)
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Failed to fetch VOD info for broadcaster_id={broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await _handle_api_exception(
+            e, f"Failed to fetch VOD info for broadcaster_id={broadcaster_id}"
+        )
         return None
 
 
@@ -571,25 +470,14 @@ async def _handle_embed_edit_error(
         try:
             delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
         except Exception as delete_error:
-            error_details: ErrorDetails = {
-                "type": type(delete_error).__name__,
-                "message": str(delete_error),
-                "args": delete_error.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Failed to delete live alert record for broadcaster_id={broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await log_error(error_msg, error_details["traceback"])
+            await _handle_api_exception(
+                delete_error,
+                f"Failed to delete live alert record for broadcaster_id={broadcaster_id}",
+            )
     else:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Error editing offline embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await _handle_api_exception(
+            e, f"Error editing offline embed for message_id={message_id}"
+        )
 
 
 async def trigger_offline_sequence(
@@ -706,15 +594,10 @@ async def _handle_live_embed_edit_error(
         try:
             delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
         except Exception as delete_error:
-            error_details: ErrorDetails = {
-                "type": type(delete_error).__name__,
-                "message": str(delete_error),
-                "args": delete_error.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Failed to delete live alert record for broadcaster_id={broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await log_error(error_msg, error_details["traceback"])
+            await _handle_api_exception(
+                delete_error,
+                f"Failed to delete live alert record for broadcaster_id={broadcaster_id}",
+            )
         return False
     elif isinstance(e, discord.HTTPException) and e.status == 503:
         logger.warning(
@@ -722,18 +605,12 @@ async def _handle_live_embed_edit_error(
         )
         return True
     else:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
+        error_details = _create_error_details(e)
         if isinstance(e, discord.HTTPException):
             error_msg = f"Discord HTTP error {e.status} when editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
         else:
             error_msg = f"Error editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await _log_and_report_error(error_msg, error_details)
         return True
 
 
@@ -876,12 +753,6 @@ async def update_alert(
                 break
 
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Error updating live alert message for broadcaster_id={broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await _handle_api_exception(
+            e, f"Error updating live alert message for broadcaster_id={broadcaster_id}"
+        )
