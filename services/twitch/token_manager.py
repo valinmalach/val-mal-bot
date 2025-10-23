@@ -2,9 +2,10 @@ import logging
 import os
 from typing import Optional
 
+import aiofiles
 from dotenv import load_dotenv
 
-from constants import BOT_ADMIN_CHANNEL
+from constants import BOT_ADMIN_CHANNEL, TWITCH_DIR
 from models import AuthResponse, RefreshResponse
 from services.helper.helper import send_message
 from services.helper.http_client import http_client_manager
@@ -145,9 +146,9 @@ class TwitchTokenManager:
 
         if auth_response.token_type == "bearer":
             self._app_access_token = auth_response.access_token
-            os.makedirs("data/twitch", exist_ok=True)
-            with open("data/twitch/app_access_token.txt", "w") as f:
-                f.write(self._app_access_token)
+            os.makedirs(TWITCH_DIR, exist_ok=True)
+            async with aiofiles.open(f"{TWITCH_DIR}/app_access_token.txt", "w") as f:
+                await f.write(self._app_access_token)
             return True
         else:
             logger.error(f"Unexpected token type received: {auth_response.token_type}")
@@ -159,22 +160,26 @@ class TwitchTokenManager:
     async def set_user_access_token(self, auth_response: RefreshResponse) -> None:
         self._user_access_token = auth_response.access_token
         self._user_refresh_token = auth_response.refresh_token
-        os.makedirs("data/twitch", exist_ok=True)
-        with open("data/twitch/user_access_token.txt", "w") as f:
-            f.write(self._user_access_token)
-        with open("data/twitch/user_refresh_token.txt", "w") as f:
-            f.write(self._user_refresh_token)
+        os.makedirs(TWITCH_DIR, exist_ok=True)
+        async with aiofiles.open(f"{TWITCH_DIR}/user_access_token.txt", "w") as f:
+            await f.write(self._user_access_token)
+        async with aiofiles.open(f"{TWITCH_DIR}/user_refresh_token.txt", "w") as f:
+            await f.write(self._user_refresh_token)
 
     async def set_broadcaster_access_token(
         self, auth_response: RefreshResponse
     ) -> None:
         self._broadcaster_access_token = auth_response.access_token
         self._broadcaster_refresh_token = auth_response.refresh_token
-        os.makedirs("data/twitch", exist_ok=True)
-        with open("data/twitch/broadcaster_access_token.txt", "w") as f:
-            f.write(self._broadcaster_access_token)
-        with open("data/twitch/broadcaster_refresh_token.txt", "w") as f:
-            f.write(self._broadcaster_refresh_token)
+        os.makedirs(TWITCH_DIR, exist_ok=True)
+        async with aiofiles.open(
+            f"{TWITCH_DIR}/broadcaster_access_token.txt", "w"
+        ) as f:
+            await f.write(self._broadcaster_access_token)
+        async with aiofiles.open(
+            f"{TWITCH_DIR}/broadcaster_refresh_token.txt", "w"
+        ) as f:
+            await f.write(self._broadcaster_refresh_token)
 
     async def refresh_user_access_token(self, broadcaster: bool = False) -> bool:
         if not broadcaster and not self._user_refresh_token:
