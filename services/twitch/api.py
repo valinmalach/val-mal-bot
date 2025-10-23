@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 from constants import (
     BOT_ADMIN_CHANNEL,
+    LIVE_ALERTS,
     LIVE_ALERTS_ROLE,
     STREAM_ALERTS_CHANNEL,
     ErrorDetails,
@@ -450,7 +451,7 @@ async def trigger_offline_sequence(
         from controller.twitch import _ad_break_notification_tasks
         from services.twitch.shoutout_queue import shoutout_queue
 
-        await shoutout_queue.deactivate()
+        shoutout_queue.deactivate()
         existing_task = _ad_break_notification_tasks.get(str(broadcaster_id))
         if existing_task and not existing_task.done():
             existing_task.cancel()
@@ -503,7 +504,7 @@ async def trigger_offline_sequence(
             f"Message not found when editing offline embed for message_id={message_id}; aborting"
         )
         try:
-            delete_row_from_parquet(broadcaster_id, "data/live_alerts.parquet")
+            delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
         except Exception as e:
             error_details: ErrorDetails = {
                 "type": type(e).__name__,
@@ -542,7 +543,7 @@ async def update_alert(
         started_at = parse_rfc3339(stream_started_at)
         started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
 
-        df = await read_parquet_cached("data/live_alerts.parquet")
+        df = await read_parquet_cached(LIVE_ALERTS)
         alert_row = df.filter(pl.col("id") == broadcaster_id)
         if alert_row.height == 0:
             logger.warning(
@@ -642,7 +643,7 @@ async def update_alert(
                     f"Message not found when editing offline embed for message_id={message_id}; aborting"
                 )
                 try:
-                    delete_row_from_parquet(broadcaster_id, "data/live_alerts.parquet")
+                    delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
                 except Exception as e:
                     error_details: ErrorDetails = {
                         "type": type(e).__name__,
@@ -684,7 +685,7 @@ async def update_alert(
                 logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
                 await log_error(error_msg, error_details["traceback"])
             await asyncio.sleep(60)
-            df = await read_parquet_cached("data/live_alerts.parquet")
+            df = await read_parquet_cached(LIVE_ALERTS)
             alert_row = df.filter(pl.col("id") == broadcaster_id)
             stream_info = await get_stream_info(broadcaster_id)
 

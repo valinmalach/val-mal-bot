@@ -121,7 +121,7 @@ class TwitchShoutoutQueue:
             traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
             await send_message(error_msg, BOT_ADMIN_CHANNEL, file=traceback_file)
 
-    async def deactivate(self) -> None:
+    def deactivate(self) -> None:
         self._activated = False
         self._shoutout_queue = []
 

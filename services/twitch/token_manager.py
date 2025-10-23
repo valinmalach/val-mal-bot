@@ -39,7 +39,7 @@ class TwitchTokenManager:
     def _load_app_access_token(self) -> None:
         """Load app access token from file if it exists."""
         try:
-            with open("data/twitch/app_access_token.txt", "r") as f:
+            with open(f"{TWITCH_DIR}/app_access_token.txt", "r") as f:
                 self._app_access_token = f.read().strip()
                 logger.info("App access token loaded from file")
         except FileNotFoundError:
@@ -50,7 +50,7 @@ class TwitchTokenManager:
     def _load_user_refresh_token(self) -> None:
         """Load user refresh token from file if it exists."""
         try:
-            with open("data/twitch/user_refresh_token.txt", "r") as f:
+            with open(f"{TWITCH_DIR}/user_refresh_token.txt", "r") as f:
                 self._user_refresh_token = f.read().strip()
                 logger.info("User refresh token loaded from file")
         except FileNotFoundError:
@@ -61,7 +61,7 @@ class TwitchTokenManager:
     def _load_user_access_token(self) -> None:
         """Load user access token from file if it exists."""
         try:
-            with open("data/twitch/user_access_token.txt", "r") as f:
+            with open(f"{TWITCH_DIR}/user_access_token.txt", "r") as f:
                 self._user_access_token = f.read().strip()
                 logger.info("User access token loaded from file")
         except FileNotFoundError:
@@ -72,7 +72,7 @@ class TwitchTokenManager:
     def _load_broadcaster_refresh_token(self) -> None:
         """Load broadcaster refresh token from file if it exists."""
         try:
-            with open("data/twitch/broadcaster_refresh_token.txt", "r") as f:
+            with open(f"{TWITCH_DIR}/broadcaster_refresh_token.txt", "r") as f:
                 self._broadcaster_refresh_token = f.read().strip()
                 logger.info("Broadcaster refresh token loaded from file")
         except FileNotFoundError:
@@ -83,7 +83,7 @@ class TwitchTokenManager:
     def _load_broadcaster_access_token(self) -> None:
         """Load broadcaster access token from file if it exists."""
         try:
-            with open("data/twitch/broadcaster_access_token.txt", "r") as f:
+            with open(f"{TWITCH_DIR}/broadcaster_access_token.txt", "r") as f:
                 self._broadcaster_access_token = f.read().strip()
                 logger.info("Broadcaster access token loaded from file")
         except FileNotFoundError:
