@@ -63,6 +63,58 @@ class Events(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
 
+    def _create_error_details(self, exception: Exception) -> ErrorDetails:
+        """Create standardized error details dictionary from an exception."""
+        return {
+            "type": type(exception).__name__,
+            "message": str(exception),
+            "args": exception.args,
+            "traceback": traceback.format_exc(),
+        }
+
+    async def _handle_error(
+        self, exception: Exception, context: str, should_raise: bool = False
+    ) -> None:
+        """Centralized error handling and logging."""
+        error_details = self._create_error_details(exception)
+        error_msg = f"{context} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await self._send_error_message(error_msg, error_details["traceback"])
+        if should_raise:
+            raise
+
+    async def _safe_parquet_operation(
+        self, operation: str, func, *args, **kwargs
+    ) -> None:
+        """Safely execute parquet operations with error handling."""
+        try:
+            func(*args, **kwargs)
+        except Exception as e:
+            await self._handle_error(e, f"Failed to {operation}")
+
+    def _base_embed(self, description: str, color: int) -> Embed:
+        """Create a base embed with common settings (description, color, timestamp)."""
+        return Embed(description=description, color=color, timestamp=pendulum.now())
+
+    def _set_author(
+        self, embed: Embed, name: str, discriminator: str, url: str | None
+    ) -> Embed:
+        """Set the author on an embed using name+discriminator and avatar URL."""
+        return embed.set_author(name=f"{name}{discriminator}", icon_url=url)
+
+    async def _get_audit_user(
+        self, guild_id: int | None, action: discord.AuditLogAction
+    ) -> User | Member | None:
+        """Fetch the first matching audit log entry user for a given action."""
+        if guild_id is None:
+            return None
+        guild = self.bot.get_guild(guild_id)
+        if guild is None:
+            return None
+        async for entry in guild.audit_logs(limit=1, action=action):
+            return entry.user
+        return None
+
     async def _get_message_object(self, message: Message) -> dict:
         guild = message.guild
         guild_id = GUILD_ID if guild is None else guild.id
@@ -97,24 +149,12 @@ class Events(Cog):
                 return
 
             message_obj = await self._get_message_object(message)
-            try:
-                upsert_row_to_parquet(
-                    message_obj,
-                    MESSAGES,
-                )
-            except Exception as e:
-                error_details: ErrorDetails = {
-                    "type": type(e).__name__,
-                    "message": str(e),
-                    "args": e.args,
-                    "traceback": traceback.format_exc(),
-                }
-                error_msg = f"Failed to save message {message.id} in parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-                await self._send_error_message(
-                    error_msg,
-                    error_details["traceback"],
-                )
+            await self._safe_parquet_operation(
+                f"save message {message.id} in parquet",
+                upsert_row_to_parquet,
+                message_obj,
+                MESSAGES,
+            )
 
             content = message.content.lower()
             if content == "ping":
@@ -122,62 +162,32 @@ class Events(Cog):
             elif content == "plap":
                 await message.channel.send("clank")
         except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Fatal error with on_message event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._send_error_message(
-                error_msg,
-                error_details["traceback"],
-            )
+            await self._handle_error(e, "Fatal error with on_message event")
 
     @Cog.listener()
     async def on_member_join(self, member: Member) -> None:
         try:
             discriminator, url = await self._get_user_data(member)
-            embed = (
-                Embed(
-                    description=f"**Welcome to Malachar, {member.mention}**",
-                    color=0x9B59B6,
-                    timestamp=pendulum.now(),
-                )
-                .set_author(
-                    name=f"{member.name}{discriminator}",
-                    icon_url=url,
-                )
-                .set_footer(
-                    text=f"{get_ordinal_suffix(member.guild.member_count)} member"
-                )
-                .set_image(url=url)
+            embed = self._base_embed(
+                f"**Welcome to Malachar, {member.mention}**", 0x9B59B6
             )
+            embed = self._set_author(embed, member.name, discriminator, url)
+            embed = embed.set_footer(
+                text=f"{get_ordinal_suffix(member.guild.member_count)} member"
+            ).set_image(url=url)
             await send_embed(
                 embed,
                 WELCOME_CHANNEL,
             )
 
             age = get_age(pendulum.instance(member.created_at))
+            embed = self._base_embed(
+                f"{member.mention} {member.name}{discriminator}", 0x43B582
+            )
+            embed = embed.set_author(name="Member Joined", icon_url=url)
             embed = (
-                Embed(
-                    description=f"{member.mention} {member.name}{discriminator}",
-                    color=0x43B582,
-                    timestamp=pendulum.now(),
-                )
-                .set_author(
-                    name="Member Joined",
-                    icon_url=url,
-                )
-                .set_thumbnail(
-                    url=url,
-                )
-                .add_field(
-                    name="**Account Age**",
-                    value=age,
-                    inline=False,
-                )
+                embed.set_thumbnail(url=url)
+                .add_field(name="**Account Age**", value=age, inline=False)
                 .set_footer(text=f"ID: {member.id}")
             )
             await send_embed(
@@ -191,37 +201,14 @@ class Events(Cog):
                 "birthday": None,
                 "isBirthdayLeap": None,
             }
-            try:
-                upsert_row_to_parquet(
-                    user,
-                    USERS,
-                )
-            except Exception as e:
-                error_details: ErrorDetails = {
-                    "type": type(e).__name__,
-                    "message": str(e),
-                    "args": e.args,
-                    "traceback": traceback.format_exc(),
-                }
-                error_msg = f"Failed to insert user {member.name} ({member.id}) in parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-                await self._send_error_message(
-                    error_msg,
-                    error_details["traceback"],
-                )
-        except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Fatal error with on_member_join event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._send_error_message(
-                error_msg,
-                error_details["traceback"],
+            await self._safe_parquet_operation(
+                f"insert user {member.name} ({member.id}) in parquet",
+                upsert_row_to_parquet,
+                user,
+                USERS,
             )
+        except Exception as e:
+            await self._handle_error(e, "Fatal error with on_member_join event")
 
     async def _get_user_data(self, user: User | Member) -> tuple[str, str]:
         return get_discriminator(user), get_pfp(user)
@@ -231,18 +218,11 @@ class Events(Cog):
         try:
             member = payload.user
             discriminator, url = await self._get_user_data(member)
-            embed = (
-                Embed(
-                    description=f"**{member.mention} has left. Goodbye!**",
-                    color=0x992D22,
-                    timestamp=pendulum.now(),
-                )
-                .set_author(
-                    name=f"{member.name}{discriminator}",
-                    icon_url=url,
-                )
-                .set_image(url=url)
+            embed = self._base_embed(
+                f"**{member.mention} has left. Goodbye!**", 0x992D22
             )
+            embed = self._set_author(embed, member.name, discriminator, url)
+            embed = embed.set_image(url=url)
             await send_embed(
                 embed,
                 WELCOME_CHANNEL,
@@ -251,21 +231,11 @@ class Events(Cog):
             triple_nl = (
                 "" if isinstance(member, Member) and member.roles[1:] else "\n\n\n"
             )
-            embed = (
-                Embed(
-                    description=f"{member.mention} {member.name}{discriminator}{triple_nl}",
-                    color=0xFF470F,
-                    timestamp=pendulum.now(),
-                )
-                .set_author(
-                    name="Member Left",
-                    icon_url=url,
-                )
-                .set_thumbnail(
-                    url=url,
-                )
-                .set_footer(text=f"ID: {member.id}")
+            embed = self._base_embed(
+                f"{member.mention} {member.name}{discriminator}{triple_nl}", 0xFF470F
             )
+            embed = embed.set_author(name="Member Left", icon_url=url)
+            embed = embed.set_thumbnail(url=url).set_footer(text=f"ID: {member.id}")
             if isinstance(member, Member) and member.roles[1:]:
                 embed = embed.add_field(
                     name="**Roles**",
@@ -274,37 +244,14 @@ class Events(Cog):
                 )
             await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
-            try:
-                delete_row_from_parquet(
-                    member.id,
-                    USERS,
-                )
-            except Exception as e:
-                error_details: ErrorDetails = {
-                    "type": type(e).__name__,
-                    "message": str(e),
-                    "args": e.args,
-                    "traceback": traceback.format_exc(),
-                }
-                error_msg = f"Failed to remove user {member.name} ({member.id}) from parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-                await self._send_error_message(
-                    error_msg,
-                    error_details["traceback"],
-                )
-        except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Fatal error with on_raw_member_remove event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._send_error_message(
-                error_msg,
-                error_details["traceback"],
+            await self._safe_parquet_operation(
+                f"remove user {member.name} ({member.id}) from parquet",
+                delete_row_from_parquet,
+                member.id,
+                USERS,
             )
+        except Exception as e:
+            await self._handle_error(e, "Fatal error with on_raw_member_remove event")
 
     @Cog.listener()
     async def on_command_error(self, ctx: Context, error: CommandError) -> None:
@@ -322,18 +269,7 @@ class Events(Cog):
             await self._handle_nickname_change(before, after, discriminator, url)
             await self._handle_timeout_changes(before, after, discriminator, url)
         except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Fatal error with on_member_update event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._send_error_message(
-                error_msg,
-                error_details["traceback"],
-            )
+            await self._handle_error(e, "Fatal error with on_member_update event")
 
     async def _handle_pfp_change(
         self, before: Member, after: Member, discriminator: str, url: str
@@ -430,17 +366,10 @@ class Events(Cog):
         before_content = self._truncate_content(before_content)
         after_content = self._truncate_content(after_content)
 
+        embed = self._base_embed(message, 0x337FD5)
+        embed = self._set_author(embed, after.author.name, discriminator, url)
         embed = (
-            Embed(
-                description=message,
-                color=0x337FD5,
-                timestamp=pendulum.now(),
-            )
-            .set_author(
-                name=f"{after.author.name}{discriminator}",
-                icon_url=url,
-            )
-            .set_footer(text=f"User ID: {after.author.id}")
+            embed.set_footer(text=f"User ID: {after.author.id}")
             .add_field(name="**Before**", value=f"{before_content}", inline=False)
             .add_field(name="**After**", value=f"{after_content}", inline=False)
         )
@@ -448,19 +377,13 @@ class Events(Cog):
 
     async def _update_message_in_parquet(self, message: Message) -> None:
         """Update the message in the parquet file."""
-        try:
-            message_obj = await self._get_message_object(message)
-            upsert_row_to_parquet(message_obj, MESSAGES)
-        except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Failed to upsert message {message.id} in parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._send_error_message(error_msg, error_details["traceback"])
+        message_obj = await self._get_message_object(message)
+        await self._safe_parquet_operation(
+            f"upsert message {message.id} in parquet",
+            upsert_row_to_parquet,
+            message_obj,
+            MESSAGES,
+        )
 
     @Cog.listener()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent) -> None:
@@ -488,18 +411,7 @@ class Events(Cog):
             await self._update_message_in_parquet(after)
 
         except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Fatal error with on_raw_message_edit event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._send_error_message(
-                error_msg,
-                error_details["traceback"],
-            )
+            await self._handle_error(e, "Fatal error with on_raw_message_edit event")
 
     @Cog.listener()
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent) -> None:
@@ -510,14 +422,9 @@ class Events(Cog):
             ):
                 return
 
-            user_who_deleted = None
-            if payload.guild_id is not None:
-                guild = self.bot.get_guild(payload.guild_id)
-                if guild is not None:
-                    async for entry in guild.audit_logs(
-                        limit=1, action=discord.AuditLogAction.message_delete
-                    ):
-                        user_who_deleted = entry.user
+            user_who_deleted = await self._get_audit_user(
+                payload.guild_id, discord.AuditLogAction.message_delete
+            )
 
             channel = self.bot.get_channel(payload.channel_id)
 
@@ -534,51 +441,23 @@ class Events(Cog):
                 message, payload.message_id, author, user_who_deleted, channel
             )
 
-            try:
-                delete_row_from_parquet(
-                    payload.message_id,
-                    MESSAGES,
-                )
-            except Exception as e:
-                error_details: ErrorDetails = {
-                    "type": type(e).__name__,
-                    "message": str(e),
-                    "args": e.args,
-                    "traceback": traceback.format_exc(),
-                }
-                error_msg = f"Failed to delete message {payload.message_id} from parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-                await self._send_error_message(
-                    error_msg,
-                    error_details["traceback"],
-                )
-        except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Fatal error with on_raw_message_delete event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._send_error_message(
-                error_msg,
-                error_details["traceback"],
+            await self._safe_parquet_operation(
+                f"delete message {payload.message_id} from parquet",
+                delete_row_from_parquet,
+                payload.message_id,
+                MESSAGES,
             )
+        except Exception as e:
+            await self._handle_error(e, "Fatal error with on_raw_message_delete event")
 
     @Cog.listener()
     async def on_raw_bulk_message_delete(
         self, payload: RawBulkMessageDeleteEvent
     ) -> None:
         try:
-            user_who_deleted = None
-            if payload.guild_id is not None:
-                guild = self.bot.get_guild(payload.guild_id)
-                if guild is not None:
-                    async for entry in guild.audit_logs(
-                        limit=1, action=discord.AuditLogAction.message_bulk_delete
-                    ):
-                        user_who_deleted = entry.user
+            user_who_deleted = await self._get_audit_user(
+                payload.guild_id, discord.AuditLogAction.message_bulk_delete
+            )
 
             channel_mention = get_channel_mention(
                 self.bot.get_channel(payload.channel_id)
@@ -593,70 +472,32 @@ class Events(Cog):
                 discriminator, url = await self._get_user_data(user_who_deleted)
                 user_who_deleted_name = user_who_deleted.name
 
-            embed = Embed(
-                description=description,
-                color=0x337FD5,
-                timestamp=pendulum.now(),
-            ).set_author(
-                name=f"{user_who_deleted_name}{discriminator}",
-                icon_url=url,
-            )
+            embed = self._base_embed(description, 0x337FD5)
+            embed = self._set_author(embed, user_who_deleted_name, discriminator, url)
             await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
             for message_id in payload.message_ids:
-                try:
-                    delete_row_from_parquet(
-                        message_id,
-                        MESSAGES,
-                    )
-                except Exception as e:
-                    error_details: ErrorDetails = {
-                        "type": type(e).__name__,
-                        "message": str(e),
-                        "args": e.args,
-                        "traceback": traceback.format_exc(),
-                    }
-                    error_msg = f"Failed to delete message {message_id} from parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                    logger.error(
-                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
-                    )
-                    await self._send_error_message(
-                        error_msg,
-                        error_details["traceback"],
-                    )
+                await self._safe_parquet_operation(
+                    f"delete message {message_id} from parquet",
+                    delete_row_from_parquet,
+                    message_id,
+                    MESSAGES,
+                )
         except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Fatal error with on_raw_bulk_message_delete event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._send_error_message(
-                error_msg,
-                error_details["traceback"],
+            await self._handle_error(
+                e, "Fatal error with on_raw_bulk_message_delete event"
             )
 
     async def _log_ban_unban(
         self, user: User | Member, action: Literal["ban", "unban"]
     ) -> None:
         discriminator, url = await self._get_user_data(user)
-        embed = (
-            Embed(
-                description=f"{user.mention} {user.name}{discriminator}",
-                color=0xFF470F if action == "ban" else 0x337FD5,
-                timestamp=pendulum.now(),
-            )
-            .set_author(
-                name=f"User {action.capitalize()}ed",
-                icon_url=url,
-            )
-            .set_thumbnail(
-                url=url,
-            )
-            .set_footer(text=f"ID: {user.id}")
+        embed = self._base_embed(
+            f"{user.mention} {user.name}{discriminator}",
+            0xFF470F if action == "ban" else 0x337FD5,
         )
+        embed = embed.set_author(name=f"User {action.capitalize()}ed", icon_url=url)
+        embed = embed.set_thumbnail(url=url).set_footer(text=f"ID: {user.id}")
         await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
     @Cog.listener()
@@ -664,36 +505,14 @@ class Events(Cog):
         try:
             await self._log_ban_unban(user, "ban")
         except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Fatal error with on_member_ban event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._send_error_message(
-                error_msg,
-                error_details["traceback"],
-            )
+            await self._handle_error(e, "Fatal error with on_member_ban event")
 
     @Cog.listener()
     async def on_member_unban(self, guild: Guild, user: User | Member) -> None:
         try:
             await self._log_ban_unban(user, "unban")
         except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Fatal error with on_member_unban event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._send_error_message(
-                error_msg,
-                error_details["traceback"],
-            )
+            await self._handle_error(e, "Fatal error with on_member_unban event")
 
     @Cog.listener()
     async def on_invite_create(self, invite: Invite) -> None:
@@ -709,28 +528,11 @@ class Events(Cog):
                 else "Never"
             )
             description = f"**Invite [{invite.code}]({invite.url}) to {channel_mention} created by {inviter_mention}**\nExpires: {expiry}"
-            embed = Embed(
-                description=description,
-                color=0x337FD5,
-                timestamp=pendulum.now(),
-            ).set_author(
-                name=f"{guild_name}",
-                icon_url=guild_icon,
-            )
+            embed = self._base_embed(description, 0x337FD5)
+            embed = embed.set_author(name=f"{guild_name}", icon_url=guild_icon)
             await send_embed(embed, AUDIT_LOGS_CHANNEL)
         except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Fatal error with on_invite_create event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._send_error_message(
-                error_msg,
-                error_details["traceback"],
-            )
+            await self._handle_error(e, "Fatal error with on_invite_create event")
 
     @Cog.listener()
     async def on_invite_delete(self, invite: Invite) -> None:
@@ -739,28 +541,11 @@ class Events(Cog):
                 invite
             )
             description = f"**Invite [{invite.code}]({invite.url}) deleted**"
-            embed = Embed(
-                description=description,
-                color=0xFF470F,
-                timestamp=pendulum.now(),
-            ).set_author(
-                name=f"{guild_name}",
-                icon_url=guild_icon,
-            )
+            embed = self._base_embed(description, 0xFF470F)
+            embed = embed.set_author(name=f"{guild_name}", icon_url=guild_icon)
             await send_embed(embed, AUDIT_LOGS_CHANNEL)
         except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Fatal error with on_invite_delete event - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._send_error_message(
-                error_msg,
-                error_details["traceback"],
-            )
+            await self._handle_error(e, "Fatal error with on_invite_delete event")
 
     async def _get_message_content(self, message_id: int) -> str:
         df = await read_parquet_cached(MESSAGES)
@@ -774,18 +559,9 @@ class Events(Cog):
     ) -> None:
         roles_str = " ".join([role.mention for role in roles])
         message = f"**{member.mention} was {'given' if add else 'removed from'} the role{'' if len(roles) == 1 else 's'} {roles_str}**"
-        embed = (
-            Embed(
-                description=message,
-                color=0x337FD5,
-                timestamp=pendulum.now(),
-            )
-            .set_author(
-                name=f"{member.name}{discriminator}",
-                icon_url=url,
-            )
-            .set_footer(text=f"ID: {member.id}")
-        )
+        embed = self._base_embed(message, 0x337FD5)
+        embed = self._set_author(embed, member.name, discriminator, url)
+        embed = embed.set_footer(text=f"ID: {member.id}")
         await send_embed(
             embed,
             AUDIT_LOGS_CHANNEL,
@@ -794,17 +570,12 @@ class Events(Cog):
     async def _log_nickname_change(
         self, member: Member, discriminator: str, url: str, before: str, after: str
     ) -> None:
+        embed = self._base_embed(
+            f"**{member.mention} changed their nickname**", 0x337FD5
+        )
+        embed = self._set_author(embed, member.name, discriminator, url)
         embed = (
-            Embed(
-                description=f"**{member.mention} changed their nickname**",
-                color=0x337FD5,
-                timestamp=pendulum.now(),
-            )
-            .set_author(
-                name=f"{member.name}{discriminator}",
-                icon_url=url,
-            )
-            .set_footer(text=f"ID: {member.id}")
+            embed.set_footer(text=f"ID: {member.id}")
             .add_field(name="**Before**", value=f"{before}", inline=False)
             .add_field(name="**After**", value=f"{after}", inline=False)
         )
@@ -816,21 +587,11 @@ class Events(Cog):
     async def _log_pfp_change(
         self, member: Member, discriminator: str, url: str
     ) -> None:
-        embed = (
-            Embed(
-                description=f"**{member.mention} changed their profile picture**",
-                color=0x337FD5,
-                timestamp=pendulum.now(),
-            )
-            .set_author(
-                name=f"{member.name}{discriminator}",
-                icon_url=url,
-            )
-            .set_thumbnail(
-                url=url,
-            )
-            .set_footer(text=f"ID: {member.id}")
+        embed = self._base_embed(
+            f"**{member.mention} changed their profile picture**", 0x337FD5
         )
+        embed = self._set_author(embed, member.name, discriminator, url)
+        embed = embed.set_thumbnail(url=url).set_footer(text=f"ID: {member.id}")
         await send_embed(
             embed,
             AUDIT_LOGS_CHANNEL,
@@ -840,18 +601,11 @@ class Events(Cog):
         self, member: Member, discriminator: str, url: str, timeout: DateTime
     ) -> None:
         expiry = f"<t:{int(timeout.timestamp())}:R>"
-        embed = (
-            Embed(
-                description=f"**{member.mention} has been timed out**\nExpires {expiry}",
-                color=0x337FD5,
-                timestamp=pendulum.now(),
-            )
-            .set_author(
-                name=f"{member.name}{discriminator}",
-                icon_url=url,
-            )
-            .set_footer(text=f"ID: {member.id}")
+        embed = self._base_embed(
+            f"**{member.mention} has been timed out**\nExpires {expiry}", 0x337FD5
         )
+        embed = self._set_author(embed, member.name, discriminator, url)
+        embed = embed.set_footer(text=f"ID: {member.id}")
         await send_embed(
             embed,
             AUDIT_LOGS_CHANNEL,
@@ -860,18 +614,11 @@ class Events(Cog):
     async def _log_untimeout(
         self, member: Member, discriminator: str, url: str
     ) -> None:
-        embed = (
-            Embed(
-                description=f"**{member.mention}'s timeout has been removed**",
-                color=0x337FD5,
-                timestamp=pendulum.now(),
-            )
-            .set_author(
-                name=f"{member.name}{discriminator}",
-                icon_url=url,
-            )
-            .set_footer(text=f"ID: {member.id}")
+        embed = self._base_embed(
+            f"**{member.mention}'s timeout has been removed**", 0x337FD5
         )
+        embed = self._set_author(embed, member.name, discriminator, url)
+        embed = embed.set_footer(text=f"ID: {member.id}")
         await send_embed(
             embed,
             AUDIT_LOGS_CHANNEL,
@@ -882,18 +629,9 @@ class Events(Cog):
     ) -> None:
         channel_mention = get_channel_mention(message.channel)
         description = f"**Message {'pinned' if message.pinned else 'unpinned'} in {channel_mention}** [Jump to Message]({message.jump_url})"
-        embed = (
-            Embed(
-                description=description,
-                color=0x337FD5,
-                timestamp=pendulum.now(),
-            )
-            .set_author(
-                name=f"{message.author.name}{discriminator}",
-                icon_url=url,
-            )
-            .set_footer(text=f"User ID: {message.author.id}")
-        )
+        embed = self._base_embed(description, 0x337FD5)
+        embed = self._set_author(embed, message.author.name, discriminator, url)
+        embed = embed.set_footer(text=f"User ID: {message.author.id}")
         await send_embed(
             embed,
             AUDIT_LOGS_CHANNEL,
@@ -930,43 +668,19 @@ class Events(Cog):
 
         channel_mention = get_channel_mention(channel)
         description = f"**Message deleted by {user_mention} in {channel_mention}**"
-        embed = (
-            Embed(
-                description=description,
-                color=0xFF470F,
-                timestamp=pendulum.now(),
-            )
-            .set_author(
-                name=f"{user_name}{discriminator}",
-                icon_url=url,
-            )
-            .add_field(
-                name="**Message**",
-                value=f"{message_content}",
-                inline=False,
-            )
-            .set_footer(text=f"Deleter: {user_id} | Message ID: {message_id}")
-        )
+        embed = self._base_embed(description, 0xFF470F)
+        embed = self._set_author(embed, user_name, discriminator, url)
+        embed = embed.add_field(
+            name="**Message**", value=f"{message_content}", inline=False
+        ).set_footer(text=f"Deleter: {user_id} | Message ID: {message_id}")
         await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
-        try:
-            delete_row_from_parquet(
-                message_id,
-                MESSAGES,
-            )
-        except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Failed to delete message {message_id} from parquet - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._send_error_message(
-                error_msg,
-                error_details["traceback"],
-            )
+        await self._safe_parquet_operation(
+            f"delete message {message_id} from parquet",
+            delete_row_from_parquet,
+            message_id,
+            MESSAGES,
+        )
 
     async def _log_message_delete(
         self,
@@ -996,24 +710,11 @@ class Events(Cog):
         channel_mention = get_channel_mention(channel)
         description = f"**Message sent by {author.mention} deleted{user_who_deleted_mention} in {channel_mention}**"
         discriminator, url = await self._get_user_data(author)
-        embed = (
-            Embed(
-                description=description,
-                color=0xFF470F,
-                timestamp=pendulum.now(),
-            )
-            .set_author(
-                name=f"{author.name}{discriminator}",
-                icon_url=url,
-            )
-            .set_footer(text=f"Author: {author.id} | Message ID: {message_id}")
-        )
+        embed = self._base_embed(description, 0xFF470F)
+        embed = self._set_author(embed, author.name, discriminator, url)
+        embed = embed.set_footer(text=f"Author: {author.id} | Message ID: {message_id}")
         if message_content:
-            message_content = (
-                f"{message_content[:1021]}..."
-                if len(message_content) > 1024
-                else message_content
-            )
+            message_content = self._truncate_content(message_content)
             embed = embed.add_field(
                 name="**Message**", value=f"{message_content}", inline=False
             )
@@ -1043,19 +744,14 @@ class Events(Cog):
         if message.attachments:
             channel_mention = get_channel_mention(channel)
             for attachment in message.attachments:
-                embed = (
-                    Embed(
-                        description=f"**Attachment sent by {author.mention} deleted in {channel_mention}**",
-                        color=0xFF470F,
-                        timestamp=pendulum.now(),
-                    )
-                    .set_author(
-                        name=f"{author.name}{discriminator}",
-                        icon_url=url,
-                    )
-                    .set_footer(text=f"Author: {author.id} | Message ID: {message_id}")
-                    .set_image(url=attachment.url)
+                embed = self._base_embed(
+                    f"**Attachment sent by {author.mention} deleted in {channel_mention}**",
+                    0xFF470F,
                 )
+                embed = self._set_author(embed, author.name, discriminator, url)
+                embed = embed.set_footer(
+                    text=f"Author: {author.id} | Message ID: {message_id}"
+                ).set_image(url=attachment.url)
                 await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
     async def _get_guild_name_and_icon_from_invite(
