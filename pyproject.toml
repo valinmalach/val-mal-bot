@@ -17,6 +17,7 @@ dependencies = [
     "python-dotenv>=1.1.1",
     "rich>=14.2.0",
     "truststore>=0.10.4",
+    "types-aiofiles>=25.1.0.20251011",
     "uvicorn[standard]>=0.38.0",
     "xmltodict>=1.0.2",
 ]
