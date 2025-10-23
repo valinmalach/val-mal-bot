@@ -316,47 +316,10 @@ class Events(Cog):
         try:
             discriminator, url = await self._get_user_data(after)
 
-            before_url = get_pfp(before)
-            if url != before_url:
-                await self._log_pfp_change(after, discriminator, url)
-
-            roles_before, roles_after = before.roles, after.roles
-            roles_diff = list(set(roles_before) ^ set(roles_after))
-            if len(roles_diff):
-                add = len(roles_after) > len(roles_before)
-                await self._log_role_change(
-                    after,
-                    discriminator,
-                    url,
-                    roles_diff,
-                    add,
-                )
-
-            if before.nick != after.nick:
-                before_nick = before.name if before.nick is None else before.nick
-                after_nick = after.name if after.nick is None else after.nick
-                await self._log_nickname_change(
-                    after, discriminator, url, before_nick, after_nick
-                )
-
-            if (
-                before.timed_out_until is None
-                or before.timed_out_until <= pendulum.now()
-            ) and (
-                after.timed_out_until is not None
-                and after.timed_out_until > pendulum.now()
-            ):
-                await self._log_timeout(
-                    after, discriminator, url, pendulum.instance(after.timed_out_until)
-                )
-
-            elif (
-                before.timed_out_until is not None
-                and before.timed_out_until > pendulum.now()
-            ) and (
-                after.timed_out_until is None or after.timed_out_until <= pendulum.now()
-            ):
-                await self._log_untimeout(after, discriminator, url)
+            await self._handle_pfp_change(before, after, discriminator, url)
+            await self._handle_role_changes(before, after, discriminator, url)
+            await self._handle_nickname_change(before, after, discriminator, url)
+            await self._handle_timeout_changes(before, after, discriminator, url)
         except Exception as e:
             error_details: ErrorDetails = {
                 "type": type(e).__name__,
@@ -370,6 +333,64 @@ class Events(Cog):
                 error_msg,
                 error_details["traceback"],
             )
+
+    async def _handle_pfp_change(
+        self, before: Member, after: Member, discriminator: str, url: str
+    ) -> None:
+        """Handle profile picture changes."""
+        before_url = get_pfp(before)
+        if url != before_url:
+            await self._log_pfp_change(after, discriminator, url)
+
+    async def _handle_role_changes(
+        self, before: Member, after: Member, discriminator: str, url: str
+    ) -> None:
+        """Handle role additions and removals."""
+        roles_before, roles_after = before.roles, after.roles
+        if roles_diff := list(set(roles_before) ^ set(roles_after)):
+            add = len(roles_after) > len(roles_before)
+            await self._log_role_change(
+                after,
+                discriminator,
+                url,
+                roles_diff,
+                add,
+            )
+
+    async def _handle_nickname_change(
+        self, before: Member, after: Member, discriminator: str, url: str
+    ) -> None:
+        """Handle nickname changes."""
+        if before.nick != after.nick:
+            before_nick = before.name if before.nick is None else before.nick
+            after_nick = after.name if after.nick is None else after.nick
+            await self._log_nickname_change(
+                after, discriminator, url, before_nick, after_nick
+            )
+
+    async def _handle_timeout_changes(
+        self, before: Member, after: Member, discriminator: str, url: str
+    ) -> None:
+        """Handle timeout and untimeout events."""
+        before_timed_out_until = (
+            pendulum.instance(before.timed_out_until)
+            if before.timed_out_until
+            else None
+        )
+        after_timed_out_until = (
+            pendulum.instance(after.timed_out_until) if after.timed_out_until else None
+        )
+        before_timed_out = self._is_currently_timed_out(before_timed_out_until)
+        after_timed_out = self._is_currently_timed_out(after_timed_out_until)
+
+        if not before_timed_out and after_timed_out and after_timed_out_until:
+            await self._log_timeout(after, discriminator, url, after_timed_out_until)
+        elif before_timed_out and not after_timed_out:
+            await self._log_untimeout(after, discriminator, url)
+
+    def _is_currently_timed_out(self, timeout_until: DateTime | None) -> bool:
+        """Check if a member is currently timed out."""
+        return timeout_until is not None and timeout_until > pendulum.now()
 
     @Cog.listener()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent) -> None:
