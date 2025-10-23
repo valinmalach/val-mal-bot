@@ -6,7 +6,7 @@ from typing import Literal
 import discord
 import pendulum
 import polars as pl
-from discord import Interaction, app_commands
+from discord import Interaction, Member, User, app_commands
 from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
 from pendulum import DateTime
@@ -44,88 +44,113 @@ class Birthday(GroupCog):
         timezone: str = "UTC",
     ) -> None:
         try:
-            if timezone not in pendulum.timezones():
-                await interaction.response.send_message(
-                    f"Sorry. I've never heard of the timezone {timezone}. "
-                    + "Have you tried using the autocomplete options provided? "
-                    + "Because those are the only timezones I know of."
-                )
-                logger.warning(f"Invalid timezone provided: {timezone}")
+            # Validate inputs
+            validation_error = await self._validate_birthday_inputs(
+                interaction, month, day, timezone
+            )
+            if validation_error:
                 return
 
-            if day > MAX_DAYS[month]:
-                await interaction.response.send_message(
-                    f"{month.name} doesn't have that many days..."
-                )
-                logger.warning(f"Invalid day {day} for month {month.name}")
-                return
+            # Calculate next birthday year
+            year = self._calculate_next_birthday_year(month, day, timezone)
 
-            now = pendulum.now(timezone).replace(second=0, microsecond=0)
-            year = now.year
+            # Create user record
+            record = self._create_birthday_record(
+                interaction.user, month, day, year, timezone
+            )
 
-            if month == Months.February and day == 29:
-                try:
-                    birthday_this_year = DateTime(
-                        year=year,
-                        month=month.value,
-                        day=day,
-                        tzinfo=pendulum.timezone(timezone),
-                    )
-                except ValueError:
-                    birthday_this_year = None
+            # Update birthday in database
+            await self._update_birthday_database(interaction, record)
 
-                if birthday_this_year is None or birthday_this_year <= now:
-                    year = get_next_leap(year)
-            else:
-                birthday_this_year = DateTime(
-                    year=year,
-                    month=month.value,
-                    day=day,
-                    tzinfo=pendulum.timezone(timezone),
-                )
-                if birthday_this_year <= now:
-                    year += 1
+            # Send success response
+            await self._send_birthday_set_response(interaction, month, day)
 
-            record: UserRecord = {
-                "id": interaction.user.id,
-                "username": interaction.user.name,
-                "birthday": (
-                    DateTime.strptime(
-                        f"{year}-{month.value:02d}-{day:02d} 00:00:00",
-                        "%Y-%m-%d %H:%M:%S",
-                    )
-                    .replace(tzinfo=pendulum.timezone(timezone))
-                    .astimezone(pendulum.timezone("UTC"))
-                    .strftime("%Y-%m-%dT%H:%M:%S.000Z")
-                ),
-                "isBirthdayLeap": month == Months.February and day == 29,
-            }
-            try:
-                await update_birthday(record)
-            except Exception as e:
-                error_details: ErrorDetails = {
-                    "type": type(e).__name__,
-                    "message": str(e),
-                    "args": e.args,
-                    "traceback": traceback.format_exc(),
-                }
-                error_msg = f"Exception in set_birthday for user={interaction.user.id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-                await self._birthday_operation_failed(
-                    interaction, error_msg, "set", error_details["traceback"]
-                )
-                return
+        except Exception as e:
+            await self._handle_set_birthday_exception(interaction, e)
 
-            if month == Months.February and day == 29:
-                await interaction.response.send_message(
-                    "That's an unfortunate birthday 😦\n\n"
-                    + "Ah well, looks like I'll only wish you every 4 years!"
-                )
-            else:
-                await interaction.response.send_message(
-                    "I've remembered your birthday! "
-                    + "I'll wish you at midnight of your selected timezone!"
-                )
+    async def _validate_birthday_inputs(
+        self, interaction: Interaction, month: Months, day: int, timezone: str
+    ) -> bool:
+        """Validate timezone and day inputs. Returns True if there was an error."""
+        if timezone not in pendulum.timezones():
+            await interaction.response.send_message(
+                f"Sorry. I've never heard of the timezone {timezone}. "
+                + "Have you tried using the autocomplete options provided? "
+                + "Because those are the only timezones I know of."
+            )
+            logger.warning(f"Invalid timezone provided: {timezone}")
+            return True
+
+        if day > MAX_DAYS[month]:
+            await interaction.response.send_message(
+                f"{month.name} doesn't have that many days..."
+            )
+            logger.warning(f"Invalid day {day} for month {month.name}")
+            return True
+
+        return False
+
+    def _calculate_next_birthday_year(
+        self, month: Months, day: int, timezone: str
+    ) -> int:
+        """Calculate the year for the next occurrence of the birthday."""
+        now = pendulum.now(timezone).replace(second=0, microsecond=0)
+        year = now.year
+
+        if month == Months.February and day == 29:
+            return self._calculate_leap_year(year, now, timezone)
+
+        birthday_this_year = DateTime(
+            year=year,
+            month=month.value,
+            day=day,
+            tzinfo=pendulum.timezone(timezone),
+        )
+        return year + 1 if birthday_this_year <= now else year
+
+    def _calculate_leap_year(self, year: int, now: DateTime, timezone: str) -> int:
+        """Calculate the next leap year for February 29th birthdays."""
+        try:
+            birthday_this_year = DateTime(
+                year=year,
+                month=2,
+                day=29,
+                tzinfo=pendulum.timezone(timezone),
+            )
+        except ValueError:
+            birthday_this_year = None
+
+        if birthday_this_year is None or birthday_this_year <= now:
+            return get_next_leap(year)
+        return year
+
+    def _create_birthday_record(
+        self, user: User | Member, month: Months, day: int, year: int, timezone: str
+    ) -> UserRecord:
+        """Create a UserRecord for the birthday."""
+        birthday_datetime = (
+            DateTime.strptime(
+                f"{year}-{month.value:02d}-{day:02d} 00:00:00",
+                "%Y-%m-%d %H:%M:%S",
+            )
+            .replace(tzinfo=pendulum.timezone(timezone))
+            .astimezone(pendulum.timezone("UTC"))
+            .strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        )
+
+        return {
+            "id": user.id,
+            "username": user.name,
+            "birthday": birthday_datetime,
+            "isBirthdayLeap": month == Months.February and day == 29,
+        }
+
+    async def _update_birthday_database(
+        self, interaction: Interaction, record: UserRecord
+    ) -> None:
+        """Update the birthday in the database with error handling."""
+        try:
+            await update_birthday(record)
         except Exception as e:
             error_details: ErrorDetails = {
                 "type": type(e).__name__,
@@ -138,6 +163,38 @@ class Birthday(GroupCog):
             await self._birthday_operation_failed(
                 interaction, error_msg, "set", error_details["traceback"]
             )
+            raise  # Re-raise to be caught by the main exception handler
+
+    async def _send_birthday_set_response(
+        self, interaction: Interaction, month: Months, day: int
+    ) -> None:
+        """Send appropriate success message based on birthday type."""
+        if month == Months.February and day == 29:
+            await interaction.response.send_message(
+                "That's an unfortunate birthday 😦\n\n"
+                + "Ah well, looks like I'll only wish you every 4 years!"
+            )
+        else:
+            await interaction.response.send_message(
+                "I've remembered your birthday! "
+                + "I'll wish you at midnight of your selected timezone!"
+            )
+
+    async def _handle_set_birthday_exception(
+        self, interaction: Interaction, e: Exception
+    ) -> None:
+        """Handle exceptions that occur during birthday setting."""
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Exception in set_birthday for user={interaction.user.id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await self._birthday_operation_failed(
+            interaction, error_msg, "set", error_details["traceback"]
+        )
 
     @set_birthday.autocomplete("timezone")
     async def timezone_autocomplete(
