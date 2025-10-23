@@ -2,6 +2,7 @@ import truststore
 
 truststore.inject_into_ssl()
 
+
 import asyncio
 import logging
 import os
@@ -20,13 +21,28 @@ from services.helper.http_client import http_client_manager
 
 load_dotenv()
 
+
 logging.basicConfig(
     level=logging.INFO, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
 )
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
+
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+
+
+def get_error_details(e: Exception) -> ErrorDetails:
+    return {
+        "type": type(e).__name__,
+        "message": str(e),
+        "args": e.args,
+        "traceback": traceback.format_exc(),
+    }
+
+
+def log_error(message: str, error_details: ErrorDetails):
+    logger.error(f"{message}\nTraceback:\n{error_details['traceback']}")
 
 
 async def main() -> None:
@@ -40,25 +56,18 @@ async def main() -> None:
         )
         for ext, res in zip(COGS, results):
             if isinstance(res, Exception):
-                error_details: ErrorDetails = {
-                    "type": type(res).__name__,
-                    "message": str(res),
-                    "args": res.args,
-                    "traceback": traceback.format_exc(),
-                }
-                error_msg = f"Failed to load extension {ext} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-
+                error_details = get_error_details(res)
+                log_error(
+                    f"Failed to load extension {ext} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}",
+                    error_details,
+                )
         await bot.start(DISCORD_TOKEN)
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Unhandled exception in main - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        error_details = get_error_details(e)
+        log_error(
+            f"Unhandled exception in main - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}",
+            error_details,
+        )
 
 
 @asynccontextmanager
@@ -73,30 +82,30 @@ app.include_router(twitch_router)
 app.include_router(youtube_router)
 
 
+def static_file_response(filename: str) -> Response:
+    if not os.path.exists(filename):
+        logger.warning(f"{filename} file not found, returning empty response")
+        raise HTTPException(status_code=404)
+    return FileResponse(filename)
+
+
 @app.get("/")
-async def root() -> Response:
-    return Response(status_code=204)
-
-
 @app.get("/health")
-async def health() -> Response:
-    return Response("Health check OK", status_code=204)
+async def root_or_health() -> Response:
+    # Both endpoints return 204, health returns a message
+    if "health" in str(root_or_health.__name__):
+        return Response("Health check OK", status_code=204)
+    return Response(status_code=204)
 
 
 @app.get("/robots.txt")
 async def robots_txt() -> Response:
-    if not os.path.exists("robots.txt"):
-        logger.warning("robots.txt file not found, returning empty response")
-        raise HTTPException(status_code=404)
-    return FileResponse("robots.txt")
+    return static_file_response("robots.txt")
 
 
 @app.get("/favicon.ico")
 async def favicon() -> Response:
-    if not os.path.exists("favicon.ico"):
-        logger.warning("favicon.ico file not found, returning empty response")
-        raise HTTPException(status_code=404)
-    return FileResponse("favicon.ico")
+    return static_file_response("favicon.ico")
 
 
 if __name__ == "__main__":
