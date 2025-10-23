@@ -37,16 +37,16 @@ from services.helper.parquet_cache import parquet_cache
 logger = logging.getLogger(__name__)
 
 
-async def upsert_row_to_parquet_async(
+def upsert_row_to_parquet(
     row_data: dict | UserRecord | LiveAlert, filepath: str, id_column: str = "id"
 ) -> None:
-    await parquet_cache.upsert_row(row_data, filepath, id_column)
+    parquet_cache.upsert_row(row_data, filepath, id_column)
 
 
-async def delete_row_from_parquet(
+def delete_row_from_parquet(
     id_value: str | int, filepath: str, id_column: str = "id"
 ) -> None:
-    await parquet_cache.delete_row(id_value, filepath, id_column)
+    parquet_cache.delete_row(id_value, filepath, id_column)
 
 
 async def read_parquet_cached(filepath: str) -> DataFrame:
@@ -109,8 +109,8 @@ def get_discriminator(member: User | Member) -> str:
     return "" if member.discriminator == "0" else f"#{member.discriminator}"
 
 
-async def update_birthday(record: UserRecord) -> None:
-    await upsert_row_to_parquet_async(record, "data/users.parquet")
+def update_birthday(record: UserRecord) -> None:
+    upsert_row_to_parquet(record, "data/users.parquet")
 
 
 def get_channel_mention(

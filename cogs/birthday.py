@@ -150,7 +150,7 @@ class Birthday(GroupCog):
     ) -> None:
         """Update the birthday in the database with error handling."""
         try:
-            await update_birthday(record)
+            update_birthday(record)
         except Exception as e:
             error_details: ErrorDetails = {
                 "type": type(e).__name__,
@@ -240,7 +240,7 @@ class Birthday(GroupCog):
                 "isBirthdayLeap": None,
             }
             try:
-                await update_birthday(record)
+                update_birthday(record)
             except Exception as e:
                 error_details: ErrorDetails = {
                     "type": type(e).__name__,

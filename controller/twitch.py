@@ -67,7 +67,7 @@ from services import (
     twitch_send_message,
     unlurk,
     update_alert,
-    upsert_row_to_parquet_async,
+    upsert_row_to_parquet,
     verify_message,
 )
 from services.helper.http_client import http_client_manager
@@ -203,7 +203,7 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
         }
 
         try:
-            await upsert_row_to_parquet_async(alert, LIVE_ALERTS)
+            upsert_row_to_parquet(alert, LIVE_ALERTS)
             asyncio.create_task(
                 update_alert(
                     broadcaster_id,
@@ -351,7 +351,7 @@ async def _update_offline_message(
 async def _cleanup_live_alert(broadcaster_id: int) -> None:
     """Remove the live alert from storage."""
     try:
-        await delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
+        delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
     except Exception as e:
         error_details: ErrorDetails = {
             "type": type(e).__name__,

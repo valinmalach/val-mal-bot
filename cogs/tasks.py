@@ -28,7 +28,7 @@ from services import (
     read_parquet_cached,
     send_message,
     update_birthday,
-    upsert_row_to_parquet_async,
+    upsert_row_to_parquet,
 )
 from services.helper.http_client import http_client_manager
 
@@ -181,7 +181,7 @@ class Tasks(Cog):
         """Process and send notifications for new posts."""
         for post in posts:
             try:
-                await upsert_row_to_parquet_async(post, "data/bluesky.parquet")
+                upsert_row_to_parquet(post, "data/bluesky.parquet")
                 await send_message(
                     f"<@&{BLUESKY_ROLE}>\n\n{post['url']}",
                     BLUESKY_CHANNEL,
@@ -295,7 +295,7 @@ class Tasks(Cog):
                 "isBirthdayLeap": leap,
             }
             try:
-                await update_birthday(updated_record)
+                update_birthday(updated_record)
             except Exception as e:
                 error_details: ErrorDetails = {
                     "type": type(e).__name__,

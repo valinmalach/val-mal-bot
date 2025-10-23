@@ -19,7 +19,7 @@ from .helper.helper import (
     send_message,
     toggle_role,
     update_birthday,
-    upsert_row_to_parquet_async,
+    upsert_row_to_parquet,
     verify_message,
 )
 from .helper.twitch import call_twitch, check_mod, twitch_send_message
@@ -70,7 +70,7 @@ __all__ = [
     "send_message",
     "toggle_role",
     "update_birthday",
-    "upsert_row_to_parquet_async",
+    "upsert_row_to_parquet",
     "verify_message",
     "discord_command",
     "everything",

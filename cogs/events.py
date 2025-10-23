@@ -52,7 +52,7 @@ from services import (
     read_parquet_cached,
     send_embed,
     send_message,
-    upsert_row_to_parquet_async,
+    upsert_row_to_parquet,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,7 +97,7 @@ class Events(Cog):
 
             message_obj = await self._get_message_object(message)
             try:
-                await upsert_row_to_parquet_async(
+                upsert_row_to_parquet(
                     message_obj,
                     MESSAGES,
                 )
@@ -191,7 +191,7 @@ class Events(Cog):
                 "isBirthdayLeap": None,
             }
             try:
-                await upsert_row_to_parquet_async(
+                upsert_row_to_parquet(
                     user,
                     "data/users.parquet",
                 )
@@ -274,7 +274,7 @@ class Events(Cog):
             await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
             try:
-                await delete_row_from_parquet(
+                delete_row_from_parquet(
                     member.id,
                     "data/users.parquet",
                 )
@@ -456,7 +456,7 @@ class Events(Cog):
 
             try:
                 after_message_obj = await self._get_message_object(after)
-                await upsert_row_to_parquet_async(
+                upsert_row_to_parquet(
                     after_message_obj,
                     MESSAGES,
                 )
@@ -521,7 +521,7 @@ class Events(Cog):
             )
 
             try:
-                await delete_row_from_parquet(
+                delete_row_from_parquet(
                     payload.message_id,
                     MESSAGES,
                 )
@@ -591,7 +591,7 @@ class Events(Cog):
 
             for message_id in payload.message_ids:
                 try:
-                    await delete_row_from_parquet(
+                    delete_row_from_parquet(
                         message_id,
                         MESSAGES,
                     )
@@ -936,7 +936,7 @@ class Events(Cog):
         await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
         try:
-            await delete_row_from_parquet(
+            delete_row_from_parquet(
                 message_id,
                 MESSAGES,
             )

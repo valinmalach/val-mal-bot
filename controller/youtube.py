@@ -12,7 +12,7 @@ from fastapi.responses import PlainTextResponse
 
 from constants import BOT_ADMIN_CHANNEL, PROMO_CHANNEL, VIDEOS, ErrorDetails
 from services import send_message
-from services.helper.helper import read_parquet_cached, upsert_row_to_parquet_async
+from services.helper.helper import read_parquet_cached, upsert_row_to_parquet
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ async def add_video_to_parquet(channel_id: str, video_id: str):
         ensure_parquet_file_exists()
 
         try:
-            await upsert_row_to_parquet_async(
+            upsert_row_to_parquet(
                 {"channel_id": channel_id, "video_id": video_id},
                 VIDEOS,
                 id_column="video_id",

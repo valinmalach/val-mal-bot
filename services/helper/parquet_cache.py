@@ -21,7 +21,7 @@ class ParquetCache:
         self._flush_interval = flush_interval
         self._flush_task: Optional[asyncio.Task] = None
 
-    async def start(self):
+    def start(self):
         """Start the periodic flush task"""
         if self._flush_task is None:
             self._flush_task = asyncio.create_task(self._periodic_flush())
@@ -96,34 +96,28 @@ class ParquetCache:
             self._cache[filepath] = df
             df.write_parquet(filepath)
 
-    async def upsert_row(
+    def upsert_row(
         self,
         row_data: dict | UserRecord | LiveAlert,
         filepath: str,
         id_column: str = "id",
     ) -> None:
         """Queue a row for upserting"""
-        try:
-            with self._lock:
-                id_value = row_data[id_column]
-                self._pending_writes[filepath][id_value] = row_data
-                self._dirty_files.add(filepath)
-        except Exception as e:
-            raise e
+        with self._lock:
+            id_value = row_data[id_column]
+            self._pending_writes[filepath][id_value] = row_data
+            self._dirty_files.add(filepath)
 
-    async def delete_row(
+    def delete_row(
         self, id_value: Any, filepath: str, id_column: str = "id"
     ) -> None:
         """Queue a row for deletion"""
-        try:
-            with self._lock:
-                self._pending_deletes[filepath].add(id_value)
-                # Remove from pending writes if it exists
-                if id_value in self._pending_writes[filepath]:
-                    del self._pending_writes[filepath][id_value]
-                self._dirty_files.add(filepath)
-        except Exception as e:
-            raise e
+        with self._lock:
+            self._pending_deletes[filepath].add(id_value)
+            # Remove from pending writes if it exists
+            if id_value in self._pending_writes[filepath]:
+                del self._pending_writes[filepath][id_value]
+            self._dirty_files.add(filepath)
 
     async def read_df(self, filepath: str) -> pl.DataFrame:
         """Read DataFrame with cache"""
