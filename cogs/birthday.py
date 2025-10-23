@@ -153,17 +153,7 @@ class Birthday(GroupCog):
         try:
             update_birthday(record)
         except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Exception in set_birthday for user={interaction.user.id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._birthday_operation_failed(
-                interaction, error_msg, "set", error_details["traceback"]
-            )
+            await self._handle_set_birthday_exception(interaction, e)
             raise  # Re-raise to be caught by the main exception handler
 
     async def _send_birthday_set_response(
@@ -240,45 +230,18 @@ class Birthday(GroupCog):
                 "birthday": None,
                 "isBirthdayLeap": None,
             }
-            try:
-                update_birthday(record)
-            except Exception as e:
-                error_details: ErrorDetails = {
-                    "type": type(e).__name__,
-                    "message": str(e),
-                    "args": e.args,
-                    "traceback": traceback.format_exc(),
-                }
-                error_msg = f"Failed to remove birthday for user={interaction.user.id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-                await self._birthday_operation_failed(
-                    interaction, error_msg, "forget", error_details["traceback"]
+            update_birthday(record)
+
+            if existing_user.get("birthday"):
+                await interaction.response.send_message(
+                    "I've removed your birthday! I won't wish you anymore!"
                 )
                 return
 
-            try:
-                if existing_user.get("birthday"):
-                    await interaction.response.send_message(
-                        "I've removed your birthday! I won't wish you anymore!"
-                    )
-                    return
-
-                await interaction.response.send_message(
-                    "You had no birthday to remove. "
-                    + "Maybe try setting one first before asking me to remove it?"
-                )
-            except Exception as e:
-                error_details: ErrorDetails = {
-                    "type": type(e).__name__,
-                    "message": str(e),
-                    "args": e.args,
-                    "traceback": traceback.format_exc(),
-                }
-                error_msg = f"Error while sending response for birthday removal: {error_details['message']}"
-                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-                await self._birthday_operation_failed(
-                    interaction, error_msg, "forget", error_details["traceback"]
-                )
+            await interaction.response.send_message(
+                "You had no birthday to remove. "
+                + "Maybe try setting one first before asking me to remove it?"
+            )
         except Exception as e:
             error_details: ErrorDetails = {
                 "type": type(e).__name__,
