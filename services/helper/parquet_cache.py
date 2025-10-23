@@ -42,7 +42,7 @@ class ParquetCache:
                 await asyncio.sleep(self._flush_interval)
                 await self._force_flush()
             except asyncio.CancelledError:
-                break
+                raise
             except Exception as e:
                 logger.error(f"Error in periodic flush: {e}")
 
@@ -66,40 +66,63 @@ class ParquetCache:
     def _flush_file_sync(self, filepath: str):
         """Synchronously flush file changes"""
         with self._lock:
-            if filepath not in self._cache:
-                try:
-                    self._cache[filepath] = pl.read_parquet(filepath)
-                except FileNotFoundError:
-                    # Create empty DataFrame with basic structure
-                    self._cache[filepath] = pl.DataFrame()
+            df = self._ensure_dataframe_loaded(filepath)
+            df = self._apply_pending_changes(filepath, df)
+            self._save_dataframe(filepath, df)
 
-            df = self._cache[filepath]
-            id_column = self._id_columns.get(filepath, "id")
+    def _ensure_dataframe_loaded(self, filepath: str) -> pl.DataFrame:
+        """Ensure DataFrame is loaded into cache"""
+        if filepath not in self._cache:
+            try:
+                self._cache[filepath] = pl.read_parquet(filepath)
+            except FileNotFoundError:
+                # Create empty DataFrame with basic structure
+                self._cache[filepath] = pl.DataFrame()
+        return self._cache[filepath]
 
-            # Apply pending deletes
-            if filepath in self._pending_deletes:
-                for column_name, id_values in self._pending_deletes[filepath].items():
-                    for id_value in id_values:
-                        df = df.filter(pl.col(column_name) != id_value)
-                    id_values.clear()
+    def _apply_pending_changes(self, filepath: str, df: pl.DataFrame) -> pl.DataFrame:
+        """Apply all pending changes to the DataFrame"""
+        df = self._apply_pending_deletes(filepath, df)
+        df = self._apply_pending_writes(filepath, df)
+        return df
 
-            # Apply pending writes
-            if filepath in self._pending_writes:
-                if new_rows := list(self._pending_writes[filepath].values()):
-                    new_df = pl.DataFrame(new_rows)
+    def _apply_pending_deletes(self, filepath: str, df: pl.DataFrame) -> pl.DataFrame:
+        """Apply pending delete operations"""
+        if filepath not in self._pending_deletes:
+            return df
 
-                    # Remove existing rows with same IDs
-                    if not df.is_empty() and id_column in df.columns:
-                        existing_ids = set(new_df[id_column].to_list())
-                        df = df.filter(~pl.col(id_column).is_in(existing_ids))
+        for column_name, id_values in self._pending_deletes[filepath].items():
+            for id_value in id_values:
+                df = df.filter(pl.col(column_name) != id_value)
+            id_values.clear()
+        return df
 
-                    # Concat new data
-                    df = new_df if df.is_empty() else pl.concat([df, new_df])
-                self._pending_writes[filepath].clear()
+    def _apply_pending_writes(self, filepath: str, df: pl.DataFrame) -> pl.DataFrame:
+        """Apply pending write operations"""
+        if filepath not in self._pending_writes:
+            return df
 
-            # Update cache and write to file
-            self._cache[filepath] = df
-            df.write_parquet(filepath)
+        new_rows = list(self._pending_writes[filepath].values())
+        if not new_rows:
+            return df
+
+        new_df = pl.DataFrame(new_rows)
+        id_column = self._id_columns.get(filepath, "id")
+
+        # Remove existing rows with same IDs
+        if not df.is_empty() and id_column in df.columns:
+            existing_ids = set(new_df[id_column].to_list())
+            df = df.filter(~pl.col(id_column).is_in(existing_ids))
+
+        # Concat new data
+        df = new_df if df.is_empty() else pl.concat([df, new_df])
+        self._pending_writes[filepath].clear()
+        return df
+
+    def _save_dataframe(self, filepath: str, df: pl.DataFrame):
+        """Save DataFrame to cache and file"""
+        self._cache[filepath] = df
+        df.write_parquet(filepath)
 
     def upsert_row(
         self,
