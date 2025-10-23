@@ -36,6 +36,8 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     DEFAULT_MISSING_CONTENT,
     GUILD_ID,
+    MESSAGES,
+    UNKNOWN_USER,
     WELCOME_CHANNEL,
     ErrorDetails,
     UserRecord,
@@ -97,7 +99,7 @@ class Events(Cog):
             try:
                 await upsert_row_to_parquet_async(
                     message_obj,
-                    "data/messages.parquet",
+                    MESSAGES,
                 )
             except Exception as e:
                 error_details: ErrorDetails = {
@@ -435,7 +437,7 @@ class Events(Cog):
                 after_message_obj = await self._get_message_object(after)
                 await upsert_row_to_parquet_async(
                     after_message_obj,
-                    "data/messages.parquet",
+                    MESSAGES,
                 )
             except Exception as e:
                 error_details: ErrorDetails = {
@@ -500,7 +502,7 @@ class Events(Cog):
             try:
                 await delete_row_from_parquet(
                     payload.message_id,
-                    "data/messages.parquet",
+                    MESSAGES,
                 )
             except Exception as e:
                 error_details: ErrorDetails = {
@@ -551,7 +553,7 @@ class Events(Cog):
             if user_who_deleted is None:
                 discriminator = ""
                 url = None
-                user_who_deleted_name = "Unknown User"
+                user_who_deleted_name = UNKNOWN_USER
             else:
                 discriminator, url = await self._get_user_data(user_who_deleted)
                 user_who_deleted_name = user_who_deleted.name
@@ -570,7 +572,7 @@ class Events(Cog):
                 try:
                     await delete_row_from_parquet(
                         message_id,
-                        "data/messages.parquet",
+                        MESSAGES,
                     )
                 except Exception as e:
                     error_details: ErrorDetails = {
@@ -726,7 +728,7 @@ class Events(Cog):
             )
 
     async def _get_message_content(self, message_id: int) -> str:
-        df = await read_parquet_cached("data/messages.parquet")
+        df = await read_parquet_cached(MESSAGES)
         message_row = df.filter(pl.col("id") == message_id)
         if message_row.height != 0:
             return message_row.row(0, named=True)["contents"]
@@ -882,8 +884,8 @@ class Events(Cog):
         if user is None:
             discriminator = ""
             url = None
-            user_mention = "Unknown User"
-            user_name = "Unknown User"
+            user_mention = UNKNOWN_USER
+            user_name = UNKNOWN_USER
             user_id = "Unknown ID"
         else:
             discriminator, url = await self._get_user_data(user)
@@ -915,7 +917,7 @@ class Events(Cog):
         try:
             await delete_row_from_parquet(
                 message_id,
-                "data/messages.parquet",
+                MESSAGES,
             )
         except Exception as e:
             error_details: ErrorDetails = {
