@@ -32,6 +32,73 @@ async def log_error(message: str, traceback_str: str) -> None:
     await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
 
 
+async def _ensure_token_available(token_type: TokenType) -> bool:
+    """Ensure the appropriate token is available, refreshing if necessary."""
+    if token_type == TokenType.App and not token_manager.app_access_token:
+        return await token_manager.refresh_app_access_token()
+    elif token_type == TokenType.User and not token_manager.user_access_token:
+        return await token_manager.refresh_user_access_token()
+    elif (
+        token_type == TokenType.Broadcaster
+        and not token_manager.broadcaster_access_token
+    ):
+        return await token_manager.refresh_user_access_token(True)
+    return True
+
+
+def _get_token_for_type(token_type: TokenType) -> Optional[str]:
+    """Get the appropriate token based on token type."""
+    if token_type == TokenType.App:
+        return token_manager.app_access_token
+    elif token_type == TokenType.User:
+        return token_manager.user_access_token
+    else:
+        return token_manager.broadcaster_access_token
+
+
+async def _refresh_token_for_type(token_type: TokenType) -> bool:
+    """Refresh the appropriate token based on token type."""
+    if token_type == TokenType.App:
+        return await token_manager.refresh_app_access_token()
+    elif token_type == TokenType.User:
+        return await token_manager.refresh_user_access_token()
+    else:
+        return await token_manager.refresh_user_access_token(True)
+
+
+async def _make_http_request(
+    method: str, url: str, headers: dict, json: Optional[dict]
+) -> Optional[Response]:
+    """Make the HTTP request based on method."""
+    if method.upper() == "GET":
+        return await http_client_manager.request(
+            "GET", url, headers=headers, params=json
+        )
+    elif method.upper() == "POST":
+        return await http_client_manager.request(
+            "POST", url, headers=headers, json=json
+        )
+    else:
+        logger.error(f"Unsupported HTTP method: {method}")
+        await send_message(f"Unsupported HTTP method: {method}", BOT_ADMIN_CHANNEL)
+        return None
+
+
+async def _handle_unauthorized_response(
+    method: str, url: str, headers: dict, json: Optional[dict], token_type: TokenType
+) -> Optional[Response]:
+    """Handle 401 unauthorized response by refreshing token and retrying."""
+    logger.warning("Unauthorized request, refreshing token...")
+    refresh_success = await _refresh_token_for_type(token_type)
+
+    if not refresh_success:
+        return None
+
+    token = _get_token_for_type(token_type)
+    headers["Authorization"] = f"Bearer {token}"
+    return await _make_http_request(method, url, headers, json)
+
+
 async def call_twitch(
     method: Literal["GET", "POST"],
     url: str,
@@ -39,81 +106,33 @@ async def call_twitch(
     token_type: TokenType = TokenType.App,
 ) -> Optional[Response]:
     try:
-        refresh_success = True
-        if token_type == TokenType.App and not token_manager.app_access_token:
-            refresh_success = await token_manager.refresh_app_access_token()
-        elif token_type == TokenType.User and not token_manager.user_access_token:
-            refresh_success = await token_manager.refresh_user_access_token()
-        elif (
-            token_type == TokenType.Broadcaster
-            and not token_manager.broadcaster_access_token
-        ):
-            refresh_success = await token_manager.refresh_user_access_token(True)
-
+        # Ensure token is available
+        refresh_success = await _ensure_token_available(token_type)
         if not refresh_success:
             logger.warning("No access token available and failed to refresh")
             await send_message(
-                "No access token available and failed to refresh",
-                BOT_ADMIN_CHANNEL,
+                "No access token available and failed to refresh", BOT_ADMIN_CHANNEL
             )
             return None
 
-        token = (
-            token_manager.app_access_token
-            if token_type == TokenType.App
-            else token_manager.user_access_token
-            if token_type == TokenType.User
-            else token_manager.broadcaster_access_token
-        )
+        # Get token and prepare headers
+        token = _get_token_for_type(token_type)
         headers = {
             "Client-ID": TWITCH_CLIENT_ID,
             "Authorization": f"Bearer {token}",
         }
 
-        if method.upper() == "GET":
-            response = await http_client_manager.request(
-                "GET", url, headers=headers, params=json
-            )
-        elif method.upper() == "POST":
-            response = await http_client_manager.request(
-                "POST", url, headers=headers, json=json
-            )
-        else:
-            logger.error(f"Unsupported HTTP method: {method}")
-            await send_message(
-                f"Unsupported HTTP method: {method}",
-                BOT_ADMIN_CHANNEL,
-            )
+        # Make initial request
+        response = await _make_http_request(method, url, headers, json)
+        if response is None:
             return None
 
+        # Handle unauthorized response
         if response.status_code == 401:
-            logger.warning("Unauthorized request, refreshing token...")
-            if token_type == TokenType.App:
-                refresh_success = await token_manager.refresh_app_access_token()
-            elif token_type == TokenType.User:
-                refresh_success = await token_manager.refresh_user_access_token()
-            else:
-                refresh_success = await token_manager.refresh_user_access_token(True)
-
-            if not refresh_success:
-                return None
-
-            token = (
-                token_manager.app_access_token
-                if token_type == TokenType.App
-                else token_manager.user_access_token
-                if token_type == TokenType.User
-                else token_manager.broadcaster_access_token
+            response = await _handle_unauthorized_response(
+                method, url, headers, json, token_type
             )
-            headers["Authorization"] = f"Bearer {token}"
-            if method.upper() == "GET":
-                response = await http_client_manager.request(
-                    "GET", url, headers=headers, params=json
-                )
-            elif method.upper() == "POST":
-                response = await http_client_manager.request(
-                    "POST", url, headers=headers, json=json
-                )
+
         return response
 
     except Exception as e:
