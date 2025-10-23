@@ -1,6 +1,8 @@
 from enum import Enum
 from typing import Optional, TypedDict
 
+import polars as pl
+
 TWITCH_MESSAGE_ID = "Twitch-Eventsub-Message-Id"
 TWITCH_MESSAGE_TYPE = "Twitch-Eventsub-Message-Type"
 TWITCH_MESSAGE_TIMESTAMP = "Twitch-Eventsub-Message-Timestamp"
@@ -126,6 +128,37 @@ EMOJI_ROLE_MAP = {
     "🟩": "🟩DMs Open",
     "🟨": "🟨Ask to DM",
     "🟥": "🟥DMs Closed",
+}
+
+
+PARQUET_SCHEMAS = {
+    BLUESKY: {
+        "id": pl.String,
+        "date": pl.String,
+        "url": pl.String,
+    },
+    LIVE_ALERTS: {
+        "id": pl.Int64,
+        "channel_id": pl.Int64,
+        "message_id": pl.Int64,
+        "stream_id": pl.Int64,
+        "stream_started_at": pl.String,
+    },
+    MESSAGES: {
+        "id": pl.Int64,
+        "contents": pl.String,
+        "guild_id": pl.Int64,
+        "author_id": pl.Int64,
+        "channel_id": pl.Int64,
+        "attachment_urls": pl.String,
+    },
+    USERS: {
+        "id": pl.Int64,
+        "username": pl.String,
+        "birthday": pl.String,
+        "isBirthdayLeap": pl.Boolean,
+    },
+    VIDEOS: {"channel_id": pl.String, "video_id": pl.String},
 }
 
 

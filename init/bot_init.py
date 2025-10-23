@@ -10,14 +10,11 @@ from discord.ext.commands import Bot
 from dotenv import load_dotenv
 
 from constants import (
-    BLUESKY,
     BOT_ADMIN_CHANNEL,
     GUILD_ID,
     LIVE_ALERTS,
-    MESSAGES,
+    PARQUET_SCHEMAS,
     TWITCH_DIR,
-    USERS,
-    VIDEOS,
 )
 from services.helper.parquet_cache import parquet_cache
 
@@ -67,39 +64,7 @@ async def activate_if_live() -> None:
 
 def check_data_files_exist() -> None:
     os.makedirs(TWITCH_DIR, exist_ok=True)
-
-    # Define schemas for each parquet file
-    schemas = {
-        BLUESKY: {
-            "id": pl.String,
-            "date": pl.String,
-            "url": pl.String,
-        },
-        LIVE_ALERTS: {
-            "id": pl.Int64,
-            "channel_id": pl.Int64,
-            "message_id": pl.Int64,
-            "stream_id": pl.Int64,
-            "stream_started_at": pl.String,
-        },
-        MESSAGES: {
-            "id": pl.Int64,
-            "contents": pl.String,
-            "guild_id": pl.Int64,
-            "author_id": pl.Int64,
-            "channel_id": pl.Int64,
-            "attachment_urls": pl.String,
-        },
-        USERS: {
-            "id": pl.Int64,
-            "username": pl.String,
-            "birthday": pl.String,
-            "isBirthdayLeap": pl.Boolean,
-        },
-        VIDEOS: {"channel_id": pl.String, "video_id": pl.String},
-    }
-
-    for file_path, schema in schemas.items():
+    for file_path, schema in PARQUET_SCHEMAS.items():
         if not os.path.isfile(file_path):
             empty_df = pl.DataFrame(schema=schema)
             empty_df.write_parquet(file_path)
