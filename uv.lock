@@ -98,7 +98,7 @@ wheels = [
 
 [[package]]
 name = "atproto"
-version = "0.0.62"
+version = "0.0.63"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -110,9 +110,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ca/5a/f930010d7fcc53eca2138337ac9937dbaddf8d7dd9dcd40025dce49a885a/atproto-0.0.62.tar.gz", hash = "sha256:1aaf4555ca1b318b003ad3e9e46d141e9deb5a954360a743a5aa873cd8f17b93", size = 205366, upload-time = "2025-08-17T13:53:08.631Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c1/ab/4b69c283091cc6687d4f58d4951076a37302f414e6ba258b616cc9788b5d/atproto-0.0.63.tar.gz", hash = "sha256:7a2328d7318771db4225ec61b23a85e70fcae0cd60208ffe9fcf8f637ca20cc0", size = 204207, upload-time = "2025-10-22T19:56:05.075Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/db/0a/10c572949b9351a8b8d1532abc5f47ff6d2a675d1604e45673447bf17edb/atproto-0.0.62-py3-none-any.whl", hash = "sha256:d655d37bbf00659bcb6f166e00806096e083047bc91a8b90a260c5f2e6cab250", size = 416198, upload-time = "2025-08-17T13:53:06.7Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/6f/b6a9f79953314a08c45550775fba7864444243a1c4cdd660d90477480d74/atproto-0.0.63-py3-none-any.whl", hash = "sha256:bc08a8a90cf043246ead252a59e39055b170cd82f2f5cd7c0243af95d021ac4b", size = 431894, upload-time = "2025-10-22T19:56:02.91Z" },
 ]
 
 [[package]]
@@ -450,9 +450,24 @@ wheels = [
 
 [[package]]
 name = "libipld"
-version = "3.1.1"
+version = "3.2.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/84/ac/21f2b0f9848c9d99a87e3cc626e7af0fc24883911ec5d7578686cc2a09d1/libipld-3.1.1.tar.gz", hash = "sha256:4b9a9da0ea5d848e9fa12c700027619a1e37ecc1da39dbd1424c0e9062f29e44", size = 4380425, upload-time = "2025-06-24T23:12:51.395Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9b/49/1956463ac7245a6f5444db5c33c7f6ab868da0576b990695a86a4d46f914/libipld-3.2.0.tar.gz", hash = "sha256:654230ffd9382a5eec28aad4e0dcdd93f11dd87da656939dbf138307f2867120", size = 4382044, upload-time = "2025-10-22T15:37:24.564Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/d8/e3cd06b3cbce94719ad26342395e520e614a1ac2e02a42f45323086a4f16/libipld-3.2.0-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:637fbd71b986575d3dd2bb16b61c5fa35b96a7552f70e4f42e69af433eda2a9a", size = 288606, upload-time = "2025-10-22T15:36:26.758Z" },
+    { url = "https://files.pythonhosted.org/packages/86/69/7b2cdb338b68afffcc1914558c76d035384fedcf35dfb2dfa5b283de5d4e/libipld-3.2.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:508dc259c18f7ef12b0b116870a4c217a4773b2c56f4e322972a0310f6841886", size = 281518, upload-time = "2025-10-22T15:36:28.059Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/80/1fa73b5b5998a676f2806c115a490b8afd2e98444fe98cd7f6391cfe1491/libipld-3.2.0-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:e6ac2dfeda17de4131b4f25dca07246bf69ed6345d54943a99c99200e4741655", size = 300942, upload-time = "2025-10-22T15:36:32.248Z" },
+    { url = "https://files.pythonhosted.org/packages/60/e8/b564d429b39ae0404453443144f66390f63bfaa384a8f73963b31d9fbe5c/libipld-3.2.0-cp314-cp314-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:43ee6cbaefbe2ef91e17639eadae620b24bc3f0f8b61c4a5157d85f934e21f54", size = 309790, upload-time = "2025-10-22T15:36:33.258Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/e3/8fa2c3c98cc24fe2d784ffa4a5bad39f631ce872842cba2612b76d4ee068/libipld-3.2.0-cp314-cp314-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:588673e928b2414321a7a01b8d6770766a334b2a813d75a4d9daa3bea7f19703", size = 335393, upload-time = "2025-10-22T15:36:34.29Z" },
+    { url = "https://files.pythonhosted.org/packages/79/43/43cb52228440ee998a22bbdc74ae1ecc28d1fa5e1b4814cf81c1128f25e8/libipld-3.2.0-cp314-cp314-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:a85464bacf548806483433a7c9bcbc1390043fbbd434c38e7fa8754b567f459d", size = 345581, upload-time = "2025-10-22T15:36:35.263Z" },
+    { url = "https://files.pythonhosted.org/packages/42/11/c526c0b30fed857093efed406baa4f56cfdffa081b39f3c7be04cc29514d/libipld-3.2.0-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:aeb21d3a14125dc99c1c09a6bdacb0ff024915d2859535486cec9f9f4f2eeb96", size = 303861, upload-time = "2025-10-22T15:36:36.252Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/7a/d9b8bd45dee0ad048b566b67ddb02e1e1e96e32589058826c96d702658e4/libipld-3.2.0-cp314-cp314-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:63227a1f1fa13c53272fe9c9ad27dcd0b38d60e5297246be1db7320db1676ae0", size = 328416, upload-time = "2025-10-22T15:36:37.588Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/57/ab2f3384590422e941498253ab70b111c28452603368b443c2b12e4f8d36/libipld-3.2.0-cp314-cp314-musllinux_1_1_aarch64.whl", hash = "sha256:3d6ab2c61199302eed385815805e9947236e0d9a9824a849920ebbcac21641b1", size = 482596, upload-time = "2025-10-22T15:36:38.63Z" },
+    { url = "https://files.pythonhosted.org/packages/c0/79/6c4d7acd153ab42e87a4de022baa3b5356c9a0a3150cf947b8ef5750391c/libipld-3.2.0-cp314-cp314-musllinux_1_1_x86_64.whl", hash = "sha256:38d6b733cc9c4bec0dabd451a5d047694413b87b6a1886be6f2e4d425d149a9a", size = 474646, upload-time = "2025-10-22T15:36:40.045Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/74/9cc8d73017408461ac2b6d562346d18a4413befe2e9a49341577b7e4c0e5/libipld-3.2.0-cp314-cp314-win32.whl", hash = "sha256:719e7619a96f6fe05fc440e1704d1a440a89d1d0ccaa360e46a058b6af190fb0", size = 177174, upload-time = "2025-10-22T15:36:41.181Z" },
+    { url = "https://files.pythonhosted.org/packages/65/10/d265eab5072140f169c34e288db29f2fed450abbaa21faa3e96cce76293f/libipld-3.2.0-cp314-cp314-win_amd64.whl", hash = "sha256:7e425bed0a8aba4a6e259c2748e38494219f554b140ec73433a864e9c9ca0861", size = 182162, upload-time = "2025-10-22T15:36:42.625Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/6a/c643ba67d1b55157e67c6b69e67dcb3498cb2ea19573ac1da8e93f88f998/libipld-3.2.0-cp314-cp314-win_arm64.whl", hash = "sha256:4c432591bc21545ac1cbe186f4c1d8434477106a05df90a83c7ef75b34ba07e0", size = 171358, upload-time = "2025-10-22T15:36:43.606Z" },
+]
 
 [[package]]
 name = "markdown-it-py"
@@ -875,7 +890,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "atproto", specifier = ">=0.0.62" },
+    { name = "atproto", specifier = ">=0.0.63" },
     { name = "discord", specifier = ">=2.3.2" },
     { name = "fastapi", specifier = ">=0.119.1" },
     { name = "httpx", extras = ["http2"], specifier = ">=0.28.1" },
@@ -926,11 +941,11 @@ wheels = [
 
 [[package]]
 name = "websockets"
-version = "13.1"
+version = "15.0.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e2/73/9223dbc7be3dcaf2a7bbf756c351ec8da04b1fa573edaf545b95f6b0c7fd/websockets-13.1.tar.gz", hash = "sha256:a3b3366087c1bc0a2795111edcadddb8b3b59509d5db5d7ea3fdd69f954a8878", size = 158549, upload-time = "2024-09-21T17:34:21.54Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/21/e6/26d09fab466b7ca9c7737474c52be4f76a40301b08362eb2dbc19dcc16c1/websockets-15.0.1.tar.gz", hash = "sha256:82544de02076bafba038ce055ee6412d68da13ab47f0c60cab827346de828dee", size = 177016, upload-time = "2025-03-05T20:03:41.606Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/27/96a5cd2626d11c8280656c6c71d8ab50fe006490ef9971ccd154e0c42cd2/websockets-13.1-py3-none-any.whl", hash = "sha256:a9a396a6ad26130cdae92ae10c36af09d9bfe6cafe69670fd3b6da9b07b4044f", size = 152134, upload-time = "2024-09-21T17:34:19.904Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/a8/5b41e0da817d64113292ab1f8247140aac61cbf6cfd085d6a0fa77f4984f/websockets-15.0.1-py3-none-any.whl", hash = "sha256:f7a866fbc1e97b5c617ee4116daaa09b722101d4a3c170c787450ba409f9736f", size = 169743, upload-time = "2025-03-05T20:03:39.41Z" },
 ]
 
 [[package]]

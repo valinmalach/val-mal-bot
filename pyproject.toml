@@ -5,7 +5,7 @@ description = "Valin Malach's bot for Twitch/Discord"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "atproto>=0.0.62",
+    "atproto>=0.0.63",
     "discord>=2.3.2",
     "fastapi>=0.119.1",
     "httpx[http2]>=0.28.1",

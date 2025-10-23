@@ -166,3 +166,4 @@ at_client_session.txt
 *.code-workspace
 data/
 .codacy/
+.vscode/
