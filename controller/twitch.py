@@ -172,65 +172,146 @@ async def process_webhook(
         raise HTTPException(status_code=500) from e
 
 
+def _get_twitch_url(user_login: str) -> str:
+    """Generate Twitch channel URL from user login."""
+    return f"https://www.twitch.tv/{user_login}"
+
+
+def _get_live_alerts_mention(channel_id: int) -> str | None:
+    """Get the live alerts role mention if channel is the stream alerts channel."""
+    return f"<@&{LIVE_ALERTS_ROLE}>" if channel_id == STREAM_ALERTS_CHANNEL else None
+
+
+def _is_main_broadcaster(broadcaster_id: str | int) -> bool:
+    """Check if the broadcaster is the main broadcaster."""
+    return str(broadcaster_id) == TWITCH_BROADCASTER_ID
+
+
+def _extract_alert_data(alert: dict[str, Any]) -> tuple[int, int, str, str]:
+    """Extract relevant data from alert dictionary."""
+    channel_id = alert.get("channel_id", 0)
+    message_id = alert.get("message_id", 0)
+    stream_id = alert.get("stream_id", "")
+    stream_started_at = alert.get("stream_started_at", "")
+    return channel_id, message_id, stream_id, stream_started_at
+
+
+async def _wait_for_stream_info(broadcaster_id: int):
+    """Poll for stream info until it's available."""
+    stream_info = await get_stream_info(broadcaster_id)
+    while not stream_info:
+        await asyncio.sleep(1)
+        stream_info = await get_stream_info(broadcaster_id)
+    return stream_info
+
+
+async def _handle_broadcaster_stream_start(
+    broadcaster_id: int, stream_info, is_main_broadcaster: bool
+) -> None:
+    """Send welcome messages when the main broadcaster goes live."""
+    if not is_main_broadcaster:
+        return
+
+    _ = asyncio.create_task(shoutout_queue.activate())
+    await twitch_send_message(
+        str(broadcaster_id),
+        "NilavHcalam is here valinmArrive",
+    )
+    await twitch_send_message(
+        str(broadcaster_id),
+        f"{stream_info.user_name} is now live! Streaming {stream_info.game_name}: {stream_info.title}",
+    )
+
+
+def _create_stream_online_embed(stream_info, user_info: User | None) -> discord.Embed:
+    """Create the Discord embed for a live stream notification."""
+    url = _get_twitch_url(stream_info.user_login)
+    raw_thumb_url = stream_info.thumbnail_url.replace("{width}x{height}", "400x225")
+    cache_busted_thumb_url = f"{raw_thumb_url}?cb={int(pendulum.now().timestamp())}"
+
+    return (
+        discord.Embed(
+            description=f"[**{stream_info.title}**]({url})",
+            color=0x9046FF,
+            timestamp=parse_rfc3339(stream_info.started_at),
+        )
+        .set_author(
+            name=f"{stream_info.user_name} is now live!",
+            icon_url=user_info.profile_image_url if user_info else None,
+            url=url,
+        )
+        .add_field(
+            name="**Game**",
+            value=f"{stream_info.game_name}",
+            inline=True,
+        )
+        .add_field(
+            name="**Viewers**",
+            value=f"{stream_info.viewer_count}",
+            inline=True,
+        )
+        .set_image(url=cache_busted_thumb_url)
+    )
+
+
+def _create_stream_watch_button(stream_info) -> View:
+    """Create the view with a 'Watch Stream' button."""
+    url = _get_twitch_url(stream_info.user_login)
+    view = View(timeout=None)
+    view.add_item(
+        discord.ui.Button(label="Watch Stream", style=discord.ButtonStyle.link, url=url)
+    )
+    return view
+
+
+async def _save_live_alert(
+    broadcaster_id: int, channel: int, message_id: int, stream_info
+) -> None:
+    """Save the live alert to parquet storage and start update task."""
+    alert: LiveAlert = {
+        "id": broadcaster_id,
+        "channel_id": channel,
+        "message_id": message_id,
+        "stream_id": int(stream_info.id),
+        "stream_started_at": stream_info.started_at,
+    }
+
+    try:
+        upsert_row_to_parquet(alert, LIVE_ALERTS)
+        _ = asyncio.create_task(
+            update_alert(
+                broadcaster_id,
+                channel,
+                message_id,
+                int(stream_info.id),
+                stream_info.started_at,
+            )
+        )
+    except Exception as e:
+        await handle_error(
+            e,
+            f"Failed to insert live alert message into parquet for broadcaster {broadcaster_id}",
+        )
+
+
 async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
     broadcaster_id = int(event_sub.event.broadcaster_user_id)
     try:
-        stream_info = await get_stream_info(broadcaster_id)
+        stream_info = await _wait_for_stream_info(broadcaster_id)
         user_info = await get_user(broadcaster_id)
-        while not stream_info:
-            await asyncio.sleep(1)
-            stream_info = await get_stream_info(broadcaster_id)
 
-        channel = PROMO_CHANNEL
-        if stream_info.user_login == BROADCASTER_USERNAME:
-            channel = STREAM_ALERTS_CHANNEL
-            _ = asyncio.create_task(shoutout_queue.activate())
-            await twitch_send_message(
-                str(broadcaster_id),
-                "NilavHcalam is here valinmArrive",
-            )
-            await twitch_send_message(
-                str(broadcaster_id),
-                f"{stream_info.user_name} is now live! Streaming {stream_info.game_name}: {stream_info.title}",
-            )
+        is_main_broadcaster = stream_info.user_login == BROADCASTER_USERNAME
+        channel = STREAM_ALERTS_CHANNEL if is_main_broadcaster else PROMO_CHANNEL
 
-        content = (
-            f"<@&{LIVE_ALERTS_ROLE}>" if channel == STREAM_ALERTS_CHANNEL else None
+        await _handle_broadcaster_stream_start(
+            broadcaster_id, stream_info, is_main_broadcaster
         )
 
-        url = f"https://www.twitch.tv/{stream_info.user_login}"
-        raw_thumb_url = stream_info.thumbnail_url.replace("{width}x{height}", "400x225")
-        cache_busted_thumb_url = f"{raw_thumb_url}?cb={int(pendulum.now().timestamp())}"
+        content = _get_live_alerts_mention(channel)
 
-        embed = (
-            discord.Embed(
-                description=f"[**{stream_info.title}**]({url})",
-                color=0x9046FF,
-                timestamp=parse_rfc3339(stream_info.started_at),
-            )
-            .set_author(
-                name=f"{stream_info.user_name} is now live!",
-                icon_url=user_info.profile_image_url if user_info else None,
-                url=url,
-            )
-            .add_field(
-                name="**Game**",
-                value=f"{stream_info.game_name}",
-                inline=True,
-            )
-            .add_field(
-                name="**Viewers**",
-                value=f"{stream_info.viewer_count}",
-                inline=True,
-            )
-            .set_image(url=cache_busted_thumb_url)
-        )
-        view = View(timeout=None)
-        view.add_item(
-            discord.ui.Button(
-                label="Watch Stream", style=discord.ButtonStyle.link, url=url
-            )
-        )
+        embed = _create_stream_online_embed(stream_info, user_info)
+        view = _create_stream_watch_button(stream_info)
+
         message_id = await send_embed(embed, channel, view, content=content)
         if message_id is None:
             await send_message(
@@ -240,54 +321,17 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
             logger.error(f"Failed to send embed for broadcaster {broadcaster_id}")
             return
 
-        alert: LiveAlert = {
-            "id": broadcaster_id,
-            "channel_id": channel,
-            "message_id": message_id,
-            "stream_id": int(stream_info.id),
-            "stream_started_at": stream_info.started_at,
-        }
+        await _save_live_alert(broadcaster_id, channel, message_id, stream_info)
 
-        try:
-            upsert_row_to_parquet(alert, LIVE_ALERTS)
-            _ = asyncio.create_task(
-                update_alert(
-                    broadcaster_id,
-                    channel,
-                    message_id,
-                    int(stream_info.id),
-                    stream_info.started_at,
-                )
-            )
-        except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Failed to insert live alert message into parquet for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await log_error(error_msg, error_details["traceback"])
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Error in _stream_online_task for {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await handle_error(e, f"Error in _stream_online_task for {broadcaster_id}")
 
 
 def _cancel_ad_break_task_if_needed(broadcaster_user_login: str) -> None:
     """Cancel ad break notification task for the broadcaster if it exists."""
     if broadcaster_user_login == BROADCASTER_USERNAME:
         shoutout_queue.deactivate()
-        existing_task = _ad_break_notification_tasks.get(broadcaster_user_login)
-        if existing_task and not existing_task.done():
-            existing_task.cancel()
+        _cancel_task_if_exists(_ad_break_notification_tasks, broadcaster_user_login)
 
 
 async def _fetch_stream_data(
@@ -317,15 +361,9 @@ async def _get_vod_info(broadcaster_id: int, stream_id: str) -> Video | None:
     try:
         return await get_stream_vod(broadcaster_id, int(stream_id))
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Failed to fetch VOD info for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await handle_error(
+            e, f"Failed to fetch VOD info for broadcaster {broadcaster_id}"
+        )
         return None
 
 
@@ -337,7 +375,7 @@ def _create_offline_embed(
     stream_started_at: str | None,
 ) -> discord.Embed:
     """Create the offline embed with all necessary information."""
-    url = f"https://www.twitch.tv/{event_sub.event.broadcaster_user_login}"
+    url = _get_twitch_url(event_sub.event.broadcaster_user_login)
     embed = (
         discord.Embed(
             description=f"**{channel_info.title if channel_info else ''}**",
@@ -383,15 +421,7 @@ async def _update_offline_message(
             f"Message not found when editing offline embed for message_id={message_id}; continuing"
         )
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Error editing offline embed - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await handle_error(e, "Error editing offline embed")
 
 
 async def _cleanup_live_alert(broadcaster_id: int) -> None:
@@ -399,15 +429,9 @@ async def _cleanup_live_alert(broadcaster_id: int) -> None:
     try:
         delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Failed to delete live alert for broadcaster {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(error_msg)
-        await log_error(error_msg, error_details["traceback"])
+        await handle_error(
+            e, f"Failed to delete live alert for broadcaster {broadcaster_id}"
+        )
 
 
 async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
@@ -419,16 +443,13 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
         if alert is None:
             return
 
-        channel_id = alert.get("channel_id", 0)
-        message_id = alert.get("message_id", 0)
-        stream_id = alert.get("stream_id", "")
-        stream_started_at = alert.get("stream_started_at", "")
+        channel_id, message_id, stream_id, stream_started_at = _extract_alert_data(
+            alert
+        )
 
         vod_info = await _get_vod_info(broadcaster_id, stream_id)
 
-        content = (
-            f"<@&{LIVE_ALERTS_ROLE}>" if channel_id == STREAM_ALERTS_CHANNEL else None
-        )
+        content = _get_live_alerts_mention(channel_id)
 
         embed = _create_offline_embed(
             event_sub, user_info, channel_info, vod_info, stream_started_at
@@ -438,15 +459,7 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
         await _cleanup_live_alert(broadcaster_id)
 
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Error in _stream_offline_task for {broadcaster_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await handle_error(e, f"Error in _stream_offline_task for {broadcaster_id}")
 
 
 async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> None:
@@ -488,15 +501,7 @@ async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> N
 
         await user_command_dict.get(command, default_command)(event_sub, args)
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Error processing Twitch chat webhook task - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await handle_error(e, "Error processing Twitch chat webhook task")
 
 
 async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
@@ -506,18 +511,25 @@ async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
             f"Thank you for following, {event_sub.event.user_name}! valinmHeart Your support means a lot to me! I hope you enjoy your stay! valinmHeart",
         )
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Error processing Twitch follow webhook task - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await handle_error(e, "Error processing Twitch follow webhook task")
 
 
 _ad_break_notification_tasks: dict[str, asyncio.Task] = {}
+
+
+def _cancel_task_if_exists(task_dict: dict[str, asyncio.Task], key: str) -> None:
+    """Cancel an async task if it exists in the given dictionary."""
+    existing_task = task_dict.get(key)
+    if existing_task and not existing_task.done():
+        existing_task.cancel()
+
+
+def _register_ad_break_task(broadcaster_id: str, task: asyncio.Task) -> None:
+    """Register an ad break notification task and set up auto-cleanup."""
+    _ad_break_notification_tasks[broadcaster_id] = task
+    task.add_done_callback(
+        lambda t, bid=broadcaster_id: _ad_break_notification_tasks.pop(bid, None)
+    )
 
 
 async def _schedule_next_ad_break_notification(broadcaster_id: str) -> None:
@@ -543,15 +555,7 @@ async def _schedule_next_ad_break_notification(broadcaster_id: str) -> None:
         )
         raise
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Error scheduling next ad break notification - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await handle_error(e, "Error scheduling next ad break notification")
 
 
 async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -> None:
@@ -566,31 +570,14 @@ async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -
             event_sub.event.broadcaster_user_id,
             "The ad break is finishing now! valinmArrive",
         )
-        existing_task = _ad_break_notification_tasks.get(
-            event_sub.event.broadcaster_user_id
-        )
-        if existing_task and not existing_task.done():
-            existing_task.cancel()
-        task = asyncio.create_task(
-            _schedule_next_ad_break_notification(event_sub.event.broadcaster_user_id)
-        )
-        _ad_break_notification_tasks[event_sub.event.broadcaster_user_id] = task
-        task.add_done_callback(
-            lambda t,
-            broadcaster_id=event_sub.event.broadcaster_user_id: _ad_break_notification_tasks.pop(
-                broadcaster_id, None
-            )
-        )
+
+        broadcaster_id = event_sub.event.broadcaster_user_id
+        _cancel_task_if_exists(_ad_break_notification_tasks, broadcaster_id)
+
+        task = asyncio.create_task(_schedule_next_ad_break_notification(broadcaster_id))
+        _register_ad_break_task(broadcaster_id, task)
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Error processing Twitch ad break webhook task - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await handle_error(e, "Error processing Twitch ad break webhook task")
 
 
 async def _oauth_callback_common(
@@ -651,15 +638,7 @@ async def twitch_oauth_callback(code: str, state: str) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"500: Internal server error on /twitch/oauth/callback - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await handle_error(e, "500: Internal server error on /twitch/oauth/callback")
         raise HTTPException(status_code=500) from e
 
 
@@ -676,15 +655,9 @@ async def twitch_oauth_callback_broadcaster(code: str, state: str) -> Response:
     except HTTPException as e:
         raise e
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"500: Internal server error on /twitch/oauth/callback/broadcaster - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await handle_error(
+            e, "500: Internal server error on /twitch/oauth/callback/broadcaster"
+        )
         raise HTTPException(status_code=500) from e
 
 
@@ -745,26 +718,19 @@ async def channel_ad_break_begin_webhook(request: Request) -> Response:
 
 async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
     try:
-        if event_sub.event.from_broadcaster_user_id == TWITCH_BROADCASTER_ID:
+        if _is_main_broadcaster(event_sub.event.from_broadcaster_user_id):
+            twitch_url = _get_twitch_url(event_sub.event.to_broadcaster_user_login)
             await twitch_send_message(
                 event_sub.event.from_broadcaster_user_id,
-                f"We just raided {event_sub.event.to_broadcaster_user_name}. In case you got left behind, you can find them here: https://www.twitch.tv/{event_sub.event.to_broadcaster_user_login} valinmHeart",
+                f"We just raided {event_sub.event.to_broadcaster_user_name}. In case you got left behind, you can find them here: {twitch_url} valinmHeart",
             )
-        elif event_sub.event.to_broadcaster_user_id == TWITCH_BROADCASTER_ID:
+        elif _is_main_broadcaster(event_sub.event.to_broadcaster_user_id):
             await twitch_send_message(
                 event_sub.event.to_broadcaster_user_id,
                 f"!so {event_sub.event.from_broadcaster_user_login}",
             )
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Error processing Twitch raid webhook task - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await handle_error(e, "Error processing Twitch raid webhook task")
 
 
 @twitch_router.post("/webhook/twitch/raid")
@@ -780,9 +746,8 @@ async def channel_raid_webhook(request: Request) -> Response:
 
 async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
     try:
-        if (
-            event_sub.event.action != "raid"
-            or event_sub.event.broadcaster_user_id != TWITCH_BROADCASTER_ID
+        if event_sub.event.action != "raid" or not _is_main_broadcaster(
+            event_sub.event.broadcaster_user_id
         ):
             return
         await twitch_send_message(
@@ -790,15 +755,7 @@ async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
             "Have a great rest of your day! valinmHeart Don't forget to stay hydrated and take care of yourself! valinmHeart",
         )
     except Exception as e:
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Error processing Twitch moderate webhook task - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await handle_error(e, "Error processing Twitch moderate webhook task")
 
 
 @twitch_router.post("/webhook/twitch/moderate")
