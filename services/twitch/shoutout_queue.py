@@ -66,60 +66,83 @@ class TwitchShoutoutQueue:
         try:
             self._activated = True
             while self._activated:
-                if len(self._shoutout_queue) == 0:
-                    await asyncio.sleep(5)
-                    continue
-
-                username = self._get_next_available_user()
-
-                if username is None:
-                    await asyncio.sleep(5)
-                    continue
-
-                self._shoutout_queue.remove(username)
-
-                user = await get_user_by_username(username)
-                if not user:
-                    logger.warning(f"User {username} not found")
-                    await send_message(f"User {username} not found", BOT_ADMIN_CHANNEL)
-                    continue
-
-                url = "https://api.twitch.tv/helix/chat/shoutouts"
-                data = {
-                    "from_broadcaster_id": TWITCH_BROADCASTER_ID,
-                    "to_broadcaster_id": user.id,
-                    "moderator_id": TWITCH_BOT_USER_ID,
-                }
-                response = await call_twitch("POST", url, data, TokenType.User)
-                if (
-                    response is None
-                    or response.status_code < 200
-                    or response.status_code >= 300
-                ):
-                    logger.error(
-                        f"Failed to send shoutout to {username}: {response.status_code if response else 'No response'} {response.text if response else ''}"
-                    )
-                    await send_message(
-                        f"Failed to send shoutout to {username}: {response.status_code if response else 'No response'} {response.text if response else ''}",
-                        BOT_ADMIN_CHANNEL,
-                    )
-                else:
-                    self._last_shoutout_times[username] = pendulum.now()
-
-                    # Twitch rate limit: 1 shoutout per 2 minutes + 5 seconds buffer
-                    await asyncio.sleep(125)
+                await self._process_shoutout_queue()
         except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Error in activate method - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            traceback_buffer = io.BytesIO(error_details["traceback"].encode("utf-8"))
-            traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-            await send_message(error_msg, BOT_ADMIN_CHANNEL, file=traceback_file)
+            await self._handle_activation_error(e)
+
+    async def _process_shoutout_queue(self) -> None:
+        """Process the shoutout queue once"""
+        if len(self._shoutout_queue) == 0:
+            await asyncio.sleep(5)
+            return
+
+        username = self._get_next_available_user()
+        if username is None:
+            await asyncio.sleep(5)
+            return
+
+        await self._execute_shoutout(username)
+
+    async def _execute_shoutout(self, username: str) -> None:
+        """Execute a shoutout for the given username"""
+        self._shoutout_queue.remove(username)
+
+        user = await get_user_by_username(username)
+        if not user:
+            await self._handle_user_not_found(username)
+            return
+
+        success = await self._send_shoutout_request(username, user.id)
+        if success:
+            self._last_shoutout_times[username] = pendulum.now()
+            # Twitch rate limit: 1 shoutout per 2 minutes + 5 seconds buffer
+            await asyncio.sleep(125)
+
+    async def _handle_user_not_found(self, username: str) -> None:
+        """Handle case when user is not found"""
+        logger.warning(f"User {username} not found")
+        await send_message(f"User {username} not found", BOT_ADMIN_CHANNEL)
+
+    async def _send_shoutout_request(self, username: str, user_id: str) -> bool:
+        """Send shoutout request to Twitch API. Returns True if successful."""
+        url = "https://api.twitch.tv/helix/chat/shoutouts"
+        data = {
+            "from_broadcaster_id": TWITCH_BROADCASTER_ID,
+            "to_broadcaster_id": user_id,
+            "moderator_id": TWITCH_BOT_USER_ID,
+        }
+
+        response = await call_twitch("POST", url, data, TokenType.User)
+        if response is None or not (200 <= response.status_code < 300):
+            await self._handle_shoutout_failure(username, response)
+            return False
+        return True
+
+    async def _handle_shoutout_failure(self, username: str, response) -> None:
+        """Handle failed shoutout request"""
+        status_code = response.status_code if response else "No response"
+        response_text = response.text if response else ""
+
+        error_msg = (
+            f"Failed to send shoutout to {username}: {status_code} {response_text}"
+        )
+        logger.error(error_msg)
+        await send_message(error_msg, BOT_ADMIN_CHANNEL)
+
+    async def _handle_activation_error(self, e: Exception) -> None:
+        """Handle errors in the activate method"""
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error in activate method - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+
+        traceback_buffer = io.BytesIO(error_details["traceback"].encode("utf-8"))
+        traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
+        await send_message(error_msg, BOT_ADMIN_CHANNEL, file=traceback_file)
 
     def deactivate(self) -> None:
         self._activated = False
