@@ -270,46 +270,53 @@ async def subscribe_to_user(username: str) -> bool:
     ) and await twitch_event_subscription("offline", user.id)
 
 
+async def _fetch_user_batch(batch: List[str]) -> Optional[List[User]]:
+    """Fetch a single batch of users from the API."""
+    if not batch:
+        return []
+
+    url = f"https://api.twitch.tv/helix/users?id={'&id='.join(batch)}"
+
+    try:
+        response = await retry_api_call(call_twitch, "GET", url)
+    except Exception as e:
+        error_details: ErrorDetails = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": e.args,
+            "traceback": traceback.format_exc(),
+        }
+        error_msg = f"Error fetching user infos after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+        await log_error(error_msg, error_details["traceback"])
+        return None
+
+    if response is None or not _is_valid_response(response):
+        logger.warning(
+            f"Failed batch fetch of user infos: {response.status_code if response else 'No response'}"
+        )
+        await send_message(
+            f"Failed to fetch users infos: {response.status_code if response else 'No response'} {response.text if response else ''}",
+            BOT_ADMIN_CHANNEL,
+        )
+        return None
+
+    user_info_response = UserResponse.model_validate(response.json())
+    return user_info_response.data
+
+
 async def get_users(ids: List[str]) -> Optional[List[User]]:
+    """Fetch users from Twitch API in batches of 100."""
     batches_iterator = itertools.batched(ids, 100)
     batches_list = [list(batch) for batch in batches_iterator]
 
     users: List[User] = []
 
     for batch in batches_list:
-        if not batch:
-            continue
-        url = f"https://api.twitch.tv/helix/users?id={'&id='.join(batch)}"
-
-        try:
-            response = await retry_api_call(call_twitch, "GET", url)
-        except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Error fetching user infos after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await log_error(error_msg, error_details["traceback"])
+        batch_users = await _fetch_user_batch(batch)
+        if batch_users is None:
             return None
-
-        if (
-            response is None
-            or response.status_code < 200
-            or response.status_code >= 300
-        ):
-            logger.warning(
-                f"Failed batch fetch of user infos: {response.status_code if response else 'No response'}"
-            )
-            await send_message(
-                f"Failed to fetch users infos: {response.status_code if response else 'No response'} {response.text if response else ''}",
-                BOT_ADMIN_CHANNEL,
-            )
-            return
-        user_info_response = UserResponse.model_validate(response.json())
-        users.extend(user_info_response.data)
+        users.extend(batch_users)
 
     return users
 
