@@ -85,53 +85,72 @@ async def retry_api_call(func, *args, max_retries=3, delay=1, **kwargs):
             await asyncio.sleep(wait_time)
 
 
+async def _handle_subscription_request_error(e: Exception) -> None:
+    """Handle errors from subscription API requests."""
+    error_details: ErrorDetails = {
+        "type": type(e).__name__,
+        "message": str(e),
+        "args": e.args,
+        "traceback": traceback.format_exc(),
+    }
+    error_msg = f"Error fetching subscriptions after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+    logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+    await log_error(error_msg, error_details["traceback"])
+
+
+async def _handle_subscription_response_error(response) -> None:
+    """Handle HTTP response errors from subscription API."""
+    logger.warning(
+        f"Error fetching subscriptions: {response.status_code if response else 'No response'}"
+    )
+    await send_message(
+        f"Failed to fetch subscriptions: {response.status_code if response else 'No response'} {response.text if response else ''}",
+        BOT_ADMIN_CHANNEL,
+    )
+
+
+def _is_valid_response(response) -> bool:
+    """Check if the response is valid (not None and has success status code)."""
+    return response is not None and 200 <= response.status_code < 300
+
+
+async def _fetch_subscription_batch(
+    cursor: Optional[str],
+) -> Optional[SubscriptionResponse]:
+    """Fetch a single batch of subscriptions from the API."""
+    url = "https://api.twitch.tv/helix/eventsub/subscriptions"
+    params = {"status": "enabled"}
+    if cursor:
+        params["after"] = cursor
+
+    try:
+        response = await retry_api_call(call_twitch, "GET", url, params)
+    except Exception as e:
+        await _handle_subscription_request_error(e)
+        return None
+
+    if response is None or not _is_valid_response(response):
+        await _handle_subscription_response_error(response)
+        return None
+
+    return SubscriptionResponse.model_validate(response.json())
+
+
 async def get_subscriptions() -> Optional[List[Subscription]]:
+    """Fetch all enabled subscriptions from Twitch API with pagination support."""
     all_subscriptions: List[Subscription] = []
     cursor: Optional[str] = None
 
-    url = "https://api.twitch.tv/helix/eventsub/subscriptions"
     while True:
-        params = {"status": "enabled"}
-        if cursor:
-            params["after"] = cursor
-
-        try:
-            response = await retry_api_call(call_twitch, "GET", url, params)
-        except Exception as e:
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Error fetching subscriptions after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await log_error(error_msg, error_details["traceback"])
+        subscription_response = await _fetch_subscription_batch(cursor)
+        if subscription_response is None:
             return None
 
-        if (
-            response is None
-            or response.status_code < 200
-            or response.status_code >= 300
-        ):
-            logger.warning(
-                f"Error fetching subscriptions: {response.status_code if response else 'No response'}"
-            )
-            await send_message(
-                f"Failed to fetch subscriptions: {response.status_code if response else 'No response'} {response.text if response else ''}",
-                BOT_ADMIN_CHANNEL,
-            )
-            return None
-
-        subscription_info_response = SubscriptionResponse.model_validate(
-            response.json()
-        )
-        data = subscription_info_response.data
-        if not data:
+        if not subscription_response.data:
             break
 
-        all_subscriptions.extend(data)
-        cursor = subscription_info_response.pagination.cursor
+        all_subscriptions.extend(subscription_response.data)
+        cursor = subscription_response.pagination.cursor
         if not cursor:
             break
 
