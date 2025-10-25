@@ -66,6 +66,13 @@ def check_data_files_exist() -> None:
     os.makedirs(TWITCH_DIR, exist_ok=True)
     for file_path, schema in PARQUET_SCHEMAS.items():
         if not os.path.isfile(file_path):
+            # Create parent directories if they don't exist
+            if parent_dir := os.path.dirname(file_path):
+                os.makedirs(parent_dir, exist_ok=True)
+
+            # Create empty file to ensure write_parquet can write to it
+            open(file_path, "w").close()
+
             empty_df = pl.DataFrame(schema=schema)
             empty_df.write_parquet(file_path)
 
