@@ -24,12 +24,12 @@ async def kofi(event_sub: ChannelChatMessageEventSub, _: str) -> None:
     await twitch_send_message(broadcaster_id, message)
 
 
-async def megathon(event_sub: ChannelChatMessageEventSub, _: str) -> None:
-    broadcaster_id = event_sub.event.broadcaster_user_id
-    message = "I'm holding a megathon until 31st October! Click here to see the goals: https://x.com/ValinMalach/status/1949087837296726406"
-    await twitch_send_message(broadcaster_id, message)
-    message = "Subs, bits, donos to my kofi and throne all contribute to the goals! https://ko-fi.com/valinmalach https://throne.com/valinmalach"
-    await twitch_send_message(broadcaster_id, message)
+# async def megathon(event_sub: ChannelChatMessageEventSub, _: str) -> None:
+#     broadcaster_id = event_sub.event.broadcaster_user_id
+#     message = "I'm holding a megathon until 31st October! Click here to see the goals: https://x.com/ValinMalach/status/1949087837296726406"
+#     await twitch_send_message(broadcaster_id, message)
+#     message = "Subs, bits, donos to my kofi and throne all contribute to the goals! https://ko-fi.com/valinmalach https://throne.com/valinmalach"
+#     await twitch_send_message(broadcaster_id, message)
 
 
 async def raid(event_sub: ChannelChatMessageEventSub, _: str) -> None:
@@ -104,5 +104,5 @@ async def everything(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     await socials(event_sub, args)
     await kofi(event_sub, args)
     await throne(event_sub, args)
-    await megathon(event_sub, args)
+    # await megathon(event_sub, args)
     await raid(event_sub, args)
