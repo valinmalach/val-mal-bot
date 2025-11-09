@@ -136,6 +136,24 @@ async def call_twitch(
         return response
 
     except Exception as e:
+        # Check if this is a retryable connection error
+        error_str = str(e).lower()
+        is_retryable = any(
+            term in error_str
+            for term in [
+                "connectionterminated",
+                "connection",
+                "timeout",
+                "network",
+                "remoteprotocolerror",
+            ]
+        )
+
+        if is_retryable:
+            # Re-raise retryable errors so retry_api_call can handle them
+            raise
+
+        # Log and return None for non-retryable errors
         error_details: ErrorDetails = {
             "type": type(e).__name__,
             "message": str(e),

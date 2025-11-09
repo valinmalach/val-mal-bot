@@ -82,19 +82,40 @@ class HttpClientManager:
                 **kwargs,
             )
         except Exception as e:
-            from services.helper.helper import send_message
+            # Check if this is a retryable connection error
+            error_str = str(e).lower()
+            is_retryable = any(
+                term in error_str
+                for term in [
+                    "connectionterminated",
+                    "connection",
+                    "timeout",
+                    "network",
+                    "remoteprotocolerror",
+                ]
+            )
 
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"HTTP request failed: {method} {url} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            traceback_buffer = io.BytesIO(error_details["traceback"].encode("utf-8"))
-            traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-            await send_message(error_msg, BOT_ADMIN_CHANNEL, file=traceback_file)
+            # Only log non-retryable errors immediately
+            # Retryable errors will be logged by retry_api_call if all retries fail
+            if not is_retryable:
+                from services.helper.helper import send_message
+
+                error_details: ErrorDetails = {
+                    "type": type(e).__name__,
+                    "message": str(e),
+                    "args": e.args,
+                    "traceback": traceback.format_exc(),
+                }
+                error_msg = f"HTTP request failed: {method} {url} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
+                traceback_buffer = io.BytesIO(
+                    error_details["traceback"].encode("utf-8")
+                )
+                traceback_file = discord.File(
+                    traceback_buffer, filename="traceback.txt"
+                )
+                await send_message(error_msg, BOT_ADMIN_CHANNEL, file=traceback_file)
+
             raise
 
 

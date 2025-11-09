@@ -91,10 +91,29 @@ async def _handle_invalid_response(response, context: str) -> None:
 
 
 async def retry_api_call(func, *args, max_retries=3, delay=1, **kwargs):
-    """Retry API calls with exponential backoff for connection issues."""
+    """Retry API calls with exponential backoff for connection issues and 5xx server errors."""
     for attempt in range(max_retries):
         try:
-            return await func(*args, **kwargs)
+            response = await func(*args, **kwargs)
+
+            # Check if response has a 5xx status code (server error)
+            if (
+                response is not None
+                and hasattr(response, "status_code")
+                and 500 <= response.status_code < 600
+            ):
+                if attempt == max_retries - 1:
+                    # Last attempt, return the error response
+                    return response
+
+                wait_time = delay * (2**attempt)
+                logger.warning(
+                    f"Server error {response.status_code} on attempt {attempt + 1}, retrying in {wait_time}s"
+                )
+                await asyncio.sleep(wait_time)
+                continue
+
+            return response
         except Exception as e:
             if attempt == max_retries - 1:
                 raise e
@@ -107,6 +126,7 @@ async def retry_api_call(func, *args, max_retries=3, delay=1, **kwargs):
                     "connection",
                     "timeout",
                     "network",
+                    "remoteprotocolerror",
                 ]
             ):
                 raise e
@@ -184,7 +204,7 @@ async def get_user(id: int) -> Optional[User]:
         await _handle_api_exception(e, "Failed to fetch user info after retries")
         return None
 
-    if response is None or response.status_code < 200 or response.status_code >= 300:
+    if response is None or not _is_valid_response(response):
         await _handle_invalid_response(response, "Failed to fetch user info")
         return None
     user_info_response = UserResponse.model_validate(response.json())
@@ -200,7 +220,7 @@ async def get_user_by_username(username: str) -> Optional[User]:
         await _handle_api_exception(e, "Failed to fetch user info after retries")
         return None
 
-    if response is None or response.status_code < 200 or response.status_code >= 300:
+    if response is None or not _is_valid_response(response):
         await _handle_invalid_response(response, "Failed to fetch user info")
         return None
     user_info_response = UserResponse.model_validate(response.json())
@@ -230,7 +250,7 @@ async def twitch_event_subscription(
         )
         return False
 
-    if response is None or response.status_code < 200 or response.status_code >= 300:
+    if response is None or not _is_valid_response(response):
         await _handle_invalid_response(
             response, f"Failed to subscribe to {sub_type} event"
         )
@@ -296,7 +316,7 @@ async def get_channel(id: int) -> Optional[Channel]:
         await _handle_api_exception(e, "Failed to fetch channel info after retries")
         return None
 
-    if response is None or response.status_code < 200 or response.status_code >= 300:
+    if response is None or not _is_valid_response(response):
         await _handle_invalid_response(response, "Failed to fetch channel info")
         return None
     channel_info_response = ChannelResponse.model_validate(response.json())
@@ -314,7 +334,7 @@ async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
         await _log_and_report_error(error_msg, error_details)
         return None
 
-    if response is None or response.status_code < 200 or response.status_code >= 300:
+    if response is None or not _is_valid_response(response):
         await _handle_invalid_response(response, "Failed to fetch stream info")
         return None
     stream_info_response = StreamResponse.model_validate(response.json())
@@ -332,7 +352,7 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
         await _log_and_report_error(error_msg, error_details)
         return None
 
-    if response is None or response.status_code < 200 or response.status_code >= 300:
+    if response is None or not _is_valid_response(response):
         await _handle_invalid_response(response, "Failed to fetch VOD info")
         return None
     video_info_response = VideoResponse.model_validate(response.json())
@@ -357,7 +377,7 @@ async def get_ad_schedule(broadcaster_id: int) -> Optional[AdSchedule]:
         await _handle_api_exception(e, "Failed to fetch ad schedule after retries")
         return None
 
-    if response is None or response.status_code < 200 or response.status_code >= 300:
+    if response is None or not _is_valid_response(response):
         await _handle_invalid_response(response, "Failed to fetch ad schedule")
         return None
     ad_schedule_response = AdScheduleResponse.model_validate(response.json())
@@ -475,9 +495,28 @@ async def _handle_embed_edit_error(
                 f"Failed to delete live alert record for broadcaster_id={broadcaster_id}",
             )
     else:
-        await _handle_api_exception(
-            e, f"Error editing offline embed for message_id={message_id}"
+        # Check if this is a transient network/OS error
+        error_str = str(e).lower()
+        is_transient = any(
+            term in error_str
+            for term in [
+                "clientoserror",
+                "semaphore timeout",
+                "winerror 121",
+                "timeout",
+                "connection",
+            ]
         )
+
+        if is_transient:
+            logger.warning(
+                f"Transient network error when editing offline embed for message_id={message_id}: {e}"
+            )
+        else:
+            # Only log non-transient errors to admin channel
+            await _handle_api_exception(
+                e, f"Error editing offline embed for message_id={message_id}"
+            )
 
 
 async def trigger_offline_sequence(
@@ -605,6 +644,26 @@ async def _handle_live_embed_edit_error(
         )
         return True
     else:
+        # Check if this is a transient network/OS error that should be retried
+        error_str = str(e).lower()
+        is_transient = any(
+            term in error_str
+            for term in [
+                "clientoserror",
+                "semaphore timeout",
+                "winerror 121",
+                "timeout",
+                "connection",
+            ]
+        )
+
+        if is_transient:
+            logger.warning(
+                f"Transient network error when editing live embed for message_id={message_id}; will retry next cycle: {e}"
+            )
+            return True
+
+        # Log other errors to admin channel
         error_details = _create_error_details(e)
         if isinstance(e, discord.HTTPException):
             error_msg = f"Discord HTTP error {e.status} when editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
