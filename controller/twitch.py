@@ -506,7 +506,7 @@ async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
     try:
         await twitch_send_message(
             event_sub.event.broadcaster_user_id,
-            f"Thank you for following, {event_sub.event.user_name}! valinmHeart Your support means a lot to me! I hope you enjoy your stay! valinmHeart",
+            f"Thank you for following, {event_sub.event.user_name}! valinmKiss Your support means a lot to me! I hope you enjoy your stay! valinmKiss",
         )
     except Exception as e:
         await handle_error(e, "Error processing Twitch follow webhook task")
@@ -544,7 +544,7 @@ async def _schedule_next_ad_break_notification(broadcaster_id: str) -> None:
             await asyncio.sleep(wait_seconds)
             await twitch_send_message(
                 broadcaster_id,
-                "The next ad break will start in 5 minutes! Feel free to take a quick break while the ads run! valinmHeart",
+                "The next ad break will start in 5 minutes! Feel free to take a quick break while the ads run! valinmHydrate",
             )
     except asyncio.CancelledError:
         logger.info(
@@ -720,7 +720,7 @@ async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
             twitch_url = _get_twitch_url(event_sub.event.to_broadcaster_user_login)
             await twitch_send_message(
                 event_sub.event.from_broadcaster_user_id,
-                f"We just raided {event_sub.event.to_broadcaster_user_name}. In case you got left behind, you can find them here: {twitch_url} valinmHeart",
+                f"We just raided {event_sub.event.to_broadcaster_user_name}. In case you got left behind, you can find them here: {twitch_url} valinmRaid",
             )
         elif _is_main_broadcaster(event_sub.event.to_broadcaster_user_id):
             await twitch_send_message(
@@ -750,7 +750,7 @@ async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
             return None
         await twitch_send_message(
             event_sub.event.broadcaster_user_id,
-            "Have a great rest of your day! valinmHeart Don't forget to stay hydrated and take care of yourself! valinmHeart",
+            "Have a great rest of your day! valinmKiss Don't forget to stay hydrated and take care of yourself! valinmHydrate",
         )
     except Exception as e:
         await handle_error(e, "Error processing Twitch moderate webhook task")
