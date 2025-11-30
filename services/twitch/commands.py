@@ -34,7 +34,7 @@ async def kofi(event_sub: ChannelChatMessageEventSub, _: str) -> None:
 
 async def raid(event_sub: ChannelChatMessageEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
-    message = "valinmArrive valinmRaid Valin Raid valinmArrive valinmRaid Valin Raid valinmArrive valinmRaid Your Fallen Angel is here valinmTwerk valinmTwerk"
+    message = "valinmArrive valinmRaid Valin Raid valinmArrive valinmRaid Valin Raid valinmArrive valinmRaid Your Fallen Angel is here valinmCake valinmCake"
     await twitch_send_message(broadcaster_id, message)
     message = "DinoDance DinoDance Valin Raid DinoDance DinoDance Valin Raid DinoDance DinoDance Your Fallen Angel is here <3 <3"
     await twitch_send_message(broadcaster_id, message)
