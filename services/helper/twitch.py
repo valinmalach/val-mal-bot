@@ -78,6 +78,8 @@ async def _make_http_request(
         return await http_client_manager.request(
             "POST", url, headers=headers, json=json
         )
+    elif method.upper() == "DELETE":
+        return await http_client_manager.request("DELETE", url, headers=headers)
     else:
         logger.error(f"Unsupported HTTP method: {method}")
         await send_message(f"Unsupported HTTP method: {method}", BOT_ADMIN_CHANNEL)
@@ -100,7 +102,7 @@ async def _handle_unauthorized_response(
 
 
 async def call_twitch(
-    method: Literal["GET", "POST"],
+    method: Literal["GET", "POST", "DELETE"],
     url: str,
     json: Optional[dict] = None,
     token_type: TokenType = TokenType.App,

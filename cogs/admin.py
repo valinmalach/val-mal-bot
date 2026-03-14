@@ -19,6 +19,7 @@ from services import (
     get_users,
     send_embed,
     subscribe_to_user,
+    unsubscribe_to_user,
 )
 from views import (
     DMS_OPEN_EMBED,
@@ -159,6 +160,21 @@ class Admin(Cog):
             content=f"Subscribed to {username}"
             if success
             else f"Failed to subscribe to {username}"
+        )
+
+    @app_commands.command(
+        description="Unsubscribe from online and offline events for a user"
+    )
+    @app_commands.commands.default_permissions(administrator=True)
+    @app_commands.describe(
+        username="The username of the user to unsubscribe from",
+    )
+    async def unsubscribe(self, interaction: Interaction, username: str) -> None:
+        success = await unsubscribe_to_user(username)
+        await interaction.response.send_message(
+            content=f"Unsubscribed from {username}"
+            if success
+            else f"Failed to unsubscribe from {username}"
         )
 
 

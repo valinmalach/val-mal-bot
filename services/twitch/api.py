@@ -270,6 +270,58 @@ async def subscribe_to_user(username: str) -> bool:
     ) and await twitch_event_subscription("offline", user.id)
 
 
+async def _delete_subscription(subscription_id: str) -> bool:
+    """Delete a Twitch EventSub subscription by ID."""
+    url = f"https://api.twitch.tv/helix/eventsub/subscriptions?id={subscription_id}"
+
+    try:
+        response = await retry_api_call(call_twitch, "DELETE", url)
+    except Exception as e:
+        await _handle_api_exception(
+            e,
+            f"Failed to unsubscribe subscription_id={subscription_id} after retries",
+        )
+        return False
+
+    if response is None or not _is_valid_response(response):
+        await _handle_invalid_response(
+            response, f"Failed to unsubscribe subscription_id={subscription_id}"
+        )
+        return False
+
+    return True
+
+
+async def unsubscribe_to_user(username: str) -> bool:
+    """Unsubscribe from online/offline EventSub subscriptions for a user."""
+    user = await get_user_by_username(username)
+    if not user:
+        logger.warning(f"User not found: {username}")
+        await send_message(f"User not found: {username}", BOT_ADMIN_CHANNEL)
+        return False
+
+    subscriptions = await get_subscriptions()
+    if subscriptions is None:
+        return False
+
+    matching_subscriptions = [
+        subscription
+        for subscription in subscriptions
+        if subscription.type in {"stream.online", "stream.offline"}
+        and subscription.condition.broadcaster_user_id == user.id
+    ]
+
+    if not matching_subscriptions:
+        logger.info(f"No online/offline subscriptions found for user: {username}")
+        return True
+
+    results = []
+    for subscription in matching_subscriptions:
+        results.append(await _delete_subscription(subscription.id))
+
+    return all(results)
+
+
 async def _fetch_user_batch(batch: List[str]) -> Optional[List[User]]:
     """Fetch a single batch of users from the API."""
     if not batch:

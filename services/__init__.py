@@ -33,6 +33,7 @@ from .twitch.api import (
     get_user_by_username,
     get_users,
     subscribe_to_user,
+    unsubscribe_to_user,
     update_alert,
 )
 from .twitch.commands import (
@@ -93,5 +94,6 @@ __all__ = [
     "get_user_by_username",
     "get_users",
     "subscribe_to_user",
+    "unsubscribe_to_user",
     "update_alert",
 ]
