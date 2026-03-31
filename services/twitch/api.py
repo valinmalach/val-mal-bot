@@ -4,7 +4,7 @@ import itertools
 import logging
 import os
 import traceback
-from typing import List, Literal, Optional
+from typing import Any, Awaitable, Callable, List, Literal, Optional, TypeVar
 
 import discord
 import pendulum
@@ -51,6 +51,7 @@ logger = logging.getLogger(__name__)
 
 APP_URL = os.getenv("APP_URL")
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
+T = TypeVar("T")
 
 
 async def log_error(message: str, traceback_str: str) -> None:
@@ -90,11 +91,17 @@ async def _handle_invalid_response(response, context: str) -> None:
     await send_message(f"{context}: {status} {text}", BOT_ADMIN_CHANNEL)
 
 
-async def retry_api_call(func, *args, max_retries=3, delay=1, **kwargs):
+async def retry_api_call(
+    func: Callable[..., Awaitable[T]],
+    *args: Any,
+    max_retries: int = 3,
+    delay: float = 1,
+    **kwargs: Any,
+) -> T:
     """Retry API calls with exponential backoff for connection issues and 5xx server errors."""
     for attempt in range(max_retries):
         try:
-            response = await func(*args, **kwargs)
+            response: Any = await func(*args, **kwargs)
 
             # Check if response has a 5xx status code (server error)
             if (
@@ -116,7 +123,7 @@ async def retry_api_call(func, *args, max_retries=3, delay=1, **kwargs):
             return response
         except Exception as e:
             if attempt == max_retries - 1:
-                raise e
+                raise
 
             error_str = str(e).lower()
             if all(
@@ -129,12 +136,14 @@ async def retry_api_call(func, *args, max_retries=3, delay=1, **kwargs):
                     "remoteprotocolerror",
                 ]
             ):
-                raise e
+                raise
             wait_time = delay * (2**attempt)
             logger.warning(
                 f"Connection error on attempt {attempt + 1}, retrying in {wait_time}s: {e}"
             )
             await asyncio.sleep(wait_time)
+
+    raise RuntimeError("retry_api_call exhausted without returning or raising")
 
 
 async def _handle_subscription_request_error(e: Exception) -> None:
