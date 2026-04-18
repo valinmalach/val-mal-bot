@@ -90,7 +90,7 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
         return None
 
     if shoutout_queue.activated:
-        shoutout_queue.add_to_queue(target)
+        shoutout_queue.add_to_queue(user.login, str(user.id))
 
     message = f"Go follow {target_channel.broadcaster_name} at https://www.twitch.tv/{target_channel.broadcaster_login}. They were last seen playing {target_channel.game_name}."
     await twitch_send_message(broadcaster_id, message)
