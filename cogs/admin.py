@@ -38,6 +38,8 @@ from views import (
 
 logger = logging.getLogger(__name__)
 
+_PURGE_MESSAGE_LIMIT_MAX = 500
+
 
 class Admin(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -67,6 +69,56 @@ class Admin(Cog):
             return None
         await interaction.response.send_message("Nuking channel...")
         await interaction.channel.purge(limit=None)
+
+    @app_commands.command(
+        description="Deletes the most recent messages in this channel or thread"
+    )
+    @app_commands.commands.default_permissions(administrator=True)
+    @app_commands.describe(
+        count="How many messages to delete (max 500; bulk deletes use batches of up to 100; messages older than 14 days are skipped)",
+    )
+    async def purge(
+        self,
+        interaction: Interaction,
+        count: app_commands.Range[int, 1, _PURGE_MESSAGE_LIMIT_MAX],
+    ) -> None:
+        ch = interaction.channel
+        if ch is None or isinstance(
+            ch,
+            (ForumChannel, CategoryChannel, DMChannel, GroupChannel),
+        ):
+            logger.warning("Purge aborted: invalid channel type %s", type(ch))
+            await interaction.response.send_message(
+                "This command can only be used in a server text channel or thread.",
+                ephemeral=True,
+            )
+            return
+        if not hasattr(ch, "purge"):
+            await interaction.response.send_message(
+                "This channel does not support bulk message deletion.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.defer(ephemeral=True)
+        try:
+            deleted = await ch.purge(limit=count)
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "Missing permissions to delete messages here.",
+                ephemeral=True,
+            )
+            return
+        except discord.HTTPException as e:
+            logger.exception("Purge failed")
+            await interaction.followup.send(
+                f"Failed to delete messages: {e}",
+                ephemeral=True,
+            )
+            return
+        await interaction.followup.send(
+            f"Deleted {len(deleted)} message(s).",
+            ephemeral=True,
+        )
 
     @app_commands.command(description="Sends the rules embed to the rules channel")
     @app_commands.commands.default_permissions(administrator=True)
