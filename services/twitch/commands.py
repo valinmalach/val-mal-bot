@@ -42,7 +42,7 @@ async def raid(event_sub: ChannelChatMessageEventSub, _: str) -> None:
 
 async def socials(event_sub: ChannelChatMessageEventSub, _: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
-    message = "Twitter: https://twitter.com/ValinMalach Bluesky: https://bsky.app/profile/valinmalach.bsky.social"
+    message = "Twitter: https://twitter.com/ValinMalach"
     await twitch_send_message(broadcaster_id, message)
 
 

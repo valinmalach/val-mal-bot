@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 from rich.logging import RichHandler
 
 from constants import COGS, ErrorDetails
-from controller import twitch_router, youtube_router
+from controller import twitch_router
 from init import bot
 from services.helper.http_client import http_client_manager
 
@@ -79,7 +79,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(twitch_router)
-app.include_router(youtube_router)
 
 
 def static_file_response(filename: str) -> Response:

@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "aiofiles>=25.1.0",
-    "atproto>=0.0.64",
     "discord>=2.3.2",
     "fastapi>=0.135.3",
     "httpx[http2]>=0.28.1",
@@ -19,5 +18,4 @@ dependencies = [
     "truststore>=0.10.4",
     "types-aiofiles>=25.1.0.20260409",
     "uvicorn[standard]>=0.44.0",
-    "xmltodict>=1.0.4",
 ]

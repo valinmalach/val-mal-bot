@@ -55,8 +55,6 @@ COGS = ["cogs.admin", "cogs.birthday", "cogs.events", "cogs.tasks"]
 UNKNOWN_USER = "Unknown User"
 DEFAULT_MISSING_CONTENT = "`Message content not found in cache`"
 
-YOUTUBE_CHANNEL_IDS = ["UC0mQZHMy8vp-r7KD3-r6S3A"]
-
 BROADCASTER_USERNAME = "valinmalach"
 
 APP_ACCESS_TOKEN_FILE = "data/twitch/app_access_token.txt"
@@ -70,7 +68,6 @@ BLUESKY = "data/bluesky.parquet"
 LIVE_ALERTS = "data/live_alerts.parquet"
 MESSAGES = "data/messages.parquet"
 USERS = "data/users.parquet"
-VIDEOS = "data/youtube/videos.parquet"
 
 
 class Months(Enum):
@@ -158,7 +155,6 @@ PARQUET_SCHEMAS = {
         "birthday": pl.String,
         "isBirthdayLeap": pl.Boolean,
     },
-    VIDEOS: {"channel_id": pl.String, "video_id": pl.String},
 }
 
 
