@@ -12,6 +12,19 @@ from constants import BOT_ADMIN_CHANNEL, ErrorDetails
 logger = logging.getLogger(__name__)
 
 
+def is_transient_network_error(exc: BaseException) -> bool:
+    """True for timeouts and connection issues where str(exc) may be empty (e.g. httpx.ConnectTimeout)."""
+    msg = str(exc).lower()
+    name = type(exc).__name__.lower()
+    terms = (
+        "connection",
+        "timeout",
+        "network",
+        "remoteprotocolerror",
+    )
+    return any(t in msg or t in name for t in terms)
+
+
 class HttpClientManager:
     _instance: Optional["HttpClientManager"] = None
     _client: Optional[httpx.AsyncClient] = None
@@ -82,18 +95,7 @@ class HttpClientManager:
                 **kwargs,
             )
         except Exception as e:
-            # Check if this is a retryable connection error
-            error_str = str(e).lower()
-            is_retryable = any(
-                term in error_str
-                for term in [
-                    "connectionterminated",
-                    "connection",
-                    "timeout",
-                    "network",
-                    "remoteprotocolerror",
-                ]
-            )
+            is_retryable = is_transient_network_error(e)
 
             # Only log non-retryable errors immediately
             # Retryable errors will be logged by retry_api_call if all retries fail

@@ -43,6 +43,7 @@ from services.helper.helper import (
     read_parquet_cached,
     send_message,
 )
+from services.helper.http_client import is_transient_network_error
 from services.helper.twitch import call_twitch
 
 load_dotenv()
@@ -125,17 +126,7 @@ async def retry_api_call(
             if attempt == max_retries - 1:
                 raise
 
-            error_str = str(e).lower()
-            if all(
-                term not in error_str
-                for term in [
-                    "connectionterminated",
-                    "connection",
-                    "timeout",
-                    "network",
-                    "remoteprotocolerror",
-                ]
-            ):
+            if not is_transient_network_error(e):
                 raise
             wait_time = delay * (2**attempt)
             logger.warning(
@@ -390,9 +381,7 @@ async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:
-        error_details = _create_error_details(e)
-        error_msg = f"Failed to fetch stream info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        await _log_and_report_error(error_msg, error_details)
+        await _handle_api_exception(e, "Failed to fetch stream info after retries")
         return None
 
     if response is None or not _is_valid_response(response):
@@ -408,9 +397,7 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:
-        error_details = _create_error_details(e)
-        error_msg = f"Failed to fetch VOD info after retries - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        await _log_and_report_error(error_msg, error_details)
+        await _handle_api_exception(e, "Failed to fetch VOD info after retries")
         return None
 
     if response is None or not _is_valid_response(response):

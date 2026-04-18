@@ -15,7 +15,7 @@ from constants import (
 )
 from models import ChannelChatMessageEventSub
 from services.helper.helper import send_message
-from services.helper.http_client import http_client_manager
+from services.helper.http_client import http_client_manager, is_transient_network_error
 from services.twitch.token_manager import token_manager
 
 load_dotenv()
@@ -138,18 +138,7 @@ async def call_twitch(
         return response
 
     except Exception as e:
-        # Check if this is a retryable connection error
-        error_str = str(e).lower()
-        is_retryable = any(
-            term in error_str
-            for term in [
-                "connectionterminated",
-                "connection",
-                "timeout",
-                "network",
-                "remoteprotocolerror",
-            ]
-        )
+        is_retryable = is_transient_network_error(e)
 
         if is_retryable:
             # Re-raise retryable errors so retry_api_call can handle them
