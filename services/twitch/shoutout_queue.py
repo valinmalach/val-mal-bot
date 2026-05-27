@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import io
 import logging
 import os
@@ -32,8 +33,8 @@ class TwitchShoutoutQueue:
     _instance: Optional["TwitchShoutoutQueue"] = None
     _activated: bool = False
     _shoutout_queue: list[tuple[str, str]] = []
-    _last_shoutout_by_target_id: dict[str, DateTime] = {}
-    _next_attempt_allowed_by_target_id: dict[str, DateTime] = {}
+    _last_shoutout_by_target_id: dict[str, pendulum.DateTime] = {}
+    _next_attempt_allowed_by_target_id: dict[str, pendulum.DateTime] = {}
 
     def __new__(cls) -> "TwitchShoutoutQueue":
         if cls._instance is None:
@@ -45,7 +46,7 @@ class TwitchShoutoutQueue:
         return self._activated
 
     def add_to_queue(self, login: str, user_id: str) -> None:
-        if not any(uid == user_id for _, uid in self._shoutout_queue):
+        if all(uid != user_id for _, uid in self._shoutout_queue):
             self._shoutout_queue.append((login, user_id))
 
     def _can_shoutout_target(self, user_id: str) -> bool:
@@ -68,22 +69,16 @@ class TwitchShoutoutQueue:
             None,
         )
 
-    def _wait_until_from_429(self, response: httpx.Response) -> DateTime:
+    def _wait_until_from_429(self, response: httpx.Response) -> pendulum.DateTime:
         now = pendulum.now()
-        ra = response.headers.get("Retry-After")
-        if ra:
-            try:
+        if ra := response.headers.get("Retry-After"):
+            with contextlib.suppress(ValueError):
                 return now.add(seconds=int(ra))
-            except ValueError:
-                pass
-        rr = response.headers.get("Ratelimit-Reset")
-        if rr:
-            try:
+        if rr := response.headers.get("Ratelimit-Reset"):
+            with contextlib.suppress(ValueError):
                 reset = pendulum.from_timestamp(int(rr), tz=pendulum.UTC)
                 if reset > now:
                     return reset
-            except ValueError:
-                pass
         return now.add(seconds=_MIN_SAME_TARGET_COOLDOWN_SECONDS)
 
     async def activate(self) -> None:
@@ -105,7 +100,9 @@ class TwitchShoutoutQueue:
 
                 user = await get_user(int(user_id_str))
                 if not user:
-                    logger.warning("User id %s (%s) not found for shoutout", user_id_str, login)
+                    logger.warning(
+                        "User id %s (%s) not found for shoutout", user_id_str, login
+                    )
                     await send_message(
                         f"User {login} not found for shoutout", BOT_ADMIN_CHANNEL
                     )
