@@ -160,7 +160,7 @@ async def _fetch_subscription_batch(
 
     try:
         response = await retry_api_call(call_twitch, "GET", url, params)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await _handle_subscription_request_error(e)
         return None
 
@@ -197,7 +197,7 @@ async def get_user(id: int) -> User | None:
 
     try:
         response = await retry_api_call(call_twitch, "GET", url)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await _handle_api_exception(e, "Failed to fetch user info after retries")
         return None
 
@@ -213,7 +213,7 @@ async def get_user_by_username(username: str) -> User | None:
 
     try:
         response = await retry_api_call(call_twitch, "GET", url)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await _handle_api_exception(e, "Failed to fetch user info after retries")
         return None
 
@@ -241,7 +241,7 @@ async def twitch_event_subscription(
 
     try:
         response = await retry_api_call(call_twitch, "POST", url, body)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await _handle_api_exception(
             e, f"Failed to subscribe to {sub_type} event after retries"
         )
@@ -273,7 +273,7 @@ async def _delete_subscription(subscription_id: str) -> bool:
 
     try:
         response = await retry_api_call(call_twitch, "DELETE", url)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await _handle_api_exception(
             e,
             f"Failed to unsubscribe subscription_id={subscription_id} after retries",
@@ -328,7 +328,7 @@ async def _fetch_user_batch(batch: list[str]) -> list[User] | None:
 
     try:
         response = await retry_api_call(call_twitch, "GET", url)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await _handle_api_exception(e, "Error fetching user infos after retries")
         return None
 
@@ -361,7 +361,7 @@ async def get_channel(id: int) -> Channel | None:
 
     try:
         response = await retry_api_call(call_twitch, "GET", url)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await _handle_api_exception(e, "Failed to fetch channel info after retries")
         return None
 
@@ -377,7 +377,7 @@ async def get_stream_info(broadcaster_id: int) -> Stream | None:
 
     try:
         response = await retry_api_call(call_twitch, "GET", url)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await _handle_api_exception(e, "Failed to fetch stream info after retries")
         return None
 
@@ -393,7 +393,7 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Video | None:
 
     try:
         response = await retry_api_call(call_twitch, "GET", url)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await _handle_api_exception(e, "Failed to fetch VOD info after retries")
         return None
 
@@ -418,7 +418,7 @@ async def get_ad_schedule(broadcaster_id: int) -> AdSchedule | None:
         response = await retry_api_call(
             call_twitch, "GET", url, None, TokenType.Broadcaster
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await _handle_api_exception(e, "Failed to fetch ad schedule after retries")
         return None
 
@@ -449,7 +449,7 @@ async def _fetch_vod_info_safely(broadcaster_id: int, stream_id: int) -> Video |
     """Safely fetch VOD information with error handling."""
     try:
         return await get_stream_vod(broadcaster_id, stream_id)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await _handle_api_exception(
             e, f"Failed to fetch VOD info for broadcaster_id={broadcaster_id}"
         )
@@ -532,7 +532,7 @@ async def _handle_embed_edit_error(
         )
         try:
             delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
-        except Exception as delete_error:
+        except Exception as delete_error:  # noqa: BLE001
             await _handle_api_exception(
                 delete_error,
                 f"Failed to delete live alert record for broadcaster_id={broadcaster_id}",
@@ -589,7 +589,7 @@ async def trigger_offline_sequence(
     # Edit the embed and handle any errors
     try:
         await edit_embed(message_id, embed, channel_id, content=content)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await _handle_embed_edit_error(e, message_id, broadcaster_id)
 
 
@@ -675,7 +675,7 @@ async def _handle_live_embed_edit_error(
         )
         try:
             delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
-        except Exception as delete_error:
+        except Exception as delete_error:  # noqa: BLE001
             await _handle_api_exception(
                 delete_error,
                 f"Failed to delete live alert record for broadcaster_id={broadcaster_id}",
@@ -737,7 +737,7 @@ async def _update_live_embed(
     try:
         await edit_embed(message_id, embed, channel_id, view, content=content)
         return True
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return await _handle_live_embed_edit_error(e, message_id, broadcaster_id)
 
 
@@ -854,7 +854,7 @@ async def update_alert(
             if stream_info is None:
                 break
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await _handle_api_exception(
             e, f"Error updating live alert message for broadcaster_id={broadcaster_id}"
         )

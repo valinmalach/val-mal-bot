@@ -80,7 +80,7 @@ class Tasks(Cog):
                         shutil.copytree(source_path, dest_path, dirs_exist_ok=True)
                     else:
                         shutil.copy2(source_path, dest_path)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     is_dir = os.path.isdir(source_path)
                     error_details: ErrorDetails = {
                         "type": type(e).__name__,
@@ -93,7 +93,7 @@ class Tasks(Cog):
                         f"{error_msg}\nTraceback:\n{error_details['traceback']}"
                     )
                     await self.log_error(error_msg, error_details["traceback"])
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             error_details: ErrorDetails = {
                 "type": type(e).__name__,
                 "message": str(e),
@@ -116,7 +116,7 @@ class Tasks(Cog):
             df = await read_parquet_cached(USERS)
             birthday_users = df.filter(pl.col("birthday") == now)
             await self._process_birthday_records(birthday_users)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             error_details: ErrorDetails = {
                 "type": type(e).__name__,
                 "message": str(e),
@@ -157,7 +157,7 @@ class Tasks(Cog):
             }
             try:
                 update_birthday(updated_record)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 error_details: ErrorDetails = {
                     "type": type(e).__name__,
                     "message": str(e),

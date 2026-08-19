@@ -89,7 +89,7 @@ class Events(Cog):
         """Safely execute parquet operations with error handling."""
         try:
             func(*args, **kwargs)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await self._handle_error(e, f"Failed to {operation}")
 
     def _base_embed(self, description: str, color: int) -> Embed:
@@ -161,7 +161,7 @@ class Events(Cog):
                 await message.channel.send("pong")
             elif content == "plap":
                 await message.channel.send("clank")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_message event")
 
     @Cog.listener()
@@ -207,7 +207,7 @@ class Events(Cog):
                 user,
                 USERS,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_member_join event")
 
     async def _get_user_data(self, user: User | Member) -> tuple[str, str]:
@@ -250,7 +250,7 @@ class Events(Cog):
                 member.id,
                 USERS,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_raw_member_remove event")
 
     @Cog.listener()
@@ -268,7 +268,7 @@ class Events(Cog):
             await self._handle_role_changes(before, after, discriminator, url)
             await self._handle_nickname_change(before, after, discriminator, url)
             await self._handle_timeout_changes(before, after, discriminator, url)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_member_update event")
 
     async def _handle_pfp_change(
@@ -410,7 +410,7 @@ class Events(Cog):
             )
             await self._update_message_in_parquet(after)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_raw_message_edit event")
 
     @Cog.listener()
@@ -447,7 +447,7 @@ class Events(Cog):
                 payload.message_id,
                 MESSAGES,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_raw_message_delete event")
 
     @Cog.listener()
@@ -483,7 +483,7 @@ class Events(Cog):
                     message_id,
                     MESSAGES,
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await self._handle_error(
                 e, "Fatal error with on_raw_bulk_message_delete event"
             )
@@ -504,14 +504,14 @@ class Events(Cog):
     async def on_member_ban(self, guild: Guild, user: User | Member) -> None:
         try:
             await self._log_ban_unban(user, "ban")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_member_ban event")
 
     @Cog.listener()
     async def on_member_unban(self, guild: Guild, user: User | Member) -> None:
         try:
             await self._log_ban_unban(user, "unban")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_member_unban event")
 
     @Cog.listener()
@@ -531,7 +531,7 @@ class Events(Cog):
             embed = self._base_embed(description, 0x337FD5)
             embed = embed.set_author(name=f"{guild_name}", icon_url=guild_icon)
             await send_embed(embed, AUDIT_LOGS_CHANNEL)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_invite_create event")
 
     @Cog.listener()
@@ -544,7 +544,7 @@ class Events(Cog):
             embed = self._base_embed(description, 0xFF470F)
             embed = embed.set_author(name=f"{guild_name}", icon_url=guild_icon)
             await send_embed(embed, AUDIT_LOGS_CHANNEL)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_invite_delete event")
 
     async def _get_message_content(self, message_id: int) -> str:

@@ -287,7 +287,7 @@ async def _save_live_alert(
                 stream_info.started_at,
             )
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await handle_error(
             e,
             f"Failed to insert live alert message into parquet for broadcaster {broadcaster_id}",
@@ -323,7 +323,7 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
 
         await _save_live_alert(broadcaster_id, channel, message_id, stream_info)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await handle_error(e, f"Error in _stream_online_task for {broadcaster_id}")
 
 
@@ -360,7 +360,7 @@ async def _get_vod_info(broadcaster_id: int, stream_id: str) -> Video | None:
 
     try:
         return await get_stream_vod(broadcaster_id, int(stream_id))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await handle_error(
             e, f"Failed to fetch VOD info for broadcaster {broadcaster_id}"
         )
@@ -420,7 +420,7 @@ async def _update_offline_message(
         logger.warning(
             f"Message not found when editing offline embed for message_id={message_id}; continuing"
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error editing offline embed")
 
 
@@ -428,7 +428,7 @@ async def _cleanup_live_alert(broadcaster_id: int) -> None:
     """Remove the live alert from storage."""
     try:
         delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await handle_error(
             e, f"Failed to delete live alert for broadcaster {broadcaster_id}"
         )
@@ -458,7 +458,7 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
         await _update_offline_message(message_id, embed, channel_id, content)
         await _cleanup_live_alert(broadcaster_id)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await handle_error(e, f"Error in _stream_offline_task for {broadcaster_id}")
 
 
@@ -498,7 +498,7 @@ async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> N
             """Default no-op command handler."""
 
         await user_command_dict.get(command, default_command)(event_sub, args)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error processing Twitch chat webhook task")
 
 
@@ -508,7 +508,7 @@ async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
             event_sub.event.broadcaster_user_id,
             f"Thank you for following, {event_sub.event.user_name}! valinmKiss Your support means a lot to me! I hope you enjoy your stay! valinmKiss",
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error processing Twitch follow webhook task")
 
 
@@ -552,7 +552,7 @@ async def _schedule_next_ad_break_notification(broadcaster_id: str) -> None:
             broadcaster_id,
         )
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error scheduling next ad break notification")
 
 
@@ -574,7 +574,7 @@ async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -
 
         task = asyncio.create_task(_schedule_next_ad_break_notification(broadcaster_id))
         _register_ad_break_task(broadcaster_id, task)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error processing Twitch ad break webhook task")
 
 
@@ -727,7 +727,7 @@ async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
                 event_sub.event.to_broadcaster_user_id,
                 f"!so {event_sub.event.from_broadcaster_user_login}",
             )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error processing Twitch raid webhook task")
 
 
@@ -752,7 +752,7 @@ async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
             event_sub.event.broadcaster_user_id,
             "Have a great rest of your day! valinmKiss Don't forget to stay hydrated and take care of yourself! valinmHydrate",
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error processing Twitch moderate webhook task")
 
 

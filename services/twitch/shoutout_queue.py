@@ -145,7 +145,7 @@ class TwitchShoutoutQueue:
                     f"Failed to send shoutout to {login}: {response.status_code if response else 'No response'} {response.text if response else ''}",
                     BOT_ADMIN_CHANNEL,
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             error_details: ErrorDetails = {
                 "type": type(e).__name__,
                 "message": str(e),

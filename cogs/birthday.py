@@ -66,7 +66,7 @@ class Birthday(GroupCog):
             # Send success response
             await self._send_birthday_set_response(interaction, month, day)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await self._handle_set_birthday_exception(interaction, e)
 
     async def _validate_birthday_inputs(
@@ -242,7 +242,7 @@ class Birthday(GroupCog):
                 "You had no birthday to remove. "
                 + "Maybe try setting one first before asking me to remove it?"
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             error_details: ErrorDetails = {
                 "type": type(e).__name__,
                 "message": str(e),

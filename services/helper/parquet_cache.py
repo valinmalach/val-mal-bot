@@ -43,7 +43,7 @@ class ParquetCache:
                 await self._force_flush()
             except asyncio.CancelledError:
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Error in periodic flush: {e}")
 
     async def _force_flush(self):
@@ -55,7 +55,7 @@ class ParquetCache:
         for filepath in dirty_files:
             try:
                 await self._flush_file(filepath)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Error flushing {filepath}: {e}")
 
     async def _flush_file(self, filepath: str):

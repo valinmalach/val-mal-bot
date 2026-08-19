@@ -62,7 +62,7 @@ async def main() -> None:
                     error_details,
                 )
         await bot.start(DISCORD_TOKEN)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         error_details = get_error_details(e)
         log_error(
             f"Unhandled exception in main - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}",

@@ -51,7 +51,7 @@ class TwitchTokenManager:
                 logger.info("App access token loaded from file")
         except FileNotFoundError:
             logger.info("No existing app access token file found")
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.error(f"Error loading app access token from file: {e}")
 
     def _load_user_refresh_token(self) -> None:
@@ -62,7 +62,7 @@ class TwitchTokenManager:
                 logger.info("User refresh token loaded from file")
         except FileNotFoundError:
             logger.info("No existing user refresh token file found")
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.error(f"Error loading user refresh token from file: {e}")
 
     def _load_user_access_token(self) -> None:
@@ -73,7 +73,7 @@ class TwitchTokenManager:
                 logger.info("User access token loaded from file")
         except FileNotFoundError:
             logger.info("No existing user access token file found")
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.error(f"Error loading user access token from file: {e}")
 
     def _load_broadcaster_refresh_token(self) -> None:
@@ -84,7 +84,7 @@ class TwitchTokenManager:
                 logger.info("Broadcaster refresh token loaded from file")
         except FileNotFoundError:
             logger.info("No existing broadcaster refresh token file found")
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.error(f"Error loading broadcaster refresh token from file: {e}")
 
     def _load_broadcaster_access_token(self) -> None:
@@ -95,7 +95,7 @@ class TwitchTokenManager:
                 logger.info("Broadcaster access token loaded from file")
         except FileNotFoundError:
             logger.info("No existing broadcaster access token file found")
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.error(f"Error loading broadcaster access token from file: {e}")
 
     @property
