@@ -7,15 +7,15 @@ from .rules_view import RULES_EMBED, RulesView
 
 __all__ = [
     "DMS_OPEN_EMBED",
-    "DMsOpenView",
     "NSFW_ACCESS_EMBED",
-    "NSFWAccessView",
     "OTHER_ROLES_EMBED",
-    "OtherRolesView",
     "PING_ROLES_EMBED",
-    "PingRolesView",
     "PRONOUN_ROLES_EMBED",
-    "PronounRolesView",
     "RULES_EMBED",
+    "DMsOpenView",
+    "NSFWAccessView",
+    "OtherRolesView",
+    "PingRolesView",
+    "PronounRolesView",
     "RulesView",
 ]
