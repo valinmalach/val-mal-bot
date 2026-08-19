@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -16,7 +16,7 @@ class ChannelChatNotificationSubscription(Subscription):
 
 class Sub(BaseModel):
     sub_tier: Literal["1000", "2000", "3000"]
-    is_prime: Optional[bool]
+    is_prime: bool | None
     duration_months: int
 
 
@@ -24,31 +24,31 @@ class Resub(Sub):
     cumulative_months: int
     streak_months: int
     is_gift: bool
-    gifter_is_anonymous: Optional[bool]
-    gifter_user_id: Optional[str]
-    gifter_user_name: Optional[str]
-    gifter_user_login: Optional[str]
+    gifter_is_anonymous: bool | None
+    gifter_user_id: str | None
+    gifter_user_name: str | None
+    gifter_user_login: str | None
 
 
 class SubGift(Sub):
-    cumulative_total: Optional[int]
+    cumulative_total: int | None
     recipient_user_id: str
     recipient_user_name: str
     recipient_user_login: str
-    community_gift_id: Optional[str]
+    community_gift_id: str | None
 
 
 class CommunitySubGift(BaseModel):
     id: str
     total: int
     sub_tier: Literal["1000", "2000", "3000"]
-    cumulative_total: Optional[int]
+    cumulative_total: int | None
 
 
 class GiftPaidUpgrade(BaseModel):
     gifter_is_anonymous: bool
-    gifter_user_id: Optional[str]
-    gifter_user_name: Optional[str]
+    gifter_user_id: str | None
+    gifter_user_name: str | None
 
 
 class PrimePaidUpgrade(BaseModel):
@@ -56,7 +56,7 @@ class PrimePaidUpgrade(BaseModel):
 
 
 class PayItForward(GiftPaidUpgrade):
-    gifter_user_login: Optional[str]
+    gifter_user_login: str | None
 
 
 class Raid(BaseModel):
@@ -125,32 +125,32 @@ class ChannelChatNotificationEvent(BaseModel):
         "shared_chat_pay_it_forward",
         "shared_chat_announcement",
     ]
-    sub: Optional[Sub]
-    resub: Optional[Resub]
-    sub_gift: Optional[SubGift]
-    community_sub_gift: Optional[CommunitySubGift]
-    gift_paid_upgrade: Optional[GiftPaidUpgrade]
-    prime_paid_upgrade: Optional[PrimePaidUpgrade]
-    pay_it_forward: Optional[PayItForward]
-    raid: Optional[Raid]
-    unraid: Optional[Unraid]
-    announcement: Optional[Announcement]
-    bits_badge_tier: Optional[BitsBadgeTier]
-    charity_donation: Optional[CharityDonation]
-    source_broadcaster_user_id: Optional[str]
-    source_broadcaster_user_name: Optional[str]
-    source_broadcaster_user_login: Optional[str]
-    source_message_id: Optional[str]
-    source_badges: Optional[list[Badge]]
-    shared_chat_sub: Optional[Sub]
-    shared_chat_resub: Optional[Resub]
-    shared_chat_sub_gift: Optional[SubGift]
-    shared_chat_community_sub_gift: Optional[CommunitySubGift]
-    shared_chat_gift_paid_upgrade: Optional[GiftPaidUpgrade]
-    shared_chat_prime_paid_upgrade: Optional[PrimePaidUpgrade]
-    shared_chat_pay_it_forward: Optional[PayItForward]
-    shared_chat_raid: Optional[Raid]
-    shared_chat_announcement: Optional[Announcement]
+    sub: Sub | None
+    resub: Resub | None
+    sub_gift: SubGift | None
+    community_sub_gift: CommunitySubGift | None
+    gift_paid_upgrade: GiftPaidUpgrade | None
+    prime_paid_upgrade: PrimePaidUpgrade | None
+    pay_it_forward: PayItForward | None
+    raid: Raid | None
+    unraid: Unraid | None
+    announcement: Announcement | None
+    bits_badge_tier: BitsBadgeTier | None
+    charity_donation: CharityDonation | None
+    source_broadcaster_user_id: str | None
+    source_broadcaster_user_name: str | None
+    source_broadcaster_user_login: str | None
+    source_message_id: str | None
+    source_badges: list[Badge] | None
+    shared_chat_sub: Sub | None
+    shared_chat_resub: Resub | None
+    shared_chat_sub_gift: SubGift | None
+    shared_chat_community_sub_gift: CommunitySubGift | None
+    shared_chat_gift_paid_upgrade: GiftPaidUpgrade | None
+    shared_chat_prime_paid_upgrade: PrimePaidUpgrade | None
+    shared_chat_pay_it_forward: PayItForward | None
+    shared_chat_raid: Raid | None
+    shared_chat_announcement: Announcement | None
 
 
 class ChannelChatNotificationEventSub(BaseModel):

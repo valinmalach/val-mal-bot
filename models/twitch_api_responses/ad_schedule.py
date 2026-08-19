@@ -1,5 +1,3 @@
-from typing import List
-
 from pydantic import BaseModel
 
 
@@ -13,4 +11,4 @@ class AdSchedule(BaseModel):
 
 
 class AdScheduleResponse(BaseModel):
-    data: List[AdSchedule]
+    data: list[AdSchedule]

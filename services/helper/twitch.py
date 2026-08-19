@@ -2,7 +2,7 @@ import io
 import logging
 import os
 import traceback
-from typing import Literal, Optional
+from typing import Literal
 
 import discord
 from dotenv import load_dotenv
@@ -46,7 +46,7 @@ async def _ensure_token_available(token_type: TokenType) -> bool:
     return True
 
 
-def _get_token_for_type(token_type: TokenType) -> Optional[str]:
+def _get_token_for_type(token_type: TokenType) -> str | None:
     """Get the appropriate token based on token type."""
     if token_type == TokenType.App:
         return token_manager.app_access_token
@@ -67,8 +67,8 @@ async def _refresh_token_for_type(token_type: TokenType) -> bool:
 
 
 async def _make_http_request(
-    method: str, url: str, headers: dict, json: Optional[dict]
-) -> Optional[Response]:
+    method: str, url: str, headers: dict, json: dict | None
+) -> Response | None:
     """Make the HTTP request based on method."""
     if method.upper() == "GET":
         return await http_client_manager.request(
@@ -87,8 +87,8 @@ async def _make_http_request(
 
 
 async def _handle_unauthorized_response(
-    method: str, url: str, headers: dict, json: Optional[dict], token_type: TokenType
-) -> Optional[Response]:
+    method: str, url: str, headers: dict, json: dict | None, token_type: TokenType
+) -> Response | None:
     """Handle 401 unauthorized response by refreshing token and retrying."""
     logger.warning("Unauthorized request, refreshing token...")
     refresh_success = await _refresh_token_for_type(token_type)
@@ -104,9 +104,9 @@ async def _handle_unauthorized_response(
 async def call_twitch(
     method: Literal["GET", "POST", "DELETE"],
     url: str,
-    json: Optional[dict] = None,
+    json: dict | None = None,
     token_type: TokenType = TokenType.App,
-) -> Optional[Response]:
+) -> Response | None:
     try:
         # Ensure token is available
         refresh_success = await _ensure_token_available(token_type)

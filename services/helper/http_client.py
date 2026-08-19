@@ -2,7 +2,7 @@ import asyncio
 import io
 import logging
 import traceback
-from typing import Optional
+from typing import Self, cast
 
 import discord
 import httpx
@@ -26,8 +26,8 @@ def is_transient_network_error(exc: BaseException) -> bool:
 
 
 class HttpClientManager:
-    _instance: Optional["HttpClientManager"] = None
-    _client: Optional[httpx.AsyncClient] = None
+    _instance: HttpClientManager | None = None
+    _client: httpx.AsyncClient | None = None
     _lock: asyncio.Lock = asyncio.Lock()
 
     def __new__(cls) -> "HttpClientManager":
@@ -76,10 +76,10 @@ class HttpClientManager:
         method: str,
         url: str,
         *,
-        headers: Optional[dict] = None,
-        params: Optional[dict] = None,
-        json: Optional[dict] = None,
-        data: Optional[dict] = None,
+        headers: dict | None = None,
+        params: dict | None = None,
+        json: dict | None = None,
+        data: dict | None = None,
         **kwargs,
     ) -> httpx.Response:
         """Make an HTTP request using the global client"""

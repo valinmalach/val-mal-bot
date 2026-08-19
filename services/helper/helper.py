@@ -2,7 +2,6 @@ import hashlib
 import hmac
 import logging
 from functools import cache
-from typing import Optional
 
 import discord
 import pendulum
@@ -54,8 +53,8 @@ async def read_parquet_cached(filepath: str) -> DataFrame:
 
 
 async def send_message(
-    content: str, channel_id: int, file: Optional[discord.File] = None
-) -> Optional[int]:
+    content: str, channel_id: int, file: discord.File | None = None
+) -> int | None:
     channel = bot.get_channel(channel_id)
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
@@ -69,9 +68,9 @@ async def send_message(
 async def send_embed(
     embed: Embed,
     channel_id: int,
-    view: Optional[View] = None,
-    content: Optional[str] = None,
-) -> Optional[int]:
+    view: View | None = None,
+    content: str | None = None,
+) -> int | None:
     channel = bot.get_channel(channel_id)
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
@@ -86,8 +85,8 @@ async def edit_embed(
     message_id: int,
     embed: Embed,
     channel_id: int,
-    view: Optional[View] = None,
-    content: Optional[str] = None,
+    view: View | None = None,
+    content: str | None = None,
 ) -> None:
     channel = bot.get_channel(channel_id)
     if channel is None or isinstance(
@@ -286,7 +285,7 @@ def get_member_role(
 
 async def toggle_role(
     guild_id: int, user_id: int, emoji: PartialEmoji
-) -> Optional[tuple[bool, Role]]:
+) -> tuple[bool, Role] | None:
     member, role = get_member_role(guild_id, user_id, emoji)
     if not member or not role:
         return None

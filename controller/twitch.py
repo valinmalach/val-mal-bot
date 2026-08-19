@@ -3,7 +3,8 @@ import io
 import logging
 import os
 import traceback
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 import discord
 import pendulum

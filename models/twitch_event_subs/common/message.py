@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -25,9 +25,9 @@ class Mention(BaseModel):
 class Fragment(BaseModel):
     type: Literal["text", "cheermote", "emote", "mention"]
     text: str
-    cheermote: Optional[Cheermote]
-    emote: Optional[Emote]
-    mention: Optional[Mention]
+    cheermote: Cheermote | None
+    emote: Emote | None
+    mention: Mention | None
 
 
 class Message(BaseModel):

@@ -153,8 +153,8 @@ def _is_valid_response(response) -> bool:
 
 
 async def _fetch_subscription_batch(
-    cursor: Optional[str],
-) -> Optional[SubscriptionResponse]:
+    cursor: str | None,
+) -> SubscriptionResponse | None:
     """Fetch a single batch of subscriptions from the API."""
     url = "https://api.twitch.tv/helix/eventsub/subscriptions"
     params = {"status": "enabled"}
@@ -174,10 +174,10 @@ async def _fetch_subscription_batch(
     return SubscriptionResponse.model_validate(response.json())
 
 
-async def get_subscriptions() -> Optional[List[Subscription]]:
+async def get_subscriptions() -> list[Subscription] | None:
     """Fetch all enabled subscriptions from Twitch API with pagination support."""
-    all_subscriptions: List[Subscription] = []
-    cursor: Optional[str] = None
+    all_subscriptions: list[Subscription] = []
+    cursor: str | None = None
 
     while True:
         subscription_response = await _fetch_subscription_batch(cursor)
@@ -195,7 +195,7 @@ async def get_subscriptions() -> Optional[List[Subscription]]:
     return all_subscriptions
 
 
-async def get_user(id: int) -> Optional[User]:
+async def get_user(id: int) -> User | None:
     url = f"https://api.twitch.tv/helix/users?id={id}"
 
     try:
@@ -211,7 +211,7 @@ async def get_user(id: int) -> Optional[User]:
     return user_info_response.data[0] if user_info_response.data else None
 
 
-async def get_user_by_username(username: str) -> Optional[User]:
+async def get_user_by_username(username: str) -> User | None:
     url = f"https://api.twitch.tv/helix/users?login={username}"
 
     try:
@@ -322,7 +322,7 @@ async def unsubscribe_to_user(username: str) -> bool:
     return all(results)
 
 
-async def _fetch_user_batch(batch: List[str]) -> Optional[List[User]]:
+async def _fetch_user_batch(batch: list[str]) -> list[User] | None:
     """Fetch a single batch of users from the API."""
     if not batch:
         return []
@@ -343,12 +343,12 @@ async def _fetch_user_batch(batch: List[str]) -> Optional[List[User]]:
     return user_info_response.data
 
 
-async def get_users(ids: List[str]) -> Optional[List[User]]:
+async def get_users(ids: list[str]) -> list[User] | None:
     """Fetch users from Twitch API in batches of 100."""
     batches_iterator = itertools.batched(ids, 100)
     batches_list = [list(batch) for batch in batches_iterator]
 
-    users: List[User] = []
+    users: list[User] = []
 
     for batch in batches_list:
         batch_users = await _fetch_user_batch(batch)
@@ -359,7 +359,7 @@ async def get_users(ids: List[str]) -> Optional[List[User]]:
     return users
 
 
-async def get_channel(id: int) -> Optional[Channel]:
+async def get_channel(id: int) -> Channel | None:
     url = f"https://api.twitch.tv/helix/channels?broadcaster_id={id}"
 
     try:
@@ -375,7 +375,7 @@ async def get_channel(id: int) -> Optional[Channel]:
     return channel_info_response.data[0] if channel_info_response.data else None
 
 
-async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
+async def get_stream_info(broadcaster_id: int) -> Stream | None:
     url = f"https://api.twitch.tv/helix/streams?user_id={broadcaster_id}"
 
     try:
@@ -391,7 +391,7 @@ async def get_stream_info(broadcaster_id: int) -> Optional[Stream]:
     return stream_info_response.data[0] if stream_info_response.data else None
 
 
-async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
+async def get_stream_vod(user_id: int, stream_id: int) -> Video | None:
     url = f"https://api.twitch.tv/helix/videos?user_id={user_id}&type=archive"
 
     try:
@@ -414,7 +414,7 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Optional[Video]:
     )
 
 
-async def get_ad_schedule(broadcaster_id: int) -> Optional[AdSchedule]:
+async def get_ad_schedule(broadcaster_id: int) -> AdSchedule | None:
     url = f"https://api.twitch.tv/helix/channels/ads?broadcaster_id={broadcaster_id}"
 
     try:
@@ -433,7 +433,7 @@ async def get_ad_schedule(broadcaster_id: int) -> Optional[AdSchedule]:
 
 
 def _cleanup_broadcaster_tasks(
-    broadcaster_id: int, stream_info: Optional[Stream], user_info: Optional[User]
+    broadcaster_id: int, stream_info: Stream | None, user_info: User | None
 ) -> None:
     """Handle cleanup tasks specific to the broadcaster."""
     if (stream_info and stream_info.user_login == BROADCASTER_USERNAME) or (
@@ -448,9 +448,7 @@ def _cleanup_broadcaster_tasks(
             existing_task.cancel()
 
 
-async def _fetch_vod_info_safely(
-    broadcaster_id: int, stream_id: int
-) -> Optional[Video]:
+async def _fetch_vod_info_safely(broadcaster_id: int, stream_id: int) -> Video | None:
     """Safely fetch VOD information with error handling."""
     try:
         return await get_stream_vod(broadcaster_id, stream_id)
@@ -462,7 +460,7 @@ async def _fetch_vod_info_safely(
 
 
 def _get_stream_title(
-    stream_info: Optional[Stream], vod_info: Optional[Video], channel: Optional[Channel]
+    stream_info: Stream | None, vod_info: Video | None, channel: Channel | None
 ) -> str:
     """Get the stream title from available sources."""
     if stream_info:
@@ -472,14 +470,14 @@ def _get_stream_title(
     return channel.title if channel else "Unknown"
 
 
-def _get_user_name(stream_info: Optional[Stream], user_info: Optional[User]) -> str:
+def _get_user_name(stream_info: Stream | None, user_info: User | None) -> str:
     """Get the user display name from available sources."""
     if stream_info:
         return stream_info.user_name
     return user_info.display_name if user_info else "Unknown"
 
 
-def _get_game_name(stream_info: Optional[Stream], channel: Optional[Channel]) -> str:
+def _get_game_name(stream_info: Stream | None, channel: Channel | None) -> str:
     """Get the game name from available sources."""
     if stream_info:
         return stream_info.game_name
@@ -487,10 +485,10 @@ def _get_game_name(stream_info: Optional[Stream], channel: Optional[Channel]) ->
 
 
 def _create_offline_embed(
-    stream_info: Optional[Stream],
-    vod_info: Optional[Video],
-    channel: Optional[Channel],
-    user_info: Optional[User],
+    stream_info: Stream | None,
+    vod_info: Video | None,
+    channel: Channel | None,
+    user_info: User | None,
     url: str,
     age: str,
     now: pendulum.DateTime,
@@ -570,15 +568,15 @@ async def _handle_embed_edit_error(
 async def trigger_offline_sequence(
     broadcaster_id: int,
     stream_id: int,
-    stream_info: Optional[Stream],
+    stream_info: Stream | None,
     now: pendulum.DateTime,
-    user_info: Optional[User],
+    user_info: User | None,
     url: str,
     age: str,
     message_id: int,
     channel_id: int,
-    content: Optional[str],
-    channel: Optional[Channel],
+    content: str | None,
+    channel: Channel | None,
 ) -> None:
     # Handle cleanup tasks for valinmalach
     _cleanup_broadcaster_tasks(broadcaster_id, stream_info, user_info)
@@ -598,7 +596,7 @@ async def trigger_offline_sequence(
         await _handle_embed_edit_error(e, message_id, broadcaster_id)
 
 
-async def _validate_alert_exists(broadcaster_id: int) -> Optional[dict]:
+async def _validate_alert_exists(broadcaster_id: int) -> dict | None:
     """Check if alert record exists and return it."""
     df = await read_parquet_cached(LIVE_ALERTS)
     alert_row = df.filter(pl.col("id") == broadcaster_id)
@@ -606,7 +604,7 @@ async def _validate_alert_exists(broadcaster_id: int) -> Optional[dict]:
 
 
 def _should_trigger_offline_sequence(
-    alert: dict, stream_info: Optional[Stream], stream_id: int
+    alert: dict, stream_info: Stream | None, stream_id: int
 ) -> bool:
     """Determine if offline sequence should be triggered."""
     return (
@@ -618,7 +616,7 @@ def _should_trigger_offline_sequence(
 
 def _create_live_embed(
     stream_info: Stream,
-    user_info: Optional[User],
+    user_info: User | None,
     url: str,
     age: str,
     started_at_timestamp: str,
@@ -726,11 +724,11 @@ async def _update_live_embed(
     channel_id: int,
     broadcaster_id: int,
     stream_info: Stream,
-    user_info: Optional[User],
+    user_info: User | None,
     url: str,
     age: str,
     started_at_timestamp: str,
-    content: Optional[str],
+    content: str | None,
     now: pendulum.DateTime,
 ) -> bool:
     """Update the live embed. Returns True if should continue, False if should abort."""
@@ -753,7 +751,7 @@ async def _run_update_cycle(
     stream_id: int,
     started_at: pendulum.DateTime,
     started_at_timestamp: str,
-    content: Optional[str],
+    content: str | None,
 ) -> None:
     """Run a single update cycle for the live alert."""
     # Fetch current data

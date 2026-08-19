@@ -1,5 +1,3 @@
-from typing import List
-
 from pydantic import BaseModel
 
 
@@ -12,10 +10,10 @@ class Channel(BaseModel):
     game_id: str
     title: str
     delay: int
-    tags: List[str]
-    content_classification_labels: List[str]
+    tags: list[str]
+    content_classification_labels: list[str]
     is_branded_content: bool
 
 
 class ChannelResponse(BaseModel):
-    data: List[Channel]
+    data: list[Channel]

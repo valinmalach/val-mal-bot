@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -29,11 +29,11 @@ class User(BaseModel):
 
 
 class Ban(User):
-    reason: Optional[str]
+    reason: str | None
 
 
 class Timeout(User):
-    reason: Optional[str]
+    reason: str | None
     expires_at: str
 
 
@@ -55,21 +55,21 @@ class AutomodTerms(BaseModel):
 
 class UnbanRequest(User):
     is_approved: bool
-    moderator_message: Optional[str]
+    moderator_message: str | None
 
 
 class Warn(User):
-    reason: Optional[str]
-    chat_rules_cited: Optional[list[str]]
+    reason: str | None
+    chat_rules_cited: list[str] | None
 
 
 class ChannelModerateEvent(BaseModel):
     broadcaster_user_id: str
     broadcaster_user_login: str
     broadcaster_user_name: str
-    source_broadcaster_user_id: Optional[str]
-    source_broadcaster_user_login: Optional[str]
-    source_broadcaster_user_name: Optional[str]
+    source_broadcaster_user_id: str | None
+    source_broadcaster_user_login: str | None
+    source_broadcaster_user_name: str | None
     moderator_user_id: str
     moderator_user_login: str
     moderator_user_name: str
@@ -109,27 +109,27 @@ class ChannelModerateEvent(BaseModel):
         "shared_chat_untimeout",
         "shared_chat_delete",
     ]
-    followers: Optional[Followers]
-    slow: Optional[Slow]
-    vip: Optional[User]
-    unvip: Optional[User]
-    mod: Optional[User]
-    unmod: Optional[User]
-    ban: Optional[Ban]
-    unban: Optional[User]
-    timeout: Optional[Timeout]
-    untimeout: Optional[User]
-    raid: Optional[Raid]
-    unraid: Optional[User]
-    delete: Optional[Delete]
-    automod_terms: Optional[AutomodTerms]
-    unban_request: Optional[UnbanRequest]
-    warn: Optional[Warn]
-    shared_chat_ban: Optional[Ban]
-    shared_chat_unban: Optional[User]
-    shared_chat_timeout: Optional[Timeout]
-    shared_chat_untimeout: Optional[User]
-    shared_chat_delete: Optional[Delete]
+    followers: Followers | None
+    slow: Slow | None
+    vip: User | None
+    unvip: User | None
+    mod: User | None
+    unmod: User | None
+    ban: Ban | None
+    unban: User | None
+    timeout: Timeout | None
+    untimeout: User | None
+    raid: Raid | None
+    unraid: User | None
+    delete: Delete | None
+    automod_terms: AutomodTerms | None
+    unban_request: UnbanRequest | None
+    warn: Warn | None
+    shared_chat_ban: Ban | None
+    shared_chat_unban: User | None
+    shared_chat_timeout: Timeout | None
+    shared_chat_untimeout: User | None
+    shared_chat_delete: Delete | None
 
 
 class ChannelModerateEventSub(BaseModel):

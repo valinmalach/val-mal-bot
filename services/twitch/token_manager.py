@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Optional
+from typing import Self, cast
 
 import aiofiles
 from dotenv import load_dotenv
@@ -26,7 +26,7 @@ TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 
 
 class TwitchTokenManager:
-    _instance: Optional["TwitchTokenManager"] = None
+    _instance: TwitchTokenManager | None = None
     _app_access_token: str = ""
     _user_refresh_token: str = ""
     _user_access_token: str = ""

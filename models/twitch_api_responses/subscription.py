@@ -1,18 +1,16 @@
-from typing import List, Optional
-
 from pydantic import BaseModel
 
 
 class SubscriptionCondition(BaseModel):
-    broadcaster_user_id: Optional[str] = None
+    broadcaster_user_id: str | None = None
 
 
 class SubscriptionTransport(BaseModel):
-    method: Optional[str] = None
-    callback: Optional[str] = None
-    session_id: Optional[str] = None
-    connected_at: Optional[str] = None
-    disconnected_at: Optional[str] = None
+    method: str | None = None
+    callback: str | None = None
+    session_id: str | None = None
+    connected_at: str | None = None
+    disconnected_at: str | None = None
 
 
 class Subscription(BaseModel):
@@ -27,11 +25,11 @@ class Subscription(BaseModel):
 
 
 class Pagination(BaseModel):
-    cursor: Optional[str] = None
+    cursor: str | None = None
 
 
 class SubscriptionResponse(BaseModel):
-    data: List[Subscription]
+    data: list[Subscription]
     total: int
     total_cost: int
     max_total_cost: int

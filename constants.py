@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, TypedDict
+from typing import TypedDict
 
 import polars as pl
 
@@ -167,8 +167,8 @@ class TokenType(str, Enum):
 class UserRecord(TypedDict):
     id: int
     username: str
-    birthday: Optional[str]
-    isBirthdayLeap: Optional[bool]
+    birthday: str | None
+    isBirthdayLeap: bool | None
 
 
 class ErrorDetails(TypedDict):

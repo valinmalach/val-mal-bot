@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import BaseModel
 
 
@@ -11,7 +9,7 @@ class AuthResponse(BaseModel):
 
 class RefreshResponse(BaseModel):
     access_token: str
-    expires_in: Optional[int]
+    expires_in: int | None
     refresh_token: str
     scope: list[str] | str
     token_type: str

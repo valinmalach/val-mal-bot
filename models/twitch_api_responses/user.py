@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import List
 
 from pydantic import BaseModel
 
@@ -30,4 +29,4 @@ class User(BaseModel):
 
 
 class UserResponse(BaseModel):
-    data: List[User]
+    data: list[User]

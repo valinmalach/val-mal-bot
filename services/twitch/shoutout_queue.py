@@ -30,7 +30,7 @@ _GLOBAL_SHOUTOUT_INTERVAL_SECONDS = 125
 
 
 class TwitchShoutoutQueue:
-    _instance: Optional["TwitchShoutoutQueue"] = None
+    _instance: TwitchShoutoutQueue | None = None
     _activated: bool = False
     _shoutout_queue: list[tuple[str, str]] = []
     _last_shoutout_by_target_id: dict[str, pendulum.DateTime] = {}
@@ -59,7 +59,7 @@ class TwitchShoutoutQueue:
             return True
         return (now - last).total_seconds() >= _MIN_SAME_TARGET_COOLDOWN_SECONDS
 
-    def _get_next_available_pair(self) -> Optional[tuple[str, str]]:
+    def _get_next_available_pair(self) -> tuple[str, str] | None:
         return next(
             (
                 (login, uid)

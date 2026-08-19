@@ -1,13 +1,11 @@
-from typing import Optional
-
 from pydantic import BaseModel
 
 from .common import Subscription
 
 
 class ChannelRaidCondition(BaseModel):
-    to_broadcaster_user_id: Optional[str] = None
-    from_broadcaster_user_id: Optional[str] = None
+    to_broadcaster_user_id: str | None = None
+    from_broadcaster_user_id: str | None = None
 
 
 class ChannelRaidSubscription(Subscription):

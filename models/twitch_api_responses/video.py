@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -17,7 +16,7 @@ class MutedSegment(BaseModel):
 
 class Video(BaseModel):
     id: str
-    stream_id: Optional[str] = None
+    stream_id: str | None = None
     user_id: str
     user_login: str
     user_name: str
@@ -32,13 +31,13 @@ class Video(BaseModel):
     language: str
     type: VideoType
     duration: str
-    muted_segments: Optional[List[MutedSegment]] = None
+    muted_segments: list[MutedSegment] | None = None
 
 
 class Pagination(BaseModel):
-    cursor: Optional[str] = None
+    cursor: str | None = None
 
 
 class VideoResponse(BaseModel):
-    data: List[Video]
+    data: list[Video]
     pagination: Pagination

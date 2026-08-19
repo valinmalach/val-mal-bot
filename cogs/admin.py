@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from typing import List
 
 import discord
 from discord import (
@@ -168,7 +167,7 @@ class Admin(Cog):
             await interaction.response.send_message(embed=embed)
             return None
 
-        grouped_subscriptions: dict[str, List[str]] = {}
+        grouped_subscriptions: dict[str, list[str]] = {}
         for subscription in subscriptions:
             sub_type = subscription.type
             if sub_type not in grouped_subscriptions:

@@ -2,7 +2,7 @@ import asyncio
 import logging
 from collections import defaultdict
 from threading import Lock
-from typing import Any, Dict, Optional, Set
+from typing import Any
 
 import polars as pl
 
@@ -13,16 +13,16 @@ logger = logging.getLogger(__name__)
 
 class ParquetCache:
     def __init__(self, flush_interval: int = 30):
-        self._cache: Dict[str, pl.DataFrame] = {}
-        self._dirty_files: Set[str] = set()
-        self._pending_writes: Dict[str, Dict[str, Any]] = defaultdict(dict)
-        self._pending_deletes: Dict[str, Dict[str, Set[Any]]] = defaultdict(
+        self._cache: dict[str, pl.DataFrame] = {}
+        self._dirty_files: set[str] = set()
+        self._pending_writes: dict[str, dict[str, Any]] = defaultdict(dict)
+        self._pending_deletes: dict[str, dict[str, set[Any]]] = defaultdict(
             lambda: defaultdict(set)
         )
-        self._id_columns: Dict[str, str] = {}
+        self._id_columns: dict[str, str] = {}
         self._lock = Lock()
         self._flush_interval = flush_interval
-        self._flush_task: Optional[asyncio.Task] = None
+        self._flush_task: asyncio.Task | None = None
 
     def start(self):
         """Start the periodic flush task"""

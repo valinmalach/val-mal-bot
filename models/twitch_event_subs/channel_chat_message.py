@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -48,16 +48,16 @@ class ChannelChatMessageEvent(BaseModel):
         "power_ups_gigantified_emote",
     ]
     badges: list[Badge]
-    cheer: Optional[Cheer]
-    color: Optional[str]
-    reply: Optional[Reply]
-    channel_points_custom_reward_id: Optional[str]
-    source_broadcaster_user_id: Optional[str]
-    source_broadcaster_user_name: Optional[str]
-    source_broadcaster_user_login: Optional[str]
-    source_message_id: Optional[str]
-    source_badges: Optional[list[Badge]]
-    is_source_only: Optional[bool]
+    cheer: Cheer | None
+    color: str | None
+    reply: Reply | None
+    channel_points_custom_reward_id: str | None
+    source_broadcaster_user_id: str | None
+    source_broadcaster_user_name: str | None
+    source_broadcaster_user_login: str | None
+    source_message_id: str | None
+    source_badges: list[Badge] | None
+    is_source_only: bool | None
 
 
 class ChannelChatMessageEventSub(BaseModel):

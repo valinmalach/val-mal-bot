@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -18,7 +17,7 @@ class Stream(BaseModel):
     game_name: str
     type: StreamType
     title: str
-    tags: Optional[List[str]] = None
+    tags: list[str] | None = None
     viewer_count: int
     started_at: str
     language: str
@@ -27,9 +26,9 @@ class Stream(BaseModel):
 
 
 class Pagination(BaseModel):
-    cursor: Optional[str] = None
+    cursor: str | None = None
 
 
 class StreamResponse(BaseModel):
-    data: List[Stream]
+    data: list[Stream]
     pagination: Pagination
