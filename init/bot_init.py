@@ -55,7 +55,7 @@ async def activate_if_live() -> None:
     from services.twitch.shoutout_queue import shoutout_queue
 
     if not TWITCH_BROADCASTER_ID:
-        return None
+        return
 
     stream_info = await get_stream_info(int(TWITCH_BROADCASTER_ID))
     if stream_info and stream_info.type == "live":
@@ -129,5 +129,5 @@ async def on_ready() -> None:
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
     ):
-        return None
+        return
     await channel.send("Started successfully!")

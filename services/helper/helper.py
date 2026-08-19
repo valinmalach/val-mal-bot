@@ -92,7 +92,7 @@ async def edit_embed(
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
     ):
-        return None
+        return
     message = await channel.fetch_message(message_id)
     if view:
         await message.edit(content=content, embed=embed, view=view)
@@ -307,21 +307,21 @@ async def roles_button_pressed(interaction: Interaction, button: Button) -> None
             "An error has occurred. Contact an admin.",
             ephemeral=True,
         )
-        return None
+        return
     res = await toggle_role(guild_id, member_id, emoji)
     if res is None:
         await interaction.response.send_message(
             "An error has occured. Contact an admin.",
             ephemeral=True,
         )
-        return None
+        return
     success, role = res
     if not success:
         await interaction.response.send_message(
             f"Your {role.mention} role has been removed.",
             ephemeral=True,
         )
-        return None
+        return
     await interaction.response.send_message(
         f"You have received the {role.mention} role.",
         ephemeral=True,

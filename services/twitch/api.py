@@ -757,7 +757,7 @@ async def _run_update_cycle(
     # Fetch current data
     alert = await _validate_alert_exists(broadcaster_id)
     if alert is None:
-        return None
+        return
 
     stream_info = await get_stream_info(broadcaster_id)
     user_info = await get_user(broadcaster_id)
@@ -789,7 +789,7 @@ async def _run_update_cycle(
             content,
             channel_info,
         )
-        return None
+        return
 
     # Update live embed
     url = f"https://www.twitch.tv/{stream_info.user_login}"
@@ -810,7 +810,7 @@ async def _run_update_cycle(
     )
 
     if not should_continue:
-        return None
+        return
 
 
 async def update_alert(
@@ -832,7 +832,7 @@ async def update_alert(
         # Initial validation
         alert = await _validate_alert_exists(broadcaster_id)
         if alert is None:
-            return None
+            return
 
         # Main update loop
         while True:
