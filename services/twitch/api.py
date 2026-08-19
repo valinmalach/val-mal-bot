@@ -4,7 +4,8 @@ import itertools
 import logging
 import os
 import traceback
-from typing import Any, Awaitable, Callable, List, Literal, Optional, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import Any, Literal
 
 import discord
 import pendulum
@@ -52,7 +53,6 @@ logger = logging.getLogger(__name__)
 
 APP_URL = os.getenv("APP_URL")
 TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
-T = TypeVar("T")
 
 
 async def log_error(message: str, traceback_str: str) -> None:
@@ -92,7 +92,7 @@ async def _handle_invalid_response(response, context: str) -> None:
     await send_message(f"{context}: {status} {text}", BOT_ADMIN_CHANNEL)
 
 
-async def retry_api_call(
+async def retry_api_call[T](
     func: Callable[..., Awaitable[T]],
     *args: Any,
     max_retries: int = 3,
@@ -102,21 +102,18 @@ async def retry_api_call(
     """Retry API calls with exponential backoff for connection issues and 5xx server errors."""
     for attempt in range(max_retries):
         try:
-            response: Any = await func(*args, **kwargs)
+            response = await func(*args, **kwargs)
 
             # Check if response has a 5xx status code (server error)
-            if (
-                response is not None
-                and hasattr(response, "status_code")
-                and 500 <= response.status_code < 600
-            ):
+            status_code: Any | None = getattr(response, "status_code", None)
+            if status_code is not None and 500 <= status_code < 600:
                 if attempt == max_retries - 1:
                     # Last attempt, return the error response
                     return response
 
                 wait_time = delay * (2**attempt)
                 logger.warning(
-                    f"Server error {response.status_code} on attempt {attempt + 1}, retrying in {wait_time}s"
+                    f"Server error {status_code} on attempt {attempt + 1}, retrying in {wait_time}s"
                 )
                 await asyncio.sleep(wait_time)
                 continue

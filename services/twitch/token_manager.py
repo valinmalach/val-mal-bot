@@ -33,7 +33,7 @@ class TwitchTokenManager:
     _broadcaster_refresh_token: str = ""
     _broadcaster_access_token: str = ""
 
-    def __new__(cls) -> "TwitchTokenManager":
+    def __new__(cls) -> Self:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._load_app_access_token()
@@ -41,7 +41,7 @@ class TwitchTokenManager:
             cls._instance._load_user_access_token()
             cls._instance._load_broadcaster_refresh_token()
             cls._instance._load_broadcaster_access_token()
-        return cls._instance
+        return cast("Self", cls._instance)
 
     def _load_app_access_token(self) -> None:
         """Load app access token from file if it exists."""

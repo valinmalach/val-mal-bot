@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import traceback
+from typing import ClassVar
 
 import discord
 import pendulum
@@ -42,7 +43,7 @@ class Tasks(Cog):
         if not self.backup_data.is_running():
             self.backup_data.start()
 
-    _quarter_hours = [
+    _quarter_hours: ClassVar[list[pendulum.Time]] = [
         pendulum.Time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
     ]
 

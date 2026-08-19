@@ -4,7 +4,7 @@ import io
 import logging
 import os
 import traceback
-from typing import Optional
+from typing import ClassVar, Self, cast
 
 import discord
 import httpx
@@ -32,14 +32,14 @@ _GLOBAL_SHOUTOUT_INTERVAL_SECONDS = 125
 class TwitchShoutoutQueue:
     _instance: TwitchShoutoutQueue | None = None
     _activated: bool = False
-    _shoutout_queue: list[tuple[str, str]] = []
-    _last_shoutout_by_target_id: dict[str, pendulum.DateTime] = {}
-    _next_attempt_allowed_by_target_id: dict[str, pendulum.DateTime] = {}
+    _shoutout_queue: ClassVar[list[tuple[str, str]]] = []
+    _last_shoutout_by_target_id: ClassVar[dict[str, pendulum.DateTime]] = {}
+    _next_attempt_allowed_by_target_id: ClassVar[dict[str, pendulum.DateTime]] = {}
 
-    def __new__(cls) -> "TwitchShoutoutQueue":
+    def __new__(cls) -> Self:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-        return cls._instance
+        return cast("Self", cls._instance)
 
     @property
     def activated(self) -> bool:
@@ -160,7 +160,7 @@ class TwitchShoutoutQueue:
 
     def deactivate(self) -> None:
         self._activated = False
-        self._shoutout_queue = []
+        self._shoutout_queue.clear()
         self._next_attempt_allowed_by_target_id.clear()
 
 

@@ -30,10 +30,10 @@ class HttpClientManager:
     _client: httpx.AsyncClient | None = None
     _lock: asyncio.Lock = asyncio.Lock()
 
-    def __new__(cls) -> "HttpClientManager":
+    def __new__(cls) -> Self:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-        return cls._instance
+        return cast("Self", cls._instance)
 
     async def get_client(self) -> httpx.AsyncClient:
         """Get the global HTTP client, creating it if necessary"""
