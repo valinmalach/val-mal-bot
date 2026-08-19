@@ -79,8 +79,7 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     target = (
         args.split(" ", 1)[0] if args else ""
     ) or event_sub.event.broadcaster_user_login
-    if target.startswith("@"):
-        target = target[1:]
+    target = target.removeprefix("@")
 
     user = await get_user_by_username(target)
     target_channel = await get_channel(int(user.id)) if user else None

@@ -196,7 +196,6 @@ def _get_small_time_units(
     if minutes:
         parts.append(format_unit(minutes, "minute"))
     if seconds or not parts:
-        seconds = round(seconds)
         parts.append(format_unit(seconds, "second"))
 
     return parts
@@ -260,7 +259,9 @@ def parse_rfc3339(date_str: str) -> DateTime:
     """
     parsed = pendulum.parse(date_str)
     if not isinstance(parsed, DateTime):
-        raise ValueError(f"Expected DateTime string, got: {date_str}")
+        # ValueError, not TypeError: `date_str` has the right type; pendulum
+        # just parsed it into a Date/Time/Duration rather than a DateTime.
+        raise ValueError(f"Expected DateTime string, got: {date_str}")  # noqa: TRY004
     return parsed
 
 

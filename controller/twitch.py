@@ -165,8 +165,8 @@ async def process_webhook(
 
         _ = asyncio.create_task(task_func(event_sub))
         return Response(status_code=202)
-    except HTTPException as e:
-        raise e
+    except HTTPException:
+        raise
     except Exception as e:
         await handle_error(e, f"500: Internal server error on {endpoint}")
         raise HTTPException(status_code=500) from e
@@ -633,8 +633,8 @@ async def twitch_oauth_callback(code: str, state: str) -> Response:
         return Response(
             "Authorization successful! You can close this tab.", status_code=200
         )
-    except HTTPException as e:
-        raise e
+    except HTTPException:
+        raise
     except Exception as e:
         await handle_error(e, "500: Internal server error on /twitch/oauth/callback")
         raise HTTPException(status_code=500) from e
@@ -650,8 +650,8 @@ async def twitch_oauth_callback_broadcaster(code: str, state: str) -> Response:
         return Response(
             "Authorization successful! You can close this tab.", status_code=200
         )
-    except HTTPException as e:
-        raise e
+    except HTTPException:
+        raise
     except Exception as e:
         await handle_error(
             e, "500: Internal server error on /twitch/oauth/callback/broadcaster"

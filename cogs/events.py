@@ -81,7 +81,7 @@ class Events(Cog):
         logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
         await self._send_error_message(error_msg, error_details["traceback"])
         if should_raise:
-            raise
+            raise exception
 
     async def _safe_parquet_operation(
         self, operation: str, func, *args, **kwargs
