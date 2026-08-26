@@ -45,25 +45,20 @@ class Birthday(GroupCog):
         timezone: str = "UTC",
     ) -> None:
         try:
-            # Validate inputs
             validation_error = await self._validate_birthday_inputs(
                 interaction, month, day, timezone
             )
             if validation_error:
                 return
 
-            # Calculate next birthday year
             year = self._calculate_next_birthday_year(month, day, timezone)
 
-            # Create user record
             record = self._create_birthday_record(
                 interaction.user, month, day, year, timezone
             )
 
-            # Update birthday in database
             await self._update_birthday_database(interaction, record)
 
-            # Send success response
             await self._send_birthday_set_response(interaction, month, day)
 
         except Exception as e:  # noqa: BLE001

@@ -104,11 +104,9 @@ async def retry_api_call[T](
         try:
             response = await func(*args, **kwargs)
 
-            # Check if response has a 5xx status code (server error)
             status_code: Any | None = getattr(response, "status_code", None)
             if status_code is not None and 500 <= status_code < 600:
                 if attempt == max_retries - 1:
-                    # Last attempt, return the error response
                     return response
 
                 wait_time = delay * (2**attempt)
@@ -538,7 +536,6 @@ async def _handle_embed_edit_error(
                 f"Failed to delete live alert record for broadcaster_id={broadcaster_id}",
             )
     else:
-        # Check if this is a transient network/OS error
         error_str = str(e).lower()
         is_transient = any(
             term in error_str
@@ -556,7 +553,6 @@ async def _handle_embed_edit_error(
                 f"Transient network error when editing offline embed for message_id={message_id}: {e}"
             )
         else:
-            # Only log non-transient errors to admin channel
             await _handle_api_exception(
                 e, f"Error editing offline embed for message_id={message_id}"
             )
@@ -575,18 +571,14 @@ async def trigger_offline_sequence(
     content: str | None,
     channel: Channel | None,
 ) -> None:
-    # Handle cleanup tasks for valinmalach
     _cleanup_broadcaster_tasks(broadcaster_id, stream_info, user_info)
 
-    # Fetch VOD information
     vod_info = await _fetch_vod_info_safely(broadcaster_id, stream_id)
 
-    # Create the offline embed
     embed = _create_offline_embed(
         stream_info, vod_info, channel, user_info, url, age, now
     )
 
-    # Edit the embed and handle any errors
     try:
         await edit_embed(message_id, embed, channel_id, content=content)
     except Exception as e:  # noqa: BLE001
@@ -687,7 +679,6 @@ async def _handle_live_embed_edit_error(
         )
         return True
     else:
-        # Check if this is a transient network/OS error that should be retried
         error_str = str(e).lower()
         is_transient = any(
             term in error_str
@@ -706,7 +697,6 @@ async def _handle_live_embed_edit_error(
             )
             return True
 
-        # Log other errors to admin channel
         error_details = _create_error_details(e)
         if isinstance(e, discord.HTTPException):
             error_msg = f"Discord HTTP error {e.status} when editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
@@ -751,7 +741,6 @@ async def _run_update_cycle(
     content: str | None,
 ) -> None:
     """Run a single update cycle for the live alert."""
-    # Fetch current data
     alert = await _validate_alert_exists(broadcaster_id)
     if alert is None:
         return
@@ -760,7 +749,6 @@ async def _run_update_cycle(
     user_info = await get_user(broadcaster_id)
     channel_info = await get_channel(broadcaster_id)
 
-    # Check if we should trigger offline sequence
     if stream_info is None or _should_trigger_offline_sequence(
         alert, stream_info, stream_id
     ):
@@ -788,7 +776,6 @@ async def _run_update_cycle(
         )
         return
 
-    # Update live embed
     url = f"https://www.twitch.tv/{stream_info.user_login}"
     now = pendulum.now()
     age = get_age(started_at, limit_units=2)
@@ -826,12 +813,10 @@ async def update_alert(
         started_at = parse_rfc3339(stream_started_at)
         started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
 
-        # Initial validation
         alert = await _validate_alert_exists(broadcaster_id)
         if alert is None:
             return
 
-        # Main update loop
         while True:
             await _run_update_cycle(
                 broadcaster_id,
@@ -845,7 +830,6 @@ async def update_alert(
 
             await asyncio.sleep(60)
 
-            # Check if alert still exists and stream is still live
             alert = await _validate_alert_exists(broadcaster_id)
             if alert is None:
                 break

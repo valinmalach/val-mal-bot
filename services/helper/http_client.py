@@ -97,7 +97,6 @@ class HttpClientManager:
         except Exception as e:
             is_retryable = is_transient_network_error(e)
 
-            # Only log non-retryable errors immediately
             # Retryable errors will be logged by retry_api_call if all retries fail
             if not is_retryable:
                 from services.helper.helper import send_message
@@ -121,5 +120,4 @@ class HttpClientManager:
             raise
 
 
-# Global instance
 http_client_manager = HttpClientManager()

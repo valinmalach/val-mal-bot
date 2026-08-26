@@ -76,7 +76,6 @@ class ParquetCache:
             try:
                 self._cache[filepath] = pl.read_parquet(filepath)
             except FileNotFoundError:
-                # Create empty DataFrame with basic structure
                 self._cache[filepath] = pl.DataFrame()
         return self._cache[filepath]
 
@@ -109,12 +108,10 @@ class ParquetCache:
         new_df = pl.DataFrame(new_rows)
         id_column = self._id_columns.get(filepath, "id")
 
-        # Remove existing rows with same IDs
         if not df.is_empty() and id_column in df.columns:
             existing_ids = set(new_df[id_column].to_list())
             df = df.filter(~pl.col(id_column).is_in(existing_ids))
 
-        # Concat new data
         df = new_df if df.is_empty() else pl.concat([df, new_df])
         self._pending_writes[filepath].clear()
         return df
@@ -142,7 +139,6 @@ class ParquetCache:
         with self._lock:
             self._id_columns[filepath] = id_column
             self._pending_deletes[filepath][id_column].add(id_value)
-            # Remove from pending writes if it exists
             if id_value in self._pending_writes[filepath]:
                 del self._pending_writes[filepath][id_value]
             self._dirty_files.add(filepath)
@@ -153,7 +149,6 @@ class ParquetCache:
             if filepath in self._cache:
                 return self._cache[filepath].clone()
 
-        # Load from file if not in cache
         loop = asyncio.get_event_loop()
         df = await loop.run_in_executor(None, self._load_file, filepath)
 
@@ -170,5 +165,4 @@ class ParquetCache:
             return pl.DataFrame()
 
 
-# Global cache instance
 parquet_cache = ParquetCache(flush_interval=30)  # Flush every 30 seconds

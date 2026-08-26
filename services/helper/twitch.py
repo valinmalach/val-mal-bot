@@ -104,7 +104,6 @@ async def call_twitch(
     token_type: TokenType = TokenType.App,
 ) -> Response | None:
     try:
-        # Ensure token is available
         refresh_success = await _ensure_token_available(token_type)
         if not refresh_success:
             logger.warning("No access token available and failed to refresh")
@@ -113,19 +112,16 @@ async def call_twitch(
             )
             return None
 
-        # Get token and prepare headers
         token = _get_token_for_type(token_type)
         headers = {
             "Client-ID": TWITCH_CLIENT_ID,
             "Authorization": f"Bearer {token}",
         }
 
-        # Make initial request
         response = await _make_http_request(method, url, headers, json)
         if response is None:
             return None
 
-        # Handle unauthorized response
         if response.status_code == 401:
             response = await _handle_unauthorized_response(
                 method, url, headers, json, token_type
@@ -140,7 +136,6 @@ async def call_twitch(
             # Re-raise retryable errors so retry_api_call can handle them
             raise
 
-        # Log and return None for non-retryable errors
         error_details: ErrorDetails = {
             "type": type(e).__name__,
             "message": str(e),

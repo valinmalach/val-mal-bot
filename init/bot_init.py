@@ -66,7 +66,6 @@ def check_data_files_exist() -> None:
     os.makedirs(TWITCH_DIR, exist_ok=True)
     for file_path, schema in PARQUET_SCHEMAS.items():
         if not os.path.isfile(file_path):
-            # Create parent directories if they don't exist
             if parent_dir := os.path.dirname(file_path):
                 os.makedirs(parent_dir, exist_ok=True)
 
