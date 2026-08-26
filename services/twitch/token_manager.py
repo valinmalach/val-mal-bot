@@ -1,8 +1,9 @@
 import logging
 import os
-from typing import Self, cast
+from typing import ClassVar, Self, cast
 
 import aiofiles
+import pendulum
 from dotenv import load_dotenv
 
 from constants import (
@@ -12,6 +13,7 @@ from constants import (
     BROADCASTER_REFRESH_TOKEN_FILE,
     USER_ACCESS_TOKEN_FILE,
     USER_REFRESH_TOKEN_FILE,
+    TokenType,
 )
 from models import AuthResponse, RefreshResponse
 from services.helper.helper import send_message
@@ -24,6 +26,10 @@ logger = logging.getLogger(__name__)
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 
+# Treat a token as due slightly before Twitch actually expires it, so a request
+# already in flight cannot cross the boundary.
+_EXPIRY_MARGIN_SECONDS = 60
+
 
 class TwitchTokenManager:
     _instance: TwitchTokenManager | None = None
@@ -32,6 +38,9 @@ class TwitchTokenManager:
     _user_access_token: str = ""
     _broadcaster_refresh_token: str = ""
     _broadcaster_access_token: str = ""
+    # Only set by a refresh in this process; tokens read from disk have no known
+    # expiry. Moves to oauth_token.expires_at at the database cutover.
+    _expires_at: ClassVar[dict[TokenType, pendulum.DateTime]] = {}
 
     def __new__(cls) -> Self:
         if cls._instance is None:
@@ -98,6 +107,28 @@ class TwitchTokenManager:
         except (OSError, UnicodeDecodeError) as e:
             logger.error(f"Error loading broadcaster access token from file: {e}")
 
+    def _record_expiry(self, token_type: TokenType, expires_in: int | None) -> None:
+        """Remember when a freshly issued token lapses.
+
+        ``None`` is recorded as unknown rather than guessed.
+        """
+        if expires_in is None:
+            _ = self._expires_at.pop(token_type, None)
+            return
+        self._expires_at[token_type] = pendulum.now("UTC").add(seconds=expires_in)
+
+    def needs_refresh(self, token_type: TokenType) -> bool:
+        """Whether the token should be refreshed before it is used again.
+
+        False when no expiry is known, e.g. a token loaded from disk at startup.
+        """
+        expires_at = self._expires_at.get(token_type)
+        if expires_at is None:
+            return False
+        return pendulum.now("UTC") >= expires_at.subtract(
+            seconds=_EXPIRY_MARGIN_SECONDS
+        )
+
     @property
     def app_access_token(self) -> str:
         return self._app_access_token
@@ -153,6 +184,7 @@ class TwitchTokenManager:
 
         if auth_response.token_type == "bearer":
             self._app_access_token = auth_response.access_token
+            self._record_expiry(TokenType.App, auth_response.expires_in)
             async with aiofiles.open(APP_ACCESS_TOKEN_FILE, "w") as f:
                 await f.write(self._app_access_token)
             return True
@@ -166,6 +198,7 @@ class TwitchTokenManager:
     async def set_user_access_token(self, auth_response: RefreshResponse) -> None:
         self._user_access_token = auth_response.access_token
         self._user_refresh_token = auth_response.refresh_token
+        self._record_expiry(TokenType.User, auth_response.expires_in)
         async with aiofiles.open(USER_ACCESS_TOKEN_FILE, "w") as f:
             await f.write(self._user_access_token)
         async with aiofiles.open(USER_REFRESH_TOKEN_FILE, "w") as f:
@@ -176,6 +209,7 @@ class TwitchTokenManager:
     ) -> None:
         self._broadcaster_access_token = auth_response.access_token
         self._broadcaster_refresh_token = auth_response.refresh_token
+        self._record_expiry(TokenType.Broadcaster, auth_response.expires_in)
         async with aiofiles.open(BROADCASTER_ACCESS_TOKEN_FILE, "w") as f:
             await f.write(self._broadcaster_access_token)
         async with aiofiles.open(BROADCASTER_REFRESH_TOKEN_FILE, "w") as f:

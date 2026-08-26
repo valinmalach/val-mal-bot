@@ -33,17 +33,13 @@ async def log_error(message: str, traceback_str: str) -> None:
 
 
 async def _ensure_token_available(token_type: TokenType) -> bool:
-    """Ensure the appropriate token is available, refreshing if necessary."""
-    if token_type == TokenType.App and not token_manager.app_access_token:
-        return await token_manager.refresh_app_access_token()
-    elif token_type == TokenType.User and not token_manager.user_access_token:
-        return await token_manager.refresh_user_access_token()
-    elif (
-        token_type == TokenType.Broadcaster
-        and not token_manager.broadcaster_access_token
-    ):
-        return await token_manager.refresh_user_access_token(True)
-    return True
+    """Ensure a usable token is available, refreshing if missing or due.
+
+    The 401 handling below still covers tokens with no known expiry.
+    """
+    if _get_token_for_type(token_type) and not token_manager.needs_refresh(token_type):
+        return True
+    return await _refresh_token_for_type(token_type)
 
 
 def _get_token_for_type(token_type: TokenType) -> str | None:
