@@ -19,6 +19,7 @@ git pull
 # Install or update the required packages
 Write-Output "Installing requirements..."
 choco upgrade all -y
+py install --upgrade
 rustup update
 uv cache clean
 uv self update
