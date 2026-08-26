@@ -22,3 +22,23 @@ dependencies = [
     "types-aiofiles>=25.1.0.20260518",
     "uvicorn[standard]>=0.52.4",
 ]
+
+[tool.pyright]
+# Pylance reads this section, so the editor and CLI pyright agree. "standard" is
+# Pylance's own default, pinned so a future change cannot move the goalposts.
+typeCheckingMode = "standard"
+
+# No exclude key: setting it REPLACES pyright's defaults instead of adding to
+# them, and those already cover .venv and __pycache__. "M.m" only, and required.
+pythonVersion = "3.14"
+venvPath = "."
+venv = ".venv"
+
+# Pylance greys these out; the CLI is silent unless they are promoted.
+reportUnusedImport = "warning"
+reportUnusedVariable = "warning"
+reportUnusedClass = "warning"
+reportUnusedFunction = "warning"
+reportUnusedExpression = "warning"
+reportUnreachable = "warning"
+reportDeprecated = "warning"
