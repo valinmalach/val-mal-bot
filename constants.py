@@ -12,7 +12,6 @@ HMAC_PREFIX = "sha256="
 GUILD_ID = 813237030385090580
 
 AUDIT_LOGS_CHANNEL = 1291775826655707166
-BLUESKY_CHANNEL = 1345582916050354369
 BOT_ADMIN_CHANNEL = 1346408909442781237
 DM_REQUESTS_CHANNEL = 1292413187270115328
 FOOD_CHANNEL = 1291026325045248101
@@ -30,7 +29,6 @@ FOLLOWER_ROLE = 1291769015190032435
 ANNOUNCEMENTS_ROLE = 1292347932904915007
 LIVE_ALERTS_ROLE = 1292348044888768605
 PING_ROLE = 1292348084998897737
-BLUESKY_ROLE = 1345584502805626973
 FREE_STUFF_ROLE = 1359500454941298709
 
 NSFW_ACCESS_ROLE = 1292348175553794050
@@ -64,7 +62,6 @@ BROADCASTER_REFRESH_TOKEN_FILE = "data/twitch/broadcaster_refresh_token.txt"
 BROADCASTER_ACCESS_TOKEN_FILE = "data/twitch/broadcaster_access_token.txt"
 
 TWITCH_DIR = "data/twitch"
-BLUESKY = "data/bluesky.parquet"
 LIVE_ALERTS = "data/live_alerts.parquet"
 MESSAGES = "data/messages.parquet"
 USERS = "data/users.parquet"
@@ -108,7 +105,6 @@ EMOJI_ROLE_MAP = {
     "📢": "📢Announcements",
     "🔴": "🔴Live Alerts",
     "❗": "❗Ping Role",
-    "🦋": "🦋Bluesky",
     "🎁": "🎁Free Stuff",
     # NSFW Access
     "🔞": "🔞NSFW Access",
@@ -129,11 +125,6 @@ EMOJI_ROLE_MAP = {
 
 
 PARQUET_SCHEMAS = {
-    BLUESKY: {
-        "id": pl.String,
-        "date": pl.String,
-        "url": pl.String,
-    },
     LIVE_ALERTS: {
         "id": pl.Int64,
         "channel_id": pl.Int64,

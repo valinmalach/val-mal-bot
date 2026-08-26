@@ -4,7 +4,6 @@ from discord.ui import Button, View
 
 from constants import (
     ANNOUNCEMENTS_ROLE,
-    BLUESKY_ROLE,
     FREE_STUFF_ROLE,
     LIVE_ALERTS_ROLE,
     PING_ROLE,
@@ -30,10 +29,6 @@ class PingRolesView(View):
     async def general_ping_role(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
 
-    @discord.ui.button(emoji="🦋", custom_id="bluesky_role")
-    async def bluesky_role(self, interaction: Interaction, button: Button) -> None:
-        await roles_button_pressed(interaction, button)
-
     @discord.ui.button(emoji="🎁", custom_id="free_stuff_role")
     async def free_stuff_role(self, interaction: Interaction, button: Button) -> None:
         await roles_button_pressed(interaction, button)
@@ -57,11 +52,6 @@ PING_ROLES_EMBED = (
     .add_field(
         name="",
         value=f"<@&{PING_ROLE}>",
-        inline=False,
-    )
-    .add_field(
-        name="",
-        value=f"<@&{BLUESKY_ROLE}>",
         inline=False,
     )
     .add_field(
