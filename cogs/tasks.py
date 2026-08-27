@@ -8,9 +8,10 @@ import pendulum
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
 
-from constants import BOT_ADMIN_CHANNEL, SHOUTOUTS_CHANNEL, ErrorDetails
+from constants import ErrorDetails
 from db import DiscordUser, repository
 from services import get_next_leap, send_message
+from services.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class Tasks(Cog):
     async def log_error(self, message: str, traceback_str: str) -> None:
         traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
         traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-        await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
+        await send_message(message, config.channel("bot_admin"), file=traceback_file)
 
     async def _handle_fatal_error(self, e: Exception, context: str) -> None:
         """Handle fatal errors with consistent logging and notification."""
@@ -71,12 +72,12 @@ class Tasks(Cog):
                 logger.warning(f"Discord user ID {user_id} not found in guild cache")
                 await send_message(
                     f"_process_birthday_records: User with ID {user_id} not found.",
-                    BOT_ADMIN_CHANNEL,
+                    config.channel("bot_admin"),
                 )
                 continue
             await send_message(
                 f"Happy Birthday {user.mention}!",
-                SHOUTOUTS_CHANNEL,
+                config.channel("shoutouts"),
             )
             if record.birthday is None:
                 continue

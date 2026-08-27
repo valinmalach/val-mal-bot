@@ -10,16 +10,10 @@ from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
 from pendulum import DateTime
 
-from constants import (
-    BOT_ADMIN_CHANNEL,
-    FOLLOWER_ROLE,
-    MAX_DAYS,
-    OWNER_ID,
-    ErrorDetails,
-    Months,
-)
+from constants import MAX_DAYS, ErrorDetails, Months
 from db import repository
 from services import get_next_leap, send_message
+from services.config import config, has_configured_role
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +23,7 @@ class Birthday(GroupCog):
         self.bot = bot
 
     @app_commands.command(name="set", description="Set your birthday")
-    @app_commands.checks.has_role(FOLLOWER_ROLE)
+    @has_configured_role("follower")
     @app_commands.describe(
         month="The month of your birthday",
         day="The day of your birthday",
@@ -193,7 +187,7 @@ class Birthday(GroupCog):
     @app_commands.command(
         name="remove", description="Removes your birthday, if it exists"
     )
-    @app_commands.checks.has_role(FOLLOWER_ROLE)
+    @has_configured_role("follower")
     async def remove_birthday(
         self,
         interaction: Interaction,
@@ -203,7 +197,7 @@ class Birthday(GroupCog):
             if existing_user is None:
                 await send_message(
                     f"User {interaction.user.name} ({interaction.user.id}) attempted to remove a birthday but had no record.",
-                    BOT_ADMIN_CHANNEL,
+                    config.channel("bot_admin"),
                 )
                 await interaction.response.send_message(
                     "An error occurred while trying to remove your birthday."
@@ -246,7 +240,7 @@ class Birthday(GroupCog):
         mention = (
             interaction.guild.owner.mention
             if interaction.guild and interaction.guild.owner
-            else f"<@{OWNER_ID}>"
+            else f"<@{config.setting('owner_id')}>"
         )
         await interaction.response.send_message(
             f"Oops, it seems like I couldn't {set_forget} your birthday...\n\n"
@@ -256,7 +250,7 @@ class Birthday(GroupCog):
         traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
         await send_message(
             f"Failed to {set_forget} birthday for {interaction.user.name}: {error_msg}",
-            BOT_ADMIN_CHANNEL,
+            config.channel("bot_admin"),
             file=traceback_file,
         )
 

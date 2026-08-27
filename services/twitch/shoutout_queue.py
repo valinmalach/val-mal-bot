@@ -10,7 +10,8 @@ import httpx
 import pendulum
 
 from config import settings
-from constants import BOT_ADMIN_CHANNEL, ErrorDetails, TokenType
+from constants import ErrorDetails, TokenType
+from services.config import config
 from services.helper.helper import send_message
 from services.helper.twitch import call_twitch
 from services.twitch.api import get_user
@@ -98,7 +99,8 @@ class TwitchShoutoutQueue:
                         "User id %s (%s) not found for shoutout", user_id_str, login
                     )
                     await send_message(
-                        f"User {login} not found for shoutout", BOT_ADMIN_CHANNEL
+                        f"User {login} not found for shoutout",
+                        config.channel("bot_admin"),
                     )
                     continue
 
@@ -137,7 +139,7 @@ class TwitchShoutoutQueue:
                 )
                 await send_message(
                     f"Failed to send shoutout to {login}: {response.status_code if response else 'No response'} {response.text if response else ''}",
-                    BOT_ADMIN_CHANNEL,
+                    config.channel("bot_admin"),
                 )
         except Exception as e:  # noqa: BLE001
             error_details: ErrorDetails = {
@@ -150,7 +152,9 @@ class TwitchShoutoutQueue:
             logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
             traceback_buffer = io.BytesIO(error_details["traceback"].encode("utf-8"))
             traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-            await send_message(error_msg, BOT_ADMIN_CHANNEL, file=traceback_file)
+            await send_message(
+                error_msg, config.channel("bot_admin"), file=traceback_file
+            )
 
     def deactivate(self) -> None:
         self._activated = False

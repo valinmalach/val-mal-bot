@@ -12,12 +12,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 
 from config import settings
 from constants import (
-    BOT_ADMIN_CHANNEL,
-    BROADCASTER_USERNAME,
     HMAC_PREFIX,
-    LIVE_ALERTS_ROLE,
-    PROMO_CHANNEL,
-    STREAM_ALERTS_CHANNEL,
     TWITCH_MESSAGE_ID,
     TWITCH_MESSAGE_SIGNATURE,
     TWITCH_MESSAGE_TIMESTAMP,
@@ -65,6 +60,7 @@ from services import (
     update_alert,
     verify_message,
 )
+from services.config import config
 from services.helper.http_client import http_client_manager
 from services.twitch.shoutout_queue import shoutout_queue
 from services.twitch.token_manager import token_manager
@@ -87,7 +83,7 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
         condition = subscription.get("condition", {})
         await send_message(
             f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}",
-            BOT_ADMIN_CHANNEL,
+            config.channel("bot_admin"),
         )
         return Response(status_code=204)
 
@@ -102,7 +98,7 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
         logger.warning("403: Forbidden. Signature does not match.")
         await send_message(
             f"403: Forbidden request on {endpoint}. Signature does not match.",
-            BOT_ADMIN_CHANNEL,
+            config.channel("bot_admin"),
         )
         raise HTTPException(status_code=403)
 
@@ -110,7 +106,7 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
 async def log_error(message: str, traceback_str: str) -> None:
     traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
     traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-    await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
+    await send_message(message, config.channel("bot_admin"), file=traceback_file)
 
 
 def get_error_details(e: Exception) -> ErrorDetails:
@@ -145,7 +141,7 @@ async def process_webhook(
             )
             await send_message(
                 f"400: Bad request on {endpoint}. Invalid subscription type.",
-                BOT_ADMIN_CHANNEL,
+                config.channel("bot_admin"),
             )
             raise HTTPException(status_code=400)
 
@@ -165,7 +161,11 @@ def _get_twitch_url(user_login: str) -> str:
 
 def _get_live_alerts_mention(channel_id: int) -> str | None:
     """Get the live alerts role mention if channel is the stream alerts channel."""
-    return f"<@&{LIVE_ALERTS_ROLE}>" if channel_id == STREAM_ALERTS_CHANNEL else None
+    return (
+        f"<@&{config.role('live_alerts')}>"
+        if channel_id == config.channel("stream_alerts")
+        else None
+    )
 
 
 def _is_main_broadcaster(broadcaster_id: str | int) -> bool:
@@ -219,7 +219,7 @@ def _create_stream_online_embed(stream_info, user_info: User | None) -> discord.
     return (
         discord.Embed(
             description=f"[**{stream_info.title}**]({url})",
-            color=0x9046FF,
+            color=config.color("embed_color_stream"),
             timestamp=parse_rfc3339(stream_info.started_at),
         )
         .set_author(
@@ -285,8 +285,14 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
         stream_info = await _wait_for_stream_info(broadcaster_id)
         user_info = await get_user(broadcaster_id)
 
-        is_main_broadcaster = stream_info.user_login == BROADCASTER_USERNAME
-        channel = STREAM_ALERTS_CHANNEL if is_main_broadcaster else PROMO_CHANNEL
+        is_main_broadcaster = stream_info.user_login == config.setting(
+            "broadcaster_username"
+        )
+        channel = (
+            config.channel("stream_alerts")
+            if is_main_broadcaster
+            else config.channel("promo")
+        )
 
         await _handle_broadcaster_stream_start(
             broadcaster_id, stream_info, is_main_broadcaster
@@ -301,7 +307,7 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
         if message_id is None:
             await send_message(
                 f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}",
-                BOT_ADMIN_CHANNEL,
+                config.channel("bot_admin"),
             )
             logger.error(f"Failed to send embed for broadcaster {broadcaster_id}")
             return
@@ -314,7 +320,7 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
 
 def _cancel_ad_break_task_if_needed(broadcaster_user_login: str) -> None:
     """Cancel ad break notification task for the broadcaster if it exists."""
-    if broadcaster_user_login == BROADCASTER_USERNAME:
+    if broadcaster_user_login == config.setting("broadcaster_username"):
         shoutout_queue.deactivate()
         _cancel_task_if_exists(_ad_break_notification_tasks, broadcaster_user_login)
 
@@ -362,7 +368,7 @@ def _create_offline_embed(
     embed = (
         discord.Embed(
             description=f"**{channel_info.title if channel_info else ''}**",
-            color=0x9046FF,
+            color=config.color("embed_color_stream"),
             timestamp=pendulum.now(),
         )
         .set_author(
@@ -568,7 +574,7 @@ async def _oauth_callback_common(
         logger.warning(f"400: Bad request. Invalid state: {state}")
         await send_message(
             f"400: Bad request on {endpoint}. Invalid state.",
-            BOT_ADMIN_CHANNEL,
+            config.channel("bot_admin"),
         )
         raise HTTPException(status_code=400)
 
@@ -589,7 +595,7 @@ async def _oauth_callback_common(
         )
         await send_message(
             f"Failed to exchange token: {response.status_code} {response.text}",
-            BOT_ADMIN_CHANNEL,
+            config.channel("bot_admin"),
         )
         raise HTTPException(status_code=500)
 
@@ -600,7 +606,7 @@ async def _oauth_callback_common(
         )
         await send_message(
             f"Failed to exchange token: unexpected token type {auth_response.token_type}",
-            BOT_ADMIN_CHANNEL,
+            config.channel("bot_admin"),
         )
         raise HTTPException(status_code=500)
     return auth_response

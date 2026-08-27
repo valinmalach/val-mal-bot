@@ -7,12 +7,9 @@ import discord
 from httpx import Response
 
 from config import settings
-from constants import (
-    BOT_ADMIN_CHANNEL,
-    ErrorDetails,
-    TokenType,
-)
+from constants import ErrorDetails, TokenType
 from models import ChannelChatMessageEventSub
+from services.config import config
 from services.helper.helper import send_message
 from services.helper.http_client import http_client_manager, is_transient_network_error
 from services.twitch.token_manager import token_manager
@@ -23,7 +20,7 @@ logger = logging.getLogger(__name__)
 async def log_error(message: str, traceback_str: str) -> None:
     traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
     traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-    await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
+    await send_message(message, config.channel("bot_admin"), file=traceback_file)
 
 
 async def _ensure_token_available(token_type: TokenType) -> bool:
@@ -72,7 +69,9 @@ async def _make_http_request(
         return await http_client_manager.request("DELETE", url, headers=headers)
     else:
         logger.error(f"Unsupported HTTP method: {method}")
-        await send_message(f"Unsupported HTTP method: {method}", BOT_ADMIN_CHANNEL)
+        await send_message(
+            f"Unsupported HTTP method: {method}", config.channel("bot_admin")
+        )
         return None
 
 
@@ -102,7 +101,8 @@ async def call_twitch(
         if not refresh_success:
             logger.warning("No access token available and failed to refresh")
             await send_message(
-                "No access token available and failed to refresh", BOT_ADMIN_CHANNEL
+                "No access token available and failed to refresh",
+                config.channel("bot_admin"),
             )
             return None
 
@@ -175,7 +175,7 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
             )
             await send_message(
                 f"Failed to send message: {response.status_code if response else 'No response'} {response.text if response else ''}",
-                BOT_ADMIN_CHANNEL,
+                config.channel("bot_admin"),
             )
             return
     except Exception as e:  # noqa: BLE001

@@ -7,7 +7,8 @@ from typing import Self, cast
 import discord
 import httpx
 
-from constants import BOT_ADMIN_CHANNEL, ErrorDetails
+from constants import ErrorDetails
+from services.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +116,9 @@ class HttpClientManager:
                 traceback_file = discord.File(
                     traceback_buffer, filename="traceback.txt"
                 )
-                await send_message(error_msg, BOT_ADMIN_CHANNEL, file=traceback_file)
+                await send_message(
+                    error_msg, config.channel("bot_admin"), file=traceback_file
+                )
 
             raise
 

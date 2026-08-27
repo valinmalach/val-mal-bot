@@ -12,7 +12,6 @@ from discord import (
 )
 from discord.ext.commands import Bot, Cog
 
-from constants import ROLES_CHANNEL, RULES_CHANNEL
 from services import (
     get_subscriptions,
     get_users,
@@ -20,20 +19,8 @@ from services import (
     subscribe_to_user,
     unsubscribe_to_user,
 )
-from views import (
-    DMS_OPEN_EMBED,
-    NSFW_ACCESS_EMBED,
-    OTHER_ROLES_EMBED,
-    PING_ROLES_EMBED,
-    PRONOUN_ROLES_EMBED,
-    RULES_EMBED,
-    DMsOpenView,
-    NSFWAccessView,
-    OtherRolesView,
-    PingRolesView,
-    PronounRolesView,
-    RulesView,
-)
+from services.config import config
+from views import role_panels
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +34,7 @@ class Admin(Cog):
     @app_commands.command(description="Restarts the bot")
     @app_commands.commands.default_permissions(administrator=True)
     async def restart(self, interaction: Interaction) -> None:
-        await interaction.response.send_message("Restarting...")
+        await interaction.response.send_message(config.template("admin_restarting"))
         await asyncio.create_subprocess_exec(
             "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
         )
@@ -63,7 +50,7 @@ class Admin(Cog):
                 f"Nuke aborted: invalid channel type {type(interaction.channel)}"
             )
             return
-        await interaction.response.send_message("Nuking channel...")
+        await interaction.response.send_message(config.template("admin_nuking"))
         await interaction.channel.purge(limit=None)
 
     @app_commands.command(
@@ -119,37 +106,16 @@ class Admin(Cog):
     @app_commands.command(description="Sends the rules embed to the rules channel")
     @app_commands.commands.default_permissions(administrator=True)
     async def rules(self, interaction: Interaction) -> None:
-        embed = RULES_EMBED
-        view = RulesView()
-
-        await send_embed(
-            embed,
-            RULES_CHANNEL,
-            view,
-        )
-        await interaction.response.send_message("Rules embed send to rules channel!")
+        for embed, view, channel_id in role_panels("rules"):
+            await send_embed(embed, channel_id, view)
+        await interaction.response.send_message(config.template("admin_rules_sent"))
 
     @app_commands.command(description="Sends the roles embeds to the roles channel")
     @app_commands.commands.default_permissions(administrator=True)
     async def roles(self, interaction: Interaction) -> None:
-        embeds = [
-            PING_ROLES_EMBED,
-            NSFW_ACCESS_EMBED,
-            PRONOUN_ROLES_EMBED,
-            OTHER_ROLES_EMBED,
-            DMS_OPEN_EMBED,
-        ]
-        views = [
-            PingRolesView(),
-            NSFWAccessView(),
-            PronounRolesView(),
-            OtherRolesView(),
-            DMsOpenView(),
-        ]
-
-        for embed, view in zip(embeds, views):
-            await send_embed(embed, ROLES_CHANNEL, view)
-        await interaction.response.send_message("Roles embeds send to roles channel!")
+        for embed, view, channel_id in role_panels("roles"):
+            await send_embed(embed, channel_id, view)
+        await interaction.response.send_message(config.template("admin_roles_sent"))
 
     @app_commands.command(description="Gets all active subscriptions' users")
     @app_commands.commands.default_permissions(administrator=True)

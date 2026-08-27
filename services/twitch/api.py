@@ -11,14 +11,7 @@ import pendulum
 from discord.ui import View
 
 from config import settings
-from constants import (
-    BOT_ADMIN_CHANNEL,
-    BROADCASTER_USERNAME,
-    LIVE_ALERTS_ROLE,
-    STREAM_ALERTS_CHANNEL,
-    ErrorDetails,
-    TokenType,
-)
+from constants import ErrorDetails, TokenType
 from db import LiveAlert, repository
 from models import (
     AdSchedule,
@@ -34,6 +27,7 @@ from models import (
     Video,
     VideoResponse,
 )
+from services.config import config
 from services.helper.helper import (
     edit_embed,
     get_age,
@@ -49,7 +43,7 @@ logger = logging.getLogger(__name__)
 async def log_error(message: str, traceback_str: str) -> None:
     traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
     traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-    await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
+    await send_message(message, config.channel("bot_admin"), file=traceback_file)
 
 
 def _create_error_details(e: Exception) -> ErrorDetails:
@@ -80,7 +74,7 @@ async def _handle_invalid_response(response, context: str) -> None:
     status = response.status_code if response else "No response"
     text = response.text if response else ""
     logger.warning(f"{context}: {status}")
-    await send_message(f"{context}: {status} {text}", BOT_ADMIN_CHANNEL)
+    await send_message(f"{context}: {status} {text}", config.channel("bot_admin"))
 
 
 async def retry_api_call[T](
@@ -248,7 +242,7 @@ async def subscribe_to_user(username: str) -> bool:
     user = await get_user_by_username(username)
     if not user:
         logger.warning(f"User not found: {username}")
-        await send_message(f"User not found: {username}", BOT_ADMIN_CHANNEL)
+        await send_message(f"User not found: {username}", config.channel("bot_admin"))
         return False
 
     return await twitch_event_subscription(
@@ -283,7 +277,7 @@ async def unsubscribe_to_user(username: str) -> bool:
     user = await get_user_by_username(username)
     if not user:
         logger.warning(f"User not found: {username}")
-        await send_message(f"User not found: {username}", BOT_ADMIN_CHANNEL)
+        await send_message(f"User not found: {username}", config.channel("bot_admin"))
         return False
 
     subscriptions = await get_subscriptions()
@@ -422,9 +416,9 @@ def _cleanup_broadcaster_tasks(
     broadcaster_id: int, stream_info: Stream | None, user_info: User | None
 ) -> None:
     """Handle cleanup tasks specific to the broadcaster."""
-    if (stream_info and stream_info.user_login == BROADCASTER_USERNAME) or (
-        user_info and user_info.login == BROADCASTER_USERNAME
-    ):
+    if (
+        stream_info and stream_info.user_login == config.setting("broadcaster_username")
+    ) or (user_info and user_info.login == config.setting("broadcaster_username")):
         from controller.twitch import _ad_break_notification_tasks
         from services.twitch.shoutout_queue import shoutout_queue
 
@@ -483,7 +477,7 @@ def _create_offline_embed(
     embed = (
         discord.Embed(
             description=f"**{_get_stream_title(stream_info, vod_info, channel)}**",
-            color=0x9046FF,
+            color=config.color("embed_color_stream"),
             timestamp=now,
         )
         .set_author(
@@ -607,7 +601,7 @@ def _create_live_embed(
     return (
         discord.Embed(
             description=f"[**{stream_info.title}**]({url})",
-            color=0x9046FF,
+            color=config.color("embed_color_stream"),
             timestamp=now,
         )
         .set_author(
@@ -797,7 +791,9 @@ async def update_alert(
         await asyncio.sleep(60)
 
         content = (
-            f"<@&{LIVE_ALERTS_ROLE}>" if channel_id == STREAM_ALERTS_CHANNEL else None
+            f"<@&{config.role('live_alerts')}>"
+            if channel_id == config.channel("stream_alerts")
+            else None
         )
         started_at = parse_rfc3339(stream_started_at)
         started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"

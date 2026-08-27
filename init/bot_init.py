@@ -7,14 +7,8 @@ from discord.abc import PrivateChannel
 from discord.ext.commands import Bot
 
 from config import settings
-from constants import (
-    BOT_ADMIN_CHANNEL,
-    GUILD_ID,
-)
 
 logger = logging.getLogger(__name__)
-
-MY_GUILD = discord.Object(id=GUILD_ID)
 
 
 async def restart_live_alert_tasks() -> None:
@@ -61,25 +55,17 @@ class MyBot(Bot):
         await config.load()
         await token_manager.load()
 
-        self.tree.copy_global_to(guild=MY_GUILD)
-        await self.tree.sync(guild=MY_GUILD)
+        self.command_prefix = config.setting("command_prefix", "$")
+        guild = discord.Object(id=config.setting("guild_id"))
 
-        from views import (
-            DMsOpenView,
-            NSFWAccessView,
-            OtherRolesView,
-            PingRolesView,
-            PronounRolesView,
-            RulesView,
-        )
+        self.tree.copy_global_to(guild=guild)
+        await self.tree.sync(guild=guild)
+
+        from views import persistent_views
 
         # register all persistent Views so buttons still work after a restart
-        self.add_view(RulesView())
-        self.add_view(PingRolesView())
-        self.add_view(NSFWAccessView())
-        self.add_view(PronounRolesView())
-        self.add_view(OtherRolesView())
-        self.add_view(DMsOpenView())
+        for view in persistent_views():
+            self.add_view(view)
 
     async def close(self) -> None:
         from db import dispose_engine
@@ -93,12 +79,13 @@ bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 @bot.event
 async def on_ready() -> None:
+    from services.config import config
 
     _ = asyncio.create_task(run_background_tasks())
 
-    channel = bot.get_channel(BOT_ADMIN_CHANNEL)
+    channel = bot.get_channel(config.channel("bot_admin"))
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
     ):
         return
-    await channel.send("Started successfully!")
+    await channel.send(config.template("discord_startup"))

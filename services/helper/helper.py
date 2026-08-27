@@ -28,8 +28,8 @@ from discord.abc import GuildChannel, PrivateChannel
 from discord.ui import Button, View
 from pendulum import DateTime
 
-from constants import EMOJI_ROLE_MAP
 from init import bot
+from services.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -254,7 +254,7 @@ def get_member_role(
     if not member:
         return None, None
 
-    role_name = EMOJI_ROLE_MAP.get(emoji.name)
+    role_name = config.role_name_for_emoji(emoji.name)
     if not role_name:
         return None, None
 

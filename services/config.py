@@ -14,6 +14,7 @@ from sqlalchemy import select
 
 from db import (
     AppSetting,
+    AutoResponseMatch,
     DiscordAutoResponse,
     DiscordChannel,
     DiscordEmbed,
@@ -164,9 +165,22 @@ class ConfigCache:
             key=lambda r: r.position,
         )
 
-    @property
-    def auto_responses(self) -> list[DiscordAutoResponse]:
-        return self._auto_responses
+    def auto_response(self, content: str) -> str | None:
+        """The canned reply for a message, or None if nothing matches."""
+        for row in self._auto_responses:
+            subject = content if row.case_sensitive else content.lower()
+            trigger = row.trigger if row.case_sensitive else row.trigger.lower()
+            matched = (
+                (row.match_type is AutoResponseMatch.EXACT and subject == trigger)
+                or (
+                    row.match_type is AutoResponseMatch.PREFIX
+                    and subject.startswith(trigger)
+                )
+                or (row.match_type is AutoResponseMatch.CONTAINS and trigger in subject)
+            )
+            if matched:
+                return row.response
+        return None
 
     def command(self, name: str) -> TwitchCommand | None:
         return self._commands.get(name)
@@ -191,3 +205,21 @@ def _coerce(setting: AppSetting) -> Any:
 
 
 config = ConfigCache()
+
+
+def has_configured_role(key: str):
+    """An app command check against a role whose ID lives in the database.
+
+    Resolved when the command runs, so the ID can change without a redeploy --
+    unlike app_commands.checks.has_role, which needs it at decoration time.
+    """
+    from discord import Interaction, Member, app_commands
+
+    def predicate(interaction: Interaction) -> bool:
+        member = interaction.user
+        if not isinstance(member, Member):
+            return False
+        role_id = config.role(key)
+        return any(role.id == role_id for role in member.roles)
+
+    return app_commands.check(predicate)

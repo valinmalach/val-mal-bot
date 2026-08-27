@@ -8,10 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
 from config import settings
-from constants import BOT_ADMIN_CHANNEL, TokenType
+from constants import TokenType
 from db import OAuthToken, OAuthTokenKey
 from db.session import session_scope
 from models import AuthResponse, RefreshResponse
+from services.config import config
 from services.helper.helper import send_message
 from services.helper.http_client import http_client_manager
 
@@ -121,8 +122,6 @@ class TwitchTokenManager:
         return self.token(TokenType.Broadcaster)
 
     async def refresh_app_access_token(self) -> bool:
-        from services.config import config
-
         scopes = cast("list[str]", config.setting("twitch_app_scopes", []))
         params = {
             "client_id": settings.twitch_client_id,
@@ -138,7 +137,7 @@ class TwitchTokenManager:
             logger.error(f"Token refresh failed with status={response.status_code}")
             await send_message(
                 f"Failed to refresh access token: {response.status_code} {response.text}",
-                BOT_ADMIN_CHANNEL,
+                config.channel("bot_admin"),
             )
             return False
 
@@ -146,7 +145,8 @@ class TwitchTokenManager:
         if auth_response.token_type != "bearer":
             logger.error(f"Unexpected token type received: {auth_response.token_type}")
             await send_message(
-                f"Unexpected token type: {auth_response.token_type}", BOT_ADMIN_CHANNEL
+                f"Unexpected token type: {auth_response.token_type}",
+                config.channel("bot_admin"),
             )
             return False
 
@@ -186,7 +186,9 @@ class TwitchTokenManager:
         refresh_token = self._refresh.get(token_type)
         if not refresh_token:
             logger.error(f"No {label} refresh token available")
-            await send_message(f"No {label} refresh token available", BOT_ADMIN_CHANNEL)
+            await send_message(
+                f"No {label} refresh token available", config.channel("bot_admin")
+            )
             return False
 
         params = {
@@ -206,7 +208,7 @@ class TwitchTokenManager:
             await send_message(
                 f"Failed to refresh {label} access token: "
                 f"{response.status_code} {response.text}",
-                BOT_ADMIN_CHANNEL,
+                config.channel("bot_admin"),
             )
             return False
 
@@ -214,7 +216,8 @@ class TwitchTokenManager:
         if auth_response.token_type != "bearer":
             logger.error(f"Unexpected token type received: {auth_response.token_type}")
             await send_message(
-                f"Unexpected token type: {auth_response.token_type}", BOT_ADMIN_CHANNEL
+                f"Unexpected token type: {auth_response.token_type}",
+                config.channel("bot_admin"),
             )
             return False
 
