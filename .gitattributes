@@ -2,6 +2,4 @@
 *.sh text eol=lf
 Dockerfile text eol=lf
 
-# Never let autocrlf near the records the first deploy backfills.
-*.parquet binary
 *.ico binary

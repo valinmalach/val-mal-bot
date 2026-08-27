@@ -17,7 +17,6 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import SQLModel
 
-import backfill
 import seed_data as data
 from db import (
     AppSetting,
@@ -93,12 +92,6 @@ async def seed() -> dict[str, int]:
                 count,
                 len(rows) - count,
             )
-        # data/ is committed so the first deploy carries the records; the call
-        # becomes a no-op once the directory is dropped.
-        if backfill.available():
-            inserted |= await backfill.backfill(session)
-        else:
-            logger.info("no parquet files under data/, nothing to backfill")
     return inserted
 
 

@@ -181,9 +181,9 @@ without knowing why:
    `start.sh` runs it after every migration. Each row is `INSERT ... ON CONFLICT
    DO NOTHING`, so an ID edited in the database survives the next deploy and
    newly added keys still land.
-2. **Backfill.** `backfill.py` loads the three parquet files, which are committed
-   so the first deploy carries them. It never overwrites, so it can be repeated
-   against a fresher copy.
+2. ~~**Backfill.**~~ Done and removed. The first deploy loaded the parquet
+   records; `backfill.py` and `data/` went with it. Recover them from history if
+   a re-run is ever needed.
 3. **Repository layer.** `db/repository.py` reads and writes the records; the
    parquet cache is gone.
 4. **Token cutover.** `TwitchTokenManager` reads and writes `oauth_token`.
@@ -192,30 +192,6 @@ without knowing why:
 
 ## Remaining
 
-1. **Drop `data/`** once the first deploy confirms the backfill. Until then
-   `seed.py` re-runs the backfill on every container start, so a record deleted
-   in the database comes back on the next restart.
-2. **Encrypt `oauth_token`.** Deliberately deferred; see the caveat above.
-3. **Editing without database access** — admin commands or a frontend over the
+1. **Encrypt `oauth_token`.** Deliberately deferred; see the caveat above.
+2. **Editing without database access** — admin commands or a frontend over the
    configuration tables, which is what the slug-keyed IDs above are for.
-
-### Notes for the backfill
-
-The bot on EC2 keeps writing while you copy, so any copy is a point-in-time
-snapshot. That is fine here: every table is keyed by a natural primary key
-(`discord_user.id`, `discord_message.id`, `live_alert.broadcaster_id`), so the
-backfill can be written as an upsert and re-run against a fresher copy without
-duplicating anything. Take a copy whenever, load it, and take another at cutover.
-
-Three columns change representation on the way in and are where a bad row will
-surface:
-
-| Table | Column | Parquet | Postgres |
-| --- | --- | --- | --- |
-| `discord_user` | `birthday` | `String`, `%Y-%m-%dT%H:%M:%S.000Z` | `timestamptz` |
-| `live_alert` | `stream_started_at` | `String`, RFC3339 | `timestamptz` |
-| `discord_message` | `attachment_urls` | `String` holding JSON | `JSONB` array |
-
-Everything else is a straight `Int64` → `BIGINT` or `String` → text copy. Worth
-profiling the real files for nulls in non-nullable columns and unparseable
-timestamps before the first load rather than during it.

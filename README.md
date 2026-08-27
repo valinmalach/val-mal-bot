@@ -32,11 +32,10 @@ real bot logs in, which is rarely what you want against a local database.
 
 ```sh
 uv run alembic upgrade head   # 14 tables
-uv run python seed.py         # configuration, plus the parquet records
+uv run python seed.py         # configuration
 ```
 
-`seed.py` also backfills `data/*.parquet` when those files are present. Both
-steps skip what already exists, so they are safe to repeat.
+Both steps skip what already exists, so they are safe to repeat.
 
 **4. Run the bot.**
 
