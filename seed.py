@@ -17,6 +17,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import SQLModel
 
+import backfill
 import seed_data as data
 from config import settings
 from db import (
@@ -105,6 +106,12 @@ async def seed() -> dict[str, int]:
                 count,
                 len(rows) - count,
             )
+        # Only present where someone has a copy of the files; the deployed image
+        # never does, since data/ is gitignored.
+        if backfill.available():
+            inserted |= await backfill.backfill(session)
+        else:
+            logger.info("no parquet files under data/, nothing to backfill")
     return inserted
 
 

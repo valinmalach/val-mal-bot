@@ -177,8 +177,10 @@ without knowing why:
    and the two Twitch account IDs. `start.sh` runs it after every migration.
    Each row is `INSERT ... ON CONFLICT DO NOTHING`, so an ID edited in the
    database survives the next deploy and newly added keys still land.
-2. Backfill: load the three parquet files into their tables. The live files are
-   on the EC2 host, not in this repo; copy them into `data/` first.
+2. ~~Backfill~~ done: `backfill.py` loads the three parquet files. `data/` is
+   gitignored, so the deployed image never has them and `seed.py` skips the step
+   silently; run it from a machine holding a copy, against the public Railway
+   URL. Repeatable against a fresher copy, since it never overwrites.
 3. Repository layer: replace `services/helper/parquet_cache.py` with database
    reads/writes, then delete the parquet path.
 4. Token cutover: point `TwitchTokenManager` at `oauth_token`, re-authorize the
