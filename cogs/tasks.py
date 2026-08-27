@@ -10,7 +10,7 @@ from discord.ext.commands import Bot, Cog
 
 from constants import ErrorDetails
 from db import DiscordUser, repository
-from services import get_next_leap, send_message
+from services import next_birthday, send_message
 from services.config import config
 
 logger = logging.getLogger(__name__)
@@ -82,14 +82,9 @@ class Tasks(Cog):
             if record.birthday is None:
                 continue
             leap = bool(record.is_birthday_leap)
-            # get_next_leap on the following year, otherwise a 29 February
-            # birthday landing in a leap year reschedules onto itself.
-            next_year = get_next_leap(now.year + 1) if leap else now.year + 1
-            next_birthday = pendulum.instance(record.birthday).replace(year=next_year)
+            next_at = next_birthday(record.birthday, leap, now)
             try:
-                await repository.upsert_user(
-                    user_id, record.username, next_birthday, leap
-                )
+                await repository.upsert_user(user_id, record.username, next_at, leap)
             except Exception as e:  # noqa: BLE001
                 error_details: ErrorDetails = {
                     "type": type(e).__name__,

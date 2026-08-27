@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import logging
+from datetime import datetime
 from functools import cache
 
 import discord
@@ -189,6 +190,28 @@ def get_next_leap(year: int) -> int:
     while not is_leap(year):
         year += 1
     return year
+
+
+def next_birthday(birthday: datetime, is_leap: bool, after: DateTime) -> DateTime:
+    """The next occurrence of a stored birthday, strictly after ``after``.
+
+    A stored birthday is a UTC instant for one particular year, so advancing it
+    is a year bump; 29 February has to land on a leap year to exist at all.
+    """
+    moment = pendulum.instance(birthday)
+    if moment > after:
+        return moment
+
+    # The flag is the authority, but a 29 February instant cannot be replaced
+    # into a common year whatever the flag says.
+    if is_leap or (moment.month == 2 and moment.day == 29):
+        candidate = moment.replace(year=get_next_leap(after.year))
+        if candidate > after:
+            return candidate
+        return moment.replace(year=get_next_leap(after.year + 1))
+
+    candidate = moment.replace(year=after.year)
+    return candidate if candidate > after else moment.replace(year=after.year + 1)
 
 
 @cache
