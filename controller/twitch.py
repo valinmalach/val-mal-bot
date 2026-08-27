@@ -315,11 +315,15 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
         await handle_error(e, f"Error in _stream_online_task for {broadcaster_id}")
 
 
-def _cancel_ad_break_task_if_needed(broadcaster_user_login: str) -> None:
-    """Cancel ad break notification task for the broadcaster if it exists."""
-    if broadcaster_user_login == config.setting("broadcaster_username"):
-        shoutout_queue.deactivate()
-        _cancel_task_if_exists(_ad_break_notification_tasks, broadcaster_user_login)
+def _cancel_ad_break_task_if_needed(broadcaster_user_id: str) -> None:
+    """Cancel ad break notification task for the broadcaster if it exists.
+
+    Keyed by id, which is how _register_ad_break_task stores it.
+    """
+    if not _is_main_broadcaster(broadcaster_user_id):
+        return
+    shoutout_queue.deactivate()
+    _cancel_task_if_exists(_ad_break_notification_tasks, broadcaster_user_id)
 
 
 async def _fetch_stream_data(
@@ -426,7 +430,7 @@ async def _cleanup_live_alert(broadcaster_id: int, message_id: int) -> None:
 async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
     broadcaster_id = int(event_sub.event.broadcaster_user_id)
     try:
-        _cancel_ad_break_task_if_needed(event_sub.event.broadcaster_user_login)
+        _cancel_ad_break_task_if_needed(event_sub.event.broadcaster_user_id)
 
         user_info, channel_info, alert = await _fetch_stream_data(broadcaster_id)
         if alert is None:
