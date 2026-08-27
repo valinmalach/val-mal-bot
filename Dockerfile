@@ -1,26 +1,23 @@
-FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
+# The bookworm tags are frozen at an old uv whose newest 3.14 cannot satisfy
+# requires-python, so this follows trixie instead.
+FROM ghcr.io/astral-sh/uv:0.12.6-python3.14-trixie-slim
 
 WORKDIR /app
 
 # Railway streams stdout; without this the logs arrive in block-sized bursts.
 ENV PYTHONUNBUFFERED=1
 
-# Install system utilities needed for loclx
-RUN apt-get update && apt-get install -y --no-install-recommends curl unzip && \
-    curl -s https://loclx.io/dl/loclx-linux-amd64.zip -o loclx.zip && \
-    unzip loclx.zip -d /usr/local/bin/ && \
-    chmod +x /usr/local/bin/loclx && \
-    rm loclx.zip && \
-    rm -rf /var/lib/apt/lists/*
+# Otherwise uv downloads the newest interpreter satisfying requires-python,
+# which can be a pre-release with no wheels for the compiled dependencies.
+ENV UV_PYTHON_PREFERENCE=only-system
 
-# Install Python dependencies using uv
+# The official image ships loclx statically linked, so this needs no apt-get.
+COPY --from=localxpose/localxpose:latest /ko-app/loclx /usr/local/bin/loclx
+
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project
 
-# Copy project files (including alembic configs, seed.py, and parquet files if committed)
 COPY . .
-
-# Grant execute permissions to the startup script
 RUN chmod +x start.sh
 
 CMD ["/app/start.sh"]
