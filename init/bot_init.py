@@ -11,17 +11,15 @@ logger = logging.getLogger(__name__)
 
 async def restart_live_alert_tasks() -> None:
     from db import repository
-    from services import update_alert
+    from services import start_alert_updater
 
     for alert in await repository.list_live_alerts():
-        _ = asyncio.create_task(
-            update_alert(
-                broadcaster_id=alert.broadcaster_id,
-                channel_id=alert.channel_id,
-                message_id=alert.message_id,
-                stream_id=alert.stream_id,
-                stream_started_at=alert.stream_started_at.isoformat(),
-            )
+        start_alert_updater(
+            broadcaster_id=alert.broadcaster_id,
+            channel_id=alert.channel_id,
+            message_id=alert.message_id,
+            stream_id=alert.stream_id,
+            stream_started_at=alert.stream_started_at.isoformat(),
         )
         await asyncio.sleep(1)
 

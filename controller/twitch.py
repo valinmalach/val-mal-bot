@@ -45,8 +45,8 @@ from services import (
     parse_rfc3339,
     send_embed,
     send_message,
+    start_alert_updater,
     twitch_send_message,
-    update_alert,
     verify_message,
 )
 from services.config import config
@@ -262,14 +262,12 @@ async def _save_live_alert(
             int(stream_info.id),
             parse_rfc3339(stream_info.started_at),
         )
-        _ = asyncio.create_task(
-            update_alert(
-                broadcaster_id,
-                channel,
-                message_id,
-                int(stream_info.id),
-                stream_info.started_at,
-            )
+        start_alert_updater(
+            broadcaster_id,
+            channel,
+            message_id,
+            int(stream_info.id),
+            stream_info.started_at,
         )
     except Exception as e:  # noqa: BLE001
         await handle_error(
