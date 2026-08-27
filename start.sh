@@ -30,7 +30,9 @@ if [ -n "$LOCLX_TOKEN" ]; then
     # -r is --raw-mode here; on the http subcommand it means --https-redirect.
     # Without it loclx draws a terminal UI that has no terminal to draw to.
     args=(tunnel -r http --to "127.0.0.1:$PORT")
-    [ -n "$LOCLX_SUBDOMAIN" ] && args+=(--subdomain "$LOCLX_SUBDOMAIN")
+    # --subdomain is for throwaway names only; loclx rejects a subdomain that is
+    # reserved on the account unless it arrives as a full --reserved-domain.
+    [ -n "$LOCLX_SUBDOMAIN" ] && args+=(--reserved-domain "${LOCLX_SUBDOMAIN}.loclx.io")
     loclx "${args[@]}" &
     loclx_pid=$!
 
