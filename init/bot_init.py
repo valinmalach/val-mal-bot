@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 
 import discord
 from discord import CategoryChannel, ForumChannel
@@ -11,10 +10,7 @@ from config import settings
 from constants import (
     BOT_ADMIN_CHANNEL,
     GUILD_ID,
-    LIVE_ALERTS,
-    TWITCH_DIR,
 )
-from services.helper.parquet_cache import parquet_cache
 
 logger = logging.getLogger(__name__)
 
@@ -22,23 +18,17 @@ MY_GUILD = discord.Object(id=GUILD_ID)
 
 
 async def restart_live_alert_tasks() -> None:
-    from services import read_parquet_cached, update_alert
+    from db import repository
+    from services import update_alert
 
-    df = await read_parquet_cached(LIVE_ALERTS)
-
-    for alert in df.iter_rows(named=True):
-        broadcaster_id = alert["id"]
-        channel_id = alert["channel_id"]
-        message_id = alert["message_id"]
-        stream_id = alert["stream_id"]
-        stream_started_at = alert["stream_started_at"]
+    for alert in await repository.list_live_alerts():
         _ = asyncio.create_task(
             update_alert(
-                broadcaster_id=broadcaster_id,
-                channel_id=channel_id,
-                message_id=message_id,
-                stream_id=stream_id,
-                stream_started_at=stream_started_at,
+                broadcaster_id=alert.broadcaster_id,
+                channel_id=alert.channel_id,
+                message_id=alert.message_id,
+                stream_id=alert.stream_id,
+                stream_started_at=alert.stream_started_at.isoformat(),
             )
         )
         await asyncio.sleep(1)
@@ -53,12 +43,6 @@ async def activate_if_live() -> None:
         _ = asyncio.create_task(shoutout_queue.activate())
 
 
-def ensure_token_dir() -> None:
-    # token_manager writes the token files with aiofiles, which will not create
-    # the directory. Goes away with the oauth_token cutover.
-    os.makedirs(TWITCH_DIR, exist_ok=True)
-
-
 async def run_background_tasks():
     await asyncio.gather(
         restart_live_alert_tasks(), activate_if_live(), return_exceptions=True
@@ -71,7 +55,11 @@ class MyBot(Bot):
         self.case_insensitive = True
 
     async def setup_hook(self) -> None:
-        parquet_cache.start()
+        from services.config import config
+        from services.twitch.token_manager import token_manager
+
+        await config.load()
+        await token_manager.load()
 
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
@@ -94,8 +82,10 @@ class MyBot(Bot):
         self.add_view(DMsOpenView())
 
     async def close(self) -> None:
-        await parquet_cache.stop()
+        from db import dispose_engine
+
         await super().close()
+        await dispose_engine()
 
 
 bot = MyBot(command_prefix="$", intents=discord.Intents.all())
@@ -103,7 +93,6 @@ bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 @bot.event
 async def on_ready() -> None:
-    ensure_token_dir()
 
     _ = asyncio.create_task(run_background_tasks())
 

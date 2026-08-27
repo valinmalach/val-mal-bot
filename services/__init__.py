@@ -1,5 +1,4 @@
 from .helper.helper import (
-    delete_row_from_parquet,
     edit_embed,
     format_unit,
     get_age,
@@ -13,13 +12,10 @@ from .helper.helper import (
     get_pfp,
     is_leap,
     parse_rfc3339,
-    read_parquet_cached,
     roles_button_pressed,
     send_embed,
     send_message,
     toggle_role,
-    update_birthday,
-    upsert_row_to_parquet,
     verify_message,
 )
 from .helper.twitch import call_twitch, check_mod, twitch_send_message
@@ -52,7 +48,6 @@ from .twitch.commands import (
 __all__ = [
     "call_twitch",
     "check_mod",
-    "delete_row_from_parquet",
     "discord_command",
     "edit_embed",
     "everything",
@@ -80,7 +75,6 @@ __all__ = [
     "lurk",
     "parse_rfc3339",
     "raid",
-    "read_parquet_cached",
     "roles_button_pressed",
     "send_embed",
     "send_message",
@@ -93,7 +87,5 @@ __all__ = [
     "unlurk",
     "unsubscribe_to_user",
     "update_alert",
-    "update_birthday",
-    "upsert_row_to_parquet",
     "verify_message",
 ]

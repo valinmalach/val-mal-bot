@@ -1,0 +1,151 @@
+"""Database access for the records the bot reads and writes at runtime.
+
+Replaces services/helper/parquet_cache.py. Writes are immediate rather than
+queued behind a flush interval, so a restart cannot lose them.
+"""
+
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert
+from sqlmodel import col
+
+from db.models import DiscordMessage, DiscordUser, LiveAlert
+from db.session import session_scope
+
+__all__ = [
+    "delete_live_alert",
+    "delete_message",
+    "delete_user",
+    "get_live_alert",
+    "get_message",
+    "get_user",
+    "list_live_alerts",
+    "upsert_live_alert",
+    "upsert_message",
+    "upsert_user",
+    "users_with_birthday",
+]
+
+
+async def _upsert(model: Any, values: dict[str, Any], key: list[str]) -> None:
+    statement = insert(model).values(**values)
+    updates = {k: getattr(statement.excluded, k) for k in values if k not in key}
+    async with session_scope() as session:
+        await session.execute(
+            statement.on_conflict_do_update(index_elements=key, set_=updates)
+        )
+
+
+async def get_user(user_id: int) -> DiscordUser | None:
+    async with session_scope() as session:
+        return await session.get(DiscordUser, user_id)
+
+
+async def upsert_user(
+    user_id: int,
+    username: str,
+    birthday: datetime | None = None,
+    is_birthday_leap: bool | None = None,
+) -> None:
+    await _upsert(
+        DiscordUser,
+        {
+            "id": user_id,
+            "username": username,
+            "birthday": birthday,
+            "is_birthday_leap": is_birthday_leap,
+        },
+        ["id"],
+    )
+
+
+async def delete_user(user_id: int) -> None:
+    async with session_scope() as session:
+        await session.execute(delete(DiscordUser).where(col(DiscordUser.id) == user_id))
+
+
+async def users_with_birthday(moment: datetime) -> list[DiscordUser]:
+    """Users whose next birthday falls exactly on `moment`.
+
+    A timestamp comparison, so the string-format mismatch that made the parquet
+    version miss every existing row cannot recur.
+    """
+    async with session_scope() as session:
+        result = await session.execute(
+            select(DiscordUser).where(col(DiscordUser.birthday) == moment)
+        )
+        return list(result.scalars().all())
+
+
+async def get_message(message_id: int) -> DiscordMessage | None:
+    async with session_scope() as session:
+        return await session.get(DiscordMessage, message_id)
+
+
+async def upsert_message(
+    message_id: int,
+    contents: str | None,
+    guild_id: int,
+    author_id: int,
+    channel_id: int,
+    attachment_urls: list[str],
+) -> None:
+    await _upsert(
+        DiscordMessage,
+        {
+            "id": message_id,
+            "contents": contents,
+            "guild_id": guild_id,
+            "author_id": author_id,
+            "channel_id": channel_id,
+            "attachment_urls": attachment_urls,
+        },
+        ["id"],
+    )
+
+
+async def delete_message(message_id: int) -> None:
+    async with session_scope() as session:
+        await session.execute(
+            delete(DiscordMessage).where(col(DiscordMessage.id) == message_id)
+        )
+
+
+async def get_live_alert(broadcaster_id: int) -> LiveAlert | None:
+    async with session_scope() as session:
+        return await session.get(LiveAlert, broadcaster_id)
+
+
+async def list_live_alerts() -> list[LiveAlert]:
+    async with session_scope() as session:
+        result = await session.execute(select(LiveAlert))
+        return list(result.scalars().all())
+
+
+async def upsert_live_alert(
+    broadcaster_id: int,
+    channel_id: int,
+    message_id: int,
+    stream_id: int,
+    stream_started_at: datetime,
+) -> None:
+    await _upsert(
+        LiveAlert,
+        {
+            "broadcaster_id": broadcaster_id,
+            "channel_id": channel_id,
+            "message_id": message_id,
+            "stream_id": stream_id,
+            "stream_started_at": stream_started_at,
+        },
+        ["broadcaster_id"],
+    )
+
+
+async def delete_live_alert(broadcaster_id: int) -> None:
+    async with session_scope() as session:
+        await session.execute(
+            delete(LiveAlert).where(col(LiveAlert.broadcaster_id) == broadcaster_id)
+        )

@@ -4,9 +4,7 @@ import traceback
 from typing import Literal
 
 import discord
-import orjson
 import pendulum
-import polars as pl
 from discord import (
     CategoryChannel,
     Embed,
@@ -36,24 +34,19 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     DEFAULT_MISSING_CONTENT,
     GUILD_ID,
-    MESSAGES,
     UNKNOWN_USER,
-    USERS,
     WELCOME_CHANNEL,
     ErrorDetails,
-    UserRecord,
 )
+from db import repository
 from services import (
-    delete_row_from_parquet,
     get_age,
     get_channel_mention,
     get_discriminator,
     get_ordinal_suffix,
     get_pfp,
-    read_parquet_cached,
     send_embed,
     send_message,
-    upsert_row_to_parquet,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,12 +76,10 @@ class Events(Cog):
         if should_raise:
             raise exception
 
-    async def _safe_parquet_operation(
-        self, operation: str, func, *args, **kwargs
-    ) -> None:
-        """Safely execute parquet operations with error handling."""
+    async def _safe_db_operation(self, operation: str, func, *args, **kwargs) -> None:
+        """Run a database write, reporting failures instead of raising."""
         try:
-            func(*args, **kwargs)
+            await func(*args, **kwargs)
         except Exception as e:  # noqa: BLE001
             await self._handle_error(e, f"Failed to {operation}")
 
@@ -115,19 +106,18 @@ class Events(Cog):
             return entry.user
         return None
 
-    async def _get_message_object(self, message: Message) -> dict:
+    async def _store_message(self, message: Message) -> None:
         guild = message.guild
-        guild_id = GUILD_ID if guild is None else guild.id
-        return {
-            "id": message.id,
-            "contents": message.content,
-            "guild_id": guild_id,
-            "author_id": message.author.id,
-            "channel_id": message.channel.id,
-            "attachment_urls": orjson.dumps(
-                [attachment.url for attachment in message.attachments]
-            ).decode("utf-8"),
-        }
+        await self._safe_db_operation(
+            f"store message {message.id}",
+            repository.upsert_message,
+            message.id,
+            message.content,
+            GUILD_ID if guild is None else guild.id,
+            message.author.id,
+            message.channel.id,
+            [attachment.url for attachment in message.attachments],
+        )
 
     async def _send_error_message(
         self,
@@ -148,13 +138,7 @@ class Events(Cog):
             if message.author == self.bot.user:
                 return
 
-            message_obj = await self._get_message_object(message)
-            await self._safe_parquet_operation(
-                f"save message {message.id} in parquet",
-                upsert_row_to_parquet,
-                message_obj,
-                MESSAGES,
-            )
+            await self._store_message(message)
 
             content = message.content.lower()
             if content == "ping":
@@ -195,17 +179,11 @@ class Events(Cog):
                 AUDIT_LOGS_CHANNEL,
             )
 
-            user: UserRecord = {
-                "id": member.id,
-                "username": member.name,
-                "birthday": None,
-                "isBirthdayLeap": None,
-            }
-            await self._safe_parquet_operation(
-                f"insert user {member.name} ({member.id}) in parquet",
-                upsert_row_to_parquet,
-                user,
-                USERS,
+            await self._safe_db_operation(
+                f"insert user {member.name} ({member.id})",
+                repository.upsert_user,
+                member.id,
+                member.name,
             )
         except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_member_join event")
@@ -244,11 +222,10 @@ class Events(Cog):
                 )
             await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
-            await self._safe_parquet_operation(
-                f"remove user {member.name} ({member.id}) from parquet",
-                delete_row_from_parquet,
+            await self._safe_db_operation(
+                f"remove user {member.name} ({member.id})",
+                repository.delete_user,
                 member.id,
-                USERS,
             )
         except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_raw_member_remove event")
@@ -375,16 +352,6 @@ class Events(Cog):
         )
         await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
-    async def _update_message_in_parquet(self, message: Message) -> None:
-        """Update the message in the parquet file."""
-        message_obj = await self._get_message_object(message)
-        await self._safe_parquet_operation(
-            f"upsert message {message.id} in parquet",
-            upsert_row_to_parquet,
-            message_obj,
-            MESSAGES,
-        )
-
     @Cog.listener()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent) -> None:
         try:
@@ -408,7 +375,7 @@ class Events(Cog):
             await self._log_message_edit(
                 after, before_content, after_content, discriminator, url
             )
-            await self._update_message_in_parquet(after)
+            await self._store_message(after)
 
         except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_raw_message_edit event")
@@ -441,11 +408,10 @@ class Events(Cog):
                 message, payload.message_id, author, user_who_deleted, channel
             )
 
-            await self._safe_parquet_operation(
-                f"delete message {payload.message_id} from parquet",
-                delete_row_from_parquet,
+            await self._safe_db_operation(
+                f"delete message {payload.message_id}",
+                repository.delete_message,
                 payload.message_id,
-                MESSAGES,
             )
         except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_raw_message_delete event")
@@ -477,11 +443,10 @@ class Events(Cog):
             await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
             for message_id in payload.message_ids:
-                await self._safe_parquet_operation(
-                    f"delete message {message_id} from parquet",
-                    delete_row_from_parquet,
+                await self._safe_db_operation(
+                    f"delete message {message_id}",
+                    repository.delete_message,
                     message_id,
-                    MESSAGES,
                 )
         except Exception as e:  # noqa: BLE001
             await self._handle_error(
@@ -548,10 +513,9 @@ class Events(Cog):
             await self._handle_error(e, "Fatal error with on_invite_delete event")
 
     async def _get_message_content(self, message_id: int) -> str:
-        df = await read_parquet_cached(MESSAGES)
-        message_row = df.filter(pl.col("id") == message_id)
-        if message_row.height != 0:
-            return message_row.row(0, named=True)["contents"]
+        stored = await repository.get_message(message_id)
+        if stored and stored.contents:
+            return stored.contents
         return DEFAULT_MISSING_CONTENT
 
     async def _log_role_change(
@@ -675,11 +639,10 @@ class Events(Cog):
         ).set_footer(text=f"Deleter: {user_id} | Message ID: {message_id}")
         await send_embed(embed, AUDIT_LOGS_CHANNEL)
 
-        await self._safe_parquet_operation(
-            f"delete message {message_id} from parquet",
-            delete_row_from_parquet,
+        await self._safe_db_operation(
+            f"delete message {message_id}",
+            repository.delete_message,
             message_id,
-            MESSAGES,
         )
 
     async def _log_message_delete(

@@ -1,11 +1,10 @@
 import io
 import logging
 import traceback
-from typing import Literal
+from typing import Any, Literal
 
 import discord
 import pendulum
-import polars as pl
 from discord import Interaction, Member, User, app_commands
 from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
@@ -16,12 +15,11 @@ from constants import (
     FOLLOWER_ROLE,
     MAX_DAYS,
     OWNER_ID,
-    USERS,
     ErrorDetails,
     Months,
-    UserRecord,
 )
-from services import get_next_leap, read_parquet_cached, send_message, update_birthday
+from db import repository
+from services import get_next_leap, send_message
 
 logger = logging.getLogger(__name__)
 
@@ -122,31 +120,30 @@ class Birthday(GroupCog):
 
     def _create_birthday_record(
         self, user: User | Member, month: Months, day: int, year: int, timezone: str
-    ) -> UserRecord:
-        """Create a UserRecord for the birthday."""
-        birthday_datetime = (
+    ) -> dict[str, Any]:
+        """Build the arguments for storing this birthday."""
+        birthday = (
             DateTime.strptime(
                 f"{year}-{month.value:02d}-{day:02d} 00:00:00",
                 "%Y-%m-%d %H:%M:%S",
             )
             .replace(tzinfo=pendulum.timezone(timezone))
             .astimezone(pendulum.timezone("UTC"))
-            .strftime("%Y-%m-%dT%H:%M:%S.000Z")
         )
 
         return {
-            "id": user.id,
+            "user_id": user.id,
             "username": user.name,
-            "birthday": birthday_datetime,
-            "isBirthdayLeap": month == Months.February and day == 29,
+            "birthday": birthday,
+            "is_birthday_leap": month == Months.February and day == 29,
         }
 
     async def _update_birthday_database(
-        self, interaction: Interaction, record: UserRecord
+        self, interaction: Interaction, record: dict[str, Any]
     ) -> None:
         """Update the birthday in the database with error handling."""
         try:
-            update_birthday(record)
+            await repository.upsert_user(**record)
         except Exception as e:
             await self._handle_set_birthday_exception(interaction, e)
             raise  # Re-raise to be caught by the main exception handler
@@ -202,13 +199,7 @@ class Birthday(GroupCog):
         interaction: Interaction,
     ) -> None:
         try:
-            df = await read_parquet_cached(USERS)
-            existing_user_row = df.filter(pl.col("id") == interaction.user.id)
-            if existing_user_row.height == 0:
-                existing_user = None
-            else:
-                existing_user = existing_user_row.row(0, named=True)
-
+            existing_user = await repository.get_user(interaction.user.id)
             if existing_user is None:
                 await send_message(
                     f"User {interaction.user.name} ({interaction.user.id}) attempted to remove a birthday but had no record.",
@@ -219,15 +210,10 @@ class Birthday(GroupCog):
                 )
                 return
 
-            record: UserRecord = {
-                "id": interaction.user.id,
-                "username": interaction.user.name,
-                "birthday": None,
-                "isBirthdayLeap": None,
-            }
-            update_birthday(record)
+            had_birthday = existing_user.birthday is not None
+            await repository.upsert_user(interaction.user.id, interaction.user.name)
 
-            if existing_user.get("birthday"):
+            if had_birthday:
                 await interaction.response.send_message(
                     "I've removed your birthday! I won't wish you anymore!"
                 )

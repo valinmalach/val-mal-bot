@@ -53,17 +53,6 @@ DEFAULT_MISSING_CONTENT = "`Message content not found in cache`"
 
 BROADCASTER_USERNAME = "valinmalach"
 
-APP_ACCESS_TOKEN_FILE = "data/twitch/app_access_token.txt"
-USER_REFRESH_TOKEN_FILE = "data/twitch/user_refresh_token.txt"
-USER_ACCESS_TOKEN_FILE = "data/twitch/user_access_token.txt"
-BROADCASTER_REFRESH_TOKEN_FILE = "data/twitch/broadcaster_refresh_token.txt"
-BROADCASTER_ACCESS_TOKEN_FILE = "data/twitch/broadcaster_access_token.txt"
-
-TWITCH_DIR = "data/twitch"
-LIVE_ALERTS = "data/live_alerts.parquet"
-MESSAGES = "data/messages.parquet"
-USERS = "data/users.parquet"
-
 
 class Months(Enum):
     January = 1
@@ -128,23 +117,8 @@ class TokenType(str, Enum):
     Broadcaster = "broadcaster"
 
 
-class UserRecord(TypedDict):
-    id: int
-    username: str
-    birthday: str | None
-    isBirthdayLeap: bool | None
-
-
 class ErrorDetails(TypedDict):
     type: str
     message: str
     args: tuple
     traceback: str
-
-
-class LiveAlert(TypedDict):
-    id: int
-    channel_id: int
-    message_id: int
-    stream_id: int
-    stream_started_at: str

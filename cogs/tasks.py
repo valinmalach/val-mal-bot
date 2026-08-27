@@ -5,24 +5,12 @@ from typing import ClassVar
 
 import discord
 import pendulum
-import polars as pl
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
-from polars import DataFrame
 
-from constants import (
-    BOT_ADMIN_CHANNEL,
-    SHOUTOUTS_CHANNEL,
-    USERS,
-    ErrorDetails,
-    UserRecord,
-)
-from services import (
-    get_next_leap,
-    read_parquet_cached,
-    send_message,
-    update_birthday,
-)
+from constants import BOT_ADMIN_CHANNEL, SHOUTOUTS_CHANNEL, ErrorDetails
+from db import DiscordUser, repository
+from services import get_next_leap, send_message
 
 logger = logging.getLogger(__name__)
 
@@ -61,15 +49,7 @@ class Tasks(Cog):
     async def check_birthdays(self) -> None:
         try:
             now = pendulum.now("UTC").replace(second=0, microsecond=0)
-            # Rows written before the bot added milliseconds are stored as
-            # ...:00Z, so an equality check on one spelling alone misses them.
-            stamps = [
-                now.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-                now.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            ]
-
-            df = await read_parquet_cached(USERS)
-            birthday_users = df.filter(pl.col("birthday").is_in(stamps))
+            birthday_users = await repository.users_with_birthday(now)
             await self._process_birthday_records(birthday_users)
         except Exception as e:  # noqa: BLE001
             error_details: ErrorDetails = {
@@ -82,11 +62,11 @@ class Tasks(Cog):
             logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
             await self.log_error(error_msg, error_details["traceback"])
 
-    async def _process_birthday_records(self, birthdays_now: DataFrame) -> None:
-        now = pendulum.now()
-        for record in birthdays_now.iter_rows(named=True):
-            user_id = record["id"]
-            user = self.bot.get_user(int(user_id))
+    async def _process_birthday_records(self, birthdays_now: list[DiscordUser]) -> None:
+        now = pendulum.now("UTC")
+        for record in birthdays_now:
+            user_id = record.id
+            user = self.bot.get_user(user_id)
             if user is None:
                 logger.warning(f"Discord user ID {user_id} not found in guild cache")
                 await send_message(
@@ -98,20 +78,17 @@ class Tasks(Cog):
                 f"Happy Birthday {user.mention}!",
                 SHOUTOUTS_CHANNEL,
             )
-            if record["isBirthdayLeap"]:
-                leap = True
-                next_birthday = f"{get_next_leap(now.year)}{record['birthday'][4:]}"
-            else:
-                leap = False
-                next_birthday = f"{now.year + 1}{record['birthday'][4:]}"
-            updated_record: UserRecord = {
-                "id": user_id,
-                "username": record["username"],
-                "birthday": next_birthday,
-                "isBirthdayLeap": leap,
-            }
+            if record.birthday is None:
+                continue
+            leap = bool(record.is_birthday_leap)
+            # get_next_leap on the following year, otherwise a 29 February
+            # birthday landing in a leap year reschedules onto itself.
+            next_year = get_next_leap(now.year + 1) if leap else now.year + 1
+            next_birthday = pendulum.instance(record.birthday).replace(year=next_year)
             try:
-                update_birthday(updated_record)
+                await repository.upsert_user(
+                    user_id, record.username, next_birthday, leap
+                )
             except Exception as e:  # noqa: BLE001
                 error_details: ErrorDetails = {
                     "type": type(e).__name__,
@@ -119,7 +96,7 @@ class Tasks(Cog):
                     "args": e.args,
                     "traceback": traceback.format_exc(),
                 }
-                error_msg = f"Failed to update birthday for user {record['username']} (ID: {user_id}) - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+                error_msg = f"Failed to update birthday for user {record.username} (ID: {user_id}) - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
                 logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
                 await self.log_error(error_msg, error_details["traceback"])
 

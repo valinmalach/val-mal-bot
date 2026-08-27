@@ -7,7 +7,6 @@ from typing import Any
 
 import discord
 import pendulum
-import polars as pl
 from discord.ui import View
 from fastapi import APIRouter, HTTPException, Request, Response
 
@@ -16,7 +15,6 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     BROADCASTER_USERNAME,
     HMAC_PREFIX,
-    LIVE_ALERTS,
     LIVE_ALERTS_ROLE,
     PROMO_CHANNEL,
     STREAM_ALERTS_CHANNEL,
@@ -25,8 +23,8 @@ from constants import (
     TWITCH_MESSAGE_TIMESTAMP,
     TWITCH_MESSAGE_TYPE,
     ErrorDetails,
-    LiveAlert,
 )
+from db import LiveAlert, repository
 from models import (
     Channel,
     ChannelAdBreakBeginEventSub,
@@ -41,7 +39,6 @@ from models import (
     Video,
 )
 from services import (
-    delete_row_from_parquet,
     discord_command,
     edit_embed,
     everything,
@@ -58,7 +55,6 @@ from services import (
     lurk,
     parse_rfc3339,
     raid,
-    read_parquet_cached,
     send_embed,
     send_message,
     shoutout,
@@ -67,7 +63,6 @@ from services import (
     twitch_send_message,
     unlurk,
     update_alert,
-    upsert_row_to_parquet,
     verify_message,
 )
 from services.helper.http_client import http_client_manager
@@ -178,13 +173,14 @@ def _is_main_broadcaster(broadcaster_id: str | int) -> bool:
     return str(broadcaster_id) == settings.twitch_broadcaster_id
 
 
-def _extract_alert_data(alert: dict[str, Any]) -> tuple[int, int, str, str]:
-    """Extract relevant data from alert dictionary."""
-    channel_id = alert.get("channel_id", 0)
-    message_id = alert.get("message_id", 0)
-    stream_id = alert.get("stream_id", "")
-    stream_started_at = alert.get("stream_started_at", "")
-    return channel_id, message_id, stream_id, stream_started_at
+def _extract_alert_data(alert: LiveAlert) -> tuple[int, int, int, str]:
+    """Pull the fields the offline embed needs out of a stored alert."""
+    return (
+        alert.channel_id,
+        alert.message_id,
+        alert.stream_id,
+        alert.stream_started_at.isoformat(),
+    )
 
 
 async def _wait_for_stream_info(broadcaster_id: int):
@@ -258,17 +254,15 @@ def _create_stream_watch_button(stream_info) -> View:
 async def _save_live_alert(
     broadcaster_id: int, channel: int, message_id: int, stream_info
 ) -> None:
-    """Save the live alert to parquet storage and start update task."""
-    alert: LiveAlert = {
-        "id": broadcaster_id,
-        "channel_id": channel,
-        "message_id": message_id,
-        "stream_id": int(stream_info.id),
-        "stream_started_at": stream_info.started_at,
-    }
-
+    """Store the live alert and start the update task."""
     try:
-        upsert_row_to_parquet(alert, LIVE_ALERTS)
+        await repository.upsert_live_alert(
+            broadcaster_id,
+            channel,
+            message_id,
+            int(stream_info.id),
+            parse_rfc3339(stream_info.started_at),
+        )
         _ = asyncio.create_task(
             update_alert(
                 broadcaster_id,
@@ -281,7 +275,7 @@ async def _save_live_alert(
     except Exception as e:  # noqa: BLE001
         await handle_error(
             e,
-            f"Failed to insert live alert message into parquet for broadcaster {broadcaster_id}",
+            f"Failed to store live alert for broadcaster {broadcaster_id}",
         )
 
 
@@ -327,30 +321,28 @@ def _cancel_ad_break_task_if_needed(broadcaster_user_login: str) -> None:
 
 async def _fetch_stream_data(
     broadcaster_id: int,
-) -> tuple[User | None, Channel | None, dict[str, Any] | None]:
-    """Fetch user info, channel info, and VOD info for the stream."""
+) -> tuple[User | None, Channel | None, LiveAlert | None]:
+    """Fetch user info, channel info, and the stored alert for the stream."""
     user_info = await get_user(broadcaster_id)
     channel_info = await get_channel(broadcaster_id)
 
-    df = await read_parquet_cached(LIVE_ALERTS)
-    alert_row = df.filter(pl.col("id") == broadcaster_id)
-    if alert_row.height == 0:
+    alert = await repository.get_live_alert(broadcaster_id)
+    if alert is None:
         logger.warning(
             f"Failed to fetch live alert for broadcaster_id={broadcaster_id}: No record found; Skipping"
         )
         return None, None, None
 
-    alert = alert_row.row(0, named=True)
     return user_info, channel_info, alert
 
 
-async def _get_vod_info(broadcaster_id: int, stream_id: str) -> Video | None:
+async def _get_vod_info(broadcaster_id: int, stream_id: int) -> Video | None:
     """Safely fetch VOD information with error handling."""
     if not stream_id:
         return None
 
     try:
-        return await get_stream_vod(broadcaster_id, int(stream_id))
+        return await get_stream_vod(broadcaster_id, stream_id)
     except Exception as e:  # noqa: BLE001
         await handle_error(
             e, f"Failed to fetch VOD info for broadcaster {broadcaster_id}"
@@ -418,7 +410,7 @@ async def _update_offline_message(
 async def _cleanup_live_alert(broadcaster_id: int) -> None:
     """Remove the live alert from storage."""
     try:
-        delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
+        await repository.delete_live_alert(broadcaster_id)
     except Exception as e:  # noqa: BLE001
         await handle_error(
             e, f"Failed to delete live alert for broadcaster {broadcaster_id}"

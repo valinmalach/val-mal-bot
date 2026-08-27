@@ -1,6 +1,6 @@
-"""Runtime records that currently live in the parquet files under ``data/``.
+"""Runtime records the bot reads and writes at runtime.
 
-Column names are snake_case here even where the parquet schema was not.
+Column names are snake_case even where the old parquet schema was not.
 """
 
 from datetime import datetime

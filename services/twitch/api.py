@@ -8,19 +8,18 @@ from typing import Any, Literal
 
 import discord
 import pendulum
-import polars as pl
 from discord.ui import View
 
 from config import settings
 from constants import (
     BOT_ADMIN_CHANNEL,
     BROADCASTER_USERNAME,
-    LIVE_ALERTS,
     LIVE_ALERTS_ROLE,
     STREAM_ALERTS_CHANNEL,
     ErrorDetails,
     TokenType,
 )
+from db import LiveAlert, repository
 from models import (
     AdSchedule,
     AdScheduleResponse,
@@ -36,11 +35,9 @@ from models import (
     VideoResponse,
 )
 from services.helper.helper import (
-    delete_row_from_parquet,
     edit_embed,
     get_age,
     parse_rfc3339,
-    read_parquet_cached,
     send_message,
 )
 from services.helper.http_client import is_transient_network_error
@@ -523,7 +520,7 @@ async def _handle_embed_edit_error(
             f"Message not found when editing offline embed for message_id={message_id}; aborting"
         )
         try:
-            delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
+            await repository.delete_live_alert(broadcaster_id)
         except Exception as delete_error:  # noqa: BLE001
             await _handle_api_exception(
                 delete_error,
@@ -579,20 +576,18 @@ async def trigger_offline_sequence(
         await _handle_embed_edit_error(e, message_id, broadcaster_id)
 
 
-async def _validate_alert_exists(broadcaster_id: int) -> dict | None:
+async def _validate_alert_exists(broadcaster_id: int) -> LiveAlert | None:
     """Check if alert record exists and return it."""
-    df = await read_parquet_cached(LIVE_ALERTS)
-    alert_row = df.filter(pl.col("id") == broadcaster_id)
-    return None if alert_row.height == 0 else alert_row.row(0, named=True)
+    return await repository.get_live_alert(broadcaster_id)
 
 
 def _should_trigger_offline_sequence(
-    alert: dict, stream_info: Stream | None, stream_id: int
+    alert: LiveAlert, stream_info: Stream | None, stream_id: int
 ) -> bool:
     """Determine if offline sequence should be triggered."""
     return (
         stream_info is None
-        or alert.get("stream_id", "") != stream_id
+        or alert.stream_id != stream_id
         or stream_info.id != str(stream_id)
     )
 
@@ -660,7 +655,7 @@ async def _handle_live_embed_edit_error(
             f"Message not found when editing live embed for message_id={message_id}; aborting"
         )
         try:
-            delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
+            await repository.delete_live_alert(broadcaster_id)
         except Exception as delete_error:  # noqa: BLE001
             await _handle_api_exception(
                 delete_error,
