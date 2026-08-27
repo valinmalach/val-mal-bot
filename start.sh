@@ -10,7 +10,8 @@ if [ -n "$LOCLX_TOKEN" ]; then
     export ACCESS_TOKEN="$LOCLX_TOKEN"
 
     # loclx exits 0 even when it rejects the token, so the text is the signal.
-    status="$(loclx account status 2>&1)"
+    # The fallback keeps a nonzero exit from killing the script under set -e.
+    status="$(loclx account status 2>&1)" || status="Error: loclx account status did not run"
     echo "$status"
     case "$status" in
         *"access token is invalid"*|*"not logged in"*)
@@ -19,7 +20,10 @@ if [ -n "$LOCLX_TOKEN" ]; then
             echo "WARNING: loclx could not reach its API, tunnel may not come up." >&2 ;;
     esac
 
-    if [ -n "$APP_URL" ] && [ "${APP_URL%/}" != "https://${LOCLX_SUBDOMAIN}.loclx.io" ]; then
+    if [ -z "$LOCLX_SUBDOMAIN" ]; then
+        echo "WARNING: LOCLX_SUBDOMAIN is unset, so the tunnel takes a random name" >&2
+        echo "         that APP_URL cannot match, and Twitch webhooks will not arrive." >&2
+    elif [ -n "$APP_URL" ] && [ "${APP_URL%/}" != "https://${LOCLX_SUBDOMAIN}.loclx.io" ]; then
         echo "WARNING: APP_URL is ${APP_URL%/} but the tunnel serves https://${LOCLX_SUBDOMAIN}.loclx.io" >&2
     fi
 
@@ -28,21 +32,29 @@ if [ -n "$LOCLX_TOKEN" ]; then
     args=(tunnel -r http --to "127.0.0.1:$PORT")
     [ -n "$LOCLX_SUBDOMAIN" ] && args+=(--subdomain "$LOCLX_SUBDOMAIN")
     loclx "${args[@]}" &
+    loclx_pid=$!
 
-    echo "Waiting for the tunnel to register..."
-    up=""
-    for _ in $(seq 15); do
-        listing="$(loclx tunnel list 2>&1)"
-        case "$listing" in
-            *"${LOCLX_SUBDOMAIN:-loclx.io}"*) up=1; break ;;
-        esac
-        sleep 2
-    done
-    if [ -n "$up" ]; then
-        echo "$listing"
-    else
-        echo "WARNING: no tunnel after 30s, Twitch webhooks will not arrive." >&2
-        echo "$listing" >&2
+    # tunnel list is account-wide, so the container being replaced can still be
+    # holding our subdomain; only our own process proves the listing is ours.
+    if [ -n "$LOCLX_SUBDOMAIN" ]; then
+        echo "Waiting for the tunnel to register..."
+        up=""
+        for _ in $(seq 15); do
+            if ! kill -0 "$loclx_pid" 2>/dev/null; then
+                echo "WARNING: loclx exited, see its error above." >&2
+                break
+            fi
+            listing="$(loclx tunnel list 2>&1)" || listing=""
+            case "$listing" in
+                *"$LOCLX_SUBDOMAIN"*) up=1; break ;;
+            esac
+            sleep 2
+        done
+        if [ -n "$up" ]; then
+            echo "$listing"
+        else
+            echo "WARNING: no tunnel for $LOCLX_SUBDOMAIN, Twitch webhooks will not arrive." >&2
+        fi
     fi
 fi
 
