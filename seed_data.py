@@ -965,4 +965,19 @@ MESSAGE_TEMPLATES = [
         "content": "An error has occurred. Contact an admin.",
         "description": "Role button reply when the role could not be resolved",
     },
+    {
+        "key": "admin_birthday_sweep_none",
+        "content": "No birthdays needed moving. Every stored birthday is still ahead.",
+        "description": "/fix-birthdays when nothing had lapsed",
+    },
+    {
+        "key": "admin_birthday_sweep_done",
+        "content": "Moved {count} lapsed birthday(s) forward (dates in UTC):\n{details}",
+        "description": "/fix-birthdays summary of what it rescheduled",
+    },
+    {
+        "key": "admin_birthday_sweep_failed",
+        "content": "The birthday sweep failed: {error}",
+        "description": "/fix-birthdays when the sweep raised",
+    },
 ]
