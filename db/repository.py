@@ -27,6 +27,7 @@ __all__ = [
     "upsert_live_alert",
     "upsert_message",
     "upsert_user",
+    "upsert_username",
     "users_with_birthday",
     "users_with_past_birthday",
 ]
@@ -62,6 +63,11 @@ async def upsert_user(
         },
         ["id"],
     )
+
+
+async def upsert_username(user_id: int, username: str) -> None:
+    """Record a user without touching a birthday they may already have."""
+    await _upsert(DiscordUser, {"id": user_id, "username": username}, ["id"])
 
 
 async def delete_user(user_id: int) -> None:

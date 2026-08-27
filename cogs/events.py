@@ -176,7 +176,7 @@ class Events(Cog):
 
             await self._safe_db_operation(
                 f"insert user {member.name} ({member.id})",
-                repository.upsert_user,
+                repository.upsert_username,
                 member.id,
                 member.name,
             )
