@@ -173,8 +173,10 @@ without knowing why:
 
 ## Next steps
 
-1. Seed migration: insert the current constants, embed text, command responses
-   and the two Twitch account IDs as rows.
+1. ~~Seed~~ done: `seed.py` inserts the constants, embed text, command responses
+   and the two Twitch account IDs. `start.sh` runs it after every migration.
+   Each row is `INSERT ... ON CONFLICT DO NOTHING`, so an ID edited in the
+   database survives the next deploy and newly added keys still land.
 2. Backfill: load the three parquet files into their tables. The live files are
    on the EC2 host, not in this repo; copy them into `data/` first.
 3. Repository layer: replace `services/helper/parquet_cache.py` with database
