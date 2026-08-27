@@ -1,6 +1,8 @@
 """Twitch OAuth tokens, held in the oauth_token table."""
 
+import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Self, cast
 
 import pendulum
@@ -34,6 +36,7 @@ class TwitchTokenManager:
     _access: dict[TokenType, str]
     _refresh: dict[TokenType, str]
     _expires_at: dict[TokenType, pendulum.DateTime]
+    _locks: dict[TokenType, asyncio.Lock]
 
     def __new__(cls) -> Self:
         if cls._instance is None:
@@ -41,24 +44,33 @@ class TwitchTokenManager:
             instance._access = {}
             instance._refresh = {}
             instance._expires_at = {}
+            instance._locks = {token_type: asyncio.Lock() for token_type in TokenType}
             cls._instance = instance
         return cast("Self", cls._instance)
 
     async def load(self) -> None:
-        """Read every stored token into memory. Safe to call more than once."""
+        """Read every stored token into memory, replacing what is held."""
         async with session_scope() as session:
             rows = (await session.execute(select(OAuthToken))).scalars().all()
+
+        access: dict[TokenType, str] = {}
+        refresh: dict[TokenType, str] = {}
+        expires_at: dict[TokenType, pendulum.DateTime] = {}
 
         by_key = {row.key: row for row in rows}
         for token_type, key in _KEYS.items():
             row = by_key.get(key)
             if row is None:
                 continue
-            self._access[token_type] = row.access_token
+            access[token_type] = row.access_token
             if row.refresh_token:
-                self._refresh[token_type] = row.refresh_token
+                refresh[token_type] = row.refresh_token
             if row.expires_at:
-                self._expires_at[token_type] = pendulum.instance(row.expires_at)
+                expires_at[token_type] = pendulum.instance(row.expires_at)
+
+        # Swapped rather than updated in place: a row deleted or an expiry
+        # cleared in the database has to disappear from memory too.
+        self._access, self._refresh, self._expires_at = access, refresh, expires_at
         logger.info("Loaded %d Twitch token(s) from the database", len(self._access))
 
     async def _store(
@@ -121,7 +133,23 @@ class TwitchTokenManager:
     def broadcaster_access_token(self) -> str:
         return self.token(TokenType.Broadcaster)
 
+    async def _guarded(
+        self, token_type: TokenType, refresh: Callable[[], Awaitable[bool]]
+    ) -> bool:
+        """Run one refresh at a time per identity, reusing a concurrent result.
+
+        Twitch invalidates a refresh token the moment it is used, so two callers
+        racing on the same one leave the loser holding a dead token.
+        """
+        async with self._locks[token_type]:
+            if self.token(token_type) and not self.needs_refresh(token_type):
+                return True
+            return await refresh()
+
     async def refresh_app_access_token(self) -> bool:
+        return await self._guarded(TokenType.App, self._refresh_app_access_token)
+
+    async def _refresh_app_access_token(self) -> bool:
         scopes = cast("list[str]", config.setting("twitch_app_scopes", []))
         params = {
             "client_id": settings.twitch_client_id,
@@ -181,7 +209,12 @@ class TwitchTokenManager:
 
     async def refresh_user_access_token(self, broadcaster: bool = False) -> bool:
         token_type = TokenType.Broadcaster if broadcaster else TokenType.User
-        label = "broadcaster" if broadcaster else "user"
+        return await self._guarded(
+            token_type, lambda: self._refresh_user_access_token(token_type)
+        )
+
+    async def _refresh_user_access_token(self, token_type: TokenType) -> bool:
+        label = "broadcaster" if token_type is TokenType.Broadcaster else "user"
 
         refresh_token = self._refresh.get(token_type)
         if not refresh_token:
