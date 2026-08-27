@@ -104,14 +104,16 @@ class Tasks(Cog):
     @tasks.loop(time=_quarter_hours)
     async def check_birthdays(self) -> None:
         try:
-            now = (
-                pendulum.now("UTC")
-                .replace(second=0, microsecond=0)
-                .strftime("%Y-%m-%dT%H:%M:%S.000Z")
-            )
+            now = pendulum.now("UTC").replace(second=0, microsecond=0)
+            # Rows written before the bot added milliseconds are stored as
+            # ...:00Z, so an equality check on one spelling alone misses them.
+            stamps = [
+                now.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            ]
 
             df = await read_parquet_cached(USERS)
-            birthday_users = df.filter(pl.col("birthday") == now)
+            birthday_users = df.filter(pl.col("birthday").is_in(stamps))
             await self._process_birthday_records(birthday_users)
         except Exception as e:  # noqa: BLE001
             error_details: ErrorDetails = {
