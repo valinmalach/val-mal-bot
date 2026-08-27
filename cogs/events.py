@@ -259,16 +259,12 @@ class Events(Cog):
         self, before: Member, after: Member, discriminator: str, url: str
     ) -> None:
         """Handle role additions and removals."""
-        roles_before, roles_after = before.roles, after.roles
-        if roles_diff := list(set(roles_before) ^ set(roles_after)):
-            add = len(roles_after) > len(roles_before)
-            await self._log_role_change(
-                after,
-                discriminator,
-                url,
-                roles_diff,
-                add,
-            )
+        added = [role for role in after.roles if role not in before.roles]
+        removed = [role for role in before.roles if role not in after.roles]
+        if added:
+            await self._log_role_change(after, discriminator, url, added, True)
+        if removed:
+            await self._log_role_change(after, discriminator, url, removed, False)
 
     async def _handle_nickname_change(
         self, before: Member, after: Member, discriminator: str, url: str
