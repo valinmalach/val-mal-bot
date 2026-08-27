@@ -80,8 +80,12 @@ def static_file_response(filename: str) -> Response:
 
 
 @app.get("/")
+async def root() -> Response:
+    return PlainTextResponse("Valin Malach Bot")
+
+
 @app.get("/health")
-async def root_or_health() -> Response:
+async def health() -> Response:
     return PlainTextResponse("Healthy")
 
 
