@@ -137,7 +137,10 @@ class ConfigCache:
         if content is None:
             logger.warning("No message_template row keyed %r", key)
             return ""
-        return self.render(content.format(**values) if values else content)
+        # Placeholders resolve first: str.format reads {channel:promo} as a
+        # format spec and raises KeyError on the brace it does not own.
+        rendered = self.render(content)
+        return rendered.format(**values) if values else rendered
 
     def render(self, text: str) -> str:
         """Turn {channel:key} and {role:key} into Discord mentions."""
