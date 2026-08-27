@@ -10,7 +10,7 @@ import traceback
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from rich.logging import RichHandler
 
 from config import settings
@@ -80,9 +80,13 @@ def static_file_response(filename: str) -> Response:
 
 
 @app.get("/")
+async def root() -> Response:
+    return PlainTextResponse("Valin Malach Bot")
+
+
 @app.get("/health")
-async def root_or_health() -> Response:
-    return Response(status_code=204)
+async def health() -> Response:
+    return PlainTextResponse("Healthy")
 
 
 @app.get("/robots.txt")
