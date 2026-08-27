@@ -61,6 +61,18 @@ def _user_rows(df: pl.DataFrame) -> list[dict[str, Any]]:
     ]
 
 
+def _attachment_urls(value: str | None, message_id: Any) -> list[Any]:
+    """Parse the stored JSON array, tolerating a row the bot never wrote."""
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except TypeError, ValueError:
+        logger.warning("message %s: unreadable attachment_urls %r", message_id, value)
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
 def _message_rows(df: pl.DataFrame) -> list[dict[str, Any]]:
     return [
         {
@@ -69,7 +81,7 @@ def _message_rows(df: pl.DataFrame) -> list[dict[str, Any]]:
             "guild_id": row["guild_id"],
             "author_id": row["author_id"],
             "channel_id": row["channel_id"],
-            "attachment_urls": json.loads(row["attachment_urls"] or "[]"),
+            "attachment_urls": _attachment_urls(row["attachment_urls"], row["id"]),
         }
         for row in df.iter_rows(named=True)
     ]
