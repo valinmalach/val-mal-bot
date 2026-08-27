@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 import discord
@@ -30,14 +29,6 @@ _PURGE_MESSAGE_LIMIT_MAX = 500
 class Admin(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
-
-    @app_commands.command(description="Restarts the bot")
-    @app_commands.commands.default_permissions(administrator=True)
-    async def restart(self, interaction: Interaction) -> None:
-        await interaction.response.send_message(config.template("admin_restarting"))
-        await asyncio.create_subprocess_exec(
-            "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
-        )
 
     @app_commands.command(description="Deletes all messages in the channel")
     @app_commands.commands.default_permissions(administrator=True)

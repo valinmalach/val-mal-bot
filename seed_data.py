@@ -783,11 +783,6 @@ MESSAGE_TEMPLATES = [
         "description": "Birthday command raised; action is set or forget",
     },
     {
-        "key": "admin_restarting",
-        "content": "Restarting...",
-        "description": "/restart",
-    },
-    {
         "key": "admin_nuking",
         "content": "Nuking channel...",
         "description": "/nuke",
