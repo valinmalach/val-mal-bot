@@ -169,8 +169,14 @@ async def upsert_live_alert(
     )
 
 
-async def delete_live_alert(broadcaster_id: int) -> None:
+async def delete_live_alert(
+    broadcaster_id: int, *, message_id: int | None = None
+) -> None:
+    """``message_id`` scopes the delete, so a newer alert's row survives a late cleanup."""
     async with session_scope() as session:
-        await session.execute(
-            delete(LiveAlert).where(col(LiveAlert.broadcaster_id) == broadcaster_id)
+        statement = delete(LiveAlert).where(
+            col(LiveAlert.broadcaster_id) == broadcaster_id
         )
+        if message_id is not None:
+            statement = statement.where(col(LiveAlert.message_id) == message_id)
+        await session.execute(statement)
