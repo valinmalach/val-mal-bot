@@ -141,8 +141,13 @@ class TwitchTokenManager:
         Twitch invalidates a refresh token the moment it is used, so two callers
         racing on the same one leave the loser holding a dead token.
         """
+        before = self.token(token_type)
         async with self._locks[token_type]:
-            if self.token(token_type) and not self.needs_refresh(token_type):
+            current = self.token(token_type)
+            # Only a token that changed while this caller waited proves someone
+            # else refreshed. Testing the expiry instead made a 401 unrecoverable:
+            # a revoked token still looks current, so the refresh never ran.
+            if current and current != before:
                 return True
             return await refresh()
 
