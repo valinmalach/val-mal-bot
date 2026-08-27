@@ -3,7 +3,6 @@ import logging
 import os
 
 import discord
-import polars as pl
 from discord import CategoryChannel, ForumChannel
 from discord.abc import PrivateChannel
 from discord.ext.commands import Bot
@@ -13,7 +12,6 @@ from constants import (
     BOT_ADMIN_CHANNEL,
     GUILD_ID,
     LIVE_ALERTS,
-    PARQUET_SCHEMAS,
     TWITCH_DIR,
 )
 from services.helper.parquet_cache import parquet_cache
@@ -55,18 +53,10 @@ async def activate_if_live() -> None:
         _ = asyncio.create_task(shoutout_queue.activate())
 
 
-def check_data_files_exist() -> None:
+def ensure_token_dir() -> None:
+    # token_manager writes the token files with aiofiles, which will not create
+    # the directory. Goes away with the oauth_token cutover.
     os.makedirs(TWITCH_DIR, exist_ok=True)
-    for file_path, schema in PARQUET_SCHEMAS.items():
-        if not os.path.isfile(file_path):
-            if parent_dir := os.path.dirname(file_path):
-                os.makedirs(parent_dir, exist_ok=True)
-
-            # Create empty file to ensure write_parquet can write to it
-            open(file_path, "w").close()
-
-            empty_df = pl.DataFrame(schema=schema)
-            empty_df.write_parquet(file_path)
 
 
 async def run_background_tasks():
@@ -113,7 +103,7 @@ bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 @bot.event
 async def on_ready() -> None:
-    check_data_files_exist()
+    ensure_token_dir()
 
     _ = asyncio.create_task(run_background_tasks())
 

@@ -1,7 +1,5 @@
 import io
 import logging
-import os
-import shutil
 import traceback
 from typing import ClassVar
 
@@ -37,8 +35,6 @@ class Tasks(Cog):
     async def on_ready(self) -> None:
         if not self.check_birthdays.is_running():
             self.check_birthdays.start()
-        if not self.backup_data.is_running():
-            self.backup_data.start()
 
     _quarter_hours: ClassVar[list[pendulum.Time]] = [
         pendulum.Time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
@@ -60,46 +56,6 @@ class Tasks(Cog):
         error_msg = f"{context} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
         logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
         await self.log_error(error_msg, error_details["traceback"])
-
-    @tasks.loop(time=pendulum.Time(0, 0, 0, 0))
-    async def backup_data(self) -> None:
-        try:
-            date_string = pendulum.now().format("YYYY-MM-DD")
-            backup_path = f"C:/backups/data_{date_string}/"
-
-            os.makedirs(backup_path, exist_ok=True)
-
-            for item in os.listdir("data/"):
-                source_path = os.path.join("data/", item)
-                dest_path = os.path.join(backup_path, item)
-                try:
-                    if os.path.isdir(source_path):
-                        shutil.copytree(source_path, dest_path, dirs_exist_ok=True)
-                    else:
-                        shutil.copy2(source_path, dest_path)
-                except Exception as e:  # noqa: BLE001
-                    is_dir = os.path.isdir(source_path)
-                    error_details: ErrorDetails = {
-                        "type": type(e).__name__,
-                        "message": str(e),
-                        "args": e.args,
-                        "traceback": traceback.format_exc(),
-                    }
-                    error_msg = f"Error backing up {'directory' if is_dir else 'file'} {item} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                    logger.error(
-                        f"{error_msg}\nTraceback:\n{error_details['traceback']}"
-                    )
-                    await self.log_error(error_msg, error_details["traceback"])
-        except Exception as e:  # noqa: BLE001
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Fatal error during backup data task - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self.log_error(error_msg, error_details["traceback"])
 
     @tasks.loop(time=_quarter_hours)
     async def check_birthdays(self) -> None:
