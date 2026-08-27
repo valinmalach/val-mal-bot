@@ -489,7 +489,7 @@ class Events(Cog):
                 if invite.expires_at
                 else "Never"
             )
-            description = f"**Invite [{invite.code}]({invite.url}) to {channel_mention} created by {inviter_mention}**\nExpires: {expiry}"
+            description = f"**Invite [{invite.code}]({invite.url}) to {channel_mention} created{inviter_mention}**\nExpires: {expiry}"
             embed = self._base_embed(description, config.color("embed_color_info"))
             embed = embed.set_author(name=f"{guild_name}", icon_url=guild_icon)
             await send_embed(embed, config.channel("audit_logs"))
