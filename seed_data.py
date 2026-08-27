@@ -636,6 +636,42 @@ SETTINGS = [
         "value_type": "string",
         "description": "Destination for the nightly data backup",
     },
+    {
+        "key": "embed_color_welcome",
+        "value": "10181046",
+        "value_type": "integer",
+        "description": "Welcome embed (0x9B59B6)",
+    },
+    {
+        "key": "embed_color_join",
+        "value": "4437378",
+        "value_type": "integer",
+        "description": "Member joined audit embed (0x43B582)",
+    },
+    {
+        "key": "embed_color_goodbye",
+        "value": "10038562",
+        "value_type": "integer",
+        "description": "Goodbye embed (0x992D22)",
+    },
+    {
+        "key": "embed_color_danger",
+        "value": "16729871",
+        "value_type": "integer",
+        "description": "Leaves, deletions, bans (0xFF470F)",
+    },
+    {
+        "key": "embed_color_info",
+        "value": "3375061",
+        "value_type": "integer",
+        "description": "Edits, updates, other neutral events (0x337FD5)",
+    },
+    {
+        "key": "embed_color_stream",
+        "value": "9455359",
+        "value_type": "integer",
+        "description": "Live alert embeds (0x9046FF)",
+    },
 ]
 
 MESSAGE_TEMPLATES = [
@@ -705,5 +741,175 @@ MESSAGE_TEMPLATES = [
         "key": "discord_startup",
         "content": "Started successfully!",
         "description": "Posted to the bot admin channel on ready",
+    },
+    {
+        "key": "birthday_set",
+        "content": "I've remembered your birthday! I'll wish you at midnight of your selected timezone!",
+        "description": "/birthday set succeeded",
+    },
+    {
+        "key": "birthday_set_leap",
+        "content": "That's an unfortunate birthday 😦\n\nAh well, looks like I'll only wish you every 4 years!",
+        "description": "/birthday set on 29 February",
+    },
+    {
+        "key": "birthday_removed",
+        "content": "I've removed your birthday! I won't wish you anymore!",
+        "description": "/birthday remove succeeded",
+    },
+    {
+        "key": "birthday_none_to_remove",
+        "content": "You had no birthday to remove. Maybe try setting one first before asking me to remove it?",
+        "description": "/birthday remove with nothing stored",
+    },
+    {
+        "key": "birthday_bad_timezone",
+        "content": "Sorry. I've never heard of the timezone {timezone}. Have you tried using the autocomplete options provided? Because those are the only timezones I know of.",
+        "description": "/birthday set with an unknown timezone",
+    },
+    {
+        "key": "birthday_bad_day",
+        "content": "{month} doesn't have that many days...",
+        "description": "/birthday set with a day the month lacks",
+    },
+    {
+        "key": "birthday_remove_failed",
+        "content": "An error occurred while trying to remove your birthday.",
+        "description": "/birthday remove with no user record",
+    },
+    {
+        "key": "birthday_operation_failed",
+        "content": "Oops, it seems like I couldn't {action} your birthday...\n\n# {mention} FIX MEEEE!!!",
+        "description": "Birthday command raised; action is set or forget",
+    },
+    {
+        "key": "admin_restarting",
+        "content": "Restarting...",
+        "description": "/restart",
+    },
+    {
+        "key": "admin_nuking",
+        "content": "Nuking channel...",
+        "description": "/nuke",
+    },
+    {
+        "key": "admin_rules_sent",
+        "content": "Rules embed send to rules channel!",
+        "description": "/rules",
+    },
+    {
+        "key": "admin_roles_sent",
+        "content": "Roles embeds send to roles channel!",
+        "description": "/roles",
+    },
+    {
+        "key": "admin_purge_done",
+        "content": "Deleted {count} message(s).",
+        "description": "/purge succeeded",
+    },
+    {
+        "key": "admin_purge_forbidden",
+        "content": "Missing permissions to delete messages here.",
+        "description": "/purge without permission",
+    },
+    {
+        "key": "admin_purge_failed",
+        "content": "Failed to delete messages: {error}",
+        "description": "/purge raised an HTTP error",
+    },
+    {
+        "key": "admin_wrong_channel",
+        "content": "This command can only be used in a server text channel or thread.",
+        "description": "/purge in an unsupported channel type",
+    },
+    {
+        "key": "admin_no_bulk_delete",
+        "content": "This channel does not support bulk message deletion.",
+        "description": "/purge where purge is unavailable",
+    },
+    {
+        "key": "discord_goodbye",
+        "content": "**{mention} has left. Goodbye!**",
+        "description": "Goodbye embed in the welcome channel",
+    },
+    {
+        "key": "audit_member_joined",
+        "content": "Member Joined",
+        "description": "Audit embed author",
+    },
+    {
+        "key": "audit_member_left",
+        "content": "Member Left",
+        "description": "Audit embed author",
+    },
+    {
+        "key": "audit_nickname_changed",
+        "content": "**{mention} changed their nickname**",
+        "description": "Audit log entry",
+    },
+    {
+        "key": "audit_pfp_changed",
+        "content": "**{mention} changed their profile picture**",
+        "description": "Audit log entry",
+    },
+    {
+        "key": "audit_timed_out",
+        "content": "**{mention} has been timed out**\nExpires {expiry}",
+        "description": "Audit log entry",
+    },
+    {
+        "key": "audit_timeout_removed",
+        "content": "**{mention}'s timeout has been removed**",
+        "description": "Audit log entry",
+    },
+    {
+        "key": "audit_attachment_deleted",
+        "content": "**Attachment sent by {mention} deleted in {channel}**",
+        "description": "Audit log entry",
+    },
+    {
+        "key": "stream_live_title",
+        "content": "{name} is now live!",
+        "description": "Live alert embed author",
+    },
+    {
+        "key": "stream_offline_title",
+        "content": "{name} was live",
+        "description": "Live alert embed author once offline",
+    },
+    {
+        "key": "stream_footer_online",
+        "content": "Online for {age} | Last updated",
+        "description": "Live alert footer while live",
+    },
+    {
+        "key": "stream_footer_offline",
+        "content": "Online for {age} | Offline at",
+        "description": "Live alert footer once offline",
+    },
+    {
+        "key": "stream_watch_button",
+        "content": "Watch Stream",
+        "description": "Live alert link button label",
+    },
+    {
+        "key": "stream_field_game",
+        "content": "**Game**",
+        "description": "Live alert field label",
+    },
+    {
+        "key": "stream_field_viewers",
+        "content": "**Viewers**",
+        "description": "Live alert field label",
+    },
+    {
+        "key": "stream_field_vod",
+        "content": "**VOD**",
+        "description": "Live alert field label",
+    },
+    {
+        "key": "stream_field_started_at",
+        "content": "**Started At**",
+        "description": "Live alert field label",
     },
 ]
