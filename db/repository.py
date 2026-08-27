@@ -28,7 +28,7 @@ __all__ = [
     "upsert_message",
     "upsert_user",
     "upsert_username",
-    "users_with_birthday",
+    "users_due_birthday",
     "users_with_past_birthday",
 ]
 
@@ -75,15 +75,15 @@ async def delete_user(user_id: int) -> None:
         await session.execute(delete(DiscordUser).where(col(DiscordUser.id) == user_id))
 
 
-async def users_with_birthday(moment: datetime) -> list[DiscordUser]:
-    """Users whose next birthday falls exactly on `moment`.
+async def users_due_birthday(moment: datetime) -> list[DiscordUser]:
+    """Users whose next birthday has arrived, including any a missed tick left behind.
 
-    A timestamp comparison, so the string-format mismatch that made the parquet
-    version miss every existing row cannot recur.
+    A range, not an equality test: matching the exact minute meant one late tick
+    skipped that birthday for good.
     """
     async with session_scope() as session:
         result = await session.execute(
-            select(DiscordUser).where(col(DiscordUser.birthday) == moment)
+            select(DiscordUser).where(col(DiscordUser.birthday) <= moment)
         )
         return list(result.scalars().all())
 
