@@ -283,25 +283,25 @@ async def roles_button_pressed(interaction: Interaction, button: Button) -> None
     emoji = button.emoji
     if not guild_id or not emoji:
         await interaction.response.send_message(
-            "An error has occurred. Contact an admin.",
+            config.template("discord_role_error"),
             ephemeral=True,
         )
         return
     res = await toggle_role(guild_id, member_id, emoji)
     if res is None:
         await interaction.response.send_message(
-            "An error has occured. Contact an admin.",
+            config.template("discord_role_error"),
             ephemeral=True,
         )
         return
     success, role = res
     if not success:
         await interaction.response.send_message(
-            f"Your {role.mention} role has been removed.",
+            config.template("discord_role_removed", role=role.mention),
             ephemeral=True,
         )
         return
     await interaction.response.send_message(
-        f"You have received the {role.mention} role.",
+        config.template("discord_role_added", role=role.mention),
         ephemeral=True,
     )

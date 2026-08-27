@@ -192,11 +192,16 @@ async def _handle_broadcaster_stream_start(
     _ = asyncio.create_task(shoutout_queue.activate())
     await twitch_send_message(
         str(broadcaster_id),
-        "NilavHcalam is here valinmArrive",
+        config.template("twitch_stream_greeting"),
     )
     await twitch_send_message(
         str(broadcaster_id),
-        f"{stream_info.user_name} is now live! Streaming {stream_info.game_name}: {stream_info.title}",
+        config.template(
+            "twitch_stream_announce",
+            name=stream_info.user_name,
+            game=stream_info.game_name,
+            title=stream_info.title,
+        ),
     )
 
 
@@ -380,10 +385,9 @@ def _create_offline_embed(
     )
 
     if vod_info:
-        vod_url = vod_info.url
         embed = embed.add_field(
             name=config.template("stream_field_vod"),
-            value=f"[**Click to view**]({vod_url})",
+            value=config.template("stream_field_vod_value", url=vod_info.url),
             inline=True,
         )
 
@@ -527,12 +531,12 @@ async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -
         ad_duration = event_sub.event.duration_seconds
         await twitch_send_message(
             event_sub.event.broadcaster_user_id,
-            f"A {ad_duration // 60} minute ad break is starting! Thank you for sticking with us through this break! valinmArrive Ads help support my content. Consider subscribing to remove ads and support the stream!",
+            config.template("twitch_ad_break_start", minutes=ad_duration // 60),
         )
         await asyncio.sleep(ad_duration)
         await twitch_send_message(
             event_sub.event.broadcaster_user_id,
-            "The ad break is finishing now! valinmArrive",
+            config.template("twitch_ad_break_end"),
         )
 
         broadcaster_id = event_sub.event.broadcaster_user_id
@@ -720,7 +724,7 @@ async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
             return
         await twitch_send_message(
             event_sub.event.broadcaster_user_id,
-            "Have a great rest of your day! valinmKiss Don't forget to stay hydrated and take care of yourself! valinmHydrate",
+            config.template("twitch_raid_farewell"),
         )
     except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error processing Twitch moderate webhook task")

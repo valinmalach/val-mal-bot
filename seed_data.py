@@ -913,4 +913,56 @@ MESSAGE_TEMPLATES = [
         "content": "**Started At**",
         "description": "Live alert field label",
     },
+    {
+        "key": "stream_field_vod_value",
+        "content": "[**Click to view**]({url})",
+        "description": "Live alert VOD field value",
+    },
+    {
+        "key": "twitch_stream_greeting",
+        "content": "NilavHcalam is here valinmArrive",
+        "description": "First chat message when the broadcaster goes live",
+    },
+    {
+        "key": "twitch_stream_announce",
+        "content": "{name} is now live! Streaming {game}: {title}",
+        "description": "Chat announcement when the broadcaster goes live",
+    },
+    {
+        "key": "twitch_ad_break_start",
+        "content": (
+            "A {minutes} minute ad break is starting! Thank you for sticking "
+            "with us through this break! valinmArrive Ads help support my "
+            "content. Consider subscribing to remove ads and support the stream!"
+        ),
+        "description": "Chat message when an ad break begins",
+    },
+    {
+        "key": "twitch_ad_break_end",
+        "content": "The ad break is finishing now! valinmArrive",
+        "description": "Chat message when an ad break ends",
+    },
+    {
+        "key": "twitch_raid_farewell",
+        "content": (
+            "Have a great rest of your day! valinmKiss Don't forget to stay "
+            "hydrated and take care of yourself! valinmHydrate"
+        ),
+        "description": "Chat message after the broadcaster raids out",
+    },
+    {
+        "key": "discord_role_added",
+        "content": "You have received the {role} role.",
+        "description": "Role button reply after adding a role",
+    },
+    {
+        "key": "discord_role_removed",
+        "content": "Your {role} role has been removed.",
+        "description": "Role button reply after removing a role",
+    },
+    {
+        "key": "discord_role_error",
+        "content": "An error has occurred. Contact an admin.",
+        "description": "Role button reply when the role could not be resolved",
+    },
 ]
