@@ -5,6 +5,7 @@ function here; `twitch_command.handler` names one of them, `static` sends the
 stored responses in order, and `composite` runs other commands.
 """
 
+import logging
 from collections.abc import Awaitable, Callable
 
 from models import ChannelChatMessageEventSub
@@ -13,6 +14,8 @@ from services.helper.twitch import check_mod, twitch_send_message
 from services.twitch.api import get_channel, get_user_by_username
 
 from .shoutout_queue import shoutout_queue
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["dispatch"]
 
@@ -82,15 +85,23 @@ async def dispatch(event_sub: ChannelChatMessageEventSub, name: str, args: str) 
     await _run(event_sub, name, args)
 
 
-async def _run(event_sub: ChannelChatMessageEventSub, name: str, args: str) -> None:
+async def _run(
+    event_sub: ChannelChatMessageEventSub,
+    name: str,
+    args: str,
+    seen: frozenset[str] = frozenset(),
+) -> None:
     """Dispatch without the permission check, which a composite does once."""
     command = config.command(name)
     if command is None:
         return
 
     if command.handler == COMPOSITE_HANDLER:
+        if name in seen:
+            logger.warning("Composite command %r is a member of its own cycle", name)
+            return
         for child in config.command_components(name):
-            await _run(event_sub, child, args)
+            await _run(event_sub, child, args, seen | {name})
         return
 
     handler = HANDLERS.get(command.handler)
