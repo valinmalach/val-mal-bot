@@ -401,22 +401,24 @@ def _create_offline_embed(
 
 async def _update_offline_message(
     message_id: int, embed: discord.Embed, channel_id: int, content: str | None
-) -> None:
-    """Update the live alert message to show offline status."""
+) -> bool:
+    """Show offline status. False leaves the record for the updater to retry."""
     try:
-        await edit_embed(message_id, embed, channel_id, content=content)
+        return await edit_embed(message_id, embed, channel_id, content=content)
     except discord.NotFound:
         logger.warning(
             f"Message not found when editing offline embed for message_id={message_id}; continuing"
         )
+        return True
     except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error editing offline embed")
+        return False
 
 
-async def _cleanup_live_alert(broadcaster_id: int) -> None:
-    """Remove the live alert from storage."""
+async def _cleanup_live_alert(broadcaster_id: int, message_id: int) -> None:
+    """Remove the live alert from storage, unless a newer alert already replaced it."""
     try:
-        await repository.delete_live_alert(broadcaster_id)
+        await repository.delete_live_alert(broadcaster_id, message_id=message_id)
     except Exception as e:  # noqa: BLE001
         await handle_error(
             e, f"Failed to delete live alert for broadcaster {broadcaster_id}"
@@ -444,8 +446,8 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
             event_sub, user_info, channel_info, vod_info, stream_started_at
         )
 
-        await _update_offline_message(message_id, embed, channel_id, content)
-        await _cleanup_live_alert(broadcaster_id)
+        if await _update_offline_message(message_id, embed, channel_id, content):
+            await _cleanup_live_alert(broadcaster_id, message_id)
 
     except Exception as e:  # noqa: BLE001
         await handle_error(e, f"Error in _stream_offline_task for {broadcaster_id}")
