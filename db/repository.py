@@ -4,11 +4,10 @@ Writes are immediate rather than queued behind a flush interval, as the parquet
 cache did, so a restart cannot lose them.
 """
 
-from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col
 
@@ -23,13 +22,11 @@ __all__ = [
     "get_message",
     "get_user",
     "list_live_alerts",
-    "reschedule_birthdays",
     "upsert_live_alert",
     "upsert_message",
     "upsert_user",
     "upsert_username",
     "users_due_birthday",
-    "users_with_past_birthday",
 ]
 
 
@@ -89,28 +86,6 @@ async def users_due_birthday(moment: datetime) -> list[DiscordUser]:
             select(DiscordUser).where(col(DiscordUser.birthday) <= moment)
         )
         return list(result.scalars().all())
-
-
-async def users_with_past_birthday(moment: datetime) -> list[DiscordUser]:
-    """Users whose stored next birthday has already gone by."""
-    async with session_scope() as session:
-        result = await session.execute(
-            select(DiscordUser).where(col(DiscordUser.birthday) < moment)
-        )
-        return list(result.scalars().all())
-
-
-async def reschedule_birthdays(birthdays: Mapping[int, datetime]) -> None:
-    """Move each listed user's next birthday, in one transaction."""
-    if not birthdays:
-        return
-    async with session_scope() as session:
-        for user_id, birthday in birthdays.items():
-            await session.execute(
-                update(DiscordUser)
-                .where(col(DiscordUser.id) == user_id)
-                .values(birthday=birthday)
-            )
 
 
 async def get_message(message_id: int) -> DiscordMessage | None:

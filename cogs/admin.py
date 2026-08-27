@@ -1,9 +1,6 @@
 import logging
-from collections.abc import Mapping
-from datetime import datetime
 
 import discord
-import pendulum
 from discord import (
     CategoryChannel,
     DMChannel,
@@ -14,11 +11,9 @@ from discord import (
 )
 from discord.ext.commands import Bot, Cog
 
-from db import DiscordUser, repository
 from services import (
     get_subscriptions,
     get_users,
-    next_birthday,
     send_embed,
     subscribe_to_user,
     unsubscribe_to_user,
@@ -29,31 +24,6 @@ from views import role_panels
 logger = logging.getLogger(__name__)
 
 _PURGE_MESSAGE_LIMIT_MAX = 500
-# Leaves room for the surrounding template inside Discord's 2000 character cap.
-_SWEEP_DETAIL_LIMIT = 1500
-
-
-def _sweep_summary(stale: list[DiscordUser], moved: Mapping[int, datetime]) -> str:
-    if not moved:
-        return config.template("admin_birthday_sweep_none")
-
-    lines = [
-        f"- {record.username}: {record.birthday:%d %b %Y} -> {moved[record.id]:%d %b %Y}"
-        for record in stale
-        if record.id in moved and record.birthday is not None
-    ]
-    shown: list[str] = []
-    used = 0
-    for line in lines:
-        if used + len(line) + 1 > _SWEEP_DETAIL_LIMIT:
-            shown.append(f"...and {len(lines) - len(shown)} more")
-            break
-        shown.append(line)
-        used += len(line) + 1
-
-    return config.template(
-        "admin_birthday_sweep_done", count=len(moved), details="\n".join(shown)
-    )
 
 
 class Admin(Cog):
@@ -123,32 +93,6 @@ class Admin(Cog):
             config.template("admin_purge_done", count=len(deleted)),
             ephemeral=True,
         )
-
-    @app_commands.command(
-        name="fix-birthdays",
-        description="Moves every birthday that has already passed to its next occurrence",
-    )
-    @app_commands.commands.default_permissions(administrator=True)
-    async def fix_birthdays(self, interaction: Interaction) -> None:
-        await interaction.response.defer(ephemeral=True)
-        now = pendulum.now("UTC")
-        try:
-            stale = await repository.users_with_past_birthday(now)
-            moved = {
-                record.id: next_birthday(
-                    record.birthday, bool(record.is_birthday_leap), now
-                )
-                for record in stale
-                if record.birthday is not None
-            }
-            await repository.reschedule_birthdays(moved)
-        except Exception as e:
-            logger.exception("Birthday sweep failed")
-            await interaction.followup.send(
-                config.template("admin_birthday_sweep_failed", error=e), ephemeral=True
-            )
-            return
-        await interaction.followup.send(_sweep_summary(stale, moved), ephemeral=True)
 
     @app_commands.command(description="Sends the rules embed to the rules channel")
     @app_commands.commands.default_permissions(administrator=True)
