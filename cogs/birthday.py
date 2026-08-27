@@ -62,16 +62,14 @@ class Birthday(GroupCog):
         """Validate timezone and day inputs. Returns True if there was an error."""
         if timezone not in pendulum.timezones():
             await interaction.response.send_message(
-                f"Sorry. I've never heard of the timezone {timezone}. "
-                + "Have you tried using the autocomplete options provided? "
-                + "Because those are the only timezones I know of."
+                config.template("birthday_bad_timezone", timezone=timezone)
             )
             logger.warning(f"Invalid timezone provided: {timezone}")
             return True
 
         if day > MAX_DAYS[month]:
             await interaction.response.send_message(
-                f"{month.name} doesn't have that many days..."
+                config.template("birthday_bad_day", month=month.name)
             )
             logger.warning(f"Invalid day {day} for month {month.name}")
             return True
@@ -148,14 +146,10 @@ class Birthday(GroupCog):
         """Send appropriate success message based on birthday type."""
         if month == Months.February and day == 29:
             await interaction.response.send_message(
-                "That's an unfortunate birthday 😦\n\n"
-                + "Ah well, looks like I'll only wish you every 4 years!"
+                config.template("birthday_set_leap")
             )
         else:
-            await interaction.response.send_message(
-                "I've remembered your birthday! "
-                + "I'll wish you at midnight of your selected timezone!"
-            )
+            await interaction.response.send_message(config.template("birthday_set"))
 
     async def _handle_set_birthday_exception(
         self, interaction: Interaction, e: Exception
@@ -200,7 +194,7 @@ class Birthday(GroupCog):
                     config.channel("bot_admin"),
                 )
                 await interaction.response.send_message(
-                    "An error occurred while trying to remove your birthday."
+                    config.template("birthday_remove_failed")
                 )
                 return
 
@@ -209,13 +203,12 @@ class Birthday(GroupCog):
 
             if had_birthday:
                 await interaction.response.send_message(
-                    "I've removed your birthday! I won't wish you anymore!"
+                    config.template("birthday_removed")
                 )
                 return
 
             await interaction.response.send_message(
-                "You had no birthday to remove. "
-                + "Maybe try setting one first before asking me to remove it?"
+                config.template("birthday_none_to_remove")
             )
         except Exception as e:  # noqa: BLE001
             error_details: ErrorDetails = {
@@ -243,8 +236,9 @@ class Birthday(GroupCog):
             else f"<@{config.setting('owner_id')}>"
         )
         await interaction.response.send_message(
-            f"Oops, it seems like I couldn't {set_forget} your birthday...\n\n"
-            + f"# {mention} FIX MEEEE!!!"
+            config.template(
+                "birthday_operation_failed", action=set_forget, mention=mention
+            )
         )
         traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
         traceback_file = discord.File(traceback_buffer, filename="traceback.txt")

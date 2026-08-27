@@ -481,23 +481,25 @@ def _create_offline_embed(
             timestamp=now,
         )
         .set_author(
-            name=f"{_get_user_name(stream_info, user_info)} was live",
+            name=config.template(
+                "stream_offline_title", name=_get_user_name(stream_info, user_info)
+            ),
             icon_url=user_info.profile_image_url if user_info else None,
             url=url,
         )
         .add_field(
-            name="**Game**",
+            name=config.template("stream_field_game"),
             value=_get_game_name(stream_info, channel),
             inline=True,
         )
         .set_footer(
-            text=f"Online for {age} | Offline at",
+            text=config.template("stream_footer_offline", age=age),
         )
     )
 
     if vod_info:
         embed = embed.add_field(
-            name="**VOD**",
+            name=config.template("stream_field_vod"),
             value=f"[**Click to view**]({vod_info.url})",
             inline=True,
         )
@@ -605,28 +607,28 @@ def _create_live_embed(
             timestamp=now,
         )
         .set_author(
-            name=f"{stream_info.user_name} is now live!",
+            name=config.template("stream_live_title", name=stream_info.user_name),
             icon_url=user_info.profile_image_url if user_info else None,
             url=url,
         )
         .add_field(
-            name="**Game**",
+            name=config.template("stream_field_game"),
             value=f"{stream_info.game_name}",
             inline=True,
         )
         .add_field(
-            name="**Viewers**",
+            name=config.template("stream_field_viewers"),
             value=f"{stream_info.viewer_count}",
             inline=True,
         )
         .add_field(
-            name="**Started At**",
+            name=config.template("stream_field_started_at"),
             value=started_at_timestamp,
             inline=True,
         )
         .set_image(url=cache_busted_thumb_url)
         .set_footer(
-            text=f"Online for {age} | Last updated",
+            text=config.template("stream_footer_online", age=age),
         )
     )
 
@@ -635,7 +637,11 @@ def _create_live_view(url: str) -> View:
     """Create the view with watch stream button."""
     view = View(timeout=None)
     view.add_item(
-        discord.ui.Button(label="Watch Stream", style=discord.ButtonStyle.link, url=url)
+        discord.ui.Button(
+            label=config.template("stream_watch_button"),
+            style=discord.ButtonStyle.link,
+            url=url,
+        )
     )
     return view
 

@@ -149,8 +149,7 @@ async def check_mod(event_sub: ChannelChatMessageEventSub) -> bool:
     )
     broadcaster_id = event_sub.event.broadcaster_user_id
     if not has_mod:
-        message = "Only moderators can use this command."
-        await twitch_send_message(broadcaster_id, message)
+        await twitch_send_message(broadcaster_id, config.template("twitch_mod_only"))
         return False
     return True
 

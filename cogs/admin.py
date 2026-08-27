@@ -72,13 +72,13 @@ class Admin(Cog):
         ):
             logger.warning("Purge aborted: invalid channel type %s", type(ch))
             await interaction.response.send_message(
-                "This command can only be used in a server text channel or thread.",
+                config.template("admin_wrong_channel"),
                 ephemeral=True,
             )
             return
         if not hasattr(ch, "purge"):
             await interaction.response.send_message(
-                "This channel does not support bulk message deletion.",
+                config.template("admin_no_bulk_delete"),
                 ephemeral=True,
             )
             return
@@ -87,19 +87,19 @@ class Admin(Cog):
             deleted = await ch.purge(limit=count)
         except discord.Forbidden:
             await interaction.followup.send(
-                "Missing permissions to delete messages here.",
+                config.template("admin_purge_forbidden"),
                 ephemeral=True,
             )
             return
         except discord.HTTPException as e:
             logger.exception("Purge failed")
             await interaction.followup.send(
-                f"Failed to delete messages: {e}",
+                config.template("admin_purge_failed", error=e),
                 ephemeral=True,
             )
             return
         await interaction.followup.send(
-            f"Deleted {len(deleted)} message(s).",
+            config.template("admin_purge_done", count=len(deleted)),
             ephemeral=True,
         )
 

@@ -76,7 +76,7 @@ class Tasks(Cog):
                 )
                 continue
             await send_message(
-                f"Happy Birthday {user.mention}!",
+                config.template("discord_birthday", mention=user.mention),
                 config.channel("shoutouts"),
             )
             if record.birthday is None:

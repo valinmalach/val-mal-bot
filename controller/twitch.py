@@ -2,7 +2,6 @@ import asyncio
 import io
 import logging
 import traceback
-from collections.abc import Awaitable, Callable
 from typing import Any
 
 import discord
@@ -34,9 +33,7 @@ from models import (
     Video,
 )
 from services import (
-    discord_command,
     edit_embed,
-    everything,
     get_ad_schedule,
     get_age,
     get_channel,
@@ -45,23 +42,16 @@ from services import (
     get_stream_info,
     get_stream_vod,
     get_user,
-    hug,
-    kofi,
-    lurk,
     parse_rfc3339,
-    raid,
     send_embed,
     send_message,
-    shoutout,
-    socials,
-    throne,
     twitch_send_message,
-    unlurk,
     update_alert,
     verify_message,
 )
 from services.config import config
 from services.helper.http_client import http_client_manager
+from services.twitch.commands import dispatch
 from services.twitch.shoutout_queue import shoutout_queue
 from services.twitch.token_manager import token_manager
 
@@ -223,17 +213,17 @@ def _create_stream_online_embed(stream_info, user_info: User | None) -> discord.
             timestamp=parse_rfc3339(stream_info.started_at),
         )
         .set_author(
-            name=f"{stream_info.user_name} is now live!",
+            name=config.template("stream_live_title", name=stream_info.user_name),
             icon_url=user_info.profile_image_url if user_info else None,
             url=url,
         )
         .add_field(
-            name="**Game**",
+            name=config.template("stream_field_game"),
             value=f"{stream_info.game_name}",
             inline=True,
         )
         .add_field(
-            name="**Viewers**",
+            name=config.template("stream_field_viewers"),
             value=f"{stream_info.viewer_count}",
             inline=True,
         )
@@ -246,7 +236,11 @@ def _create_stream_watch_button(stream_info) -> View:
     url = _get_twitch_url(stream_info.user_login)
     view = View(timeout=None)
     view.add_item(
-        discord.ui.Button(label="Watch Stream", style=discord.ButtonStyle.link, url=url)
+        discord.ui.Button(
+            label=config.template("stream_watch_button"),
+            style=discord.ButtonStyle.link,
+            url=url,
+        )
     )
     return view
 
@@ -372,12 +366,14 @@ def _create_offline_embed(
             timestamp=pendulum.now(),
         )
         .set_author(
-            name=f"{event_sub.event.broadcaster_user_name} was live",
+            name=config.template(
+                "stream_offline_title", name=event_sub.event.broadcaster_user_name
+            ),
             icon_url=user_info.profile_image_url if user_info else None,
             url=url,
         )
         .add_field(
-            name="**Game**",
+            name=config.template("stream_field_game"),
             value=f"{channel_info.game_name if channel_info else ''}",
             inline=True,
         )
@@ -386,7 +382,7 @@ def _create_offline_embed(
     if vod_info:
         vod_url = vod_info.url
         embed = embed.add_field(
-            name="**VOD**",
+            name=config.template("stream_field_vod"),
             value=f"[**Click to view**]({vod_url})",
             inline=True,
         )
@@ -394,7 +390,7 @@ def _create_offline_embed(
     if stream_started_at:
         started_at = parse_rfc3339(stream_started_at)
         age = get_age(started_at, limit_units=2)
-        embed = embed.set_footer(text=f"Online for {age} | Offline at")
+        embed = embed.set_footer(text=config.template("stream_footer_offline", age=age))
 
     return embed
 
@@ -452,20 +448,6 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
 
 
 async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> None:
-    user_command_dict: dict[
-        str, Callable[[ChannelChatMessageEventSub, str], Awaitable[None]]
-    ] = {
-        "lurk": lurk,
-        "discord": discord_command,
-        "kofi": kofi,
-        "raid": raid,
-        "socials": socials,
-        "throne": throne,
-        "unlurk": unlurk,
-        "hug": hug,
-        "so": shoutout,
-        "everything": everything,
-    }
     try:
         if not event_sub.event.message.text.startswith("!"):
             return
@@ -481,12 +463,7 @@ async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> N
         ):
             return
 
-        async def default_command(
-            event_sub: ChannelChatMessageEventSub, args: str
-        ) -> None:
-            """Default no-op command handler."""
-
-        await user_command_dict.get(command, default_command)(event_sub, args)
+        await dispatch(event_sub, command, args)
     except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error processing Twitch chat webhook task")
 
@@ -495,7 +472,7 @@ async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
     try:
         await twitch_send_message(
             event_sub.event.broadcaster_user_id,
-            f"Thank you for following, {event_sub.event.user_name}! valinmKiss Your support means a lot to me! I hope you enjoy your stay! valinmKiss",
+            config.template("twitch_follow_thanks", user=event_sub.event.user_name),
         )
     except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error processing Twitch follow webhook task")
@@ -533,7 +510,7 @@ async def _schedule_next_ad_break_notification(broadcaster_id: str) -> None:
             await asyncio.sleep(wait_seconds)
             await twitch_send_message(
                 broadcaster_id,
-                "The next ad break will start in 5 minutes! Feel free to take a quick break while the ads run! valinmHydrate",
+                config.template("twitch_ad_break_warning"),
             )
     except asyncio.CancelledError:
         logger.info(
@@ -709,7 +686,11 @@ async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
             twitch_url = _get_twitch_url(event_sub.event.to_broadcaster_user_login)
             await twitch_send_message(
                 event_sub.event.from_broadcaster_user_id,
-                f"We just raided {event_sub.event.to_broadcaster_user_name}. In case you got left behind, you can find them here: {twitch_url} valinmRaid",
+                config.template(
+                    "twitch_raid_out",
+                    name=event_sub.event.to_broadcaster_user_name,
+                    url=twitch_url,
+                ),
             )
         elif _is_main_broadcaster(event_sub.event.to_broadcaster_user_id):
             await twitch_send_message(
