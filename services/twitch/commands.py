@@ -9,7 +9,7 @@ import logging
 from collections.abc import Awaitable, Callable
 
 from models import ChannelChatMessageEventSub
-from services.config import config
+from services.config import config, safe_format
 from services.helper.twitch import check_mod, twitch_send_message
 from services.twitch.api import get_channel, get_user_by_username
 
@@ -27,10 +27,13 @@ def _target(args: str) -> str:
 
 
 def _render(message: str, event_sub: ChannelChatMessageEventSub, args: str) -> str:
-    return message.format(
-        chatter=event_sub.event.chatter_user_name,
-        broadcaster=event_sub.event.broadcaster_user_name,
-        target=_target(args),
+    return safe_format(
+        message,
+        {
+            "chatter": event_sub.event.chatter_user_name,
+            "broadcaster": event_sub.event.broadcaster_user_name,
+            "target": _target(args),
+        },
     )
 
 
