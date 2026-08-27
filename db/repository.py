@@ -1,7 +1,7 @@
 """Database access for the records the bot reads and writes at runtime.
 
-Replaces services/helper/parquet_cache.py. Writes are immediate rather than
-queued behind a flush interval, so a restart cannot lose them.
+Writes are immediate rather than queued behind a flush interval, as the parquet
+cache did, so a restart cannot lose them.
 """
 
 from datetime import datetime

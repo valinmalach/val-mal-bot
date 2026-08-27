@@ -1,9 +1,8 @@
 """Load the parquet files under data/ into their tables.
 
 Separate from seed_data because this is real history rather than a snapshot of
-constants, and because the files are gitignored: they exist on a machine that
-has a copy of them, never in the deployed image. seed.py skips this silently
-when they are absent.
+constants. The files are committed so the first deploy carries them; seed.py
+skips this silently once data/ is dropped.
 
 Rows are INSERT ... ON CONFLICT DO NOTHING on natural primary keys, so a stale
 copy of a parquet file can never overwrite what the running bot has since

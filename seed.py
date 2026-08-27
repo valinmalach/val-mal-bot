@@ -93,8 +93,8 @@ async def seed() -> dict[str, int]:
                 count,
                 len(rows) - count,
             )
-        # Only present where someone has a copy of the files; the deployed image
-        # never does, since data/ is gitignored.
+        # data/ is committed so the first deploy carries the records; the call
+        # becomes a no-op once the directory is dropped.
         if backfill.available():
             inserted |= await backfill.backfill(session)
         else:
