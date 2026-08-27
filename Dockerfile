@@ -2,6 +2,9 @@ FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 
 WORKDIR /app
 
+# Railway streams stdout; without this the logs arrive in block-sized bursts.
+ENV PYTHONUNBUFFERED=1
+
 # Install system utilities needed for loclx
 RUN apt-get update && apt-get install -y --no-install-recommends curl unzip && \
     curl -s https://loclx.io/dl/loclx-linux-amd64.zip -o loclx.zip && \
