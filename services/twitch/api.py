@@ -500,7 +500,7 @@ def _create_offline_embed(
     if vod_info:
         embed = embed.add_field(
             name=config.template("stream_field_vod"),
-            value=f"[**Click to view**]({vod_info.url})",
+            value=config.template("stream_field_vod_value", url=vod_info.url),
             inline=True,
         )
 
