@@ -161,7 +161,3 @@ cython_debug/
 
 *.code-workspace
 .vscode/
-
-# Parquet records are committed so the image can backfill; the Twitch OAuth
-# tokens next to them are live credentials and must never be.
-data/twitch/
