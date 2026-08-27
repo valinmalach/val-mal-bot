@@ -1,7 +1,13 @@
 """Environment-backed settings, validated once at import."""
 
-from pydantic import ValidationError
+from typing import Annotated, Any
+
+from pydantic import StringConstraints, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# A variable that exists but was never filled in arrives as "", which passes a
+# plain str and only fails later, at the login or the request that needed it.
+NonEmpty = Annotated[str, StringConstraints(min_length=1)]
 
 
 class Settings(BaseSettings):
@@ -10,15 +16,15 @@ class Settings(BaseSettings):
     Everything describing what the bot *does* belongs in Postgres, not here.
     """
 
-    discord_token: str
+    discord_token: NonEmpty
     test_discord_token: str | None = None
 
-    twitch_client_id: str
-    twitch_client_secret: str
-    twitch_webhook_secret: str
+    twitch_client_id: NonEmpty
+    twitch_client_secret: NonEmpty
+    twitch_webhook_secret: NonEmpty
 
-    database_url: str
-    app_url: str
+    database_url: NonEmpty
+    app_url: NonEmpty
     # Railway injects PORT; 8000 matches what the tunnel targets locally.
     port: int = 8000
 
@@ -27,6 +33,25 @@ class Settings(BaseSettings):
     # Local development: run against the test bot and a local database rather
     # than the production ones.
     use_test_bot: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _blank_is_unset(cls, values: Any) -> Any:
+        """Let an empty optional variable fall back to its default.
+
+        Railway and a copied .env.example both supply "", which int and bool
+        reject outright.
+        """
+        if not isinstance(values, dict):
+            return values
+        optional = {
+            name for name, field in cls.model_fields.items() if not field.is_required()
+        }
+        return {
+            key: value
+            for key, value in values.items()
+            if value != "" or key.lower() not in optional
+        }
 
     # extra="ignore" so the many variables Railway injects into the environment
     # do not have to be declared here.
