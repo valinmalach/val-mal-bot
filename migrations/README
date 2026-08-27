@@ -1,0 +1,11 @@
+Alembic migrations for the bot's Postgres database (Railway).
+
+The schema itself is defined with SQLModel under db/models; these revisions are
+how it gets applied. env.py reads DATABASE_URL from the environment, so no
+credentials live in alembic.ini.
+
+    uv run alembic upgrade head          apply every pending migration
+    uv run alembic upgrade head --sql    print the SQL without connecting
+    uv run alembic revision --autogenerate -m "..."   diff models vs database
+    uv run alembic downgrade -1          roll back the last migration
+    uv run alembic current               show the applied revision

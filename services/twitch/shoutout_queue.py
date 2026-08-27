@@ -2,26 +2,20 @@ import asyncio
 import contextlib
 import io
 import logging
-import os
 import traceback
 from typing import ClassVar, Self, cast
 
 import discord
 import httpx
 import pendulum
-from dotenv import load_dotenv
 
-from constants import BOT_ADMIN_CHANNEL, ErrorDetails, TokenType
+from constants import ErrorDetails, TokenType
+from services.config import config
 from services.helper.helper import send_message
 from services.helper.twitch import call_twitch
 from services.twitch.api import get_user
 
-load_dotenv()
-
 logger = logging.getLogger(__name__)
-
-TWITCH_BOT_USER_ID = os.getenv("TWITCH_BOT_USER_ID")
-TWITCH_BROADCASTER_ID = os.getenv("TWITCH_BROADCASTER_ID")
 
 # Twitch: 1 shoutout to the same channel every 60 minutes; stay strictly above that window.
 _MIN_SAME_TARGET_COOLDOWN_SECONDS = 61 * 60
@@ -104,15 +98,16 @@ class TwitchShoutoutQueue:
                         "User id %s (%s) not found for shoutout", user_id_str, login
                     )
                     await send_message(
-                        f"User {login} not found for shoutout", BOT_ADMIN_CHANNEL
+                        f"User {login} not found for shoutout",
+                        config.channel("bot_admin"),
                     )
                     continue
 
                 url = "https://api.twitch.tv/helix/chat/shoutouts"
                 data = {
-                    "from_broadcaster_id": TWITCH_BROADCASTER_ID,
+                    "from_broadcaster_id": config.setting("twitch_broadcaster_id"),
                     "to_broadcaster_id": user.id,
-                    "moderator_id": TWITCH_BOT_USER_ID,
+                    "moderator_id": config.setting("twitch_bot_user_id"),
                 }
                 response = await call_twitch("POST", url, data, TokenType.User)
                 if response is not None and 200 <= response.status_code < 300:
@@ -143,7 +138,7 @@ class TwitchShoutoutQueue:
                 )
                 await send_message(
                     f"Failed to send shoutout to {login}: {response.status_code if response else 'No response'} {response.text if response else ''}",
-                    BOT_ADMIN_CHANNEL,
+                    config.channel("bot_admin"),
                 )
         except Exception as e:  # noqa: BLE001
             error_details: ErrorDetails = {
@@ -156,7 +151,9 @@ class TwitchShoutoutQueue:
             logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
             traceback_buffer = io.BytesIO(error_details["traceback"].encode("utf-8"))
             traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-            await send_message(error_msg, BOT_ADMIN_CHANNEL, file=traceback_file)
+            await send_message(
+                error_msg, config.channel("bot_admin"), file=traceback_file
+            )
 
     def deactivate(self) -> None:
         self._activated = False

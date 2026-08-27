@@ -27,29 +27,11 @@ from discord import (
 from discord.abc import GuildChannel, PrivateChannel
 from discord.ui import Button, View
 from pendulum import DateTime
-from polars import DataFrame
 
-from constants import EMOJI_ROLE_MAP, USERS, LiveAlert, UserRecord
 from init import bot
-from services.helper.parquet_cache import parquet_cache
+from services.config import config
 
 logger = logging.getLogger(__name__)
-
-
-def upsert_row_to_parquet(
-    row_data: dict | UserRecord | LiveAlert, filepath: str, id_column: str = "id"
-) -> None:
-    parquet_cache.upsert_row(row_data, filepath, id_column)
-
-
-def delete_row_from_parquet(
-    id_value: str | int, filepath: str, id_column: str = "id"
-) -> None:
-    parquet_cache.delete_row(id_value, filepath, id_column)
-
-
-async def read_parquet_cached(filepath: str) -> DataFrame:
-    return await parquet_cache.read_df(filepath)
 
 
 async def send_message(
@@ -106,10 +88,6 @@ def get_pfp(member: User | Member) -> str:
 
 def get_discriminator(member: User | Member) -> str:
     return "" if member.discriminator == "0" else f"#{member.discriminator}"
-
-
-def update_birthday(record: UserRecord) -> None:
-    upsert_row_to_parquet(record, USERS)
 
 
 def get_channel_mention(
@@ -276,7 +254,7 @@ def get_member_role(
     if not member:
         return None, None
 
-    role_name = EMOJI_ROLE_MAP.get(emoji.name)
+    role_name = config.role_name_for_emoji(emoji.name)
     if not role_name:
         return None, None
 
@@ -305,25 +283,25 @@ async def roles_button_pressed(interaction: Interaction, button: Button) -> None
     emoji = button.emoji
     if not guild_id or not emoji:
         await interaction.response.send_message(
-            "An error has occurred. Contact an admin.",
+            config.template("discord_role_error"),
             ephemeral=True,
         )
         return
     res = await toggle_role(guild_id, member_id, emoji)
     if res is None:
         await interaction.response.send_message(
-            "An error has occured. Contact an admin.",
+            config.template("discord_role_error"),
             ephemeral=True,
         )
         return
     success, role = res
     if not success:
         await interaction.response.send_message(
-            f"Your {role.mention} role has been removed.",
+            config.template("discord_role_removed", role=role.mention),
             ephemeral=True,
         )
         return
     await interaction.response.send_message(
-        f"You have received the {role.mention} role.",
+        config.template("discord_role_added", role=role.mention),
         ephemeral=True,
     )

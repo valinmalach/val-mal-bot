@@ -1,33 +1,24 @@
 import asyncio
 import io
 import logging
-import os
 import traceback
-from collections.abc import Awaitable, Callable
 from typing import Any
 
 import discord
 import pendulum
-import polars as pl
 from discord.ui import View
-from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException, Request, Response
 
+from config import settings
 from constants import (
-    BOT_ADMIN_CHANNEL,
-    BROADCASTER_USERNAME,
     HMAC_PREFIX,
-    LIVE_ALERTS,
-    LIVE_ALERTS_ROLE,
-    PROMO_CHANNEL,
-    STREAM_ALERTS_CHANNEL,
     TWITCH_MESSAGE_ID,
     TWITCH_MESSAGE_SIGNATURE,
     TWITCH_MESSAGE_TIMESTAMP,
     TWITCH_MESSAGE_TYPE,
     ErrorDetails,
-    LiveAlert,
 )
+from db import LiveAlert, repository
 from models import (
     Channel,
     ChannelAdBreakBeginEventSub,
@@ -42,10 +33,7 @@ from models import (
     Video,
 )
 from services import (
-    delete_row_from_parquet,
-    discord_command,
     edit_embed,
-    everything,
     get_ad_schedule,
     get_age,
     get_channel,
@@ -54,34 +42,18 @@ from services import (
     get_stream_info,
     get_stream_vod,
     get_user,
-    hug,
-    kofi,
-    lurk,
     parse_rfc3339,
-    raid,
-    read_parquet_cached,
     send_embed,
     send_message,
-    shoutout,
-    socials,
-    throne,
     twitch_send_message,
-    unlurk,
     update_alert,
-    upsert_row_to_parquet,
     verify_message,
 )
+from services.config import config
 from services.helper.http_client import http_client_manager
+from services.twitch.commands import dispatch
 from services.twitch.shoutout_queue import shoutout_queue
 from services.twitch.token_manager import token_manager
-
-load_dotenv()
-
-APP_URL = os.getenv("APP_URL")
-TWITCH_BROADCASTER_ID = os.getenv("TWITCH_BROADCASTER_ID")
-TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
-TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
-TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +73,7 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
         condition = subscription.get("condition", {})
         await send_message(
             f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}",
-            BOT_ADMIN_CHANNEL,
+            config.channel("bot_admin"),
         )
         return Response(status_code=204)
 
@@ -109,14 +81,14 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
     twitch_message_timestamp = headers.get(TWITCH_MESSAGE_TIMESTAMP, "")
     body_str = (await request.body()).decode()
     message = get_hmac_message(twitch_message_id, twitch_message_timestamp, body_str)
-    secret_hmac = HMAC_PREFIX + get_hmac(TWITCH_WEBHOOK_SECRET, message)
+    secret_hmac = HMAC_PREFIX + get_hmac(settings.twitch_webhook_secret, message)
 
     twitch_message_signature = headers.get(TWITCH_MESSAGE_SIGNATURE, "")
     if not verify_message(secret_hmac, twitch_message_signature):
         logger.warning("403: Forbidden. Signature does not match.")
         await send_message(
             f"403: Forbidden request on {endpoint}. Signature does not match.",
-            BOT_ADMIN_CHANNEL,
+            config.channel("bot_admin"),
         )
         raise HTTPException(status_code=403)
 
@@ -124,7 +96,7 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
 async def log_error(message: str, traceback_str: str) -> None:
     traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
     traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-    await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
+    await send_message(message, config.channel("bot_admin"), file=traceback_file)
 
 
 def get_error_details(e: Exception) -> ErrorDetails:
@@ -159,7 +131,7 @@ async def process_webhook(
             )
             await send_message(
                 f"400: Bad request on {endpoint}. Invalid subscription type.",
-                BOT_ADMIN_CHANNEL,
+                config.channel("bot_admin"),
             )
             raise HTTPException(status_code=400)
 
@@ -179,21 +151,26 @@ def _get_twitch_url(user_login: str) -> str:
 
 def _get_live_alerts_mention(channel_id: int) -> str | None:
     """Get the live alerts role mention if channel is the stream alerts channel."""
-    return f"<@&{LIVE_ALERTS_ROLE}>" if channel_id == STREAM_ALERTS_CHANNEL else None
+    return (
+        f"<@&{config.role('live_alerts')}>"
+        if channel_id == config.channel("stream_alerts")
+        else None
+    )
 
 
 def _is_main_broadcaster(broadcaster_id: str | int) -> bool:
     """Check if the broadcaster is the main broadcaster."""
-    return str(broadcaster_id) == TWITCH_BROADCASTER_ID
+    return str(broadcaster_id) == config.setting("twitch_broadcaster_id")
 
 
-def _extract_alert_data(alert: dict[str, Any]) -> tuple[int, int, str, str]:
-    """Extract relevant data from alert dictionary."""
-    channel_id = alert.get("channel_id", 0)
-    message_id = alert.get("message_id", 0)
-    stream_id = alert.get("stream_id", "")
-    stream_started_at = alert.get("stream_started_at", "")
-    return channel_id, message_id, stream_id, stream_started_at
+def _extract_alert_data(alert: LiveAlert) -> tuple[int, int, int, str]:
+    """Pull the fields the offline embed needs out of a stored alert."""
+    return (
+        alert.channel_id,
+        alert.message_id,
+        alert.stream_id,
+        alert.stream_started_at.isoformat(),
+    )
 
 
 async def _wait_for_stream_info(broadcaster_id: int):
@@ -215,11 +192,16 @@ async def _handle_broadcaster_stream_start(
     _ = asyncio.create_task(shoutout_queue.activate())
     await twitch_send_message(
         str(broadcaster_id),
-        "NilavHcalam is here valinmArrive",
+        config.template("twitch_stream_greeting"),
     )
     await twitch_send_message(
         str(broadcaster_id),
-        f"{stream_info.user_name} is now live! Streaming {stream_info.game_name}: {stream_info.title}",
+        config.template(
+            "twitch_stream_announce",
+            name=stream_info.user_name,
+            game=stream_info.game_name,
+            title=stream_info.title,
+        ),
     )
 
 
@@ -232,21 +214,21 @@ def _create_stream_online_embed(stream_info, user_info: User | None) -> discord.
     return (
         discord.Embed(
             description=f"[**{stream_info.title}**]({url})",
-            color=0x9046FF,
+            color=config.color("embed_color_stream"),
             timestamp=parse_rfc3339(stream_info.started_at),
         )
         .set_author(
-            name=f"{stream_info.user_name} is now live!",
+            name=config.template("stream_live_title", name=stream_info.user_name),
             icon_url=user_info.profile_image_url if user_info else None,
             url=url,
         )
         .add_field(
-            name="**Game**",
+            name=config.template("stream_field_game"),
             value=f"{stream_info.game_name}",
             inline=True,
         )
         .add_field(
-            name="**Viewers**",
+            name=config.template("stream_field_viewers"),
             value=f"{stream_info.viewer_count}",
             inline=True,
         )
@@ -259,7 +241,11 @@ def _create_stream_watch_button(stream_info) -> View:
     url = _get_twitch_url(stream_info.user_login)
     view = View(timeout=None)
     view.add_item(
-        discord.ui.Button(label="Watch Stream", style=discord.ButtonStyle.link, url=url)
+        discord.ui.Button(
+            label=config.template("stream_watch_button"),
+            style=discord.ButtonStyle.link,
+            url=url,
+        )
     )
     return view
 
@@ -267,17 +253,15 @@ def _create_stream_watch_button(stream_info) -> View:
 async def _save_live_alert(
     broadcaster_id: int, channel: int, message_id: int, stream_info
 ) -> None:
-    """Save the live alert to parquet storage and start update task."""
-    alert: LiveAlert = {
-        "id": broadcaster_id,
-        "channel_id": channel,
-        "message_id": message_id,
-        "stream_id": int(stream_info.id),
-        "stream_started_at": stream_info.started_at,
-    }
-
+    """Store the live alert and start the update task."""
     try:
-        upsert_row_to_parquet(alert, LIVE_ALERTS)
+        await repository.upsert_live_alert(
+            broadcaster_id,
+            channel,
+            message_id,
+            int(stream_info.id),
+            parse_rfc3339(stream_info.started_at),
+        )
         _ = asyncio.create_task(
             update_alert(
                 broadcaster_id,
@@ -290,7 +274,7 @@ async def _save_live_alert(
     except Exception as e:  # noqa: BLE001
         await handle_error(
             e,
-            f"Failed to insert live alert message into parquet for broadcaster {broadcaster_id}",
+            f"Failed to store live alert for broadcaster {broadcaster_id}",
         )
 
 
@@ -300,8 +284,14 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
         stream_info = await _wait_for_stream_info(broadcaster_id)
         user_info = await get_user(broadcaster_id)
 
-        is_main_broadcaster = stream_info.user_login == BROADCASTER_USERNAME
-        channel = STREAM_ALERTS_CHANNEL if is_main_broadcaster else PROMO_CHANNEL
+        is_main_broadcaster = stream_info.user_login == config.setting(
+            "broadcaster_username"
+        )
+        channel = (
+            config.channel("stream_alerts")
+            if is_main_broadcaster
+            else config.channel("promo")
+        )
 
         await _handle_broadcaster_stream_start(
             broadcaster_id, stream_info, is_main_broadcaster
@@ -316,7 +306,7 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
         if message_id is None:
             await send_message(
                 f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}",
-                BOT_ADMIN_CHANNEL,
+                config.channel("bot_admin"),
             )
             logger.error(f"Failed to send embed for broadcaster {broadcaster_id}")
             return
@@ -329,37 +319,35 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
 
 def _cancel_ad_break_task_if_needed(broadcaster_user_login: str) -> None:
     """Cancel ad break notification task for the broadcaster if it exists."""
-    if broadcaster_user_login == BROADCASTER_USERNAME:
+    if broadcaster_user_login == config.setting("broadcaster_username"):
         shoutout_queue.deactivate()
         _cancel_task_if_exists(_ad_break_notification_tasks, broadcaster_user_login)
 
 
 async def _fetch_stream_data(
     broadcaster_id: int,
-) -> tuple[User | None, Channel | None, dict[str, Any] | None]:
-    """Fetch user info, channel info, and VOD info for the stream."""
+) -> tuple[User | None, Channel | None, LiveAlert | None]:
+    """Fetch user info, channel info, and the stored alert for the stream."""
     user_info = await get_user(broadcaster_id)
     channel_info = await get_channel(broadcaster_id)
 
-    df = await read_parquet_cached(LIVE_ALERTS)
-    alert_row = df.filter(pl.col("id") == broadcaster_id)
-    if alert_row.height == 0:
+    alert = await repository.get_live_alert(broadcaster_id)
+    if alert is None:
         logger.warning(
             f"Failed to fetch live alert for broadcaster_id={broadcaster_id}: No record found; Skipping"
         )
         return None, None, None
 
-    alert = alert_row.row(0, named=True)
     return user_info, channel_info, alert
 
 
-async def _get_vod_info(broadcaster_id: int, stream_id: str) -> Video | None:
+async def _get_vod_info(broadcaster_id: int, stream_id: int) -> Video | None:
     """Safely fetch VOD information with error handling."""
     if not stream_id:
         return None
 
     try:
-        return await get_stream_vod(broadcaster_id, int(stream_id))
+        return await get_stream_vod(broadcaster_id, stream_id)
     except Exception as e:  # noqa: BLE001
         await handle_error(
             e, f"Failed to fetch VOD info for broadcaster {broadcaster_id}"
@@ -379,33 +367,34 @@ def _create_offline_embed(
     embed = (
         discord.Embed(
             description=f"**{channel_info.title if channel_info else ''}**",
-            color=0x9046FF,
+            color=config.color("embed_color_stream"),
             timestamp=pendulum.now(),
         )
         .set_author(
-            name=f"{event_sub.event.broadcaster_user_name} was live",
+            name=config.template(
+                "stream_offline_title", name=event_sub.event.broadcaster_user_name
+            ),
             icon_url=user_info.profile_image_url if user_info else None,
             url=url,
         )
         .add_field(
-            name="**Game**",
+            name=config.template("stream_field_game"),
             value=f"{channel_info.game_name if channel_info else ''}",
             inline=True,
         )
     )
 
     if vod_info:
-        vod_url = vod_info.url
         embed = embed.add_field(
-            name="**VOD**",
-            value=f"[**Click to view**]({vod_url})",
+            name=config.template("stream_field_vod"),
+            value=config.template("stream_field_vod_value", url=vod_info.url),
             inline=True,
         )
 
     if stream_started_at:
         started_at = parse_rfc3339(stream_started_at)
         age = get_age(started_at, limit_units=2)
-        embed = embed.set_footer(text=f"Online for {age} | Offline at")
+        embed = embed.set_footer(text=config.template("stream_footer_offline", age=age))
 
     return embed
 
@@ -427,7 +416,7 @@ async def _update_offline_message(
 async def _cleanup_live_alert(broadcaster_id: int) -> None:
     """Remove the live alert from storage."""
     try:
-        delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
+        await repository.delete_live_alert(broadcaster_id)
     except Exception as e:  # noqa: BLE001
         await handle_error(
             e, f"Failed to delete live alert for broadcaster {broadcaster_id}"
@@ -463,20 +452,6 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
 
 
 async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> None:
-    user_command_dict: dict[
-        str, Callable[[ChannelChatMessageEventSub, str], Awaitable[None]]
-    ] = {
-        "lurk": lurk,
-        "discord": discord_command,
-        "kofi": kofi,
-        "raid": raid,
-        "socials": socials,
-        "throne": throne,
-        "unlurk": unlurk,
-        "hug": hug,
-        "so": shoutout,
-        "everything": everything,
-    }
     try:
         if not event_sub.event.message.text.startswith("!"):
             return
@@ -492,12 +467,7 @@ async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> N
         ):
             return
 
-        async def default_command(
-            event_sub: ChannelChatMessageEventSub, args: str
-        ) -> None:
-            """Default no-op command handler."""
-
-        await user_command_dict.get(command, default_command)(event_sub, args)
+        await dispatch(event_sub, command, args)
     except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error processing Twitch chat webhook task")
 
@@ -506,7 +476,7 @@ async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
     try:
         await twitch_send_message(
             event_sub.event.broadcaster_user_id,
-            f"Thank you for following, {event_sub.event.user_name}! valinmKiss Your support means a lot to me! I hope you enjoy your stay! valinmKiss",
+            config.template("twitch_follow_thanks", user=event_sub.event.user_name),
         )
     except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error processing Twitch follow webhook task")
@@ -544,7 +514,7 @@ async def _schedule_next_ad_break_notification(broadcaster_id: str) -> None:
             await asyncio.sleep(wait_seconds)
             await twitch_send_message(
                 broadcaster_id,
-                "The next ad break will start in 5 minutes! Feel free to take a quick break while the ads run! valinmHydrate",
+                config.template("twitch_ad_break_warning"),
             )
     except asyncio.CancelledError:
         logger.info(
@@ -561,12 +531,12 @@ async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -
         ad_duration = event_sub.event.duration_seconds
         await twitch_send_message(
             event_sub.event.broadcaster_user_id,
-            f"A {ad_duration // 60} minute ad break is starting! Thank you for sticking with us through this break! valinmArrive Ads help support my content. Consider subscribing to remove ads and support the stream!",
+            config.template("twitch_ad_break_start", minutes=ad_duration // 60),
         )
         await asyncio.sleep(ad_duration)
         await twitch_send_message(
             event_sub.event.broadcaster_user_id,
-            "The ad break is finishing now! valinmArrive",
+            config.template("twitch_ad_break_end"),
         )
 
         broadcaster_id = event_sub.event.broadcaster_user_id
@@ -581,20 +551,20 @@ async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -
 async def _oauth_callback_common(
     code: str, state: str, endpoint: str
 ) -> RefreshResponse:
-    if state != TWITCH_WEBHOOK_SECRET:
+    if state != settings.twitch_webhook_secret:
         logger.warning(f"400: Bad request. Invalid state: {state}")
         await send_message(
             f"400: Bad request on {endpoint}. Invalid state.",
-            BOT_ADMIN_CHANNEL,
+            config.channel("bot_admin"),
         )
         raise HTTPException(status_code=400)
 
     params = {
-        "client_id": TWITCH_CLIENT_ID,
-        "client_secret": TWITCH_CLIENT_SECRET,
+        "client_id": settings.twitch_client_id,
+        "client_secret": settings.twitch_client_secret,
         "code": code,
         "grant_type": "authorization_code",
-        "redirect_uri": f"{APP_URL}{endpoint}",
+        "redirect_uri": f"{settings.app_url}{endpoint}",
     }
     response = await http_client_manager.request(
         "POST", "https://id.twitch.tv/oauth2/token", params=params
@@ -606,7 +576,7 @@ async def _oauth_callback_common(
         )
         await send_message(
             f"Failed to exchange token: {response.status_code} {response.text}",
-            BOT_ADMIN_CHANNEL,
+            config.channel("bot_admin"),
         )
         raise HTTPException(status_code=500)
 
@@ -617,7 +587,7 @@ async def _oauth_callback_common(
         )
         await send_message(
             f"Failed to exchange token: unexpected token type {auth_response.token_type}",
-            BOT_ADMIN_CHANNEL,
+            config.channel("bot_admin"),
         )
         raise HTTPException(status_code=500)
     return auth_response
@@ -720,7 +690,11 @@ async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
             twitch_url = _get_twitch_url(event_sub.event.to_broadcaster_user_login)
             await twitch_send_message(
                 event_sub.event.from_broadcaster_user_id,
-                f"We just raided {event_sub.event.to_broadcaster_user_name}. In case you got left behind, you can find them here: {twitch_url} valinmRaid",
+                config.template(
+                    "twitch_raid_out",
+                    name=event_sub.event.to_broadcaster_user_name,
+                    url=twitch_url,
+                ),
             )
         elif _is_main_broadcaster(event_sub.event.to_broadcaster_user_id):
             await twitch_send_message(
@@ -750,7 +724,7 @@ async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
             return
         await twitch_send_message(
             event_sub.event.broadcaster_user_id,
-            "Have a great rest of your day! valinmKiss Don't forget to stay hydrated and take care of yourself! valinmHydrate",
+            config.template("twitch_raid_farewell"),
         )
     except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error processing Twitch moderate webhook task")

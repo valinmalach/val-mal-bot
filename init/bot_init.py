@@ -1,50 +1,26 @@
 import asyncio
 import logging
-import os
 
 import discord
-import polars as pl
 from discord import CategoryChannel, ForumChannel
 from discord.abc import PrivateChannel
 from discord.ext.commands import Bot
-from dotenv import load_dotenv
-
-from constants import (
-    BOT_ADMIN_CHANNEL,
-    GUILD_ID,
-    LIVE_ALERTS,
-    PARQUET_SCHEMAS,
-    TWITCH_DIR,
-)
-from services.helper.parquet_cache import parquet_cache
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-MY_GUILD = discord.Object(id=GUILD_ID)
-
-TWITCH_BROADCASTER_ID = os.getenv("TWITCH_BROADCASTER_ID")
-
 
 async def restart_live_alert_tasks() -> None:
-    from services import read_parquet_cached, update_alert
+    from db import repository
+    from services import update_alert
 
-    df = await read_parquet_cached(LIVE_ALERTS)
-
-    for alert in df.iter_rows(named=True):
-        broadcaster_id = alert["id"]
-        channel_id = alert["channel_id"]
-        message_id = alert["message_id"]
-        stream_id = alert["stream_id"]
-        stream_started_at = alert["stream_started_at"]
+    for alert in await repository.list_live_alerts():
         _ = asyncio.create_task(
             update_alert(
-                broadcaster_id=broadcaster_id,
-                channel_id=channel_id,
-                message_id=message_id,
-                stream_id=stream_id,
-                stream_started_at=stream_started_at,
+                broadcaster_id=alert.broadcaster_id,
+                channel_id=alert.channel_id,
+                message_id=alert.message_id,
+                stream_id=alert.stream_id,
+                stream_started_at=alert.stream_started_at.isoformat(),
             )
         )
         await asyncio.sleep(1)
@@ -52,29 +28,12 @@ async def restart_live_alert_tasks() -> None:
 
 async def activate_if_live() -> None:
     from services import get_stream_info
+    from services.config import config
     from services.twitch.shoutout_queue import shoutout_queue
 
-    if not TWITCH_BROADCASTER_ID:
-        return
-
-    stream_info = await get_stream_info(int(TWITCH_BROADCASTER_ID))
+    stream_info = await get_stream_info(int(config.setting("twitch_broadcaster_id")))
     if stream_info and stream_info.type == "live":
         _ = asyncio.create_task(shoutout_queue.activate())
-
-
-def check_data_files_exist() -> None:
-    os.makedirs(TWITCH_DIR, exist_ok=True)
-    for file_path, schema in PARQUET_SCHEMAS.items():
-        if not os.path.isfile(file_path):
-            # Create parent directories if they don't exist
-            if parent_dir := os.path.dirname(file_path):
-                os.makedirs(parent_dir, exist_ok=True)
-
-            # Create empty file to ensure write_parquet can write to it
-            open(file_path, "w").close()
-
-            empty_df = pl.DataFrame(schema=schema)
-            empty_df.write_parquet(file_path)
 
 
 async def run_background_tasks():
@@ -89,31 +48,29 @@ class MyBot(Bot):
         self.case_insensitive = True
 
     async def setup_hook(self) -> None:
-        parquet_cache.start()
+        from services.config import config
+        from services.twitch.token_manager import token_manager
 
-        self.tree.copy_global_to(guild=MY_GUILD)
-        await self.tree.sync(guild=MY_GUILD)
+        await config.load()
+        await token_manager.load()
 
-        from views import (
-            DMsOpenView,
-            NSFWAccessView,
-            OtherRolesView,
-            PingRolesView,
-            PronounRolesView,
-            RulesView,
-        )
+        self.command_prefix = config.setting("command_prefix", "$")
+        guild = discord.Object(id=config.setting("guild_id"))
+
+        self.tree.copy_global_to(guild=guild)
+        await self.tree.sync(guild=guild)
+
+        from views import persistent_views
 
         # register all persistent Views so buttons still work after a restart
-        self.add_view(RulesView())
-        self.add_view(PingRolesView())
-        self.add_view(NSFWAccessView())
-        self.add_view(PronounRolesView())
-        self.add_view(OtherRolesView())
-        self.add_view(DMsOpenView())
+        for view in persistent_views():
+            self.add_view(view)
 
     async def close(self) -> None:
-        await parquet_cache.stop()
+        from db import dispose_engine
+
         await super().close()
+        await dispose_engine()
 
 
 bot = MyBot(command_prefix="$", intents=discord.Intents.all())
@@ -121,13 +78,13 @@ bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 @bot.event
 async def on_ready() -> None:
-    check_data_files_exist()
+    from services.config import config
 
     _ = asyncio.create_task(run_background_tasks())
 
-    channel = bot.get_channel(BOT_ADMIN_CHANNEL)
+    channel = bot.get_channel(config.channel("bot_admin"))
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
     ):
         return
-    await channel.send("Started successfully!")
+    await channel.send(config.template("discord_startup"))

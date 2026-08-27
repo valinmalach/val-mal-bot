@@ -1,73 +1,17 @@
 from enum import Enum
 from typing import TypedDict
 
-import polars as pl
-
 TWITCH_MESSAGE_ID = "Twitch-Eventsub-Message-Id"
 TWITCH_MESSAGE_TYPE = "Twitch-Eventsub-Message-Type"
 TWITCH_MESSAGE_TIMESTAMP = "Twitch-Eventsub-Message-Timestamp"
 TWITCH_MESSAGE_SIGNATURE = "Twitch-Eventsub-Message-Signature"
 HMAC_PREFIX = "sha256="
 
-GUILD_ID = 813237030385090580
-
-AUDIT_LOGS_CHANNEL = 1291775826655707166
-BLUESKY_CHANNEL = 1345582916050354369
-BOT_ADMIN_CHANNEL = 1346408909442781237
-DM_REQUESTS_CHANNEL = 1292413187270115328
-FOOD_CHANNEL = 1291026325045248101
-PETS_CHANNEL = 1291027524947546164
-PROMO_CHANNEL = 1378917167336001606
-RANTING_CHANNEL = 1291026750947590266
-ROLES_CHANNEL = 1285277373167570946
-RULES_CHANNEL = 1285275553611517963
-SHOUTOUTS_CHANNEL = 1291026077287710751
-STREAM_ALERTS_CHANNEL = 1285276760044474461
-WELCOME_CHANNEL = 1285276874645438544
-
-FOLLOWER_ROLE = 1291769015190032435
-
-ANNOUNCEMENTS_ROLE = 1292347932904915007
-LIVE_ALERTS_ROLE = 1292348044888768605
-PING_ROLE = 1292348084998897737
-BLUESKY_ROLE = 1345584502805626973
-FREE_STUFF_ROLE = 1359500454941298709
-
-NSFW_ACCESS_ROLE = 1292348175553794050
-
-HE_HIM_ROLE = 1292386380038672404
-SHE_HER_ROLE = 1292386514726289542
-THEY_THEM_ROLE = 1292386617348194346
-OTHER_ASK_ROLE = 1292386717449453599
-
-STREAMER_ROLE = 1292386827008999486
-GAMER_ROLE = 1292386929299689472
-ARTIST_ROLE = 1292386998438596710
-
-DMS_OPEN_ROLE = 1292387067568853012
-ASK_TO_DM_ROLE = 1292387187576274995
-DMS_CLOSED_ROLE = 1292387243964764193
-
-OWNER_ID = 389318636201967628
 
 COGS = ["cogs.admin", "cogs.birthday", "cogs.events", "cogs.tasks"]
 
 UNKNOWN_USER = "Unknown User"
 DEFAULT_MISSING_CONTENT = "`Message content not found in cache`"
-
-BROADCASTER_USERNAME = "valinmalach"
-
-APP_ACCESS_TOKEN_FILE = "data/twitch/app_access_token.txt"
-USER_REFRESH_TOKEN_FILE = "data/twitch/user_refresh_token.txt"
-USER_ACCESS_TOKEN_FILE = "data/twitch/user_access_token.txt"
-BROADCASTER_REFRESH_TOKEN_FILE = "data/twitch/broadcaster_refresh_token.txt"
-BROADCASTER_ACCESS_TOKEN_FILE = "data/twitch/broadcaster_access_token.txt"
-
-TWITCH_DIR = "data/twitch"
-BLUESKY = "data/bluesky.parquet"
-LIVE_ALERTS = "data/live_alerts.parquet"
-MESSAGES = "data/messages.parquet"
-USERS = "data/users.parquet"
 
 
 class Months(Enum):
@@ -101,74 +45,10 @@ MAX_DAYS = {
 }
 
 
-EMOJI_ROLE_MAP = {
-    # Rules
-    "✅": "🙇Followers",
-    # Ping Roles
-    "📢": "📢Announcements",
-    "🔴": "🔴Live Alerts",
-    "❗": "❗Ping Role",
-    "🦋": "🦋Bluesky",
-    "🎁": "🎁Free Stuff",
-    # NSFW Access
-    "🔞": "🔞NSFW Access",
-    # Pronouns
-    "🙋‍♂️": "🙋‍♂️He/Him",
-    "🙋‍♀️": "🙋‍♀️She/Her",
-    "🙋": "🙋They/Them",
-    "❓": "❓Other/Ask",
-    # Other Roles
-    "📽️": "📽️Streamer",
-    "🎮": "🎮Gamer",
-    "🎨": "🎨Artist",
-    # DMs Open?
-    "🟩": "🟩DMs Open",
-    "🟨": "🟨Ask to DM",
-    "🟥": "🟥DMs Closed",
-}
-
-
-PARQUET_SCHEMAS = {
-    BLUESKY: {
-        "id": pl.String,
-        "date": pl.String,
-        "url": pl.String,
-    },
-    LIVE_ALERTS: {
-        "id": pl.Int64,
-        "channel_id": pl.Int64,
-        "message_id": pl.Int64,
-        "stream_id": pl.Int64,
-        "stream_started_at": pl.String,
-    },
-    MESSAGES: {
-        "id": pl.Int64,
-        "contents": pl.String,
-        "guild_id": pl.Int64,
-        "author_id": pl.Int64,
-        "channel_id": pl.Int64,
-        "attachment_urls": pl.String,
-    },
-    USERS: {
-        "id": pl.Int64,
-        "username": pl.String,
-        "birthday": pl.String,
-        "isBirthdayLeap": pl.Boolean,
-    },
-}
-
-
 class TokenType(str, Enum):
     App = "app"
     User = "user"
     Broadcaster = "broadcaster"
-
-
-class UserRecord(TypedDict):
-    id: int
-    username: str
-    birthday: str | None
-    isBirthdayLeap: bool | None
 
 
 class ErrorDetails(TypedDict):
@@ -176,11 +56,3 @@ class ErrorDetails(TypedDict):
     message: str
     args: tuple
     traceback: str
-
-
-class LiveAlert(TypedDict):
-    id: int
-    channel_id: int
-    message_id: int
-    stream_id: int
-    stream_started_at: str

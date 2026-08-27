@@ -7,7 +7,8 @@ from typing import Self, cast
 import discord
 import httpx
 
-from constants import BOT_ADMIN_CHANNEL, ErrorDetails
+from constants import ErrorDetails
+from services.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,6 @@ class HttpClientManager:
         except Exception as e:
             is_retryable = is_transient_network_error(e)
 
-            # Only log non-retryable errors immediately
             # Retryable errors will be logged by retry_api_call if all retries fail
             if not is_retryable:
                 from services.helper.helper import send_message
@@ -116,10 +116,11 @@ class HttpClientManager:
                 traceback_file = discord.File(
                     traceback_buffer, filename="traceback.txt"
                 )
-                await send_message(error_msg, BOT_ADMIN_CHANNEL, file=traceback_file)
+                await send_message(
+                    error_msg, config.channel("bot_admin"), file=traceback_file
+                )
 
             raise
 
 
-# Global instance
 http_client_manager = HttpClientManager()

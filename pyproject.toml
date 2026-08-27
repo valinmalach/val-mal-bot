@@ -3,19 +3,39 @@ name = "val-mal-bot"
 version = "1.0.0"
 description = "Valin Malach's bot for Twitch/Discord"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.14.7"
 dependencies = [
-    "aiofiles>=25.1.0",
+    "alembic>=1.19.1",
+    "asyncpg>=0.31.0",
     "discord>=2.3.2",
     "fastapi>=0.141.1",
     "httpx[http2]>=0.28.1",
-    "orjson>=3.12.0",
     "pendulum>=3.2.0",
-    "polars>=1.43.2",
+    "polars>=1.44.1",
     "pydantic>=2.13.4",
-    "python-dotenv>=1.2.3",
+    "pydantic-settings>=2.15.0",
     "rich>=15.0.0",
+    "sqlmodel>=0.0.39",
     "truststore>=0.10.4",
-    "types-aiofiles>=25.1.0.20260518",
     "uvicorn[standard]>=0.52.4",
 ]
+
+[tool.pyright]
+# Pylance reads this section, so the editor and CLI pyright agree. "standard" is
+# Pylance's own default, pinned so a future change cannot move the goalposts.
+typeCheckingMode = "standard"
+
+# No exclude key: setting it REPLACES pyright's defaults instead of adding to
+# them, and those already cover .venv and __pycache__. "M.m" only, and required.
+pythonVersion = "3.14"
+venvPath = "."
+venv = ".venv"
+
+# Pylance greys these out; the CLI is silent unless they are promoted.
+reportUnusedImport = "warning"
+reportUnusedVariable = "warning"
+reportUnusedClass = "warning"
+reportUnusedFunction = "warning"
+reportUnusedExpression = "warning"
+reportUnreachable = "warning"
+reportDeprecated = "warning"

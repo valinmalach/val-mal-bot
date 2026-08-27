@@ -1,49 +1,36 @@
 import io
 import logging
-import os
 import traceback
 from typing import Literal
 
 import discord
-from dotenv import load_dotenv
 from httpx import Response
 
-from constants import (
-    BOT_ADMIN_CHANNEL,
-    ErrorDetails,
-    TokenType,
-)
+from config import settings
+from constants import ErrorDetails, TokenType
 from models import ChannelChatMessageEventSub
+from services.config import config
 from services.helper.helper import send_message
 from services.helper.http_client import http_client_manager, is_transient_network_error
 from services.twitch.token_manager import token_manager
 
-load_dotenv()
-
 logger = logging.getLogger(__name__)
-
-TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
-TWITCH_BOT_USER_ID = os.getenv("TWITCH_BOT_USER_ID")
 
 
 async def log_error(message: str, traceback_str: str) -> None:
     traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
     traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-    await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
+    await send_message(message, config.channel("bot_admin"), file=traceback_file)
 
 
 async def _ensure_token_available(token_type: TokenType) -> bool:
-    """Ensure the appropriate token is available, refreshing if necessary."""
-    if token_type == TokenType.App and not token_manager.app_access_token:
-        return await token_manager.refresh_app_access_token()
-    elif token_type == TokenType.User and not token_manager.user_access_token:
-        return await token_manager.refresh_user_access_token()
-    elif (
-        token_type == TokenType.Broadcaster
-        and not token_manager.broadcaster_access_token
-    ):
-        return await token_manager.refresh_user_access_token(True)
-    return True
+    """Ensure a usable token is available, refreshing if missing or due.
+
+    The 401 handling below still covers tokens with no known expiry.
+    """
+    if _get_token_for_type(token_type) and not token_manager.needs_refresh(token_type):
+        return True
+    return await _refresh_token_for_type(token_type)
 
 
 def _get_token_for_type(token_type: TokenType) -> str | None:
@@ -82,7 +69,9 @@ async def _make_http_request(
         return await http_client_manager.request("DELETE", url, headers=headers)
     else:
         logger.error(f"Unsupported HTTP method: {method}")
-        await send_message(f"Unsupported HTTP method: {method}", BOT_ADMIN_CHANNEL)
+        await send_message(
+            f"Unsupported HTTP method: {method}", config.channel("bot_admin")
+        )
         return None
 
 
@@ -108,28 +97,25 @@ async def call_twitch(
     token_type: TokenType = TokenType.App,
 ) -> Response | None:
     try:
-        # Ensure token is available
         refresh_success = await _ensure_token_available(token_type)
         if not refresh_success:
             logger.warning("No access token available and failed to refresh")
             await send_message(
-                "No access token available and failed to refresh", BOT_ADMIN_CHANNEL
+                "No access token available and failed to refresh",
+                config.channel("bot_admin"),
             )
             return None
 
-        # Get token and prepare headers
         token = _get_token_for_type(token_type)
         headers = {
-            "Client-ID": TWITCH_CLIENT_ID,
+            "Client-ID": settings.twitch_client_id,
             "Authorization": f"Bearer {token}",
         }
 
-        # Make initial request
         response = await _make_http_request(method, url, headers, json)
         if response is None:
             return None
 
-        # Handle unauthorized response
         if response.status_code == 401:
             response = await _handle_unauthorized_response(
                 method, url, headers, json, token_type
@@ -144,7 +130,6 @@ async def call_twitch(
             # Re-raise retryable errors so retry_api_call can handle them
             raise
 
-        # Log and return None for non-retryable errors
         error_details: ErrorDetails = {
             "type": type(e).__name__,
             "message": str(e),
@@ -164,8 +149,7 @@ async def check_mod(event_sub: ChannelChatMessageEventSub) -> bool:
     )
     broadcaster_id = event_sub.event.broadcaster_user_id
     if not has_mod:
-        message = "Only moderators can use this command."
-        await twitch_send_message(broadcaster_id, message)
+        await twitch_send_message(broadcaster_id, config.template("twitch_mod_only"))
         return False
     return True
 
@@ -175,7 +159,7 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
         url = "https://api.twitch.tv/helix/chat/messages"
         data = {
             "broadcaster_id": broadcaster_id,
-            "sender_id": TWITCH_BOT_USER_ID,
+            "sender_id": config.setting("twitch_bot_user_id"),
             "message": message,
             "for_source_only": False,
         }
@@ -190,7 +174,7 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
             )
             await send_message(
                 f"Failed to send message: {response.status_code if response else 'No response'} {response.text if response else ''}",
-                BOT_ADMIN_CHANNEL,
+                config.channel("bot_admin"),
             )
             return
     except Exception as e:  # noqa: BLE001

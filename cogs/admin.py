@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 import discord
@@ -12,7 +11,6 @@ from discord import (
 )
 from discord.ext.commands import Bot, Cog
 
-from constants import ROLES_CHANNEL, RULES_CHANNEL
 from services import (
     get_subscriptions,
     get_users,
@@ -20,20 +18,8 @@ from services import (
     subscribe_to_user,
     unsubscribe_to_user,
 )
-from views import (
-    DMS_OPEN_EMBED,
-    NSFW_ACCESS_EMBED,
-    OTHER_ROLES_EMBED,
-    PING_ROLES_EMBED,
-    PRONOUN_ROLES_EMBED,
-    RULES_EMBED,
-    DMsOpenView,
-    NSFWAccessView,
-    OtherRolesView,
-    PingRolesView,
-    PronounRolesView,
-    RulesView,
-)
+from services.config import config
+from views import role_panels
 
 logger = logging.getLogger(__name__)
 
@@ -43,17 +29,6 @@ _PURGE_MESSAGE_LIMIT_MAX = 500
 class Admin(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
-
-    @app_commands.command(description="Restarts the bot")
-    @app_commands.commands.default_permissions(administrator=True)
-    async def restart(self, interaction: Interaction) -> None:
-        from services.helper.parquet_cache import parquet_cache
-
-        await interaction.response.send_message("Restarting...")
-        await parquet_cache.stop()
-        await asyncio.create_subprocess_exec(
-            "powershell.exe", "-File", "C:\\val-mal-bot\\restart_bot.ps1"
-        )
 
     @app_commands.command(description="Deletes all messages in the channel")
     @app_commands.commands.default_permissions(administrator=True)
@@ -66,7 +41,7 @@ class Admin(Cog):
                 f"Nuke aborted: invalid channel type {type(interaction.channel)}"
             )
             return
-        await interaction.response.send_message("Nuking channel...")
+        await interaction.response.send_message(config.template("admin_nuking"))
         await interaction.channel.purge(limit=None)
 
     @app_commands.command(
@@ -88,13 +63,13 @@ class Admin(Cog):
         ):
             logger.warning("Purge aborted: invalid channel type %s", type(ch))
             await interaction.response.send_message(
-                "This command can only be used in a server text channel or thread.",
+                config.template("admin_wrong_channel"),
                 ephemeral=True,
             )
             return
         if not hasattr(ch, "purge"):
             await interaction.response.send_message(
-                "This channel does not support bulk message deletion.",
+                config.template("admin_no_bulk_delete"),
                 ephemeral=True,
             )
             return
@@ -103,56 +78,35 @@ class Admin(Cog):
             deleted = await ch.purge(limit=count)
         except discord.Forbidden:
             await interaction.followup.send(
-                "Missing permissions to delete messages here.",
+                config.template("admin_purge_forbidden"),
                 ephemeral=True,
             )
             return
         except discord.HTTPException as e:
             logger.exception("Purge failed")
             await interaction.followup.send(
-                f"Failed to delete messages: {e}",
+                config.template("admin_purge_failed", error=e),
                 ephemeral=True,
             )
             return
         await interaction.followup.send(
-            f"Deleted {len(deleted)} message(s).",
+            config.template("admin_purge_done", count=len(deleted)),
             ephemeral=True,
         )
 
     @app_commands.command(description="Sends the rules embed to the rules channel")
     @app_commands.commands.default_permissions(administrator=True)
     async def rules(self, interaction: Interaction) -> None:
-        embed = RULES_EMBED
-        view = RulesView()
-
-        await send_embed(
-            embed,
-            RULES_CHANNEL,
-            view,
-        )
-        await interaction.response.send_message("Rules embed send to rules channel!")
+        for embed, view, channel_id in role_panels("rules"):
+            await send_embed(embed, channel_id, view)
+        await interaction.response.send_message(config.template("admin_rules_sent"))
 
     @app_commands.command(description="Sends the roles embeds to the roles channel")
     @app_commands.commands.default_permissions(administrator=True)
     async def roles(self, interaction: Interaction) -> None:
-        embeds = [
-            PING_ROLES_EMBED,
-            NSFW_ACCESS_EMBED,
-            PRONOUN_ROLES_EMBED,
-            OTHER_ROLES_EMBED,
-            DMS_OPEN_EMBED,
-        ]
-        views = [
-            PingRolesView(),
-            NSFWAccessView(),
-            PronounRolesView(),
-            OtherRolesView(),
-            DMsOpenView(),
-        ]
-
-        for embed, view in zip(embeds, views):
-            await send_embed(embed, ROLES_CHANNEL, view)
-        await interaction.response.send_message("Roles embeds send to roles channel!")
+        for embed, view, channel_id in role_panels("roles"):
+            await send_embed(embed, channel_id, view)
+        await interaction.response.send_message(config.template("admin_roles_sent"))
 
     @app_commands.command(description="Gets all active subscriptions' users")
     @app_commands.commands.default_permissions(administrator=True)

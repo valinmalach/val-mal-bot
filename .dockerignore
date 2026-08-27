@@ -1,0 +1,20 @@
+# The image builds its own venv; copying a host one over it breaks the container.
+.venv
+.git
+.gitignore
+__pycache__
+**/__pycache__
+*.pyc
+.ruff_cache
+.pytest_cache
+
+# Secrets never belong in an image layer.
+.env
+.env.*
+!.env.example
+
+# Local-only tooling and editor state.
+compose.yaml
+.vscode
+.idea
+*.code-workspace

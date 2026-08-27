@@ -2,26 +2,17 @@ import asyncio
 import io
 import itertools
 import logging
-import os
 import traceback
 from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 import discord
 import pendulum
-import polars as pl
 from discord.ui import View
-from dotenv import load_dotenv
 
-from constants import (
-    BOT_ADMIN_CHANNEL,
-    BROADCASTER_USERNAME,
-    LIVE_ALERTS,
-    LIVE_ALERTS_ROLE,
-    STREAM_ALERTS_CHANNEL,
-    ErrorDetails,
-    TokenType,
-)
+from config import settings
+from constants import ErrorDetails, TokenType
+from db import LiveAlert, repository
 from models import (
     AdSchedule,
     AdScheduleResponse,
@@ -36,29 +27,23 @@ from models import (
     Video,
     VideoResponse,
 )
+from services.config import config
 from services.helper.helper import (
-    delete_row_from_parquet,
     edit_embed,
     get_age,
     parse_rfc3339,
-    read_parquet_cached,
     send_message,
 )
 from services.helper.http_client import is_transient_network_error
 from services.helper.twitch import call_twitch
 
-load_dotenv()
-
 logger = logging.getLogger(__name__)
-
-APP_URL = os.getenv("APP_URL")
-TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 
 
 async def log_error(message: str, traceback_str: str) -> None:
     traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
     traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-    await send_message(message, BOT_ADMIN_CHANNEL, file=traceback_file)
+    await send_message(message, config.channel("bot_admin"), file=traceback_file)
 
 
 def _create_error_details(e: Exception) -> ErrorDetails:
@@ -89,7 +74,7 @@ async def _handle_invalid_response(response, context: str) -> None:
     status = response.status_code if response else "No response"
     text = response.text if response else ""
     logger.warning(f"{context}: {status}")
-    await send_message(f"{context}: {status} {text}", BOT_ADMIN_CHANNEL)
+    await send_message(f"{context}: {status} {text}", config.channel("bot_admin"))
 
 
 async def retry_api_call[T](
@@ -104,11 +89,9 @@ async def retry_api_call[T](
         try:
             response = await func(*args, **kwargs)
 
-            # Check if response has a 5xx status code (server error)
             status_code: Any | None = getattr(response, "status_code", None)
             if status_code is not None and 500 <= status_code < 600:
                 if attempt == max_retries - 1:
-                    # Last attempt, return the error response
                     return response
 
                 wait_time = delay * (2**attempt)
@@ -234,8 +217,8 @@ async def twitch_event_subscription(
         "condition": {"broadcaster_user_id": user_id},
         "transport": {
             "method": "webhook",
-            "callback": f"{APP_URL}/webhook/twitch{'' if sub_type == 'online' else '/offline'}",
-            "secret": TWITCH_WEBHOOK_SECRET,
+            "callback": f"{settings.app_url}/webhook/twitch{'' if sub_type == 'online' else '/offline'}",
+            "secret": settings.twitch_webhook_secret,
         },
     }
 
@@ -259,7 +242,7 @@ async def subscribe_to_user(username: str) -> bool:
     user = await get_user_by_username(username)
     if not user:
         logger.warning(f"User not found: {username}")
-        await send_message(f"User not found: {username}", BOT_ADMIN_CHANNEL)
+        await send_message(f"User not found: {username}", config.channel("bot_admin"))
         return False
 
     return await twitch_event_subscription(
@@ -294,7 +277,7 @@ async def unsubscribe_to_user(username: str) -> bool:
     user = await get_user_by_username(username)
     if not user:
         logger.warning(f"User not found: {username}")
-        await send_message(f"User not found: {username}", BOT_ADMIN_CHANNEL)
+        await send_message(f"User not found: {username}", config.channel("bot_admin"))
         return False
 
     subscriptions = await get_subscriptions()
@@ -433,9 +416,9 @@ def _cleanup_broadcaster_tasks(
     broadcaster_id: int, stream_info: Stream | None, user_info: User | None
 ) -> None:
     """Handle cleanup tasks specific to the broadcaster."""
-    if (stream_info and stream_info.user_login == BROADCASTER_USERNAME) or (
-        user_info and user_info.login == BROADCASTER_USERNAME
-    ):
+    if (
+        stream_info and stream_info.user_login == config.setting("broadcaster_username")
+    ) or (user_info and user_info.login == config.setting("broadcaster_username")):
         from controller.twitch import _ad_break_notification_tasks
         from services.twitch.shoutout_queue import shoutout_queue
 
@@ -494,28 +477,30 @@ def _create_offline_embed(
     embed = (
         discord.Embed(
             description=f"**{_get_stream_title(stream_info, vod_info, channel)}**",
-            color=0x9046FF,
+            color=config.color("embed_color_stream"),
             timestamp=now,
         )
         .set_author(
-            name=f"{_get_user_name(stream_info, user_info)} was live",
+            name=config.template(
+                "stream_offline_title", name=_get_user_name(stream_info, user_info)
+            ),
             icon_url=user_info.profile_image_url if user_info else None,
             url=url,
         )
         .add_field(
-            name="**Game**",
+            name=config.template("stream_field_game"),
             value=_get_game_name(stream_info, channel),
             inline=True,
         )
         .set_footer(
-            text=f"Online for {age} | Offline at",
+            text=config.template("stream_footer_offline", age=age),
         )
     )
 
     if vod_info:
         embed = embed.add_field(
-            name="**VOD**",
-            value=f"[**Click to view**]({vod_info.url})",
+            name=config.template("stream_field_vod"),
+            value=config.template("stream_field_vod_value", url=vod_info.url),
             inline=True,
         )
 
@@ -531,14 +516,13 @@ async def _handle_embed_edit_error(
             f"Message not found when editing offline embed for message_id={message_id}; aborting"
         )
         try:
-            delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
+            await repository.delete_live_alert(broadcaster_id)
         except Exception as delete_error:  # noqa: BLE001
             await _handle_api_exception(
                 delete_error,
                 f"Failed to delete live alert record for broadcaster_id={broadcaster_id}",
             )
     else:
-        # Check if this is a transient network/OS error
         error_str = str(e).lower()
         is_transient = any(
             term in error_str
@@ -556,7 +540,6 @@ async def _handle_embed_edit_error(
                 f"Transient network error when editing offline embed for message_id={message_id}: {e}"
             )
         else:
-            # Only log non-transient errors to admin channel
             await _handle_api_exception(
                 e, f"Error editing offline embed for message_id={message_id}"
             )
@@ -575,38 +558,32 @@ async def trigger_offline_sequence(
     content: str | None,
     channel: Channel | None,
 ) -> None:
-    # Handle cleanup tasks for valinmalach
     _cleanup_broadcaster_tasks(broadcaster_id, stream_info, user_info)
 
-    # Fetch VOD information
     vod_info = await _fetch_vod_info_safely(broadcaster_id, stream_id)
 
-    # Create the offline embed
     embed = _create_offline_embed(
         stream_info, vod_info, channel, user_info, url, age, now
     )
 
-    # Edit the embed and handle any errors
     try:
         await edit_embed(message_id, embed, channel_id, content=content)
     except Exception as e:  # noqa: BLE001
         await _handle_embed_edit_error(e, message_id, broadcaster_id)
 
 
-async def _validate_alert_exists(broadcaster_id: int) -> dict | None:
+async def _validate_alert_exists(broadcaster_id: int) -> LiveAlert | None:
     """Check if alert record exists and return it."""
-    df = await read_parquet_cached(LIVE_ALERTS)
-    alert_row = df.filter(pl.col("id") == broadcaster_id)
-    return None if alert_row.height == 0 else alert_row.row(0, named=True)
+    return await repository.get_live_alert(broadcaster_id)
 
 
 def _should_trigger_offline_sequence(
-    alert: dict, stream_info: Stream | None, stream_id: int
+    alert: LiveAlert, stream_info: Stream | None, stream_id: int
 ) -> bool:
     """Determine if offline sequence should be triggered."""
     return (
         stream_info is None
-        or alert.get("stream_id", "") != stream_id
+        or alert.stream_id != stream_id
         or stream_info.id != str(stream_id)
     )
 
@@ -626,32 +603,32 @@ def _create_live_embed(
     return (
         discord.Embed(
             description=f"[**{stream_info.title}**]({url})",
-            color=0x9046FF,
+            color=config.color("embed_color_stream"),
             timestamp=now,
         )
         .set_author(
-            name=f"{stream_info.user_name} is now live!",
+            name=config.template("stream_live_title", name=stream_info.user_name),
             icon_url=user_info.profile_image_url if user_info else None,
             url=url,
         )
         .add_field(
-            name="**Game**",
+            name=config.template("stream_field_game"),
             value=f"{stream_info.game_name}",
             inline=True,
         )
         .add_field(
-            name="**Viewers**",
+            name=config.template("stream_field_viewers"),
             value=f"{stream_info.viewer_count}",
             inline=True,
         )
         .add_field(
-            name="**Started At**",
+            name=config.template("stream_field_started_at"),
             value=started_at_timestamp,
             inline=True,
         )
         .set_image(url=cache_busted_thumb_url)
         .set_footer(
-            text=f"Online for {age} | Last updated",
+            text=config.template("stream_footer_online", age=age),
         )
     )
 
@@ -660,7 +637,11 @@ def _create_live_view(url: str) -> View:
     """Create the view with watch stream button."""
     view = View(timeout=None)
     view.add_item(
-        discord.ui.Button(label="Watch Stream", style=discord.ButtonStyle.link, url=url)
+        discord.ui.Button(
+            label=config.template("stream_watch_button"),
+            style=discord.ButtonStyle.link,
+            url=url,
+        )
     )
     return view
 
@@ -674,7 +655,7 @@ async def _handle_live_embed_edit_error(
             f"Message not found when editing live embed for message_id={message_id}; aborting"
         )
         try:
-            delete_row_from_parquet(broadcaster_id, LIVE_ALERTS)
+            await repository.delete_live_alert(broadcaster_id)
         except Exception as delete_error:  # noqa: BLE001
             await _handle_api_exception(
                 delete_error,
@@ -687,7 +668,6 @@ async def _handle_live_embed_edit_error(
         )
         return True
     else:
-        # Check if this is a transient network/OS error that should be retried
         error_str = str(e).lower()
         is_transient = any(
             term in error_str
@@ -706,7 +686,6 @@ async def _handle_live_embed_edit_error(
             )
             return True
 
-        # Log other errors to admin channel
         error_details = _create_error_details(e)
         if isinstance(e, discord.HTTPException):
             error_msg = f"Discord HTTP error {e.status} when editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
@@ -751,7 +730,6 @@ async def _run_update_cycle(
     content: str | None,
 ) -> None:
     """Run a single update cycle for the live alert."""
-    # Fetch current data
     alert = await _validate_alert_exists(broadcaster_id)
     if alert is None:
         return
@@ -760,7 +738,6 @@ async def _run_update_cycle(
     user_info = await get_user(broadcaster_id)
     channel_info = await get_channel(broadcaster_id)
 
-    # Check if we should trigger offline sequence
     if stream_info is None or _should_trigger_offline_sequence(
         alert, stream_info, stream_id
     ):
@@ -788,7 +765,6 @@ async def _run_update_cycle(
         )
         return
 
-    # Update live embed
     url = f"https://www.twitch.tv/{stream_info.user_login}"
     now = pendulum.now()
     age = get_age(started_at, limit_units=2)
@@ -821,17 +797,17 @@ async def update_alert(
         await asyncio.sleep(60)
 
         content = (
-            f"<@&{LIVE_ALERTS_ROLE}>" if channel_id == STREAM_ALERTS_CHANNEL else None
+            f"<@&{config.role('live_alerts')}>"
+            if channel_id == config.channel("stream_alerts")
+            else None
         )
         started_at = parse_rfc3339(stream_started_at)
         started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
 
-        # Initial validation
         alert = await _validate_alert_exists(broadcaster_id)
         if alert is None:
             return
 
-        # Main update loop
         while True:
             await _run_update_cycle(
                 broadcaster_id,
@@ -845,7 +821,6 @@ async def update_alert(
 
             await asyncio.sleep(60)
 
-            # Check if alert still exists and stream is still live
             alert = await _validate_alert_exists(broadcaster_id)
             if alert is None:
                 break

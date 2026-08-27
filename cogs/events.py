@@ -4,9 +4,7 @@ import traceback
 from typing import Literal
 
 import discord
-import orjson
 import pendulum
-import polars as pl
 from discord import (
     CategoryChannel,
     Embed,
@@ -31,30 +29,18 @@ from discord.abc import PrivateChannel
 from discord.ext.commands import Bot, Cog, CommandError, Context
 from pendulum import DateTime
 
-from constants import (
-    AUDIT_LOGS_CHANNEL,
-    BOT_ADMIN_CHANNEL,
-    DEFAULT_MISSING_CONTENT,
-    GUILD_ID,
-    MESSAGES,
-    UNKNOWN_USER,
-    USERS,
-    WELCOME_CHANNEL,
-    ErrorDetails,
-    UserRecord,
-)
+from constants import DEFAULT_MISSING_CONTENT, UNKNOWN_USER, ErrorDetails
+from db import repository
 from services import (
-    delete_row_from_parquet,
     get_age,
     get_channel_mention,
     get_discriminator,
     get_ordinal_suffix,
     get_pfp,
-    read_parquet_cached,
     send_embed,
     send_message,
-    upsert_row_to_parquet,
 )
+from services.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -83,12 +69,10 @@ class Events(Cog):
         if should_raise:
             raise exception
 
-    async def _safe_parquet_operation(
-        self, operation: str, func, *args, **kwargs
-    ) -> None:
-        """Safely execute parquet operations with error handling."""
+    async def _safe_db_operation(self, operation: str, func, *args, **kwargs) -> None:
+        """Run a database write, reporting failures instead of raising."""
         try:
-            func(*args, **kwargs)
+            await func(*args, **kwargs)
         except Exception as e:  # noqa: BLE001
             await self._handle_error(e, f"Failed to {operation}")
 
@@ -115,19 +99,18 @@ class Events(Cog):
             return entry.user
         return None
 
-    async def _get_message_object(self, message: Message) -> dict:
+    async def _store_message(self, message: Message) -> None:
         guild = message.guild
-        guild_id = GUILD_ID if guild is None else guild.id
-        return {
-            "id": message.id,
-            "contents": message.content,
-            "guild_id": guild_id,
-            "author_id": message.author.id,
-            "channel_id": message.channel.id,
-            "attachment_urls": orjson.dumps(
-                [attachment.url for attachment in message.attachments]
-            ).decode("utf-8"),
-        }
+        await self._safe_db_operation(
+            f"store message {message.id}",
+            repository.upsert_message,
+            message.id,
+            message.content,
+            config.setting("guild_id") if guild is None else guild.id,
+            message.author.id,
+            message.channel.id,
+            [attachment.url for attachment in message.attachments],
+        )
 
     async def _send_error_message(
         self,
@@ -138,7 +121,7 @@ class Events(Cog):
         traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
         await send_message(
             error_msg,
-            BOT_ADMIN_CHANNEL,
+            config.channel("bot_admin"),
             file=traceback_file,
         )
 
@@ -148,19 +131,11 @@ class Events(Cog):
             if message.author == self.bot.user:
                 return
 
-            message_obj = await self._get_message_object(message)
-            await self._safe_parquet_operation(
-                f"save message {message.id} in parquet",
-                upsert_row_to_parquet,
-                message_obj,
-                MESSAGES,
-            )
+            await self._store_message(message)
 
-            content = message.content.lower()
-            if content == "ping":
-                await message.channel.send("pong")
-            elif content == "plap":
-                await message.channel.send("clank")
+            reply = config.auto_response(message.content)
+            if reply is not None:
+                await message.channel.send(reply)
         except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_message event")
 
@@ -169,7 +144,8 @@ class Events(Cog):
         try:
             discriminator, url = await self._get_user_data(member)
             embed = self._base_embed(
-                f"**Welcome to Malachar, {member.mention}**", 0x9B59B6
+                config.template("discord_welcome", mention=member.mention),
+                config.color("embed_color_welcome"),
             )
             embed = self._set_author(embed, member.name, discriminator, url)
             embed = embed.set_footer(
@@ -177,14 +153,17 @@ class Events(Cog):
             ).set_image(url=url)
             await send_embed(
                 embed,
-                WELCOME_CHANNEL,
+                config.channel("welcome"),
             )
 
             age = get_age(pendulum.instance(member.created_at))
             embed = self._base_embed(
-                f"{member.mention} {member.name}{discriminator}", 0x43B582
+                f"{member.mention} {member.name}{discriminator}",
+                config.color("embed_color_join"),
             )
-            embed = embed.set_author(name="Member Joined", icon_url=url)
+            embed = embed.set_author(
+                name=config.template("audit_member_joined"), icon_url=url
+            )
             embed = (
                 embed.set_thumbnail(url=url)
                 .add_field(name="**Account Age**", value=age, inline=False)
@@ -192,20 +171,14 @@ class Events(Cog):
             )
             await send_embed(
                 embed,
-                AUDIT_LOGS_CHANNEL,
+                config.channel("audit_logs"),
             )
 
-            user: UserRecord = {
-                "id": member.id,
-                "username": member.name,
-                "birthday": None,
-                "isBirthdayLeap": None,
-            }
-            await self._safe_parquet_operation(
-                f"insert user {member.name} ({member.id}) in parquet",
-                upsert_row_to_parquet,
-                user,
-                USERS,
+            await self._safe_db_operation(
+                f"insert user {member.name} ({member.id})",
+                repository.upsert_user,
+                member.id,
+                member.name,
             )
         except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_member_join event")
@@ -219,22 +192,26 @@ class Events(Cog):
             member = payload.user
             discriminator, url = await self._get_user_data(member)
             embed = self._base_embed(
-                f"**{member.mention} has left. Goodbye!**", 0x992D22
+                config.template("discord_goodbye", mention=member.mention),
+                config.color("embed_color_goodbye"),
             )
             embed = self._set_author(embed, member.name, discriminator, url)
             embed = embed.set_image(url=url)
             await send_embed(
                 embed,
-                WELCOME_CHANNEL,
+                config.channel("welcome"),
             )
 
             triple_nl = (
                 "" if isinstance(member, Member) and member.roles[1:] else "\n\n\n"
             )
             embed = self._base_embed(
-                f"{member.mention} {member.name}{discriminator}{triple_nl}", 0xFF470F
+                f"{member.mention} {member.name}{discriminator}{triple_nl}",
+                config.color("embed_color_danger"),
             )
-            embed = embed.set_author(name="Member Left", icon_url=url)
+            embed = embed.set_author(
+                name=config.template("audit_member_left"), icon_url=url
+            )
             embed = embed.set_thumbnail(url=url).set_footer(text=f"ID: {member.id}")
             if isinstance(member, Member) and member.roles[1:]:
                 embed = embed.add_field(
@@ -242,13 +219,12 @@ class Events(Cog):
                     value=" ".join([f"{role.mention}" for role in member.roles[1:]]),
                     inline=False,
                 )
-            await send_embed(embed, AUDIT_LOGS_CHANNEL)
+            await send_embed(embed, config.channel("audit_logs"))
 
-            await self._safe_parquet_operation(
-                f"remove user {member.name} ({member.id}) from parquet",
-                delete_row_from_parquet,
+            await self._safe_db_operation(
+                f"remove user {member.name} ({member.id})",
+                repository.delete_user,
                 member.id,
-                USERS,
             )
         except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_raw_member_remove event")
@@ -257,7 +233,7 @@ class Events(Cog):
     async def on_command_error(self, ctx: Context, error: CommandError) -> None:
         channel_mention = get_channel_mention(ctx.channel)
         message = f"Command not found: {ctx.message.content}\nSent by: {ctx.author.mention} in {channel_mention}\n{error}"
-        await send_message(message, AUDIT_LOGS_CHANNEL)
+        await send_message(message, config.channel("audit_logs"))
 
     @Cog.listener()
     async def on_member_update(self, before: Member, after: Member) -> None:
@@ -366,24 +342,14 @@ class Events(Cog):
         before_content = self._truncate_content(before_content)
         after_content = self._truncate_content(after_content)
 
-        embed = self._base_embed(message, 0x337FD5)
+        embed = self._base_embed(message, config.color("embed_color_info"))
         embed = self._set_author(embed, after.author.name, discriminator, url)
         embed = (
             embed.set_footer(text=f"User ID: {after.author.id}")
             .add_field(name="**Before**", value=f"{before_content}", inline=False)
             .add_field(name="**After**", value=f"{after_content}", inline=False)
         )
-        await send_embed(embed, AUDIT_LOGS_CHANNEL)
-
-    async def _update_message_in_parquet(self, message: Message) -> None:
-        """Update the message in the parquet file."""
-        message_obj = await self._get_message_object(message)
-        await self._safe_parquet_operation(
-            f"upsert message {message.id} in parquet",
-            upsert_row_to_parquet,
-            message_obj,
-            MESSAGES,
-        )
+        await send_embed(embed, config.channel("audit_logs"))
 
     @Cog.listener()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent) -> None:
@@ -408,7 +374,7 @@ class Events(Cog):
             await self._log_message_edit(
                 after, before_content, after_content, discriminator, url
             )
-            await self._update_message_in_parquet(after)
+            await self._store_message(after)
 
         except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_raw_message_edit event")
@@ -441,11 +407,10 @@ class Events(Cog):
                 message, payload.message_id, author, user_who_deleted, channel
             )
 
-            await self._safe_parquet_operation(
-                f"delete message {payload.message_id} from parquet",
-                delete_row_from_parquet,
+            await self._safe_db_operation(
+                f"delete message {payload.message_id}",
+                repository.delete_message,
                 payload.message_id,
-                MESSAGES,
             )
         except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_raw_message_delete event")
@@ -472,16 +437,15 @@ class Events(Cog):
                 discriminator, url = await self._get_user_data(user_who_deleted)
                 user_who_deleted_name = user_who_deleted.name
 
-            embed = self._base_embed(description, 0x337FD5)
+            embed = self._base_embed(description, config.color("embed_color_info"))
             embed = self._set_author(embed, user_who_deleted_name, discriminator, url)
-            await send_embed(embed, AUDIT_LOGS_CHANNEL)
+            await send_embed(embed, config.channel("audit_logs"))
 
             for message_id in payload.message_ids:
-                await self._safe_parquet_operation(
-                    f"delete message {message_id} from parquet",
-                    delete_row_from_parquet,
+                await self._safe_db_operation(
+                    f"delete message {message_id}",
+                    repository.delete_message,
                     message_id,
-                    MESSAGES,
                 )
         except Exception as e:  # noqa: BLE001
             await self._handle_error(
@@ -494,11 +458,13 @@ class Events(Cog):
         discriminator, url = await self._get_user_data(user)
         embed = self._base_embed(
             f"{user.mention} {user.name}{discriminator}",
-            0xFF470F if action == "ban" else 0x337FD5,
+            config.color("embed_color_danger")
+            if action == "ban"
+            else config.color("embed_color_info"),
         )
         embed = embed.set_author(name=f"User {action.capitalize()}ed", icon_url=url)
         embed = embed.set_thumbnail(url=url).set_footer(text=f"ID: {user.id}")
-        await send_embed(embed, AUDIT_LOGS_CHANNEL)
+        await send_embed(embed, config.channel("audit_logs"))
 
     @Cog.listener()
     async def on_member_ban(self, guild: Guild, user: User | Member) -> None:
@@ -528,9 +494,9 @@ class Events(Cog):
                 else "Never"
             )
             description = f"**Invite [{invite.code}]({invite.url}) to {channel_mention} created by {inviter_mention}**\nExpires: {expiry}"
-            embed = self._base_embed(description, 0x337FD5)
+            embed = self._base_embed(description, config.color("embed_color_info"))
             embed = embed.set_author(name=f"{guild_name}", icon_url=guild_icon)
-            await send_embed(embed, AUDIT_LOGS_CHANNEL)
+            await send_embed(embed, config.channel("audit_logs"))
         except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_invite_create event")
 
@@ -541,17 +507,16 @@ class Events(Cog):
                 invite
             )
             description = f"**Invite [{invite.code}]({invite.url}) deleted**"
-            embed = self._base_embed(description, 0xFF470F)
+            embed = self._base_embed(description, config.color("embed_color_danger"))
             embed = embed.set_author(name=f"{guild_name}", icon_url=guild_icon)
-            await send_embed(embed, AUDIT_LOGS_CHANNEL)
+            await send_embed(embed, config.channel("audit_logs"))
         except Exception as e:  # noqa: BLE001
             await self._handle_error(e, "Fatal error with on_invite_delete event")
 
     async def _get_message_content(self, message_id: int) -> str:
-        df = await read_parquet_cached(MESSAGES)
-        message_row = df.filter(pl.col("id") == message_id)
-        if message_row.height != 0:
-            return message_row.row(0, named=True)["contents"]
+        stored = await repository.get_message(message_id)
+        if stored and stored.contents:
+            return stored.contents
         return DEFAULT_MISSING_CONTENT
 
     async def _log_role_change(
@@ -559,19 +524,20 @@ class Events(Cog):
     ) -> None:
         roles_str = " ".join([role.mention for role in roles])
         message = f"**{member.mention} was {'given' if add else 'removed from'} the role{'' if len(roles) == 1 else 's'} {roles_str}**"
-        embed = self._base_embed(message, 0x337FD5)
+        embed = self._base_embed(message, config.color("embed_color_info"))
         embed = self._set_author(embed, member.name, discriminator, url)
         embed = embed.set_footer(text=f"ID: {member.id}")
         await send_embed(
             embed,
-            AUDIT_LOGS_CHANNEL,
+            config.channel("audit_logs"),
         )
 
     async def _log_nickname_change(
         self, member: Member, discriminator: str, url: str, before: str, after: str
     ) -> None:
         embed = self._base_embed(
-            f"**{member.mention} changed their nickname**", 0x337FD5
+            config.template("audit_nickname_changed", mention=member.mention),
+            config.color("embed_color_info"),
         )
         embed = self._set_author(embed, member.name, discriminator, url)
         embed = (
@@ -581,20 +547,21 @@ class Events(Cog):
         )
         await send_embed(
             embed,
-            AUDIT_LOGS_CHANNEL,
+            config.channel("audit_logs"),
         )
 
     async def _log_pfp_change(
         self, member: Member, discriminator: str, url: str
     ) -> None:
         embed = self._base_embed(
-            f"**{member.mention} changed their profile picture**", 0x337FD5
+            config.template("audit_pfp_changed", mention=member.mention),
+            config.color("embed_color_info"),
         )
         embed = self._set_author(embed, member.name, discriminator, url)
         embed = embed.set_thumbnail(url=url).set_footer(text=f"ID: {member.id}")
         await send_embed(
             embed,
-            AUDIT_LOGS_CHANNEL,
+            config.channel("audit_logs"),
         )
 
     async def _log_timeout(
@@ -602,26 +569,28 @@ class Events(Cog):
     ) -> None:
         expiry = f"<t:{int(timeout.timestamp())}:R>"
         embed = self._base_embed(
-            f"**{member.mention} has been timed out**\nExpires {expiry}", 0x337FD5
+            config.template("audit_timed_out", mention=member.mention, expiry=expiry),
+            config.color("embed_color_info"),
         )
         embed = self._set_author(embed, member.name, discriminator, url)
         embed = embed.set_footer(text=f"ID: {member.id}")
         await send_embed(
             embed,
-            AUDIT_LOGS_CHANNEL,
+            config.channel("audit_logs"),
         )
 
     async def _log_untimeout(
         self, member: Member, discriminator: str, url: str
     ) -> None:
         embed = self._base_embed(
-            f"**{member.mention}'s timeout has been removed**", 0x337FD5
+            config.template("audit_timeout_removed", mention=member.mention),
+            config.color("embed_color_info"),
         )
         embed = self._set_author(embed, member.name, discriminator, url)
         embed = embed.set_footer(text=f"ID: {member.id}")
         await send_embed(
             embed,
-            AUDIT_LOGS_CHANNEL,
+            config.channel("audit_logs"),
         )
 
     async def _log_message_pin(
@@ -629,12 +598,12 @@ class Events(Cog):
     ) -> None:
         channel_mention = get_channel_mention(message.channel)
         description = f"**Message {'pinned' if message.pinned else 'unpinned'} in {channel_mention}** [Jump to Message]({message.jump_url})"
-        embed = self._base_embed(description, 0x337FD5)
+        embed = self._base_embed(description, config.color("embed_color_info"))
         embed = self._set_author(embed, message.author.name, discriminator, url)
         embed = embed.set_footer(text=f"User ID: {message.author.id}")
         await send_embed(
             embed,
-            AUDIT_LOGS_CHANNEL,
+            config.channel("audit_logs"),
         )
 
     async def _log_deleted_missing_message(
@@ -668,18 +637,17 @@ class Events(Cog):
 
         channel_mention = get_channel_mention(channel)
         description = f"**Message deleted by {user_mention} in {channel_mention}**"
-        embed = self._base_embed(description, 0xFF470F)
+        embed = self._base_embed(description, config.color("embed_color_danger"))
         embed = self._set_author(embed, user_name, discriminator, url)
         embed = embed.add_field(
             name="**Message**", value=f"{message_content}", inline=False
         ).set_footer(text=f"Deleter: {user_id} | Message ID: {message_id}")
-        await send_embed(embed, AUDIT_LOGS_CHANNEL)
+        await send_embed(embed, config.channel("audit_logs"))
 
-        await self._safe_parquet_operation(
-            f"delete message {message_id} from parquet",
-            delete_row_from_parquet,
+        await self._safe_db_operation(
+            f"delete message {message_id}",
+            repository.delete_message,
             message_id,
-            MESSAGES,
         )
 
     async def _log_message_delete(
@@ -710,7 +678,7 @@ class Events(Cog):
         channel_mention = get_channel_mention(channel)
         description = f"**Message sent by {author.mention} deleted{user_who_deleted_mention} in {channel_mention}**"
         discriminator, url = await self._get_user_data(author)
-        embed = self._base_embed(description, 0xFF470F)
+        embed = self._base_embed(description, config.color("embed_color_danger"))
         embed = self._set_author(embed, author.name, discriminator, url)
         embed = embed.set_footer(text=f"Author: {author.id} | Message ID: {message_id}")
         if message_content:
@@ -718,7 +686,7 @@ class Events(Cog):
             embed = embed.add_field(
                 name="**Message**", value=f"{message_content}", inline=False
             )
-        await send_embed(embed, AUDIT_LOGS_CHANNEL)
+        await send_embed(embed, config.channel("audit_logs"))
         await self._log_message_attachments_delete(
             message, message_id, author, channel, discriminator, url
         )
@@ -745,14 +713,18 @@ class Events(Cog):
             channel_mention = get_channel_mention(channel)
             for attachment in message.attachments:
                 embed = self._base_embed(
-                    f"**Attachment sent by {author.mention} deleted in {channel_mention}**",
-                    0xFF470F,
+                    config.template(
+                        "audit_attachment_deleted",
+                        mention=author.mention,
+                        channel=channel_mention,
+                    ),
+                    config.color("embed_color_danger"),
                 )
                 embed = self._set_author(embed, author.name, discriminator, url)
                 embed = embed.set_footer(
                     text=f"Author: {author.id} | Message ID: {message_id}"
                 ).set_image(url=attachment.url)
-                await send_embed(embed, AUDIT_LOGS_CHANNEL)
+                await send_embed(embed, config.channel("audit_logs"))
 
     async def _get_guild_name_and_icon_from_invite(
         self, invite: Invite

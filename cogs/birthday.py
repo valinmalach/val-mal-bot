@@ -1,27 +1,19 @@
 import io
 import logging
 import traceback
-from typing import Literal
+from typing import Any, Literal
 
 import discord
 import pendulum
-import polars as pl
 from discord import Interaction, Member, User, app_commands
 from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
 from pendulum import DateTime
 
-from constants import (
-    BOT_ADMIN_CHANNEL,
-    FOLLOWER_ROLE,
-    MAX_DAYS,
-    OWNER_ID,
-    USERS,
-    ErrorDetails,
-    Months,
-    UserRecord,
-)
-from services import get_next_leap, read_parquet_cached, send_message, update_birthday
+from constants import MAX_DAYS, ErrorDetails, Months
+from db import repository
+from services import get_next_leap, send_message
+from services.config import config, has_configured_role
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +23,7 @@ class Birthday(GroupCog):
         self.bot = bot
 
     @app_commands.command(name="set", description="Set your birthday")
-    @app_commands.checks.has_role(FOLLOWER_ROLE)
+    @has_configured_role("follower")
     @app_commands.describe(
         month="The month of your birthday",
         day="The day of your birthday",
@@ -45,25 +37,20 @@ class Birthday(GroupCog):
         timezone: str = "UTC",
     ) -> None:
         try:
-            # Validate inputs
             validation_error = await self._validate_birthday_inputs(
                 interaction, month, day, timezone
             )
             if validation_error:
                 return
 
-            # Calculate next birthday year
             year = self._calculate_next_birthday_year(month, day, timezone)
 
-            # Create user record
             record = self._create_birthday_record(
                 interaction.user, month, day, year, timezone
             )
 
-            # Update birthday in database
             await self._update_birthday_database(interaction, record)
 
-            # Send success response
             await self._send_birthday_set_response(interaction, month, day)
 
         except Exception as e:  # noqa: BLE001
@@ -75,16 +62,14 @@ class Birthday(GroupCog):
         """Validate timezone and day inputs. Returns True if there was an error."""
         if timezone not in pendulum.timezones():
             await interaction.response.send_message(
-                f"Sorry. I've never heard of the timezone {timezone}. "
-                + "Have you tried using the autocomplete options provided? "
-                + "Because those are the only timezones I know of."
+                config.template("birthday_bad_timezone", timezone=timezone)
             )
             logger.warning(f"Invalid timezone provided: {timezone}")
             return True
 
         if day > MAX_DAYS[month]:
             await interaction.response.send_message(
-                f"{month.name} doesn't have that many days..."
+                config.template("birthday_bad_day", month=month.name)
             )
             logger.warning(f"Invalid day {day} for month {month.name}")
             return True
@@ -127,31 +112,30 @@ class Birthday(GroupCog):
 
     def _create_birthday_record(
         self, user: User | Member, month: Months, day: int, year: int, timezone: str
-    ) -> UserRecord:
-        """Create a UserRecord for the birthday."""
-        birthday_datetime = (
+    ) -> dict[str, Any]:
+        """Build the arguments for storing this birthday."""
+        birthday = (
             DateTime.strptime(
                 f"{year}-{month.value:02d}-{day:02d} 00:00:00",
                 "%Y-%m-%d %H:%M:%S",
             )
             .replace(tzinfo=pendulum.timezone(timezone))
             .astimezone(pendulum.timezone("UTC"))
-            .strftime("%Y-%m-%dT%H:%M:%S.000Z")
         )
 
         return {
-            "id": user.id,
+            "user_id": user.id,
             "username": user.name,
-            "birthday": birthday_datetime,
-            "isBirthdayLeap": month == Months.February and day == 29,
+            "birthday": birthday,
+            "is_birthday_leap": month == Months.February and day == 29,
         }
 
     async def _update_birthday_database(
-        self, interaction: Interaction, record: UserRecord
+        self, interaction: Interaction, record: dict[str, Any]
     ) -> None:
         """Update the birthday in the database with error handling."""
         try:
-            update_birthday(record)
+            await repository.upsert_user(**record)
         except Exception as e:
             await self._handle_set_birthday_exception(interaction, e)
             raise  # Re-raise to be caught by the main exception handler
@@ -162,14 +146,10 @@ class Birthday(GroupCog):
         """Send appropriate success message based on birthday type."""
         if month == Months.February and day == 29:
             await interaction.response.send_message(
-                "That's an unfortunate birthday 😦\n\n"
-                + "Ah well, looks like I'll only wish you every 4 years!"
+                config.template("birthday_set_leap")
             )
         else:
-            await interaction.response.send_message(
-                "I've remembered your birthday! "
-                + "I'll wish you at midnight of your selected timezone!"
-            )
+            await interaction.response.send_message(config.template("birthday_set"))
 
     async def _handle_set_birthday_exception(
         self, interaction: Interaction, e: Exception
@@ -201,46 +181,34 @@ class Birthday(GroupCog):
     @app_commands.command(
         name="remove", description="Removes your birthday, if it exists"
     )
-    @app_commands.checks.has_role(FOLLOWER_ROLE)
+    @has_configured_role("follower")
     async def remove_birthday(
         self,
         interaction: Interaction,
     ) -> None:
         try:
-            df = await read_parquet_cached(USERS)
-            existing_user_row = df.filter(pl.col("id") == interaction.user.id)
-            if existing_user_row.height == 0:
-                existing_user = None
-            else:
-                existing_user = existing_user_row.row(0, named=True)
-
+            existing_user = await repository.get_user(interaction.user.id)
             if existing_user is None:
                 await send_message(
                     f"User {interaction.user.name} ({interaction.user.id}) attempted to remove a birthday but had no record.",
-                    BOT_ADMIN_CHANNEL,
+                    config.channel("bot_admin"),
                 )
                 await interaction.response.send_message(
-                    "An error occurred while trying to remove your birthday."
+                    config.template("birthday_remove_failed")
                 )
                 return
 
-            record: UserRecord = {
-                "id": interaction.user.id,
-                "username": interaction.user.name,
-                "birthday": None,
-                "isBirthdayLeap": None,
-            }
-            update_birthday(record)
+            had_birthday = existing_user.birthday is not None
+            await repository.upsert_user(interaction.user.id, interaction.user.name)
 
-            if existing_user.get("birthday"):
+            if had_birthday:
                 await interaction.response.send_message(
-                    "I've removed your birthday! I won't wish you anymore!"
+                    config.template("birthday_removed")
                 )
                 return
 
             await interaction.response.send_message(
-                "You had no birthday to remove. "
-                + "Maybe try setting one first before asking me to remove it?"
+                config.template("birthday_none_to_remove")
             )
         except Exception as e:  # noqa: BLE001
             error_details: ErrorDetails = {
@@ -265,17 +233,18 @@ class Birthday(GroupCog):
         mention = (
             interaction.guild.owner.mention
             if interaction.guild and interaction.guild.owner
-            else f"<@{OWNER_ID}>"
+            else f"<@{config.setting('owner_id')}>"
         )
         await interaction.response.send_message(
-            f"Oops, it seems like I couldn't {set_forget} your birthday...\n\n"
-            + f"# {mention} FIX MEEEE!!!"
+            config.template(
+                "birthday_operation_failed", action=set_forget, mention=mention
+            )
         )
         traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
         traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
         await send_message(
             f"Failed to {set_forget} birthday for {interaction.user.name}: {error_msg}",
-            BOT_ADMIN_CHANNEL,
+            config.channel("bot_admin"),
             file=traceback_file,
         )
 
