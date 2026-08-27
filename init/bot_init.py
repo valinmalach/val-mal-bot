@@ -10,6 +10,8 @@ from background import fire_and_forget
 
 logger = logging.getLogger(__name__)
 
+_startup_announced = False
+
 
 async def restart_live_alert_tasks() -> None:
     from db import repository
@@ -78,9 +80,16 @@ bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 @bot.event
 async def on_ready() -> None:
+    global _startup_announced
     from services.config import config
 
     fire_and_forget(run_background_tasks(), name="startup-tasks")
+
+    if _startup_announced:
+        # on_ready fires again every time the gateway session cannot be resumed,
+        # which is a reconnect, not a startup.
+        logger.info("Reconnected to Discord")
+        return
 
     channel = bot.get_channel(config.channel("bot_admin"))
     if channel is None or isinstance(
@@ -88,3 +97,4 @@ async def on_ready() -> None:
     ):
         return
     await channel.send(config.template("discord_startup"))
+    _startup_announced = True
