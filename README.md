@@ -31,11 +31,11 @@ real bot logs in, which is rarely what you want against a local database.
 **3. Create the schema and fill it.**
 
 ```sh
-uv run alembic upgrade head   # 14 tables
-uv run python seed.py         # configuration
+uv run alembic upgrade head   # 14 tables and the configuration in them
 ```
 
-Both steps skip what already exists, so they are safe to repeat.
+Configuration arrives with the schema, in a migration, and skips what already
+exists, so this is safe to repeat.
 
 **4. Run the bot.**
 
@@ -56,7 +56,7 @@ the container.
 ### Pointing the test bot at a test guild
 
 `guild_id` is an `app_setting` row, not a constant. To keep local runs out of
-the real server, change it after seeding:
+the real server, change it once the migrations have run:
 
 ```sql
 UPDATE app_setting SET value = '<test guild id>' WHERE key = 'guild_id';

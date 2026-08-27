@@ -60,14 +60,10 @@ if [ -n "$LOCLX_TOKEN" ]; then
     fi
 fi
 
-# 2. Apply database migrations
+# 2. Apply database migrations, configuration included
 echo "Running database migrations..."
 uv run alembic upgrade head
 
-# 3. Seed data (Ensure your seed script checks if data exists first)
-echo "Running database seed..."
-uv run python seed.py
-
-# 4. Launch main application
+# 3. Launch main application
 echo "Starting application..."
 exec uv run main.py
