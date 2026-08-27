@@ -3,12 +3,9 @@
 The connection string is a secret, so it stays in ``.env`` as ``DATABASE_URL``.
 """
 
-import os
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from dotenv import load_dotenv
-
-load_dotenv()
+from config import settings
 
 ASYNC_DRIVER = "postgresql+asyncpg"
 SYNC_DRIVER = "postgresql+psycopg2"
@@ -76,16 +73,5 @@ def _translate_query(query: str, *, driver: str) -> str:
 
 
 def get_database_url(*, driver: str = ASYNC_DRIVER) -> str:
-    """Return the configured database URL, raising if ``DATABASE_URL`` is unset."""
-    raw = os.getenv("DATABASE_URL", "").strip()
-    if not raw:
-        raise RuntimeError(
-            "DATABASE_URL is not set. Copy the Postgres connection string from "
-            "Railway into .env as DATABASE_URL."
-        )
-    return normalize_database_url(raw, driver=driver)
-
-
-def database_url_configured() -> bool:
-    """Whether a database URL is available, without raising if it is not."""
-    return bool(os.getenv("DATABASE_URL", "").strip())
+    """Return the configured database URL, ready for ``create_engine``."""
+    return normalize_database_url(settings.database_url, driver=driver)

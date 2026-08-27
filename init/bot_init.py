@@ -7,8 +7,8 @@ import polars as pl
 from discord import CategoryChannel, ForumChannel
 from discord.abc import PrivateChannel
 from discord.ext.commands import Bot
-from dotenv import load_dotenv
 
+from config import settings
 from constants import (
     BOT_ADMIN_CHANNEL,
     GUILD_ID,
@@ -18,13 +18,9 @@ from constants import (
 )
 from services.helper.parquet_cache import parquet_cache
 
-load_dotenv()
-
 logger = logging.getLogger(__name__)
 
 MY_GUILD = discord.Object(id=GUILD_ID)
-
-TWITCH_BROADCASTER_ID = os.getenv("TWITCH_BROADCASTER_ID")
 
 
 async def restart_live_alert_tasks() -> None:
@@ -54,10 +50,7 @@ async def activate_if_live() -> None:
     from services import get_stream_info
     from services.twitch.shoutout_queue import shoutout_queue
 
-    if not TWITCH_BROADCASTER_ID:
-        return
-
-    stream_info = await get_stream_info(int(TWITCH_BROADCASTER_ID))
+    stream_info = await get_stream_info(int(settings.twitch_broadcaster_id))
     if stream_info and stream_info.type == "live":
         _ = asyncio.create_task(shoutout_queue.activate())
 

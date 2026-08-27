@@ -2,26 +2,20 @@ import asyncio
 import contextlib
 import io
 import logging
-import os
 import traceback
 from typing import ClassVar, Self, cast
 
 import discord
 import httpx
 import pendulum
-from dotenv import load_dotenv
 
+from config import settings
 from constants import BOT_ADMIN_CHANNEL, ErrorDetails, TokenType
 from services.helper.helper import send_message
 from services.helper.twitch import call_twitch
 from services.twitch.api import get_user
 
-load_dotenv()
-
 logger = logging.getLogger(__name__)
-
-TWITCH_BOT_USER_ID = os.getenv("TWITCH_BOT_USER_ID")
-TWITCH_BROADCASTER_ID = os.getenv("TWITCH_BROADCASTER_ID")
 
 # Twitch: 1 shoutout to the same channel every 60 minutes; stay strictly above that window.
 _MIN_SAME_TARGET_COOLDOWN_SECONDS = 61 * 60
@@ -110,9 +104,9 @@ class TwitchShoutoutQueue:
 
                 url = "https://api.twitch.tv/helix/chat/shoutouts"
                 data = {
-                    "from_broadcaster_id": TWITCH_BROADCASTER_ID,
+                    "from_broadcaster_id": settings.twitch_broadcaster_id,
                     "to_broadcaster_id": user.id,
-                    "moderator_id": TWITCH_BOT_USER_ID,
+                    "moderator_id": settings.twitch_bot_user_id,
                 }
                 response = await call_twitch("POST", url, data, TokenType.User)
                 if response is not None and 200 <= response.status_code < 300:

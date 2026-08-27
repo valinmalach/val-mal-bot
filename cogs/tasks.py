@@ -10,7 +10,6 @@ import pendulum
 import polars as pl
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
-from dotenv import load_dotenv
 from polars import DataFrame
 
 from constants import (
@@ -26,8 +25,6 @@ from services import (
     send_message,
     update_birthday,
 )
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 

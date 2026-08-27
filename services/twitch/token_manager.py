@@ -1,11 +1,10 @@
 import logging
-import os
 from typing import ClassVar, Self, cast
 
 import aiofiles
 import pendulum
-from dotenv import load_dotenv
 
+from config import settings
 from constants import (
     APP_ACCESS_TOKEN_FILE,
     BOT_ADMIN_CHANNEL,
@@ -19,12 +18,7 @@ from models import AuthResponse, RefreshResponse
 from services.helper.helper import send_message
 from services.helper.http_client import http_client_manager
 
-load_dotenv()
-
 logger = logging.getLogger(__name__)
-
-TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
-TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 
 # Treat a token as due slightly before Twitch actually expires it, so a request
 # already in flight cannot cross the boundary.
@@ -163,8 +157,8 @@ class TwitchTokenManager:
             "user:write:chat",
         ]
         params = {
-            "client_id": TWITCH_CLIENT_ID,
-            "client_secret": TWITCH_CLIENT_SECRET,
+            "client_id": settings.twitch_client_id,
+            "client_secret": settings.twitch_client_secret,
             "grant_type": "client_credentials",
             "scope": " ".join(scopes),
         }
@@ -228,8 +222,8 @@ class TwitchTokenManager:
             return False
 
         params = {
-            "client_id": TWITCH_CLIENT_ID,
-            "client_secret": TWITCH_CLIENT_SECRET,
+            "client_id": settings.twitch_client_id,
+            "client_secret": settings.twitch_client_secret,
             "grant_type": "refresh_token",
             "refresh_token": self._broadcaster_refresh_token
             if broadcaster

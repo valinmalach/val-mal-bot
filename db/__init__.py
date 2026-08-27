@@ -4,7 +4,6 @@ Tables in ``db/models``, revisions in ``migrations/``; see ``db/README.md``.
 """
 
 from db.config import (
-    database_url_configured,
     get_database_url,
     normalize_database_url,
 )
@@ -52,7 +51,6 @@ __all__ = [
     "TwitchCommand",
     "TwitchCommandComponent",
     "TwitchCommandResponse",
-    "database_url_configured",
     "dispose_engine",
     "get_database_url",
     "get_engine",

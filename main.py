@@ -9,27 +9,21 @@ import os
 import traceback
 from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse
 from rich.logging import RichHandler
 
+from config import settings
 from constants import COGS, ErrorDetails
 from controller import twitch_router
 from init import bot
 from services.helper.http_client import http_client_manager
-
-load_dotenv()
-
 
 logging.basicConfig(
     level=logging.INFO, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
 )
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
-
-
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 
 def get_error_details(e: Exception) -> ErrorDetails:
@@ -47,9 +41,6 @@ def log_error(message: str, error_details: ErrorDetails):
 
 async def main() -> None:
     try:
-        if not DISCORD_TOKEN:
-            logger.error("DISCORD_TOKEN is not set, aborting startup")
-            raise ValueError("DISCORD_TOKEN is not set in the environment variables.")
         bot.remove_command("help")
         results = await asyncio.gather(
             *(bot.load_extension(ext) for ext in COGS), return_exceptions=True
@@ -61,7 +52,7 @@ async def main() -> None:
                     f"Failed to load extension {ext} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}",
                     error_details,
                 )
-        await bot.start(DISCORD_TOKEN)
+        await bot.start(settings.discord_token)
     except Exception as e:  # noqa: BLE001
         error_details = get_error_details(e)
         log_error(

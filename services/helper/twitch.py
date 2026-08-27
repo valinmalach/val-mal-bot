@@ -1,13 +1,12 @@
 import io
 import logging
-import os
 import traceback
 from typing import Literal
 
 import discord
-from dotenv import load_dotenv
 from httpx import Response
 
+from config import settings
 from constants import (
     BOT_ADMIN_CHANNEL,
     ErrorDetails,
@@ -18,12 +17,7 @@ from services.helper.helper import send_message
 from services.helper.http_client import http_client_manager, is_transient_network_error
 from services.twitch.token_manager import token_manager
 
-load_dotenv()
-
 logger = logging.getLogger(__name__)
-
-TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
-TWITCH_BOT_USER_ID = os.getenv("TWITCH_BOT_USER_ID")
 
 
 async def log_error(message: str, traceback_str: str) -> None:
@@ -114,7 +108,7 @@ async def call_twitch(
 
         token = _get_token_for_type(token_type)
         headers = {
-            "Client-ID": TWITCH_CLIENT_ID,
+            "Client-ID": settings.twitch_client_id,
             "Authorization": f"Bearer {token}",
         }
 
@@ -166,7 +160,7 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
         url = "https://api.twitch.tv/helix/chat/messages"
         data = {
             "broadcaster_id": broadcaster_id,
-            "sender_id": TWITCH_BOT_USER_ID,
+            "sender_id": settings.twitch_bot_user_id,
             "message": message,
             "for_source_only": False,
         }

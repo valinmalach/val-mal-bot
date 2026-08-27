@@ -3,7 +3,6 @@
 Nothing connects at import time, so a missing ``DATABASE_URL`` cannot break startup.
 """
 
-import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -14,6 +13,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from config import settings
 from db.config import get_database_url
 
 __all__ = [
@@ -33,7 +33,7 @@ def get_engine() -> AsyncEngine:
     if _engine is None:
         _engine = create_async_engine(
             get_database_url(),
-            echo=os.getenv("DB_ECHO", "").lower() in {"1", "true", "yes"},
+            echo=settings.db_echo,
             pool_size=5,
             max_overflow=5,
             # Railway's proxy drops idle connections, so verify before handing

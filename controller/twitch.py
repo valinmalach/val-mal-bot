@@ -1,7 +1,6 @@
 import asyncio
 import io
 import logging
-import os
 import traceback
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -10,9 +9,9 @@ import discord
 import pendulum
 import polars as pl
 from discord.ui import View
-from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException, Request, Response
 
+from config import settings
 from constants import (
     BOT_ADMIN_CHANNEL,
     BROADCASTER_USERNAME,
@@ -75,14 +74,6 @@ from services.helper.http_client import http_client_manager
 from services.twitch.shoutout_queue import shoutout_queue
 from services.twitch.token_manager import token_manager
 
-load_dotenv()
-
-APP_URL = os.getenv("APP_URL")
-TWITCH_BROADCASTER_ID = os.getenv("TWITCH_BROADCASTER_ID")
-TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
-TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
-TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
-
 logger = logging.getLogger(__name__)
 
 twitch_router = APIRouter()
@@ -109,7 +100,7 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
     twitch_message_timestamp = headers.get(TWITCH_MESSAGE_TIMESTAMP, "")
     body_str = (await request.body()).decode()
     message = get_hmac_message(twitch_message_id, twitch_message_timestamp, body_str)
-    secret_hmac = HMAC_PREFIX + get_hmac(TWITCH_WEBHOOK_SECRET, message)
+    secret_hmac = HMAC_PREFIX + get_hmac(settings.twitch_webhook_secret, message)
 
     twitch_message_signature = headers.get(TWITCH_MESSAGE_SIGNATURE, "")
     if not verify_message(secret_hmac, twitch_message_signature):
@@ -184,7 +175,7 @@ def _get_live_alerts_mention(channel_id: int) -> str | None:
 
 def _is_main_broadcaster(broadcaster_id: str | int) -> bool:
     """Check if the broadcaster is the main broadcaster."""
-    return str(broadcaster_id) == TWITCH_BROADCASTER_ID
+    return str(broadcaster_id) == settings.twitch_broadcaster_id
 
 
 def _extract_alert_data(alert: dict[str, Any]) -> tuple[int, int, str, str]:
@@ -581,7 +572,7 @@ async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -
 async def _oauth_callback_common(
     code: str, state: str, endpoint: str
 ) -> RefreshResponse:
-    if state != TWITCH_WEBHOOK_SECRET:
+    if state != settings.twitch_webhook_secret:
         logger.warning(f"400: Bad request. Invalid state: {state}")
         await send_message(
             f"400: Bad request on {endpoint}. Invalid state.",
@@ -590,11 +581,11 @@ async def _oauth_callback_common(
         raise HTTPException(status_code=400)
 
     params = {
-        "client_id": TWITCH_CLIENT_ID,
-        "client_secret": TWITCH_CLIENT_SECRET,
+        "client_id": settings.twitch_client_id,
+        "client_secret": settings.twitch_client_secret,
         "code": code,
         "grant_type": "authorization_code",
-        "redirect_uri": f"{APP_URL}{endpoint}",
+        "redirect_uri": f"{settings.app_url}{endpoint}",
     }
     response = await http_client_manager.request(
         "POST", "https://id.twitch.tv/oauth2/token", params=params

@@ -2,7 +2,6 @@ import asyncio
 import io
 import itertools
 import logging
-import os
 import traceback
 from collections.abc import Awaitable, Callable
 from typing import Any, Literal
@@ -11,8 +10,8 @@ import discord
 import pendulum
 import polars as pl
 from discord.ui import View
-from dotenv import load_dotenv
 
+from config import settings
 from constants import (
     BOT_ADMIN_CHANNEL,
     BROADCASTER_USERNAME,
@@ -47,12 +46,7 @@ from services.helper.helper import (
 from services.helper.http_client import is_transient_network_error
 from services.helper.twitch import call_twitch
 
-load_dotenv()
-
 logger = logging.getLogger(__name__)
-
-APP_URL = os.getenv("APP_URL")
-TWITCH_WEBHOOK_SECRET = os.getenv("TWITCH_WEBHOOK_SECRET")
 
 
 async def log_error(message: str, traceback_str: str) -> None:
@@ -232,8 +226,8 @@ async def twitch_event_subscription(
         "condition": {"broadcaster_user_id": user_id},
         "transport": {
             "method": "webhook",
-            "callback": f"{APP_URL}/webhook/twitch{'' if sub_type == 'online' else '/offline'}",
-            "secret": TWITCH_WEBHOOK_SECRET,
+            "callback": f"{settings.app_url}/webhook/twitch{'' if sub_type == 'online' else '/offline'}",
+            "secret": settings.twitch_webhook_secret,
         },
     }
 
