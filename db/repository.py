@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col
 
@@ -36,6 +36,9 @@ __all__ = [
 async def _upsert(model: Any, values: dict[str, Any], key: list[str]) -> None:
     statement = insert(model).values(**values)
     updates = {k: getattr(statement.excluded, k) for k in values if k not in key}
+    if "updated_at" in model.__table__.columns:
+        # The column's onupdate does not fire for ON CONFLICT DO UPDATE.
+        updates["updated_at"] = func.now()
     async with session_scope() as session:
         await session.execute(
             statement.on_conflict_do_update(index_elements=key, set_=updates)
