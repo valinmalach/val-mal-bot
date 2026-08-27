@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from alembic import context
 from alembic.autogenerate.api import AutogenContext
-from sqlalchemy import pool
+from sqlalchemy import CheckConstraint, pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlmodel.sql.sqltypes import AutoString
@@ -49,6 +49,28 @@ def _render_item(
     return False
 
 
+# Names of the CHECK constraints SQLAlchemy generates for enum columns.
+_ENUM_CHECKS = frozenset(
+    constraint.name
+    for table in target_metadata.tables.values()
+    for constraint in table.constraints
+    if isinstance(constraint, CheckConstraint)
+    and getattr(constraint, "_type_bound", False)
+    and constraint.name
+)
+
+
+def _include_object(
+    obj: Any, name: str | None, type_: str, reflected: bool, compare_to: Any
+) -> bool:
+    """Hide enum CHECK constraints from the comparison.
+
+    Autogenerate reflects them but skips them on the metadata side, so every
+    revision would otherwise open with a spurious drop_constraint.
+    """
+    return not (type_ == "check_constraint" and name in _ENUM_CHECKS)
+
+
 def _context_options() -> dict:
     return {
         "target_metadata": target_metadata,
@@ -56,6 +78,7 @@ def _context_options() -> dict:
         "compare_type": True,
         "compare_server_default": True,
         "render_item": _render_item,
+        "include_object": _include_object,
     }
 
 
