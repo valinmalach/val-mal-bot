@@ -9,7 +9,6 @@ import discord
 import httpx
 import pendulum
 
-from config import settings
 from constants import ErrorDetails, TokenType
 from services.config import config
 from services.helper.helper import send_message
@@ -106,9 +105,9 @@ class TwitchShoutoutQueue:
 
                 url = "https://api.twitch.tv/helix/chat/shoutouts"
                 data = {
-                    "from_broadcaster_id": settings.twitch_broadcaster_id,
+                    "from_broadcaster_id": config.setting("twitch_broadcaster_id"),
                     "to_broadcaster_id": user.id,
-                    "moderator_id": settings.twitch_bot_user_id,
+                    "moderator_id": config.setting("twitch_bot_user_id"),
                 }
                 response = await call_twitch("POST", url, data, TokenType.User)
                 if response is not None and 200 <= response.status_code < 300:

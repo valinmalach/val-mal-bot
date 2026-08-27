@@ -19,11 +19,8 @@ class Settings(BaseSettings):
 
     database_url: str
     app_url: str
-
-    # Moving to app_setting; still read from the environment until the app
-    # reads its configuration from the database.
-    twitch_bot_user_id: str
-    twitch_broadcaster_id: str
+    # Railway injects PORT; 8000 matches what the tunnel targets locally.
+    port: int = 8000
 
     db_echo: bool = False
 

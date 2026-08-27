@@ -6,8 +6,6 @@ from discord import CategoryChannel, ForumChannel
 from discord.abc import PrivateChannel
 from discord.ext.commands import Bot
 
-from config import settings
-
 logger = logging.getLogger(__name__)
 
 
@@ -30,9 +28,10 @@ async def restart_live_alert_tasks() -> None:
 
 async def activate_if_live() -> None:
     from services import get_stream_info
+    from services.config import config
     from services.twitch.shoutout_queue import shoutout_queue
 
-    stream_info = await get_stream_info(int(settings.twitch_broadcaster_id))
+    stream_info = await get_stream_info(int(config.setting("twitch_broadcaster_id")))
     if stream_info and stream_info.type == "live":
         _ = asyncio.create_task(shoutout_queue.activate())
 

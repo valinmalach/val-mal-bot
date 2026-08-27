@@ -160,7 +160,7 @@ def _get_live_alerts_mention(channel_id: int) -> str | None:
 
 def _is_main_broadcaster(broadcaster_id: str | int) -> bool:
     """Check if the broadcaster is the main broadcaster."""
-    return str(broadcaster_id) == settings.twitch_broadcaster_id
+    return str(broadcaster_id) == config.setting("twitch_broadcaster_id")
 
 
 def _extract_alert_data(alert: LiveAlert) -> tuple[int, int, int, str]:

@@ -19,7 +19,6 @@ from sqlmodel import SQLModel
 
 import backfill
 import seed_data as data
-from config import settings
 from db import (
     AppSetting,
     DiscordAutoResponse,
@@ -50,7 +49,7 @@ async def _insert(
 
 
 def _settings_rows() -> list[dict[str, Any]]:
-    """The static settings plus the two Twitch IDs still coming from the environment."""
+    """The static settings plus the scope list, which is stored as JSON."""
     return [
         *data.SETTINGS,
         {
@@ -58,18 +57,6 @@ def _settings_rows() -> list[dict[str, Any]]:
             "value": json.dumps(data.TWITCH_APP_SCOPES),
             "value_type": "json",
             "description": "Scopes requested for the app access token",
-        },
-        {
-            "key": "twitch_bot_user_id",
-            "value": settings.twitch_bot_user_id,
-            "value_type": "string",
-            "description": "Twitch account the bot posts as",
-        },
-        {
-            "key": "twitch_broadcaster_id",
-            "value": settings.twitch_broadcaster_id,
-            "value_type": "string",
-            "description": "Twitch account the bot watches",
         },
     ]
 

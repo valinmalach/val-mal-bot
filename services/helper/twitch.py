@@ -159,7 +159,7 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
         url = "https://api.twitch.tv/helix/chat/messages"
         data = {
             "broadcaster_id": broadcaster_id,
-            "sender_id": settings.twitch_bot_user_id,
+            "sender_id": config.setting("twitch_bot_user_id"),
             "message": message,
             "for_source_only": False,
         }

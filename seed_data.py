@@ -619,6 +619,18 @@ SETTINGS = [
         "description": "Fallback mention when the guild owner cannot be resolved",
     },
     {
+        "key": "twitch_bot_user_id",
+        "value": "976537965",
+        "value_type": "string",
+        "description": "Twitch account the bot posts as",
+    },
+    {
+        "key": "twitch_broadcaster_id",
+        "value": "422325043",
+        "value_type": "string",
+        "description": "Twitch account the bot watches",
+    },
+    {
         "key": "broadcaster_username",
         "value": "valinmalach",
         "value_type": "string",
@@ -629,12 +641,6 @@ SETTINGS = [
         "value": "$",
         "value_type": "string",
         "description": "Discord text command prefix",
-    },
-    {
-        "key": "backup_directory",
-        "value": "C:/backups",
-        "value_type": "string",
-        "description": "Destination for the nightly data backup",
     },
     {
         "key": "embed_color_welcome",
