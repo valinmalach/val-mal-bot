@@ -6,6 +6,8 @@ from discord import CategoryChannel, ForumChannel
 from discord.abc import PrivateChannel
 from discord.ext.commands import Bot
 
+from background import fire_and_forget
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +33,7 @@ async def activate_if_live() -> None:
 
     stream_info = await get_stream_info(int(config.setting("twitch_broadcaster_id")))
     if stream_info and stream_info.type == "live":
-        _ = asyncio.create_task(shoutout_queue.activate())
+        fire_and_forget(shoutout_queue.activate(), name="shoutout-queue")
 
 
 async def run_background_tasks():
@@ -78,7 +80,7 @@ bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 async def on_ready() -> None:
     from services.config import config
 
-    _ = asyncio.create_task(run_background_tasks())
+    fire_and_forget(run_background_tasks(), name="startup-tasks")
 
     channel = bot.get_channel(config.channel("bot_admin"))
     if channel is None or isinstance(

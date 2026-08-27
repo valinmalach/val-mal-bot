@@ -9,6 +9,7 @@ import pendulum
 from discord.ui import View
 from fastapi import APIRouter, HTTPException, Request, Response
 
+from background import fire_and_forget
 from config import settings
 from constants import (
     HMAC_PREFIX,
@@ -135,7 +136,7 @@ async def process_webhook(
             )
             raise HTTPException(status_code=400)
 
-        _ = asyncio.create_task(task_func(event_sub))
+        fire_and_forget(task_func(event_sub), name=endpoint)
         return Response(status_code=202)
     except HTTPException:
         raise
@@ -189,7 +190,7 @@ async def _handle_broadcaster_stream_start(
     if not is_main_broadcaster:
         return
 
-    _ = asyncio.create_task(shoutout_queue.activate())
+    fire_and_forget(shoutout_queue.activate(), name="shoutout-queue")
     await twitch_send_message(
         str(broadcaster_id),
         config.template("twitch_stream_greeting"),
