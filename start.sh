@@ -5,11 +5,8 @@ PORT="${PORT:-8000}"
 
 # 1. Authenticate and start loclx in the background
 if [ -n "$LOCLX_TOKEN" ]; then
-    # loclx wants the label only, but APP_URL is a full https:// URL.
-    SUBDOMAIN="${APP_URL#*://}"
-    SUBDOMAIN="${SUBDOMAIN%%.*}"
     loclx authtoken "$LOCLX_TOKEN"
-    loclx tunnel http --to "$PORT" --subdomain "$SUBDOMAIN" &
+    loclx tunnel http --to "$PORT" --subdomain "$LOCLX_SUBDOMAIN" &
 fi
 
 # 2. Apply database migrations
