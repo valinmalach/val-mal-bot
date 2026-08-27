@@ -82,9 +82,6 @@ def static_file_response(filename: str) -> Response:
 @app.get("/")
 @app.get("/health")
 async def root_or_health() -> Response:
-    # Both endpoints return 204, health returns a message
-    if "health" in str(root_or_health.__name__):
-        return Response("Health check OK", status_code=204)
     return Response(status_code=204)
 
 
