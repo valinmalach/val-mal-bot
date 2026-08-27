@@ -27,8 +27,21 @@ class Settings(BaseSettings):
 
     db_echo: bool = False
 
+    # Local development: run against the test bot and a local database rather
+    # than the production ones.
+    use_test_bot: bool = False
+
     # extra="ignore" so the many variables Railway injects into the environment
     # do not have to be declared here.
+    @property
+    def active_discord_token(self) -> str:
+        """The token to log in with, honouring use_test_bot."""
+        if not self.use_test_bot:
+            return self.discord_token
+        if not self.test_discord_token:
+            raise RuntimeError("USE_TEST_BOT is set but TEST_DISCORD_TOKEN is empty")
+        return self.test_discord_token
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

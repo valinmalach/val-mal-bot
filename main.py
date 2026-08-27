@@ -52,7 +52,7 @@ async def main() -> None:
                     f"Failed to load extension {ext} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}",
                     error_details,
                 )
-        await bot.start(settings.discord_token)
+        await bot.start(settings.active_discord_token)
     except Exception as e:  # noqa: BLE001
         error_details = get_error_details(e)
         log_error(
