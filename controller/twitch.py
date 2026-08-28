@@ -1,7 +1,5 @@
 import asyncio
-import io
 import logging
-import traceback
 from typing import Any
 
 import discord
@@ -18,10 +16,10 @@ from constants import (
     TWITCH_MESSAGE_SIGNATURE,
     TWITCH_MESSAGE_TIMESTAMP,
     TWITCH_MESSAGE_TYPE,
-    ErrorDetails,
     TokenType,
 )
 from db import LiveAlert, repository
+from errors import notify, report
 from models import (
     Channel,
     ChannelAdBreakBeginEventSub,
@@ -48,7 +46,6 @@ from services import (
     get_user,
     parse_rfc3339,
     send_embed,
-    send_message,
     start_alert_updater,
     twitch_send_message,
     verify_message,
@@ -82,9 +79,8 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
     if headers.get(TWITCH_MESSAGE_TYPE, "").lower() == "revocation":
         subscription: dict[str, Any] = body.get("subscription", {})
         condition = subscription.get("condition", {})
-        await send_message(
-            f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}",
-            config.channel("bot_admin"),
+        await notify(
+            f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}"
         )
         return Response(status_code=204)
 
@@ -97,33 +93,8 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
     twitch_message_signature = headers.get(TWITCH_MESSAGE_SIGNATURE, "")
     if not verify_message(secret_hmac, twitch_message_signature):
         logger.warning("403: Forbidden. Signature does not match.")
-        await send_message(
-            f"403: Forbidden request on {endpoint}. Signature does not match.",
-            config.channel("bot_admin"),
-        )
+        await notify(f"403: Forbidden request on {endpoint}. Signature does not match.")
         raise HTTPException(status_code=403)
-
-
-async def log_error(message: str, traceback_str: str) -> None:
-    traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
-    traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-    await send_message(message, config.channel("bot_admin"), file=traceback_file)
-
-
-def get_error_details(e: Exception) -> ErrorDetails:
-    return {
-        "type": type(e).__name__,
-        "message": str(e),
-        "args": e.args,
-        "traceback": traceback.format_exc(),
-    }
-
-
-async def handle_error(e: Exception, context: str) -> None:
-    error_details = get_error_details(e)
-    error_msg = f"{context} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-    logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-    await log_error(error_msg, error_details["traceback"])
 
 
 async def process_webhook(
@@ -140,10 +111,7 @@ async def process_webhook(
             logger.warning(
                 f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
             )
-            await send_message(
-                f"400: Bad request on {endpoint}. Invalid subscription type.",
-                config.channel("bot_admin"),
-            )
+            await notify(f"400: Bad request on {endpoint}. Invalid subscription type.")
             raise HTTPException(status_code=400)
 
         fire_and_forget(task_func(event_sub), name=endpoint)
@@ -151,7 +119,7 @@ async def process_webhook(
     except HTTPException:
         raise
     except Exception as e:
-        await handle_error(e, f"500: Internal server error on {endpoint}")
+        await report(e, f"500: Internal server error on {endpoint}")
         raise HTTPException(status_code=500) from e
 
 
@@ -281,7 +249,7 @@ async def _save_live_alert(
             stream_info.started_at,
         )
     except Exception as e:  # noqa: BLE001
-        await handle_error(
+        await report(
             e,
             f"Failed to store live alert for broadcaster {broadcaster_id}",
         )
@@ -313,9 +281,8 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
 
         message_id = await send_embed(embed, channel, view, content=content)
         if message_id is None:
-            await send_message(
-                f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}",
-                config.channel("bot_admin"),
+            await notify(
+                f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}"
             )
             logger.error(f"Failed to send embed for broadcaster {broadcaster_id}")
             return
@@ -323,7 +290,7 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
         await _save_live_alert(broadcaster_id, channel, message_id, stream_info)
 
     except Exception as e:  # noqa: BLE001
-        await handle_error(e, f"Error in _stream_online_task for {broadcaster_id}")
+        await report(e, f"Error in _stream_online_task for {broadcaster_id}")
 
 
 def _cancel_ad_break_task_if_needed(broadcaster_user_id: str) -> None:
@@ -362,9 +329,7 @@ async def _get_vod_info(broadcaster_id: int, stream_id: int) -> Video | None:
     try:
         return await get_stream_vod(broadcaster_id, stream_id)
     except Exception as e:  # noqa: BLE001
-        await handle_error(
-            e, f"Failed to fetch VOD info for broadcaster {broadcaster_id}"
-        )
+        await report(e, f"Failed to fetch VOD info for broadcaster {broadcaster_id}")
         return None
 
 
@@ -424,7 +389,7 @@ async def _update_offline_message(
         )
         return True
     except Exception as e:  # noqa: BLE001
-        await handle_error(e, "Error editing offline embed")
+        await report(e, "Error editing offline embed")
         return False
 
 
@@ -433,9 +398,7 @@ async def _cleanup_live_alert(broadcaster_id: int, message_id: int) -> None:
     try:
         await repository.delete_live_alert(broadcaster_id, message_id=message_id)
     except Exception as e:  # noqa: BLE001
-        await handle_error(
-            e, f"Failed to delete live alert for broadcaster {broadcaster_id}"
-        )
+        await report(e, f"Failed to delete live alert for broadcaster {broadcaster_id}")
 
 
 async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
@@ -463,7 +426,7 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
             await _cleanup_live_alert(broadcaster_id, message_id)
 
     except Exception as e:  # noqa: BLE001
-        await handle_error(e, f"Error in _stream_offline_task for {broadcaster_id}")
+        await report(e, f"Error in _stream_offline_task for {broadcaster_id}")
 
 
 async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> None:
@@ -484,7 +447,7 @@ async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> N
 
         await dispatch(event_sub, command, args)
     except Exception as e:  # noqa: BLE001
-        await handle_error(e, "Error processing Twitch chat webhook task")
+        await report(e, "Error processing Twitch chat webhook task")
 
 
 async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
@@ -494,7 +457,7 @@ async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
             config.template("twitch_follow_thanks", user=event_sub.event.user_name),
         )
     except Exception as e:  # noqa: BLE001
-        await handle_error(e, "Error processing Twitch follow webhook task")
+        await report(e, "Error processing Twitch follow webhook task")
 
 
 _ad_break_notification_tasks: dict[str, asyncio.Task] = {}
@@ -538,7 +501,7 @@ async def _schedule_next_ad_break_notification(broadcaster_id: str) -> None:
         )
         raise
     except Exception as e:  # noqa: BLE001
-        await handle_error(e, "Error scheduling next ad break notification")
+        await report(e, "Error scheduling next ad break notification")
 
 
 async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -> None:
@@ -560,7 +523,7 @@ async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -
         task = asyncio.create_task(_schedule_next_ad_break_notification(broadcaster_id))
         _register_ad_break_task(broadcaster_id, task)
     except Exception as e:  # noqa: BLE001
-        await handle_error(e, "Error processing Twitch ad break webhook task")
+        await report(e, "Error processing Twitch ad break webhook task")
 
 
 async def _validate_oauth_identity(
@@ -577,10 +540,9 @@ async def _validate_oauth_identity(
         logger.error(
             "OAuth token validation failed with status=%s", response.status_code
         )
-        await send_message(
+        await notify(
             f"Failed to validate the Twitch token from {endpoint}: "
-            f"{response.status_code} {response.text}",
-            config.channel("bot_admin"),
+            f"{response.status_code} {response.text}"
         )
         raise HTTPException(status_code=500, detail="Twitch token validation failed")
 
@@ -602,7 +564,7 @@ async def _validate_oauth_identity(
     if problems:
         message = f"Rejected {token_type.value} authorization: {'; '.join(problems)}"
         logger.warning(message)
-        await send_message(message, config.channel("bot_admin"))
+        await notify(message)
         raise HTTPException(status_code=400, detail=message)
     return validation
 
@@ -617,10 +579,7 @@ async def _oauth_callback_common(
 ) -> tuple[RefreshResponse, TokenValidationResponse]:
     if not consume_authorization(token_type, state):
         logger.warning("400: Bad request on %s. Invalid OAuth state.", endpoint)
-        await send_message(
-            f"400: Bad request on {endpoint}. Invalid or expired OAuth state.",
-            config.channel("bot_admin"),
-        )
+        await notify(f"400: Bad request on {endpoint}. Invalid or expired OAuth state.")
         raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
 
     if error:
@@ -647,9 +606,8 @@ async def _oauth_callback_common(
         logger.error(
             f"Token exchange failed with status={response.status_code}, response={response.text}"
         )
-        await send_message(
-            f"Failed to exchange token: {response.status_code} {response.text}",
-            config.channel("bot_admin"),
+        await notify(
+            f"Failed to exchange token: {response.status_code} {response.text}"
         )
         raise HTTPException(status_code=500)
 
@@ -658,9 +616,8 @@ async def _oauth_callback_common(
         logger.error(
             f"Token exchange failed: unexpected token type {auth_response.token_type}"
         )
-        await send_message(
-            f"Failed to exchange token: unexpected token type {auth_response.token_type}",
-            config.channel("bot_admin"),
+        await notify(
+            f"Failed to exchange token: unexpected token type {auth_response.token_type}"
         )
         raise HTTPException(status_code=500)
     validation = await _validate_oauth_identity(auth_response, token_type, endpoint)
@@ -701,7 +658,7 @@ async def twitch_oauth_callback(
     except HTTPException:
         raise
     except Exception as e:
-        await handle_error(e, "500: Internal server error on /twitch/oauth/callback")
+        await report(e, "500: Internal server error on /twitch/oauth/callback")
         raise HTTPException(status_code=500) from e
 
 
@@ -730,7 +687,7 @@ async def twitch_oauth_callback_broadcaster(
     except HTTPException:
         raise
     except Exception as e:
-        await handle_error(
+        await report(
             e, "500: Internal server error on /twitch/oauth/callback/broadcaster"
         )
         raise HTTPException(status_code=500) from e
@@ -809,7 +766,7 @@ async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
                 f"!so {event_sub.event.from_broadcaster_user_login}",
             )
     except Exception as e:  # noqa: BLE001
-        await handle_error(e, "Error processing Twitch raid webhook task")
+        await report(e, "Error processing Twitch raid webhook task")
 
 
 @twitch_router.post("/webhook/twitch/raid")
@@ -834,7 +791,7 @@ async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
             config.template("twitch_raid_farewell"),
         )
     except Exception as e:  # noqa: BLE001
-        await handle_error(e, "Error processing Twitch moderate webhook task")
+        await report(e, "Error processing Twitch moderate webhook task")
 
 
 @twitch_router.post("/webhook/twitch/moderate")

@@ -6,7 +6,6 @@ truststore.inject_into_ssl()
 import asyncio
 import logging
 import os
-import traceback
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Response
@@ -15,8 +14,9 @@ from rich.logging import RichHandler
 
 from background import fire_and_forget
 from config import settings
-from constants import COGS, ErrorDetails
+from constants import COGS
 from controller import twitch_router
+from errors import report
 from init import bot
 from services.helper.http_client import http_client_manager
 
@@ -27,19 +27,6 @@ logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-def get_error_details(e: Exception) -> ErrorDetails:
-    return {
-        "type": type(e).__name__,
-        "message": str(e),
-        "args": e.args,
-        "traceback": traceback.format_exc(),
-    }
-
-
-def log_error(message: str, error_details: ErrorDetails):
-    logger.error(f"{message}\nTraceback:\n{error_details['traceback']}")
-
-
 async def main() -> None:
     try:
         bot.remove_command("help")
@@ -48,18 +35,10 @@ async def main() -> None:
         )
         for ext, res in zip(COGS, results):
             if isinstance(res, Exception):
-                error_details = get_error_details(res)
-                log_error(
-                    f"Failed to load extension {ext} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}",
-                    error_details,
-                )
+                await report(res, f"Failed to load extension {ext}")
         await bot.start(settings.active_discord_token)
     except Exception as e:  # noqa: BLE001
-        error_details = get_error_details(e)
-        log_error(
-            f"Unhandled exception in main - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}",
-            error_details,
-        )
+        await report(e, "Unhandled exception in main")
 
 
 @asynccontextmanager

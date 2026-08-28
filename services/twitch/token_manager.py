@@ -13,9 +13,9 @@ from config import settings
 from constants import TokenType
 from db import OAuthToken, OAuthTokenKey
 from db.session import session_scope
+from errors import notify
 from models import AuthResponse, RefreshResponse
 from services.config import config
-from services.helper.helper import send_message
 from services.helper.http_client import http_client_manager
 
 logger = logging.getLogger(__name__)
@@ -170,19 +170,15 @@ class TwitchTokenManager:
 
         if response.status_code < 200 or response.status_code >= 300:
             logger.error(f"Token refresh failed with status={response.status_code}")
-            await send_message(
-                f"Failed to refresh access token: {response.status_code} {response.text}",
-                config.channel("bot_admin"),
+            await notify(
+                f"Failed to refresh access token: {response.status_code} {response.text}"
             )
             return False
 
         auth_response = AuthResponse.model_validate(response.json())
         if auth_response.token_type != "bearer":
             logger.error(f"Unexpected token type received: {auth_response.token_type}")
-            await send_message(
-                f"Unexpected token type: {auth_response.token_type}",
-                config.channel("bot_admin"),
-            )
+            await notify(f"Unexpected token type: {auth_response.token_type}")
             return False
 
         await self._store(
@@ -226,9 +222,7 @@ class TwitchTokenManager:
         refresh_token = self._refresh.get(token_type)
         if not refresh_token:
             logger.error(f"No {label} refresh token available")
-            await send_message(
-                f"No {label} refresh token available", config.channel("bot_admin")
-            )
+            await notify(f"No {label} refresh token available")
             return False
 
         params = {
@@ -245,20 +239,16 @@ class TwitchTokenManager:
             logger.error(
                 f"{label} token refresh failed with status={response.status_code}"
             )
-            await send_message(
+            await notify(
                 f"Failed to refresh {label} access token: "
-                f"{response.status_code} {response.text}",
-                config.channel("bot_admin"),
+                f"{response.status_code} {response.text}"
             )
             return False
 
         auth_response = RefreshResponse.model_validate(response.json())
         if auth_response.token_type != "bearer":
             logger.error(f"Unexpected token type received: {auth_response.token_type}")
-            await send_message(
-                f"Unexpected token type: {auth_response.token_type}",
-                config.channel("bot_admin"),
-            )
+            await notify(f"Unexpected token type: {auth_response.token_type}")
             return False
 
         await self._store_refreshed(token_type, auth_response)

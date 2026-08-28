@@ -1,17 +1,14 @@
 import asyncio
 import contextlib
-import io
 import logging
-import traceback
 from typing import ClassVar, Self, cast
 
-import discord
 import httpx
 import pendulum
 
-from constants import ErrorDetails, TokenType
+from constants import TokenType
+from errors import notify, report
 from services.config import config
-from services.helper.helper import send_message
 from services.helper.twitch import call_twitch
 from services.twitch.api import get_user
 
@@ -99,10 +96,7 @@ class TwitchShoutoutQueue:
                     logger.warning(
                         "User id %s (%s) not found for shoutout", user_id_str, login
                     )
-                    await send_message(
-                        f"User {login} not found for shoutout",
-                        config.channel("bot_admin"),
-                    )
+                    await notify(f"User {login} not found for shoutout")
                     continue
 
                 url = "https://api.twitch.tv/helix/chat/shoutouts"
@@ -138,24 +132,11 @@ class TwitchShoutoutQueue:
                     response.status_code if response else "No response",
                     response.text if response else "",
                 )
-                await send_message(
-                    f"Failed to send shoutout to {login}: {response.status_code if response else 'No response'} {response.text if response else ''}",
-                    config.channel("bot_admin"),
+                await notify(
+                    f"Failed to send shoutout to {login}: {response.status_code if response else 'No response'} {response.text if response else ''}"
                 )
         except Exception as e:  # noqa: BLE001
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Error in activate method - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            traceback_buffer = io.BytesIO(error_details["traceback"].encode("utf-8"))
-            traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-            await send_message(
-                error_msg, config.channel("bot_admin"), file=traceback_file
-            )
+            await report(e, "Error in activate method")
 
     def deactivate(self) -> None:
         self._activated = False
