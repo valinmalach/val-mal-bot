@@ -85,18 +85,23 @@ class Tasks(Cog):
         if record.birthday is None:
             return
 
-        if self._within_announce_grace(record.birthday, now):
-            await self._announce_birthday(record)
-        else:
-            logger.warning(
-                f"Birthday for user {record.username} (ID: {record.id}) was due at {record.birthday} and is too stale to announce; rescheduling"
-            )
+        stale = not self._within_announce_grace(record.birthday, now)
 
-        # Rescheduled either way: a record left in the past comes due on every
-        # run from here on, and never announces on the right day again.
+        # Rescheduled before it is announced, and either way. A record left in
+        # the past comes due again on every run: if the announcement failed that
+        # is a greeting nobody sent, but if the write failed after a greeting
+        # went out it is the same greeting again, every quarter of an hour.
         leap = bool(record.is_birthday_leap)
         next_at = next_birthday(record.birthday, leap, now)
         await repository.upsert_user(record.id, record.username, next_at, leap)
+
+        if stale:
+            logger.warning(
+                f"Birthday for user {record.username} (ID: {record.id}) was due at {record.birthday} and was too stale to announce; rescheduled to {next_at}"
+            )
+            return
+
+        await self._announce_birthday(record)
 
     @staticmethod
     def _within_announce_grace(birthday: datetime, now: pendulum.DateTime) -> bool:
