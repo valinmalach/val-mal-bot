@@ -374,7 +374,14 @@ async def get_stream_state(broadcaster_id: int) -> tuple[Stream | None, bool]:
     if response is None or not _is_valid_response(response):
         await _handle_invalid_response(response, "Failed to fetch stream info")
         return None, False
-    stream_info_response = StreamResponse.model_validate(response.json())
+
+    try:
+        stream_info_response = StreamResponse.model_validate(response.json())
+    except Exception as e:  # noqa: BLE001
+        # A 200 whose body will not parse is still a lookup that told us nothing.
+        await _handle_api_exception(e, "Could not read the stream info response")
+        return None, False
+
     return (stream_info_response.data[0] if stream_info_response.data else None), True
 
 
@@ -831,15 +838,24 @@ async def update_alert(
         while True:
             await asyncio.sleep(_UPDATE_INTERVAL_SECONDS)
 
-            outcome = await _run_update_cycle(
-                broadcaster_id,
-                channel_id,
-                message_id,
-                stream_id,
-                started_at,
-                started_at_timestamp,
-                content,
-            )
+            try:
+                outcome = await _run_update_cycle(
+                    broadcaster_id,
+                    channel_id,
+                    message_id,
+                    stream_id,
+                    started_at,
+                    started_at_timestamp,
+                    content,
+                )
+            except Exception as e:  # noqa: BLE001
+                # A cycle that raised concluded nothing, and must not take the
+                # updater with it; the cap below still stops a hopeless one.
+                await _handle_api_exception(
+                    e,
+                    f"Error in the live alert update cycle for broadcaster_id={broadcaster_id}",
+                )
+                outcome = _CycleOutcome.RETRY
 
             if outcome is _CycleOutcome.STOP:
                 return
