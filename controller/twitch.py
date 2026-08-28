@@ -8,6 +8,7 @@ import discord
 import pendulum
 from discord.ui import View
 from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import RedirectResponse
 
 from background import fire_and_forget
 from config import settings
@@ -18,6 +19,7 @@ from constants import (
     TWITCH_MESSAGE_TIMESTAMP,
     TWITCH_MESSAGE_TYPE,
     ErrorDetails,
+    TokenType,
 )
 from db import LiveAlert, repository
 from models import (
@@ -30,6 +32,7 @@ from models import (
     RefreshResponse,
     StreamOfflineEventSub,
     StreamOnlineEventSub,
+    TokenValidationResponse,
     User,
     Video,
 )
@@ -53,6 +56,13 @@ from services import (
 from services.config import config
 from services.helper.http_client import http_client_manager
 from services.twitch.commands import dispatch
+from services.twitch.oauth import (
+    authorization_url,
+    callback_uri,
+    configured_scopes,
+    consume_authorization,
+    expected_user_id,
+)
 from services.twitch.shoutout_queue import shoutout_queue
 from services.twitch.token_manager import token_manager
 
@@ -553,26 +563,84 @@ async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -
         await handle_error(e, "Error processing Twitch ad break webhook task")
 
 
-async def _oauth_callback_common(
-    code: str, state: str, endpoint: str
-) -> RefreshResponse:
-    if state != settings.twitch_webhook_secret:
-        logger.warning(f"400: Bad request. Invalid state: {state}")
+async def _validate_oauth_identity(
+    auth_response: RefreshResponse,
+    token_type: TokenType,
+    endpoint: str,
+) -> TokenValidationResponse:
+    response = await http_client_manager.request(
+        "GET",
+        "https://id.twitch.tv/oauth2/validate",
+        headers={"Authorization": f"OAuth {auth_response.access_token}"},
+    )
+    if response.status_code < 200 or response.status_code >= 300:
+        logger.error(
+            "OAuth token validation failed with status=%s", response.status_code
+        )
         await send_message(
-            f"400: Bad request on {endpoint}. Invalid state.",
+            f"Failed to validate the Twitch token from {endpoint}: "
+            f"{response.status_code} {response.text}",
             config.channel("bot_admin"),
         )
-        raise HTTPException(status_code=400)
+        raise HTTPException(status_code=500, detail="Twitch token validation failed")
+
+    validation = TokenValidationResponse.model_validate(response.json())
+    expected_id = expected_user_id(token_type)
+    missing_scopes = sorted(set(configured_scopes()) - set(validation.scopes))
+
+    problems = []
+    if validation.client_id != settings.twitch_client_id:
+        problems.append("the token belongs to a different Twitch application")
+    if validation.user_id != expected_id:
+        problems.append(
+            f"expected Twitch user ID {expected_id}, but {validation.login} "
+            f"authorized as ID {validation.user_id}"
+        )
+    if missing_scopes:
+        problems.append(f"missing scopes: {', '.join(missing_scopes)}")
+
+    if problems:
+        message = f"Rejected {token_type.value} authorization: {'; '.join(problems)}"
+        logger.warning(message)
+        await send_message(message, config.channel("bot_admin"))
+        raise HTTPException(status_code=400, detail=message)
+    return validation
+
+
+async def _oauth_callback_common(
+    code: str | None,
+    state: str,
+    endpoint: str,
+    token_type: TokenType,
+    error: str | None,
+    error_description: str | None,
+) -> tuple[RefreshResponse, TokenValidationResponse]:
+    if not consume_authorization(token_type, state):
+        logger.warning("400: Bad request on %s. Invalid OAuth state.", endpoint)
+        await send_message(
+            f"400: Bad request on {endpoint}. Invalid or expired OAuth state.",
+            config.channel("bot_admin"),
+        )
+        raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
+
+    if error:
+        detail = error_description or error
+        logger.warning("Twitch authorization denied on %s: %s", endpoint, detail)
+        raise HTTPException(
+            status_code=400, detail=f"Twitch authorization denied: {detail}"
+        )
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing Twitch authorization code")
 
     params = {
         "client_id": settings.twitch_client_id,
         "client_secret": settings.twitch_client_secret,
         "code": code,
         "grant_type": "authorization_code",
-        "redirect_uri": f"{settings.app_url}{endpoint}",
+        "redirect_uri": callback_uri(token_type),
     }
     response = await http_client_manager.request(
-        "POST", "https://id.twitch.tv/oauth2/token", params=params
+        "POST", "https://id.twitch.tv/oauth2/token", data=params
     )
 
     if response.status_code < 200 or response.status_code >= 300:
@@ -595,18 +663,40 @@ async def _oauth_callback_common(
             config.channel("bot_admin"),
         )
         raise HTTPException(status_code=500)
-    return auth_response
+    validation = await _validate_oauth_identity(auth_response, token_type, endpoint)
+    return auth_response, validation
+
+
+@twitch_router.get("/twitch/oauth/start/{identity}")
+async def twitch_oauth_start(identity: str, state: str) -> Response:
+    try:
+        token_type = TokenType(identity)
+        return RedirectResponse(authorization_url(token_type, state), status_code=302)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 @twitch_router.get("/twitch/oauth/callback")
-async def twitch_oauth_callback(code: str, state: str) -> Response:
+async def twitch_oauth_callback(
+    state: str,
+    code: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+) -> Response:
     try:
-        auth_response = await _oauth_callback_common(
-            code, state, "/twitch/oauth/callback"
+        auth_response, validation = await _oauth_callback_common(
+            code,
+            state,
+            "/twitch/oauth/callback",
+            TokenType.User,
+            error,
+            error_description,
         )
         await token_manager.set_user_access_token(auth_response)
         return Response(
-            "Authorization successful! You can close this tab.", status_code=200
+            f"Authorization successful for bot account {validation.login} "
+            f"({validation.user_id}). You can close this tab.",
+            status_code=200,
         )
     except HTTPException:
         raise
@@ -616,14 +706,26 @@ async def twitch_oauth_callback(code: str, state: str) -> Response:
 
 
 @twitch_router.get("/twitch/oauth/callback/broadcaster")
-async def twitch_oauth_callback_broadcaster(code: str, state: str) -> Response:
+async def twitch_oauth_callback_broadcaster(
+    state: str,
+    code: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+) -> Response:
     try:
-        auth_response = await _oauth_callback_common(
-            code, state, "/twitch/oauth/callback/broadcaster"
+        auth_response, validation = await _oauth_callback_common(
+            code,
+            state,
+            "/twitch/oauth/callback/broadcaster",
+            TokenType.Broadcaster,
+            error,
+            error_description,
         )
         await token_manager.set_broadcaster_access_token(auth_response)
         return Response(
-            "Authorization successful! You can close this tab.", status_code=200
+            f"Authorization successful for broadcaster account {validation.login} "
+            f"({validation.user_id}). You can close this tab.",
+            status_code=200,
         )
     except HTTPException:
         raise

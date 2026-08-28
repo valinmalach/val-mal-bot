@@ -238,7 +238,7 @@ class TwitchTokenManager:
             "refresh_token": refresh_token,
         }
         response = await http_client_manager.request(
-            "POST", "https://id.twitch.tv/oauth2/token", params=params
+            "POST", "https://id.twitch.tv/oauth2/token", data=params
         )
 
         if response.status_code < 200 or response.status_code >= 300:

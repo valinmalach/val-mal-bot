@@ -78,6 +78,13 @@ guard an UPDATE with the value it replaces — read it before touching `migratio
 **Nothing connects at import time.** `db/session.py` builds the engine lazily, so
 importing any module is safe without a reachable `DATABASE_URL`.
 
+**Twitch user grants start in Discord.** The owner-only `/twitch-auth` command
+creates short-lived links for the `user` (the account in `twitch_bot_user_id`)
+and `broadcaster` (the account in `twitch_broadcaster_id`) authorization-code
+flows. Both request `twitch_app_scopes`; the callbacks validate the returned
+Twitch user ID, client ID and scopes before upserting `oauth_token`. The `app`
+row is separate, uses client credentials and has no refresh token.
+
 **Two model packages with confusable names.** `models/` is Pydantic: Twitch API
 responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 

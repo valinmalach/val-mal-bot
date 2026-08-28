@@ -13,3 +13,11 @@ class RefreshResponse(BaseModel):
     refresh_token: str
     scope: list[str] | str
     token_type: str
+
+
+class TokenValidationResponse(BaseModel):
+    client_id: str
+    login: str
+    scopes: list[str]
+    user_id: str
+    expires_in: int

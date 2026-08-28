@@ -11,6 +11,7 @@ from discord import (
 )
 from discord.ext.commands import Bot, Cog
 
+from constants import TokenType
 from services import (
     get_subscriptions,
     get_users,
@@ -19,6 +20,7 @@ from services import (
     unsubscribe_to_user,
 )
 from services.config import config
+from services.twitch.oauth import create_authorization_start_url
 from views import role_panels
 
 logger = logging.getLogger(__name__)
@@ -107,6 +109,51 @@ class Admin(Cog):
         for embed, view, channel_id in role_panels("roles"):
             await send_embed(embed, channel_id, view)
         await interaction.response.send_message(config.template("admin_roles_sent"))
+
+    @app_commands.command(
+        name="twitch-auth",
+        description="Generate owner-only links for the two Twitch user grants",
+    )
+    @app_commands.commands.default_permissions(administrator=True)
+    async def twitch_auth(self, interaction: Interaction) -> None:
+        if interaction.user.id != config.setting("owner_id"):
+            await interaction.response.send_message(
+                "Only the configured bot owner can replace Twitch OAuth grants.",
+                ephemeral=True,
+            )
+            return
+
+        bot_user_id = config.setting("twitch_bot_user_id")
+        broadcaster_id = config.setting("twitch_broadcaster_id")
+        broadcaster_username = config.setting("broadcaster_username")
+
+        view = discord.ui.View(timeout=600)
+        view.add_item(
+            discord.ui.Button(
+                label="1. Authorize bot account",
+                style=discord.ButtonStyle.link,
+                url=create_authorization_start_url(TokenType.User),
+            )
+        )
+        view.add_item(
+            discord.ui.Button(
+                label="2. Authorize broadcaster",
+                style=discord.ButtonStyle.link,
+                url=create_authorization_start_url(TokenType.Broadcaster),
+            )
+        )
+        await interaction.response.send_message(
+            "Create the two missing `oauth_token` grants:\n"
+            f"1. **User:** log in as the bot/moderator account with Twitch ID "
+            f"`{bot_user_id}`.\n"
+            f"2. **Broadcaster:** log in as `{broadcaster_username}` with Twitch ID "
+            f"`{broadcaster_id}`.\n\n"
+            "Twitch will be forced to show the authorization step. Each link expires "
+            "after 10 minutes and can be completed once. The callback rejects a token "
+            "from the wrong account or with missing configured scopes.",
+            view=view,
+            ephemeral=True,
+        )
 
     @app_commands.command(description="Gets all active subscriptions' users")
     @app_commands.commands.default_permissions(administrator=True)

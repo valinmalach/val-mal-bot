@@ -90,9 +90,10 @@ Two caveats:
 * **Do not migrate the current values.** Twitch issues a new refresh token on
   every refresh and invalidates the previous one, so any copied token is dead as
   soon as the running bot refreshes. Create the rows empty and let them fill at
-  cutover: the app token needs one `client_credentials` call, and the user and
-  broadcaster tokens one trip each through the existing callbacks at
-  `/twitch/oauth/callback` and `/twitch/oauth/callback/broadcaster`.
+  cutover: the app token needs one `client_credentials` call and correctly has no
+  refresh token. Run the owner-only `/twitch-auth` Discord command to create the
+  user and broadcaster grants through `/twitch/oauth/callback` and
+  `/twitch/oauth/callback/broadcaster`.
 
 `expires_at` is what allows a token to be refreshed *before* it lapses instead
 of after a request comes back 401. `TwitchTokenManager` already tracks this in
