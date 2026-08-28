@@ -4,6 +4,7 @@ import itertools
 import logging
 import traceback
 from collections.abc import Awaitable, Callable
+from enum import Enum, auto
 from typing import Any, Literal
 
 import discord
@@ -38,6 +39,11 @@ from services.helper.http_client import is_transient_network_error
 from services.helper.twitch import call_twitch
 
 logger = logging.getLogger(__name__)
+
+_UPDATE_INTERVAL_SECONDS = 60
+# Stop after this many cycles that concluded nothing, so a stuck alert cannot poll
+# (and report) forever; the record is left behind for the next restart to retry.
+_MAX_INCONCLUSIVE_CYCLES = 5
 
 
 async def log_error(message: str, traceback_str: str) -> None:
@@ -355,20 +361,33 @@ async def get_channel(id: int) -> Channel | None:
     return channel_info_response.data[0] if channel_info_response.data else None
 
 
-async def get_stream_info(broadcaster_id: int) -> Stream | None:
+async def get_stream_state(broadcaster_id: int) -> tuple[Stream | None, bool]:
+    """(stream, lookup_ok): a lookup that failed reads as (None, False), never as offline."""
     url = f"https://api.twitch.tv/helix/streams?user_id={broadcaster_id}"
 
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:  # noqa: BLE001
         await _handle_api_exception(e, "Failed to fetch stream info after retries")
-        return None
+        return None, False
 
     if response is None or not _is_valid_response(response):
         await _handle_invalid_response(response, "Failed to fetch stream info")
-        return None
-    stream_info_response = StreamResponse.model_validate(response.json())
-    return stream_info_response.data[0] if stream_info_response.data else None
+        return None, False
+
+    try:
+        stream_info_response = StreamResponse.model_validate(response.json())
+    except Exception as e:  # noqa: BLE001
+        # A 200 whose body will not parse is still a lookup that told us nothing.
+        await _handle_api_exception(e, "Could not read the stream info response")
+        return None, False
+
+    return (stream_info_response.data[0] if stream_info_response.data else None), True
+
+
+async def get_stream_info(broadcaster_id: int) -> Stream | None:
+    stream_info, _ = await get_stream_state(broadcaster_id)
+    return stream_info
 
 
 async def get_stream_vod(user_id: int, stream_id: int) -> Video | None:
@@ -415,17 +434,19 @@ async def get_ad_schedule(broadcaster_id: int) -> AdSchedule | None:
 def _cleanup_broadcaster_tasks(
     broadcaster_id: int, stream_info: Stream | None, user_info: User | None
 ) -> None:
-    """Handle cleanup tasks specific to the broadcaster."""
-    if (
-        stream_info and stream_info.user_login == config.setting("broadcaster_username")
-    ) or (user_info and user_info.login == config.setting("broadcaster_username")):
-        from controller.twitch import _ad_break_notification_tasks
-        from services.twitch.shoutout_queue import shoutout_queue
+    """Stand the broadcaster's live helpers down, but only once nothing is streaming."""
+    if stream_info is not None:
+        return
+    if user_info is None or user_info.login != config.setting("broadcaster_username"):
+        return
 
-        shoutout_queue.deactivate()
-        existing_task = _ad_break_notification_tasks.get(str(broadcaster_id))
-        if existing_task and not existing_task.done():
-            existing_task.cancel()
+    from controller.twitch import _ad_break_notification_tasks
+    from services.twitch.shoutout_queue import shoutout_queue
+
+    shoutout_queue.deactivate()
+    existing_task = _ad_break_notification_tasks.get(str(broadcaster_id))
+    if existing_task and not existing_task.done():
+        existing_task.cancel()
 
 
 async def _fetch_vod_info_safely(broadcaster_id: int, stream_id: int) -> Video | None:
@@ -507,42 +528,60 @@ def _create_offline_embed(
     return embed
 
 
-async def _handle_embed_edit_error(
-    e: Exception, message_id: int, broadcaster_id: int
-) -> None:
-    """Handle errors that occur during embed editing."""
-    if isinstance(e, discord.NotFound):
-        logger.warning(
-            f"Message not found when editing offline embed for message_id={message_id}; aborting"
-        )
-        try:
-            await repository.delete_live_alert(broadcaster_id)
-        except Exception as delete_error:  # noqa: BLE001
-            await _handle_api_exception(
-                delete_error,
-                f"Failed to delete live alert record for broadcaster_id={broadcaster_id}",
-            )
-    else:
-        error_str = str(e).lower()
-        is_transient = any(
-            term in error_str
-            for term in [
-                "clientoserror",
-                "semaphore timeout",
-                "winerror 121",
-                "timeout",
-                "connection",
-            ]
+class _CycleOutcome(Enum):
+    """What one update cycle concluded about the alert it owns."""
+
+    CONTINUE = auto()  # embed refreshed, stream still live
+    RETRY = auto()  # nothing could be concluded; try the next cycle
+    STOP = auto()  # the alert is finished with, for better or worse
+
+
+def _is_superseded(alert: LiveAlert, message_id: int, stream_id: int) -> bool:
+    """True once a newer alert has replaced the one this updater was started for."""
+    return alert.message_id != message_id or alert.stream_id != stream_id
+
+
+def _is_transient_edit_error(e: Exception) -> bool:
+    """Discord edits fail transiently on 5xx replies and on dropped sockets."""
+    if isinstance(e, discord.HTTPException) and 500 <= e.status < 600:
+        return True
+    if is_transient_network_error(e):
+        return True
+    return "clientoserror" in f"{type(e).__name__} {e}".lower()
+
+
+async def _clear_alert(broadcaster_id: int, message_id: int) -> None:
+    """Drop the alert row this updater owns; a newer alert's row is left in place."""
+    try:
+        await repository.delete_live_alert(broadcaster_id, message_id=message_id)
+    except Exception as e:  # noqa: BLE001
+        await _handle_api_exception(
+            e,
+            f"Failed to delete live alert record for broadcaster_id={broadcaster_id}",
         )
 
-        if is_transient:
-            logger.warning(
-                f"Transient network error when editing offline embed for message_id={message_id}: {e}"
-            )
-        else:
-            await _handle_api_exception(
-                e, f"Error editing offline embed for message_id={message_id}"
-            )
+
+async def _handle_offline_edit_error(
+    e: Exception, message_id: int, broadcaster_id: int
+) -> _CycleOutcome:
+    """Decide the cycle's outcome from a failed offline-embed edit."""
+    if isinstance(e, discord.NotFound):
+        logger.warning(
+            f"Message not found when editing offline embed for message_id={message_id}; clearing alert"
+        )
+        await _clear_alert(broadcaster_id, message_id)
+        return _CycleOutcome.STOP
+
+    if _is_transient_edit_error(e):
+        logger.warning(
+            f"Transient network error when editing offline embed for message_id={message_id}: {e}"
+        )
+        return _CycleOutcome.RETRY
+
+    await _handle_api_exception(
+        e, f"Error editing offline embed for message_id={message_id}"
+    )
+    return _CycleOutcome.STOP
 
 
 async def trigger_offline_sequence(
@@ -557,7 +596,7 @@ async def trigger_offline_sequence(
     channel_id: int,
     content: str | None,
     channel: Channel | None,
-) -> None:
+) -> _CycleOutcome:
     _cleanup_broadcaster_tasks(broadcaster_id, stream_info, user_info)
 
     vod_info = await _fetch_vod_info_safely(broadcaster_id, stream_id)
@@ -567,25 +606,17 @@ async def trigger_offline_sequence(
     )
 
     try:
-        await edit_embed(message_id, embed, channel_id, content=content)
+        edited = await edit_embed(message_id, embed, channel_id, content=content)
     except Exception as e:  # noqa: BLE001
-        await _handle_embed_edit_error(e, message_id, broadcaster_id)
+        return await _handle_offline_edit_error(e, message_id, broadcaster_id)
 
+    if not edited:
+        return _CycleOutcome.RETRY
 
-async def _validate_alert_exists(broadcaster_id: int) -> LiveAlert | None:
-    """Check if alert record exists and return it."""
-    return await repository.get_live_alert(broadcaster_id)
-
-
-def _should_trigger_offline_sequence(
-    alert: LiveAlert, stream_info: Stream | None, stream_id: int
-) -> bool:
-    """Determine if offline sequence should be triggered."""
-    return (
-        stream_info is None
-        or alert.stream_id != stream_id
-        or stream_info.id != str(stream_id)
-    )
+    # The stream is over: without this the record outlives it and every restart
+    # resurrects an updater for a dead stream.
+    await _clear_alert(broadcaster_id, message_id)
+    return _CycleOutcome.STOP
 
 
 def _create_live_embed(
@@ -648,51 +679,28 @@ def _create_live_view(url: str) -> View:
 
 async def _handle_live_embed_edit_error(
     e: Exception, message_id: int, broadcaster_id: int
-) -> bool:
-    """Handle errors when editing live embed. Returns True if should continue, False if should abort."""
+) -> _CycleOutcome:
+    """Decide the cycle's outcome from a failed live-embed edit."""
     if isinstance(e, discord.NotFound):
         logger.warning(
-            f"Message not found when editing live embed for message_id={message_id}; aborting"
+            f"Message not found when editing live embed for message_id={message_id}; clearing alert"
         )
-        try:
-            await repository.delete_live_alert(broadcaster_id)
-        except Exception as delete_error:  # noqa: BLE001
-            await _handle_api_exception(
-                delete_error,
-                f"Failed to delete live alert record for broadcaster_id={broadcaster_id}",
-            )
-        return False
-    elif isinstance(e, discord.HTTPException) and e.status == 503:
+        await _clear_alert(broadcaster_id, message_id)
+        return _CycleOutcome.STOP
+
+    if _is_transient_edit_error(e):
         logger.warning(
-            f"Discord API temporarily unavailable (503) for message_id={message_id}; will retry next cycle"
+            f"Transient error when editing live embed for message_id={message_id}; will retry next cycle: {e}"
         )
-        return True
+        return _CycleOutcome.RETRY
+
+    error_details = _create_error_details(e)
+    if isinstance(e, discord.HTTPException):
+        error_msg = f"Discord HTTP error {e.status} when editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
     else:
-        error_str = str(e).lower()
-        is_transient = any(
-            term in error_str
-            for term in [
-                "clientoserror",
-                "semaphore timeout",
-                "winerror 121",
-                "timeout",
-                "connection",
-            ]
-        )
-
-        if is_transient:
-            logger.warning(
-                f"Transient network error when editing live embed for message_id={message_id}; will retry next cycle: {e}"
-            )
-            return True
-
-        error_details = _create_error_details(e)
-        if isinstance(e, discord.HTTPException):
-            error_msg = f"Discord HTTP error {e.status} when editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        else:
-            error_msg = f"Error editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        await _log_and_report_error(error_msg, error_details)
-        return True
+        error_msg = f"Error editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
+    await _log_and_report_error(error_msg, error_details)
+    return _CycleOutcome.RETRY
 
 
 async def _update_live_embed(
@@ -706,18 +714,54 @@ async def _update_live_embed(
     started_at_timestamp: str,
     content: str | None,
     now: pendulum.DateTime,
-) -> bool:
-    """Update the live embed. Returns True if should continue, False if should abort."""
+) -> _CycleOutcome:
+    """Refresh the live embed."""
     embed = _create_live_embed(
         stream_info, user_info, url, age, started_at_timestamp, now
     )
     view = _create_live_view(url)
 
     try:
-        await edit_embed(message_id, embed, channel_id, view, content=content)
-        return True
+        edited = await edit_embed(message_id, embed, channel_id, view, content=content)
     except Exception as e:  # noqa: BLE001
         return await _handle_live_embed_edit_error(e, message_id, broadcaster_id)
+
+    return _CycleOutcome.CONTINUE if edited else _CycleOutcome.RETRY
+
+
+async def _take_alert_offline(
+    broadcaster_id: int,
+    channel_id: int,
+    message_id: int,
+    stream_id: int,
+    started_at: pendulum.DateTime,
+    stream_info: Stream | None,
+    user_info: User | None,
+    content: str | None,
+) -> _CycleOutcome:
+    """Swap the live embed for the offline one and retire the alert."""
+    channel_info = await get_channel(broadcaster_id)
+
+    if user_info:
+        login = user_info.login
+    elif channel_info:
+        login = channel_info.broadcaster_login
+    else:
+        login = ""
+
+    return await trigger_offline_sequence(
+        broadcaster_id,
+        stream_id,
+        stream_info,
+        pendulum.now(),
+        user_info,
+        f"https://www.twitch.tv/{login}",
+        get_age(started_at, limit_units=2),
+        message_id,
+        channel_id,
+        content,
+        channel_info,
+    )
 
 
 async def _run_update_cycle(
@@ -728,62 +772,50 @@ async def _run_update_cycle(
     started_at: pendulum.DateTime,
     started_at_timestamp: str,
     content: str | None,
-) -> None:
+) -> _CycleOutcome:
     """Run a single update cycle for the live alert."""
-    alert = await _validate_alert_exists(broadcaster_id)
+    alert = await repository.get_live_alert(broadcaster_id)
     if alert is None:
-        return
-
-    stream_info = await get_stream_info(broadcaster_id)
-    user_info = await get_user(broadcaster_id)
-    channel_info = await get_channel(broadcaster_id)
-
-    if stream_info is None or _should_trigger_offline_sequence(
-        alert, stream_info, stream_id
-    ):
-        if user_info:
-            login = user_info.login
-        elif channel_info:
-            login = channel_info.broadcaster_login
-        else:
-            login = ""
-        url = f"https://www.twitch.tv/{login}"
-        now = pendulum.now()
-        age = get_age(started_at, limit_units=2)
-        await trigger_offline_sequence(
-            broadcaster_id,
-            stream_id,
-            stream_info,
-            now,
-            user_info,
-            url,
-            age,
-            message_id,
-            channel_id,
-            content,
-            channel_info,
+        logger.info(
+            f"No live alert record left for broadcaster_id={broadcaster_id}; stopping updates for message_id={message_id}"
         )
-        return
+        return _CycleOutcome.STOP
 
-    url = f"https://www.twitch.tv/{stream_info.user_login}"
-    now = pendulum.now()
-    age = get_age(started_at, limit_units=2)
+    stream_info, lookup_ok = await get_stream_state(broadcaster_id)
+    if not lookup_ok:
+        # A failed lookup is not an offline stream, so conclude nothing from it.
+        return _CycleOutcome.RETRY
 
-    should_continue = await _update_live_embed(
+    user_info = await get_user(broadcaster_id)
+
+    if (
+        stream_info is None
+        or stream_info.id != str(stream_id)
+        or _is_superseded(alert, message_id, stream_id)
+    ):
+        return await _take_alert_offline(
+            broadcaster_id,
+            channel_id,
+            message_id,
+            stream_id,
+            started_at,
+            stream_info,
+            user_info,
+            content,
+        )
+
+    return await _update_live_embed(
         message_id,
         channel_id,
         broadcaster_id,
         stream_info,
         user_info,
-        url,
-        age,
+        f"https://www.twitch.tv/{stream_info.user_login}",
+        get_age(started_at, limit_units=2),
         started_at_timestamp,
         content,
-        now,
+        pendulum.now(),
     )
-
-    if not should_continue:
-        return
 
 
 async def update_alert(
@@ -794,8 +826,6 @@ async def update_alert(
     stream_started_at: str,
 ) -> None:
     try:
-        await asyncio.sleep(60)
-
         content = (
             f"<@&{config.role('live_alerts')}>"
             if channel_id == config.channel("stream_alerts")
@@ -804,32 +834,76 @@ async def update_alert(
         started_at = parse_rfc3339(stream_started_at)
         started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
 
-        alert = await _validate_alert_exists(broadcaster_id)
-        if alert is None:
-            return
-
+        inconclusive = 0
         while True:
-            await _run_update_cycle(
-                broadcaster_id,
-                channel_id,
-                message_id,
-                stream_id,
-                started_at,
-                started_at_timestamp,
-                content,
-            )
+            await asyncio.sleep(_UPDATE_INTERVAL_SECONDS)
 
-            await asyncio.sleep(60)
+            try:
+                outcome = await _run_update_cycle(
+                    broadcaster_id,
+                    channel_id,
+                    message_id,
+                    stream_id,
+                    started_at,
+                    started_at_timestamp,
+                    content,
+                )
+            except Exception as e:  # noqa: BLE001
+                # A cycle that raised concluded nothing, and must not take the
+                # updater with it; the cap below still stops a hopeless one.
+                await _handle_api_exception(
+                    e,
+                    f"Error in the live alert update cycle for broadcaster_id={broadcaster_id}",
+                )
+                outcome = _CycleOutcome.RETRY
 
-            alert = await _validate_alert_exists(broadcaster_id)
-            if alert is None:
-                break
+            if outcome is _CycleOutcome.STOP:
+                return
 
-            stream_info = await get_stream_info(broadcaster_id)
-            if stream_info is None:
-                break
+            inconclusive = inconclusive + 1 if outcome is _CycleOutcome.RETRY else 0
+            if inconclusive >= _MAX_INCONCLUSIVE_CYCLES:
+                logger.warning(
+                    f"Giving up live alert updates for message_id={message_id} after {inconclusive} inconclusive cycles; the record is kept for the next restart"
+                )
+                return
 
     except Exception as e:  # noqa: BLE001
         await _handle_api_exception(
             e, f"Error updating live alert message for broadcaster_id={broadcaster_id}"
         )
+
+
+_live_alert_update_tasks: dict[int, asyncio.Task] = {}
+
+
+def _forget_alert_updater(message_id: int, finished: asyncio.Task) -> None:
+    if _live_alert_update_tasks.get(message_id) is finished:
+        del _live_alert_update_tasks[message_id]
+
+
+def start_alert_updater(
+    broadcaster_id: int,
+    channel_id: int,
+    message_id: int,
+    stream_id: int,
+    stream_started_at: str,
+) -> None:
+    """Start the updater for one alert message, unless it already has one.
+
+    on_ready fires again on every gateway resume, which would otherwise stack a
+    second updater per alert on each reconnect.
+    """
+    existing = _live_alert_update_tasks.get(message_id)
+    if existing is not None and not existing.done():
+        logger.info(f"Live alert updater already running for message_id={message_id}")
+        return
+
+    task = asyncio.create_task(
+        update_alert(
+            broadcaster_id, channel_id, message_id, stream_id, stream_started_at
+        )
+    )
+    _live_alert_update_tasks[message_id] = task
+    task.add_done_callback(
+        lambda finished, mid=message_id: _forget_alert_updater(mid, finished)
+    )

@@ -6,22 +6,24 @@ from discord import CategoryChannel, ForumChannel
 from discord.abc import PrivateChannel
 from discord.ext.commands import Bot
 
+from background import fire_and_forget
+
 logger = logging.getLogger(__name__)
+
+_startup_announced = False
 
 
 async def restart_live_alert_tasks() -> None:
     from db import repository
-    from services import update_alert
+    from services import start_alert_updater
 
     for alert in await repository.list_live_alerts():
-        _ = asyncio.create_task(
-            update_alert(
-                broadcaster_id=alert.broadcaster_id,
-                channel_id=alert.channel_id,
-                message_id=alert.message_id,
-                stream_id=alert.stream_id,
-                stream_started_at=alert.stream_started_at.isoformat(),
-            )
+        start_alert_updater(
+            broadcaster_id=alert.broadcaster_id,
+            channel_id=alert.channel_id,
+            message_id=alert.message_id,
+            stream_id=alert.stream_id,
+            stream_started_at=alert.stream_started_at.isoformat(),
         )
         await asyncio.sleep(1)
 
@@ -33,7 +35,7 @@ async def activate_if_live() -> None:
 
     stream_info = await get_stream_info(int(config.setting("twitch_broadcaster_id")))
     if stream_info and stream_info.type == "live":
-        _ = asyncio.create_task(shoutout_queue.activate())
+        fire_and_forget(shoutout_queue.activate(), name="shoutout-queue")
 
 
 async def run_background_tasks():
@@ -78,9 +80,16 @@ bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 @bot.event
 async def on_ready() -> None:
+    global _startup_announced
     from services.config import config
 
-    _ = asyncio.create_task(run_background_tasks())
+    fire_and_forget(run_background_tasks(), name="startup-tasks")
+
+    if _startup_announced:
+        # on_ready fires again every time the gateway session cannot be resumed,
+        # which is a reconnect, not a startup.
+        logger.info("Reconnected to Discord")
+        return
 
     channel = bot.get_channel(config.channel("bot_admin"))
     if channel is None or isinstance(
@@ -88,3 +97,4 @@ async def on_ready() -> None:
     ):
         return
     await channel.send(config.template("discord_startup"))
+    _startup_announced = True

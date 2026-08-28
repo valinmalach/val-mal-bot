@@ -29,9 +29,9 @@ from .twitch.api import (
     get_user,
     get_user_by_username,
     get_users,
+    start_alert_updater,
     subscribe_to_user,
     unsubscribe_to_user,
-    update_alert,
 )
 from .twitch.commands import dispatch
 
@@ -64,10 +64,10 @@ __all__ = [
     "roles_button_pressed",
     "send_embed",
     "send_message",
+    "start_alert_updater",
     "subscribe_to_user",
     "toggle_role",
     "twitch_send_message",
     "unsubscribe_to_user",
-    "update_alert",
     "verify_message",
 ]

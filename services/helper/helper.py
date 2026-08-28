@@ -70,17 +70,22 @@ async def edit_embed(
     channel_id: int,
     view: View | None = None,
     content: str | None = None,
-) -> None:
+) -> bool:
+    """False when the channel cannot be resolved, so callers can tell a no-op from an edit."""
     channel = bot.get_channel(channel_id)
     if channel is None or isinstance(
         channel, (ForumChannel, CategoryChannel, PrivateChannel)
     ):
-        return
+        logger.warning(
+            f"Channel {channel_id} unavailable; skipped editing message {message_id}"
+        )
+        return False
     message = await channel.fetch_message(message_id)
     if view:
         await message.edit(content=content, embed=embed, view=view)
     else:
         await message.edit(content=content, embed=embed, view=None)
+    return True
 
 
 def get_pfp(member: User | Member) -> str:

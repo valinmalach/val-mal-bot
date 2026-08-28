@@ -31,6 +31,35 @@ from db.session import session_scope
 logger = logging.getLogger(__name__)
 
 _PLACEHOLDER = re.compile(r"\{(channel|role):([a-z0-9_]+)\}")
+_FORMAT_FIELD = re.compile(r"\{([^{}]*)\}")
+
+
+def _field_name(field: str) -> str:
+    """The value a replacement field reads, without conversion or format spec."""
+    name = re.split(r"[!:]", field, maxsplit=1)[0]
+    return re.split(r"[.\[]", name, maxsplit=1)[0].strip()
+
+
+def safe_format(text: str, values: dict[str, Any]) -> str:
+    """``str.format`` over text nobody validated: a database row, not source.
+
+    A brace naming nothing that was passed is left as written, so a template
+    holding literal braces still renders, and text that cannot be formatted at
+    all is sent as-is rather than not at all.
+    """
+    protected = _FORMAT_FIELD.sub(
+        lambda match: (
+            match.group(0)
+            if _field_name(match.group(1)) in values
+            else "{{" + match.group(1) + "}}"
+        ),
+        text,
+    )
+    try:
+        return protected.format(**values)
+    except (IndexError, KeyError, ValueError) as e:
+        logger.warning("Could not format %r: %s", text, e)
+        return text
 
 
 class ConfigCache:
@@ -140,7 +169,7 @@ class ConfigCache:
         # Placeholders resolve first: str.format reads {channel:promo} as a
         # format spec and raises KeyError on the brace it does not own.
         rendered = self.render(content)
-        return rendered.format(**values) if values else rendered
+        return safe_format(rendered, values) if values else rendered
 
     def render(self, text: str) -> str:
         """Turn {channel:key} and {role:key} into Discord mentions."""

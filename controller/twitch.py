@@ -9,6 +9,7 @@ import pendulum
 from discord.ui import View
 from fastapi import APIRouter, HTTPException, Request, Response
 
+from background import fire_and_forget
 from config import settings
 from constants import (
     HMAC_PREFIX,
@@ -45,8 +46,8 @@ from services import (
     parse_rfc3339,
     send_embed,
     send_message,
+    start_alert_updater,
     twitch_send_message,
-    update_alert,
     verify_message,
 )
 from services.config import config
@@ -135,7 +136,7 @@ async def process_webhook(
             )
             raise HTTPException(status_code=400)
 
-        _ = asyncio.create_task(task_func(event_sub))
+        fire_and_forget(task_func(event_sub), name=endpoint)
         return Response(status_code=202)
     except HTTPException:
         raise
@@ -189,7 +190,7 @@ async def _handle_broadcaster_stream_start(
     if not is_main_broadcaster:
         return
 
-    _ = asyncio.create_task(shoutout_queue.activate())
+    fire_and_forget(shoutout_queue.activate(), name="shoutout-queue")
     await twitch_send_message(
         str(broadcaster_id),
         config.template("twitch_stream_greeting"),
@@ -262,14 +263,12 @@ async def _save_live_alert(
             int(stream_info.id),
             parse_rfc3339(stream_info.started_at),
         )
-        _ = asyncio.create_task(
-            update_alert(
-                broadcaster_id,
-                channel,
-                message_id,
-                int(stream_info.id),
-                stream_info.started_at,
-            )
+        start_alert_updater(
+            broadcaster_id,
+            channel,
+            message_id,
+            int(stream_info.id),
+            stream_info.started_at,
         )
     except Exception as e:  # noqa: BLE001
         await handle_error(
@@ -317,11 +316,15 @@ async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
         await handle_error(e, f"Error in _stream_online_task for {broadcaster_id}")
 
 
-def _cancel_ad_break_task_if_needed(broadcaster_user_login: str) -> None:
-    """Cancel ad break notification task for the broadcaster if it exists."""
-    if broadcaster_user_login == config.setting("broadcaster_username"):
-        shoutout_queue.deactivate()
-        _cancel_task_if_exists(_ad_break_notification_tasks, broadcaster_user_login)
+def _cancel_ad_break_task_if_needed(broadcaster_user_id: str) -> None:
+    """Cancel ad break notification task for the broadcaster if it exists.
+
+    Keyed by id, which is how _register_ad_break_task stores it.
+    """
+    if not _is_main_broadcaster(broadcaster_user_id):
+        return
+    shoutout_queue.deactivate()
+    _cancel_task_if_exists(_ad_break_notification_tasks, broadcaster_user_id)
 
 
 async def _fetch_stream_data(
@@ -401,22 +404,24 @@ def _create_offline_embed(
 
 async def _update_offline_message(
     message_id: int, embed: discord.Embed, channel_id: int, content: str | None
-) -> None:
-    """Update the live alert message to show offline status."""
+) -> bool:
+    """Show offline status. False leaves the record for the updater to retry."""
     try:
-        await edit_embed(message_id, embed, channel_id, content=content)
+        return await edit_embed(message_id, embed, channel_id, content=content)
     except discord.NotFound:
         logger.warning(
             f"Message not found when editing offline embed for message_id={message_id}; continuing"
         )
+        return True
     except Exception as e:  # noqa: BLE001
         await handle_error(e, "Error editing offline embed")
+        return False
 
 
-async def _cleanup_live_alert(broadcaster_id: int) -> None:
-    """Remove the live alert from storage."""
+async def _cleanup_live_alert(broadcaster_id: int, message_id: int) -> None:
+    """Remove the live alert from storage, unless a newer alert already replaced it."""
     try:
-        await repository.delete_live_alert(broadcaster_id)
+        await repository.delete_live_alert(broadcaster_id, message_id=message_id)
     except Exception as e:  # noqa: BLE001
         await handle_error(
             e, f"Failed to delete live alert for broadcaster {broadcaster_id}"
@@ -426,7 +431,7 @@ async def _cleanup_live_alert(broadcaster_id: int) -> None:
 async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
     broadcaster_id = int(event_sub.event.broadcaster_user_id)
     try:
-        _cancel_ad_break_task_if_needed(event_sub.event.broadcaster_user_login)
+        _cancel_ad_break_task_if_needed(event_sub.event.broadcaster_user_id)
 
         user_info, channel_info, alert = await _fetch_stream_data(broadcaster_id)
         if alert is None:
@@ -444,8 +449,8 @@ async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
             event_sub, user_info, channel_info, vod_info, stream_started_at
         )
 
-        await _update_offline_message(message_id, embed, channel_id, content)
-        await _cleanup_live_alert(broadcaster_id)
+        if await _update_offline_message(message_id, embed, channel_id, content):
+            await _cleanup_live_alert(broadcaster_id, message_id)
 
     except Exception as e:  # noqa: BLE001
         await handle_error(e, f"Error in _stream_offline_task for {broadcaster_id}")

@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, PlainTextResponse
 from rich.logging import RichHandler
 
+from background import fire_and_forget
 from config import settings
 from constants import COGS, ErrorDetails
 from controller import twitch_router
@@ -63,7 +64,7 @@ async def main() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _ = asyncio.create_task(main())
+    fire_and_forget(main(), name="bot")
     yield
     await http_client_manager.close()
 

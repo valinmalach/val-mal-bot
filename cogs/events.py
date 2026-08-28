@@ -176,7 +176,7 @@ class Events(Cog):
 
             await self._safe_db_operation(
                 f"insert user {member.name} ({member.id})",
-                repository.upsert_user,
+                repository.upsert_username,
                 member.id,
                 member.name,
             )
@@ -259,16 +259,12 @@ class Events(Cog):
         self, before: Member, after: Member, discriminator: str, url: str
     ) -> None:
         """Handle role additions and removals."""
-        roles_before, roles_after = before.roles, after.roles
-        if roles_diff := list(set(roles_before) ^ set(roles_after)):
-            add = len(roles_after) > len(roles_before)
-            await self._log_role_change(
-                after,
-                discriminator,
-                url,
-                roles_diff,
-                add,
-            )
+        added = [role for role in after.roles if role not in before.roles]
+        removed = [role for role in before.roles if role not in after.roles]
+        if added:
+            await self._log_role_change(after, discriminator, url, added, True)
+        if removed:
+            await self._log_role_change(after, discriminator, url, removed, False)
 
     async def _handle_nickname_change(
         self, before: Member, after: Member, discriminator: str, url: str
@@ -493,7 +489,7 @@ class Events(Cog):
                 if invite.expires_at
                 else "Never"
             )
-            description = f"**Invite [{invite.code}]({invite.url}) to {channel_mention} created by {inviter_mention}**\nExpires: {expiry}"
+            description = f"**Invite [{invite.code}]({invite.url}) to {channel_mention} created{inviter_mention}**\nExpires: {expiry}"
             embed = self._base_embed(description, config.color("embed_color_info"))
             embed = embed.set_author(name=f"{guild_name}", icon_url=guild_icon)
             await send_embed(embed, config.channel("audit_logs"))

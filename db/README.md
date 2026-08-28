@@ -25,9 +25,35 @@ Nothing connects at import time, so importing a module cannot fail on a missing
 uv run alembic upgrade head                        # apply migrations
 uv run alembic upgrade head --sql                  # print the SQL, no connection
 uv run alembic revision --autogenerate -m "..."    # diff models against the database
+uv run alembic revision -m "..."                   # empty revision, for a data change
 uv run alembic downgrade -1                        # roll back one revision
 uv run alembic current                             # what is applied
 ```
+
+On Windows, `--sql` needs `PYTHONIOENCODING=utf-8`: some seeded text is emoji and
+the console encoding is not.
+
+### Changing configuration
+
+Configuration lives in migrations, so adding, editing or removing a row is a new
+revision rather than an edit to a seed file. Three rules, learned the hard way:
+
+* **Never import the models or read a data file in a revision.** A revision has
+  to mean the same thing forever; if it reads something that keeps changing, the
+  history stops describing what actually ran. Write the columns out as
+  `sa.table()`/`sa.column()` stubs and the values as literals, as `0002` does.
+* **Inserts should tolerate a conflict** (`insert(...).on_conflict_do_nothing()`),
+  so a revision is a no-op against a database that already has the row. Every
+  id-keyed configuration table has a unique constraint over its natural key, so
+  a conflict target is not needed.
+* **Guard an update with the value it replaces:**
+  `UPDATE ... SET content = :new WHERE key = :key AND content = :old`. Rows still
+  holding the old default move; a row somebody edited in the database is left
+  alone. An unguarded UPDATE silently discards that edit.
+
+A delete can rely on the schema: `discord_embed_field` and both
+`twitch_command` child tables are `ON DELETE CASCADE`, so removing the row that
+owns them takes them with it.
 
 Checks, all of which should be clean before committing:
 
@@ -177,10 +203,11 @@ without knowing why:
 
 ## Done
 
-1. **Seed.** `seed.py` inserts the constants, embed text and command responses.
-   `start.sh` runs it after every migration. Each row is `INSERT ... ON CONFLICT
-   DO NOTHING`, so an ID edited in the database survives the next deploy and
-   newly added keys still land.
+1. **Seed.** Revision `0002` inserts the constants, embed text and command
+   responses, so `alembic upgrade head` carries the configuration with the
+   schema and `seed.py`/`seed_data.py` are gone. Each row is `INSERT ... ON
+   CONFLICT DO NOTHING`, so an ID edited in the database survives the next
+   deploy. Changing configuration is a data revision now: see above.
 2. ~~**Backfill.**~~ Done and removed. The first deploy loaded the parquet
    records; `backfill.py` and `data/` went with it. Recover them from history if
    a re-run is ever needed.

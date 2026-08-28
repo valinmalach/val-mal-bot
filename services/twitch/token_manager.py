@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable
 from typing import Self, cast
 
 import pendulum
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from config import settings
@@ -101,6 +101,8 @@ class TwitchTokenManager:
         }
         statement = insert(OAuthToken).values(**values)
         updates = {k: getattr(statement.excluded, k) for k in values if k != "key"}
+        # The column's onupdate does not fire for ON CONFLICT DO UPDATE.
+        updates["updated_at"] = func.now()
         async with session_scope() as session:
             await session.execute(
                 statement.on_conflict_do_update(index_elements=["key"], set_=updates)
@@ -141,8 +143,13 @@ class TwitchTokenManager:
         Twitch invalidates a refresh token the moment it is used, so two callers
         racing on the same one leave the loser holding a dead token.
         """
+        before = self.token(token_type)
         async with self._locks[token_type]:
-            if self.token(token_type) and not self.needs_refresh(token_type):
+            current = self.token(token_type)
+            # Only a token that changed while this caller waited proves someone
+            # else refreshed. Testing the expiry instead made a 401 unrecoverable:
+            # a revoked token still looks current, so the refresh never ran.
+            if current and current != before:
                 return True
             return await refresh()
 

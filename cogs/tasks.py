@@ -1,6 +1,7 @@
 import io
 import logging
 import traceback
+from datetime import datetime
 from typing import ClassVar
 
 import discord
@@ -14,6 +15,10 @@ from services import next_birthday, send_message
 from services.config import config
 
 logger = logging.getLogger(__name__)
+
+# A tick that ran late should still announce. A birthday staler than this is
+# only moved on, so a bot that was down for days does not greet the wrong day.
+_ANNOUNCE_GRACE_SECONDS = 24 * 60 * 60
 
 
 class Tasks(Cog):
@@ -50,8 +55,8 @@ class Tasks(Cog):
     async def check_birthdays(self) -> None:
         try:
             now = pendulum.now("UTC").replace(second=0, microsecond=0)
-            birthday_users = await repository.users_with_birthday(now)
-            await self._process_birthday_records(birthday_users)
+            due = await repository.users_due_birthday(now)
+            await self._process_birthday_records(due)
         except Exception as e:  # noqa: BLE001
             error_details: ErrorDetails = {
                 "type": type(e).__name__,
@@ -63,38 +68,59 @@ class Tasks(Cog):
             logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
             await self.log_error(error_msg, error_details["traceback"])
 
-    async def _process_birthday_records(self, birthdays_now: list[DiscordUser]) -> None:
+    async def _process_birthday_records(self, due: list[DiscordUser]) -> None:
         now = pendulum.now("UTC")
-        for record in birthdays_now:
-            user_id = record.id
-            user = self.bot.get_user(user_id)
-            if user is None:
-                logger.warning(f"Discord user ID {user_id} not found in guild cache")
-                await send_message(
-                    f"_process_birthday_records: User with ID {user_id} not found.",
-                    config.channel("bot_admin"),
-                )
-                continue
-            await send_message(
-                config.template("discord_birthday", mention=user.mention),
-                config.channel("shoutouts"),
-            )
-            if record.birthday is None:
-                continue
-            leap = bool(record.is_birthday_leap)
-            next_at = next_birthday(record.birthday, leap, now)
+        for record in due:
             try:
-                await repository.upsert_user(user_id, record.username, next_at, leap)
+                await self._process_birthday(record, now)
             except Exception as e:  # noqa: BLE001
-                error_details: ErrorDetails = {
-                    "type": type(e).__name__,
-                    "message": str(e),
-                    "args": e.args,
-                    "traceback": traceback.format_exc(),
-                }
-                error_msg = f"Failed to update birthday for user {record.username} (ID: {user_id}) - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-                logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-                await self.log_error(error_msg, error_details["traceback"])
+                await self._handle_fatal_error(
+                    e,
+                    f"Failed to process birthday for user {record.username} (ID: {record.id})",
+                )
+
+    async def _process_birthday(
+        self, record: DiscordUser, now: pendulum.DateTime
+    ) -> None:
+        if record.birthday is None:
+            return
+
+        stale = not self._within_announce_grace(record.birthday, now)
+
+        # Rescheduled before it is announced, and either way. A record left in
+        # the past comes due again on every run: if the announcement failed that
+        # is a greeting nobody sent, but if the write failed after a greeting
+        # went out it is the same greeting again, every quarter of an hour.
+        leap = bool(record.is_birthday_leap)
+        next_at = next_birthday(record.birthday, leap, now)
+        await repository.upsert_user(record.id, record.username, next_at, leap)
+
+        if stale:
+            logger.warning(
+                f"Birthday for user {record.username} (ID: {record.id}) was due at {record.birthday} and was too stale to announce; rescheduled to {next_at}"
+            )
+            return
+
+        await self._announce_birthday(record)
+
+    @staticmethod
+    def _within_announce_grace(birthday: datetime, now: pendulum.DateTime) -> bool:
+        late = (now - pendulum.instance(birthday)).total_seconds()
+        return late <= _ANNOUNCE_GRACE_SECONDS
+
+    async def _announce_birthday(self, record: DiscordUser) -> None:
+        user = self.bot.get_user(record.id)
+        if user is None:
+            logger.warning(f"Discord user ID {record.id} not found in guild cache")
+            await send_message(
+                f"_announce_birthday: User with ID {record.id} not found.",
+                config.channel("bot_admin"),
+            )
+            return
+        await send_message(
+            config.template("discord_birthday", mention=user.mention),
+            config.channel("shoutouts"),
+        )
 
 
 async def setup(bot: Bot) -> None:

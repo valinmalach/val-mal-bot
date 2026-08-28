@@ -76,6 +76,8 @@ class TwitchShoutoutQueue:
         return now.add(seconds=_MIN_SAME_TARGET_COOLDOWN_SECONDS)
 
     async def activate(self) -> None:
+        if self._activated:
+            return
         try:
             self._activated = True
             while self._activated:
