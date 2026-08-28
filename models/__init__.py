@@ -1,4 +1,4 @@
-from .auth.auth_response import AuthResponse, RefreshResponse
+from .auth.auth_response import AuthResponse, RefreshResponse, TokenValidationResponse
 from .twitch_api_responses.ad_schedule import AdSchedule, AdScheduleResponse
 from .twitch_api_responses.channel import Channel, ChannelResponse
 from .twitch_api_responses.stream import Stream, StreamResponse
@@ -34,6 +34,7 @@ __all__ = [
     "StreamResponse",
     "Subscription",
     "SubscriptionResponse",
+    "TokenValidationResponse",
     "User",
     "UserResponse",
     "Video",
