@@ -47,6 +47,15 @@ class _Action(Enum):
     STOP = auto()  # nothing left to maintain
 
 
+def _owns_row(alert: LiveAlert | None, message_id: int, stream_id: int) -> bool:
+    """Whether the stored alert is still the one this updater was started for."""
+    return (
+        alert is not None
+        and alert.message_id == message_id
+        and alert.stream_id == stream_id
+    )
+
+
 def _decide(
     alert: LiveAlert | None,
     message_id: int,
@@ -62,7 +71,7 @@ def _decide(
     if alert is None:
         return _Action.STOP
 
-    if alert.message_id != message_id or alert.stream_id != stream_id:
+    if not _owns_row(alert, message_id, stream_id):
         # Superseded. This message still shows a live stream, so close it, but
         # the row belongs to the newer alert and its delete will not match.
         return _Action.CLOSE
@@ -326,6 +335,10 @@ async def _close(
         # failed lookup proves nothing either way.
         stream_session.ended(broadcaster_id)
 
+    # A live stream that is not the one this alert announced describes a
+    # different broadcast; borrowing its title would retitle this message.
+    own_stream = stream if stream is not None and stream.id == str(stream_id) else None
+
     if user_info:
         login = user_info.login
     elif channel_info:
@@ -335,7 +348,13 @@ async def _close(
 
     vod = await _vod(broadcaster_id, stream_id)
     embed = _offline_embed(
-        stream, vod, channel_info, user_info, _twitch_url(login), age, pendulum.now()
+        own_stream,
+        vod,
+        channel_info,
+        user_info,
+        _twitch_url(login),
+        age,
+        pendulum.now(),
     )
 
     try:
@@ -376,7 +395,9 @@ async def _cycle(
     alert = await repository.get_live_alert(broadcaster_id)
 
     stream, lookup_ok = (None, False)
-    if alert is not None:
+    if _owns_row(alert, message_id, stream_id):
+        # Once the row has moved on, Helix has nothing to add: the alert is
+        # closed either way, and a newer stream must not lend it a title.
         stream, lookup_ok = await get_stream_state(broadcaster_id)
 
     action = _decide(alert, message_id, stream_id, stream, lookup_ok)
