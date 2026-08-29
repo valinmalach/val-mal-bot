@@ -99,10 +99,8 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 - **Everything the bot says about itself goes through `errors.py`.** `report(exc,
   context)` for an exception, `notify(text)` for anything else worth the admin
   channel. Neither raises, both log locally first, and both say so when the channel
-  is out of reach. The one other resolver of `config.channel("bot_admin")` is the
-  startup announcement in `init/bot_init.py`, which sends directly because it marks
-  itself done only once the send lands, so a missed announcement retries on the next
-  reconnect.
+  is out of reach. `notify` returns whether it landed, for the one caller that
+  retries. Nothing else may resolve `config.channel("bot_admin")`.
 - **Text from the database is formatted with `safe_format`**, never bare `str.format`
   — a row is not source, and one unmatched brace should not lose the whole message.
   `config.render` additionally resolves `{channel:key}` and `{role:key}`.

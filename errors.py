@@ -38,23 +38,30 @@ async def report(exc: Exception, context: str) -> None:
         logger.exception("Reporting failed for: %s", context)
 
 
-async def notify(text: str) -> None:
-    """Deliver a notice: something the admin channel should see that is not an exception."""
+async def notify(text: str) -> bool:
+    """Deliver a notice: something the admin channel should see that is not an exception.
+
+    Returns whether it landed, for the caller that retries. ``report`` returns
+    nothing because nothing retries an exception.
+    """
     try:
-        logger.warning(text)
-        await _deliver(text, None)
+        # Callers that have a severity log it themselves; this is the record
+        # that a notice was raised at all.
+        logger.info(text)
+        return await _deliver(text, None)
     except Exception:
         logger.exception("Notifying failed for: %s", text)
+        return False
 
 
-async def _deliver(text: str, trace: str | None) -> None:
+async def _deliver(text: str, trace: str | None) -> bool:
     # Deferred: importing services at module scope runs the whole package, and
     # main.py reports cog-load failures before any of it is up.
     from services.config import config
 
     if not config.loaded:
         logger.warning("Undelivered, no configuration loaded: %s", text)
-        return
+        return False
 
     from services.helper.helper import send_message
 
@@ -68,3 +75,5 @@ async def _deliver(text: str, trace: str | None) -> None:
     )
     if sent is None:
         logger.warning("Undelivered, admin channel unavailable: %s", text)
+        return False
+    return True
