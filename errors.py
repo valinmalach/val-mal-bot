@@ -1,7 +1,8 @@
 """Everything the bot says about itself, in one place.
 
-Neither function raises. A handler that can fail replaces the exception it was
-called to describe, and a lost report is worse than an ugly one.
+Neither function raises. Both run inside somebody's ``except`` block, where an
+escaping exception would replace the one being reported, and a lost report is
+worse than an ugly one.
 """
 
 import io
@@ -21,21 +22,29 @@ _MAX_CONTENT = 1900
 
 async def report(exc: Exception, context: str) -> None:
     """Log an exception, then deliver it and its traceback to the admin channel."""
-    summary = (
-        f"{context} - Type: {type(exc).__name__}, Message: {exc}, Args: {exc.args}"
-    )
-    # format_exception, not format_exc: an exception collected from
-    # asyncio.gather(return_exceptions=True) is not the one being handled, and
-    # format_exc would describe nothing.
-    trace = "".join(traceback.format_exception(exc))
-    logger.error("%s\nTraceback:\n%s", summary, trace)
-    await _deliver(summary, trace)
+    try:
+        summary = (
+            f"{context} - Type: {type(exc).__name__}, Message: {exc}, Args: {exc.args}"
+        )
+        # format_exception, not format_exc: an exception collected from
+        # asyncio.gather(return_exceptions=True) is not the one being handled,
+        # and format_exc would describe nothing.
+        trace = "".join(traceback.format_exception(exc))
+        logger.error("%s\nTraceback:\n%s", summary, trace)
+        await _deliver(summary, trace)
+    except Exception:
+        # Describing an exception can itself fail: a __str__ that raises, or a
+        # services import that never completed.
+        logger.exception("Reporting failed for: %s", context)
 
 
 async def notify(text: str) -> None:
     """Deliver a notice: something the admin channel should see that is not an exception."""
-    logger.warning(text)
-    await _deliver(text, None)
+    try:
+        logger.warning(text)
+        await _deliver(text, None)
+    except Exception:
+        logger.exception("Notifying failed for: %s", text)
 
 
 async def _deliver(text: str, trace: str | None) -> None:
@@ -47,18 +56,15 @@ async def _deliver(text: str, trace: str | None) -> None:
         logger.warning("Undelivered, no configuration loaded: %s", text)
         return
 
-    try:
-        from services.helper.helper import send_message
+    from services.helper.helper import send_message
 
-        file = (
-            discord.File(io.BytesIO(trace.encode("utf-8")), filename="traceback.txt")
-            if trace is not None
-            else None
-        )
-        sent = await send_message(
-            text[:_MAX_CONTENT], config.channel(_ADMIN_CHANNEL), file=file
-        )
-        if sent is None:
-            logger.warning("Undelivered, admin channel unavailable: %s", text)
-    except Exception:
-        logger.exception("Undelivered, admin channel raised: %s", text)
+    file = (
+        discord.File(io.BytesIO(trace.encode("utf-8")), filename="traceback.txt")
+        if trace is not None
+        else None
+    )
+    sent = await send_message(
+        text[:_MAX_CONTENT], config.channel(_ADMIN_CHANNEL), file=file
+    )
+    if sent is None:
+        logger.warning("Undelivered, admin channel unavailable: %s", text)

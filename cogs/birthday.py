@@ -9,8 +9,8 @@ from pendulum import DateTime
 
 from constants import MAX_DAYS, Months
 from db import repository
-from errors import report
-from services import get_next_leap, send_message
+from errors import notify, report
+from services import get_next_leap
 from services.config import config, has_configured_role
 
 logger = logging.getLogger(__name__)
@@ -177,9 +177,8 @@ class Birthday(GroupCog):
         try:
             existing_user = await repository.get_user(interaction.user.id)
             if existing_user is None:
-                await send_message(
-                    f"User {interaction.user.name} ({interaction.user.id}) attempted to remove a birthday but had no record.",
-                    config.channel("bot_admin"),
+                await notify(
+                    f"User {interaction.user.name} ({interaction.user.id}) attempted to remove a birthday but had no record."
                 )
                 await interaction.response.send_message(
                     config.template("birthday_remove_failed")
