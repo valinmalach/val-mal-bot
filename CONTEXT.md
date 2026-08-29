@@ -40,7 +40,8 @@ _Avoid_: poller, alert loop, watcher
 
 **Superseded**:
 Said of an **alert updater** whose row no longer names the message and stream it
-was started for. A superseded updater stops; it never edits.
+was started for. It closes its own message — otherwise that message shows a live
+stream forever — and leaves the newer alert's row alone.
 _Avoid_: stale, replaced, orphaned
 
 **Stream session**:

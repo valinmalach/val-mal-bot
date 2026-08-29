@@ -2,9 +2,6 @@ import asyncio
 import logging
 from typing import Any
 
-import discord
-import pendulum
-from discord.ui import View
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 
@@ -18,10 +15,8 @@ from constants import (
     TWITCH_MESSAGE_TYPE,
     TokenType,
 )
-from db import LiveAlert, repository
 from errors import notify, report
 from models import (
-    Channel,
     ChannelAdBreakBeginEventSub,
     ChannelChatMessageEventSub,
     ChannelFollowEventSub,
@@ -31,27 +26,18 @@ from models import (
     StreamOfflineEventSub,
     StreamOnlineEventSub,
     TokenValidationResponse,
-    User,
-    Video,
 )
 from services import (
-    edit_embed,
-    get_ad_schedule,
-    get_age,
-    get_channel,
     get_hmac,
     get_hmac_message,
     get_stream_info,
-    get_stream_vod,
     get_user,
-    parse_rfc3339,
-    send_embed,
-    start_alert_updater,
     twitch_send_message,
     verify_message,
 )
 from services.config import config
 from services.helper.http_client import http_client_manager
+from services.twitch import live_alert, stream_session
 from services.twitch.commands import dispatch
 from services.twitch.oauth import (
     authorization_url,
@@ -60,7 +46,6 @@ from services.twitch.oauth import (
     consume_authorization,
     expected_user_id,
 )
-from services.twitch.shoutout_queue import shoutout_queue
 from services.twitch.token_manager import token_manager
 
 logger = logging.getLogger(__name__)
@@ -123,35 +108,6 @@ async def process_webhook(
         raise HTTPException(status_code=500) from e
 
 
-def _get_twitch_url(user_login: str) -> str:
-    """Generate Twitch channel URL from user login."""
-    return f"https://www.twitch.tv/{user_login}"
-
-
-def _get_live_alerts_mention(channel_id: int) -> str | None:
-    """Get the live alerts role mention if channel is the stream alerts channel."""
-    return (
-        f"<@&{config.role('live_alerts')}>"
-        if channel_id == config.channel("stream_alerts")
-        else None
-    )
-
-
-def _is_main_broadcaster(broadcaster_id: str | int) -> bool:
-    """Check if the broadcaster is the main broadcaster."""
-    return str(broadcaster_id) == config.setting("twitch_broadcaster_id")
-
-
-def _extract_alert_data(alert: LiveAlert) -> tuple[int, int, int, str]:
-    """Pull the fields the offline embed needs out of a stored alert."""
-    return (
-        alert.channel_id,
-        alert.message_id,
-        alert.stream_id,
-        alert.stream_started_at.isoformat(),
-    )
-
-
 async def _wait_for_stream_info(broadcaster_id: int):
     """Poll for stream info until it's available."""
     stream_info = await get_stream_info(broadcaster_id)
@@ -161,269 +117,30 @@ async def _wait_for_stream_info(broadcaster_id: int):
     return stream_info
 
 
-async def _handle_broadcaster_stream_start(
-    broadcaster_id: int, stream_info, is_main_broadcaster: bool
-) -> None:
-    """Send welcome messages when the main broadcaster goes live."""
-    if not is_main_broadcaster:
-        return
-
-    fire_and_forget(shoutout_queue.activate(), name="shoutout-queue")
-    await twitch_send_message(
-        str(broadcaster_id),
-        config.template("twitch_stream_greeting"),
-    )
-    await twitch_send_message(
-        str(broadcaster_id),
-        config.template(
-            "twitch_stream_announce",
-            name=stream_info.user_name,
-            game=stream_info.game_name,
-            title=stream_info.title,
-        ),
-    )
-
-
-def _create_stream_online_embed(stream_info, user_info: User | None) -> discord.Embed:
-    """Create the Discord embed for a live stream notification."""
-    url = _get_twitch_url(stream_info.user_login)
-    raw_thumb_url = stream_info.thumbnail_url.replace("{width}x{height}", "400x225")
-    cache_busted_thumb_url = f"{raw_thumb_url}?cb={int(pendulum.now().timestamp())}"
-
-    return (
-        discord.Embed(
-            description=f"[**{stream_info.title}**]({url})",
-            color=config.color("embed_color_stream"),
-            timestamp=parse_rfc3339(stream_info.started_at),
-        )
-        .set_author(
-            name=config.template("stream_live_title", name=stream_info.user_name),
-            icon_url=user_info.profile_image_url if user_info else None,
-            url=url,
-        )
-        .add_field(
-            name=config.template("stream_field_game"),
-            value=f"{stream_info.game_name}",
-            inline=True,
-        )
-        .add_field(
-            name=config.template("stream_field_viewers"),
-            value=f"{stream_info.viewer_count}",
-            inline=True,
-        )
-        .set_image(url=cache_busted_thumb_url)
-    )
-
-
-def _create_stream_watch_button(stream_info) -> View:
-    """Create the view with a 'Watch Stream' button."""
-    url = _get_twitch_url(stream_info.user_login)
-    view = View(timeout=None)
-    view.add_item(
-        discord.ui.Button(
-            label=config.template("stream_watch_button"),
-            style=discord.ButtonStyle.link,
-            url=url,
-        )
-    )
-    return view
-
-
-async def _save_live_alert(
-    broadcaster_id: int, channel: int, message_id: int, stream_info
-) -> None:
-    """Store the live alert and start the update task."""
-    try:
-        await repository.upsert_live_alert(
-            broadcaster_id,
-            channel,
-            message_id,
-            int(stream_info.id),
-            parse_rfc3339(stream_info.started_at),
-        )
-        start_alert_updater(
-            broadcaster_id,
-            channel,
-            message_id,
-            int(stream_info.id),
-            stream_info.started_at,
-        )
-    except Exception as e:  # noqa: BLE001
-        await report(
-            e,
-            f"Failed to store live alert for broadcaster {broadcaster_id}",
-        )
-
-
 async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
     broadcaster_id = int(event_sub.event.broadcaster_user_id)
     try:
         stream_info = await _wait_for_stream_info(broadcaster_id)
         user_info = await get_user(broadcaster_id)
 
-        is_main_broadcaster = stream_info.user_login == config.setting(
-            "broadcaster_username"
-        )
+        is_main = stream_info.user_login == config.setting("broadcaster_username")
         channel = (
-            config.channel("stream_alerts")
-            if is_main_broadcaster
-            else config.channel("promo")
+            config.channel("stream_alerts") if is_main else config.channel("promo")
         )
 
-        await _handle_broadcaster_stream_start(
-            broadcaster_id, stream_info, is_main_broadcaster
-        )
-
-        content = _get_live_alerts_mention(channel)
-
-        embed = _create_stream_online_embed(stream_info, user_info)
-        view = _create_stream_watch_button(stream_info)
-
-        message_id = await send_embed(embed, channel, view, content=content)
-        if message_id is None:
-            await notify(
-                f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel}"
-            )
-            logger.error(f"Failed to send embed for broadcaster {broadcaster_id}")
-            return
-
-        await _save_live_alert(broadcaster_id, channel, message_id, stream_info)
+        await stream_session.began(broadcaster_id, stream_info)
+        await live_alert.announce(broadcaster_id, stream_info, user_info, channel)
 
     except Exception as e:  # noqa: BLE001
         await report(e, f"Error in _stream_online_task for {broadcaster_id}")
 
 
-def _cancel_ad_break_task_if_needed(broadcaster_user_id: str) -> None:
-    """Cancel ad break notification task for the broadcaster if it exists.
-
-    Keyed by id, which is how _register_ad_break_task stores it.
-    """
-    if not _is_main_broadcaster(broadcaster_user_id):
-        return
-    shoutout_queue.deactivate()
-    _cancel_task_if_exists(_ad_break_notification_tasks, broadcaster_user_id)
-
-
-async def _fetch_stream_data(
-    broadcaster_id: int,
-) -> tuple[User | None, Channel | None, LiveAlert | None]:
-    """Fetch user info, channel info, and the stored alert for the stream."""
-    user_info = await get_user(broadcaster_id)
-    channel_info = await get_channel(broadcaster_id)
-
-    alert = await repository.get_live_alert(broadcaster_id)
-    if alert is None:
-        logger.warning(
-            f"Failed to fetch live alert for broadcaster_id={broadcaster_id}: No record found; Skipping"
-        )
-        return None, None, None
-
-    return user_info, channel_info, alert
-
-
-async def _get_vod_info(broadcaster_id: int, stream_id: int) -> Video | None:
-    """Safely fetch VOD information with error handling."""
-    if not stream_id:
-        return None
-
-    try:
-        return await get_stream_vod(broadcaster_id, stream_id)
-    except Exception as e:  # noqa: BLE001
-        await report(e, f"Failed to fetch VOD info for broadcaster {broadcaster_id}")
-        return None
-
-
-def _create_offline_embed(
-    event_sub: StreamOfflineEventSub,
-    user_info: User | None,
-    channel_info: Channel | None,
-    vod_info: Video | None,
-    stream_started_at: str | None,
-) -> discord.Embed:
-    """Create the offline embed with all necessary information."""
-    url = _get_twitch_url(event_sub.event.broadcaster_user_login)
-    embed = (
-        discord.Embed(
-            description=f"**{channel_info.title if channel_info else ''}**",
-            color=config.color("embed_color_stream"),
-            timestamp=pendulum.now(),
-        )
-        .set_author(
-            name=config.template(
-                "stream_offline_title", name=event_sub.event.broadcaster_user_name
-            ),
-            icon_url=user_info.profile_image_url if user_info else None,
-            url=url,
-        )
-        .add_field(
-            name=config.template("stream_field_game"),
-            value=f"{channel_info.game_name if channel_info else ''}",
-            inline=True,
-        )
-    )
-
-    if vod_info:
-        embed = embed.add_field(
-            name=config.template("stream_field_vod"),
-            value=config.template("stream_field_vod_value", url=vod_info.url),
-            inline=True,
-        )
-
-    if stream_started_at:
-        started_at = parse_rfc3339(stream_started_at)
-        age = get_age(started_at, limit_units=2)
-        embed = embed.set_footer(text=config.template("stream_footer_offline", age=age))
-
-    return embed
-
-
-async def _update_offline_message(
-    message_id: int, embed: discord.Embed, channel_id: int, content: str | None
-) -> bool:
-    """Show offline status. False leaves the record for the updater to retry."""
-    try:
-        return await edit_embed(message_id, embed, channel_id, content=content)
-    except discord.NotFound:
-        logger.warning(
-            f"Message not found when editing offline embed for message_id={message_id}; continuing"
-        )
-        return True
-    except Exception as e:  # noqa: BLE001
-        await report(e, "Error editing offline embed")
-        return False
-
-
-async def _cleanup_live_alert(broadcaster_id: int, message_id: int) -> None:
-    """Remove the live alert from storage, unless a newer alert already replaced it."""
-    try:
-        await repository.delete_live_alert(broadcaster_id, message_id=message_id)
-    except Exception as e:  # noqa: BLE001
-        await report(e, f"Failed to delete live alert for broadcaster {broadcaster_id}")
-
-
 async def _stream_offline_task(event_sub: StreamOfflineEventSub) -> None:
     broadcaster_id = int(event_sub.event.broadcaster_user_id)
     try:
-        _cancel_ad_break_task_if_needed(event_sub.event.broadcaster_user_id)
-
-        user_info, channel_info, alert = await _fetch_stream_data(broadcaster_id)
-        if alert is None:
-            return
-
-        channel_id, message_id, stream_id, stream_started_at = _extract_alert_data(
-            alert
-        )
-
-        vod_info = await _get_vod_info(broadcaster_id, stream_id)
-
-        content = _get_live_alerts_mention(channel_id)
-
-        embed = _create_offline_embed(
-            event_sub, user_info, channel_info, vod_info, stream_started_at
-        )
-
-        if await _update_offline_message(message_id, embed, channel_id, content):
-            await _cleanup_live_alert(broadcaster_id, message_id)
+        # The payload names no stream, so this handler cannot tell which one
+        # ended. It wakes the updater, which can. See docs/adr/0001.
+        await live_alert.wake(broadcaster_id)
 
     except Exception as e:  # noqa: BLE001
         await report(e, f"Error in _stream_offline_task for {broadcaster_id}")
@@ -460,50 +177,6 @@ async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
         await report(e, "Error processing Twitch follow webhook task")
 
 
-_ad_break_notification_tasks: dict[str, asyncio.Task] = {}
-
-
-def _cancel_task_if_exists(task_dict: dict[str, asyncio.Task], key: str) -> None:
-    """Cancel an async task if it exists in the given dictionary."""
-    existing_task = task_dict.get(key)
-    if existing_task and not existing_task.done():
-        existing_task.cancel()
-
-
-def _register_ad_break_task(broadcaster_id: str, task: asyncio.Task) -> None:
-    """Register an ad break notification task and set up auto-cleanup."""
-    _ad_break_notification_tasks[broadcaster_id] = task
-    task.add_done_callback(
-        lambda t, bid=broadcaster_id: _ad_break_notification_tasks.pop(bid, None)
-    )
-
-
-async def _schedule_next_ad_break_notification(broadcaster_id: str) -> None:
-    try:
-        ad_schedule = await get_ad_schedule(int(broadcaster_id))
-        if not ad_schedule:
-            return
-
-        next_ad_time = pendulum.from_timestamp(ad_schedule.next_ad_at)
-        notify_time = next_ad_time.subtract(minutes=5)
-        now = pendulum.now(tz=pendulum.UTC)
-        wait_seconds = (notify_time - now).total_seconds()
-        if wait_seconds > 0:
-            await asyncio.sleep(wait_seconds)
-            await twitch_send_message(
-                broadcaster_id,
-                config.template("twitch_ad_break_warning"),
-            )
-    except asyncio.CancelledError:
-        logger.info(
-            "Cancelled ad break notification task for broadcaster_id=%s",
-            broadcaster_id,
-        )
-        raise
-    except Exception as e:  # noqa: BLE001
-        await report(e, "Error scheduling next ad break notification")
-
-
 async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -> None:
     try:
         ad_duration = event_sub.event.duration_seconds
@@ -517,11 +190,7 @@ async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -
             config.template("twitch_ad_break_end"),
         )
 
-        broadcaster_id = event_sub.event.broadcaster_user_id
-        _cancel_task_if_exists(_ad_break_notification_tasks, broadcaster_id)
-
-        task = asyncio.create_task(_schedule_next_ad_break_notification(broadcaster_id))
-        _register_ad_break_task(broadcaster_id, task)
+        stream_session.schedule_ad_break_warning(event_sub.event.broadcaster_user_id)
     except Exception as e:  # noqa: BLE001
         await report(e, "Error processing Twitch ad break webhook task")
 
@@ -750,8 +419,10 @@ async def channel_ad_break_begin_webhook(request: Request) -> Response:
 
 async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
     try:
-        if _is_main_broadcaster(event_sub.event.from_broadcaster_user_id):
-            twitch_url = _get_twitch_url(event_sub.event.to_broadcaster_user_login)
+        if stream_session.is_main_broadcaster(event_sub.event.from_broadcaster_user_id):
+            twitch_url = (
+                f"https://www.twitch.tv/{event_sub.event.to_broadcaster_user_login}"
+            )
             await twitch_send_message(
                 event_sub.event.from_broadcaster_user_id,
                 config.template(
@@ -760,7 +431,7 @@ async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
                     url=twitch_url,
                 ),
             )
-        elif _is_main_broadcaster(event_sub.event.to_broadcaster_user_id):
+        elif stream_session.is_main_broadcaster(event_sub.event.to_broadcaster_user_id):
             await twitch_send_message(
                 event_sub.event.to_broadcaster_user_id,
                 f"!so {event_sub.event.from_broadcaster_user_login}",
@@ -782,7 +453,7 @@ async def channel_raid_webhook(request: Request) -> Response:
 
 async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
     try:
-        if event_sub.event.action != "raid" or not _is_main_broadcaster(
+        if event_sub.event.action != "raid" or not stream_session.is_main_broadcaster(
             event_sub.event.broadcaster_user_id
         ):
             return
