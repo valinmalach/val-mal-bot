@@ -1,6 +1,6 @@
 # The bookworm tags are frozen at an old uv whose newest 3.14 cannot satisfy
 # requires-python, so this follows trixie instead.
-FROM ghcr.io/astral-sh/uv:0.12.6-python3.14-trixie-slim
+FROM ghcr.io/astral-sh/uv:0.12.7-python3.14-trixie-slim
 
 WORKDIR /app
 
