@@ -85,6 +85,18 @@ flows. Both request `twitch_app_scopes`; the callbacks validate the returned
 Twitch user ID, client ID and scopes before upserting `oauth_token`. The `app`
 row is separate, uses client credentials and has no refresh token.
 
+**A live alert is closed by its updater, never by a webhook.** `stream.offline`
+carries no stream id, so the handler cannot tell which stream ended; it calls
+`live_alert.wake()`, and the updater re-checks Helix and stops if it has been
+superseded. `docs/adr/0001-alert-updater-is-the-only-closer.md` has the why. The
+one rule the cycle turns on is `live_alert._decide`, which is pure — put new
+conditions there, not in the surrounding I/O.
+
+**`live_alert` and `stream_session` are different scopes.** A live alert exists
+per broadcaster; a stream session is the main broadcaster being live, and owns
+the shoutout queue and the ad-break warning. Only a stream Helix confirms is gone
+stands a session down.
+
 **Two model packages with confusable names.** `models/` is Pydantic: Twitch API
 responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 

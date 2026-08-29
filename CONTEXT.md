@@ -29,12 +29,30 @@ _Avoid_: warning, alert (see flagged ambiguities), admin message
 
 **Live alert**:
 The Discord message announcing that a stream is live, kept up to date while it
-runs and rewritten once when it ends. One row in `live_alert` per broadcaster.
+runs and rewritten once when it ends. One row in `live_alert` per broadcaster, so
+a promo alert and the main broadcaster's alert are the same kind of thing.
 _Avoid_: stream notification, go-live post, announcement
 
+**Alert updater**:
+The task refreshing one **live alert**, and the only thing that closes it. A
+`stream.offline` webhook wakes it rather than closing the alert itself.
+_Avoid_: poller, alert loop, watcher
+
+**Superseded**:
+Said of an **alert updater** whose row no longer names the message and stream it
+was started for. It closes its own message — otherwise that message shows a live
+stream forever — and leaves the newer alert's row alone.
+_Avoid_: stale, replaced, orphaned
+
+**Stream session**:
+The main broadcaster being live. At most one at a time, and it owns the
+**shoutout queue** and the ad-break notification. Distinct from a **live alert**,
+which exists per broadcaster.
+_Avoid_: broadcast, live session, stream run
+
 **Shoutout queue**:
-The pending `!so` targets, drained at a rate Helix accepts. Active only while
-the broadcaster is live.
+The pending `!so` targets, drained at a rate Helix accepts. Active only for the
+duration of a **stream session**.
 _Avoid_: shoutout list, so queue
 
 ## Flagged ambiguities
@@ -50,23 +68,36 @@ message about a failure is a **notice** or a **report**. Nothing else in this
 project is called an alert.
 
 **Two functions named `_create_offline_embed`** exist, in `controller/twitch.py`
-and `services/twitch/api.py`, and both close a **live alert**. Unresolved — the
-duplication is real, not just a naming collision.
+and `services/twitch/api.py`. Resolved in language ahead of the code: closing is
+the **alert updater**'s job alone, so there is one closer and one offline embed.
+The webhook cannot identify which stream ended — Twitch's `stream.offline`
+payload carries no stream id — so it can only wake the updater, which re-checks
+Helix and stops if it is **superseded**.
 
 ## Example dialogue
 
 > **Dev**: When a stream ends, who rewrites the message?
 >
-> **Operator**: Whoever notices first. The webhook usually, but the poller
-> catches it if Twitch never calls.
+> **Operator**: Twitch tells you, doesn't it?
 >
-> **Dev**: So the live alert has two closers.
+> **Dev**: It tells us the channel went offline, but not which stream. If you
+> ended one and started another, we could not tell them apart.
 >
-> **Operator**: Right, and if they both go it looks the same to me, so I
-> wouldn't know.
+> **Operator**: So you would close the wrong one.
 >
-> **Dev**: You'd know if it failed — that would be a report in the admin
-> channel, with the traceback.
+> **Dev**: That is why the webhook only wakes the alert updater. The updater
+> knows which stream it was started for, so if it has been superseded it stops
+> instead of editing.
+>
+> **Operator**: And if nothing ever wakes it?
+>
+> **Dev**: It checks on its own every minute anyway. The webhook just makes it
+> quick.
+>
+> **Operator**: Fine. And when it breaks?
+>
+> **Dev**: You'd know — that would be a report in the admin channel, with the
+> traceback.
 >
 > **Operator**: Only if the bot is up far enough to post. Otherwise?
 >
