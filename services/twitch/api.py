@@ -1,8 +1,6 @@
 import asyncio
-import io
 import itertools
 import logging
-import traceback
 from collections.abc import Awaitable, Callable
 from enum import Enum, auto
 from typing import Any, Literal
@@ -12,8 +10,9 @@ import pendulum
 from discord.ui import View
 
 from config import settings
-from constants import ErrorDetails, TokenType
+from constants import TokenType
 from db import LiveAlert, repository
+from errors import notify, report
 from models import (
     AdSchedule,
     AdScheduleResponse,
@@ -33,7 +32,6 @@ from services.helper.helper import (
     edit_embed,
     get_age,
     parse_rfc3339,
-    send_message,
 )
 from services.helper.http_client import is_transient_network_error
 from services.helper.twitch import call_twitch
@@ -46,41 +44,12 @@ _UPDATE_INTERVAL_SECONDS = 60
 _MAX_INCONCLUSIVE_CYCLES = 5
 
 
-async def log_error(message: str, traceback_str: str) -> None:
-    traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
-    traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-    await send_message(message, config.channel("bot_admin"), file=traceback_file)
-
-
-def _create_error_details(e: Exception) -> ErrorDetails:
-    """Create a standardized error details dictionary from an exception."""
-    return {
-        "type": type(e).__name__,
-        "message": str(e),
-        "args": e.args,
-        "traceback": traceback.format_exc(),
-    }
-
-
-async def _log_and_report_error(error_msg: str, error_details: ErrorDetails) -> None:
-    """Log an error and report it to the admin channel."""
-    logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-    await log_error(error_msg, error_details["traceback"])
-
-
-async def _handle_api_exception(e: Exception, context: str) -> None:
-    """Handle exceptions from API calls with standardized logging and reporting."""
-    error_details = _create_error_details(e)
-    error_msg = f"{context} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-    await _log_and_report_error(error_msg, error_details)
-
-
 async def _handle_invalid_response(response, context: str) -> None:
     """Handle invalid HTTP responses with standardized logging and reporting."""
     status = response.status_code if response else "No response"
     text = response.text if response else ""
     logger.warning(f"{context}: {status}")
-    await send_message(f"{context}: {status} {text}", config.channel("bot_admin"))
+    await notify(f"{context}: {status} {text}")
 
 
 async def retry_api_call[T](
@@ -125,7 +94,7 @@ async def retry_api_call[T](
 
 async def _handle_subscription_request_error(e: Exception) -> None:
     """Handle errors from subscription API requests."""
-    await _handle_api_exception(e, "Error fetching subscriptions after retries")
+    await report(e, "Error fetching subscriptions after retries")
 
 
 async def _handle_subscription_response_error(response) -> None:
@@ -187,7 +156,7 @@ async def get_user(id: int) -> User | None:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:  # noqa: BLE001
-        await _handle_api_exception(e, "Failed to fetch user info after retries")
+        await report(e, "Failed to fetch user info after retries")
         return None
 
     if response is None or not _is_valid_response(response):
@@ -203,7 +172,7 @@ async def get_user_by_username(username: str) -> User | None:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:  # noqa: BLE001
-        await _handle_api_exception(e, "Failed to fetch user info after retries")
+        await report(e, "Failed to fetch user info after retries")
         return None
 
     if response is None or not _is_valid_response(response):
@@ -231,9 +200,7 @@ async def twitch_event_subscription(
     try:
         response = await retry_api_call(call_twitch, "POST", url, body)
     except Exception as e:  # noqa: BLE001
-        await _handle_api_exception(
-            e, f"Failed to subscribe to {sub_type} event after retries"
-        )
+        await report(e, f"Failed to subscribe to {sub_type} event after retries")
         return False
 
     if response is None or not _is_valid_response(response):
@@ -248,7 +215,7 @@ async def subscribe_to_user(username: str) -> bool:
     user = await get_user_by_username(username)
     if not user:
         logger.warning(f"User not found: {username}")
-        await send_message(f"User not found: {username}", config.channel("bot_admin"))
+        await notify(f"User not found: {username}")
         return False
 
     return await twitch_event_subscription(
@@ -263,7 +230,7 @@ async def _delete_subscription(subscription_id: str) -> bool:
     try:
         response = await retry_api_call(call_twitch, "DELETE", url)
     except Exception as e:  # noqa: BLE001
-        await _handle_api_exception(
+        await report(
             e,
             f"Failed to unsubscribe subscription_id={subscription_id} after retries",
         )
@@ -283,7 +250,7 @@ async def unsubscribe_to_user(username: str) -> bool:
     user = await get_user_by_username(username)
     if not user:
         logger.warning(f"User not found: {username}")
-        await send_message(f"User not found: {username}", config.channel("bot_admin"))
+        await notify(f"User not found: {username}")
         return False
 
     subscriptions = await get_subscriptions()
@@ -318,7 +285,7 @@ async def _fetch_user_batch(batch: list[str]) -> list[User] | None:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:  # noqa: BLE001
-        await _handle_api_exception(e, "Error fetching user infos after retries")
+        await report(e, "Error fetching user infos after retries")
         return None
 
     if response is None or not _is_valid_response(response):
@@ -351,7 +318,7 @@ async def get_channel(id: int) -> Channel | None:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:  # noqa: BLE001
-        await _handle_api_exception(e, "Failed to fetch channel info after retries")
+        await report(e, "Failed to fetch channel info after retries")
         return None
 
     if response is None or not _is_valid_response(response):
@@ -368,7 +335,7 @@ async def get_stream_state(broadcaster_id: int) -> tuple[Stream | None, bool]:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:  # noqa: BLE001
-        await _handle_api_exception(e, "Failed to fetch stream info after retries")
+        await report(e, "Failed to fetch stream info after retries")
         return None, False
 
     if response is None or not _is_valid_response(response):
@@ -379,7 +346,7 @@ async def get_stream_state(broadcaster_id: int) -> tuple[Stream | None, bool]:
         stream_info_response = StreamResponse.model_validate(response.json())
     except Exception as e:  # noqa: BLE001
         # A 200 whose body will not parse is still a lookup that told us nothing.
-        await _handle_api_exception(e, "Could not read the stream info response")
+        await report(e, "Could not read the stream info response")
         return None, False
 
     return (stream_info_response.data[0] if stream_info_response.data else None), True
@@ -396,7 +363,7 @@ async def get_stream_vod(user_id: int, stream_id: int) -> Video | None:
     try:
         response = await retry_api_call(call_twitch, "GET", url)
     except Exception as e:  # noqa: BLE001
-        await _handle_api_exception(e, "Failed to fetch VOD info after retries")
+        await report(e, "Failed to fetch VOD info after retries")
         return None
 
     if response is None or not _is_valid_response(response):
@@ -421,7 +388,7 @@ async def get_ad_schedule(broadcaster_id: int) -> AdSchedule | None:
             call_twitch, "GET", url, None, TokenType.Broadcaster
         )
     except Exception as e:  # noqa: BLE001
-        await _handle_api_exception(e, "Failed to fetch ad schedule after retries")
+        await report(e, "Failed to fetch ad schedule after retries")
         return None
 
     if response is None or not _is_valid_response(response):
@@ -454,9 +421,7 @@ async def _fetch_vod_info_safely(broadcaster_id: int, stream_id: int) -> Video |
     try:
         return await get_stream_vod(broadcaster_id, stream_id)
     except Exception as e:  # noqa: BLE001
-        await _handle_api_exception(
-            e, f"Failed to fetch VOD info for broadcaster_id={broadcaster_id}"
-        )
+        await report(e, f"Failed to fetch VOD info for broadcaster_id={broadcaster_id}")
         return None
 
 
@@ -555,7 +520,7 @@ async def _clear_alert(broadcaster_id: int, message_id: int) -> None:
     try:
         await repository.delete_live_alert(broadcaster_id, message_id=message_id)
     except Exception as e:  # noqa: BLE001
-        await _handle_api_exception(
+        await report(
             e,
             f"Failed to delete live alert record for broadcaster_id={broadcaster_id}",
         )
@@ -578,9 +543,7 @@ async def _handle_offline_edit_error(
         )
         return _CycleOutcome.RETRY
 
-    await _handle_api_exception(
-        e, f"Error editing offline embed for message_id={message_id}"
-    )
+    await report(e, f"Error editing offline embed for message_id={message_id}")
     return _CycleOutcome.STOP
 
 
@@ -694,12 +657,12 @@ async def _handle_live_embed_edit_error(
         )
         return _CycleOutcome.RETRY
 
-    error_details = _create_error_details(e)
-    if isinstance(e, discord.HTTPException):
-        error_msg = f"Discord HTTP error {e.status} when editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-    else:
-        error_msg = f"Error editing live embed for message_id={message_id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-    await _log_and_report_error(error_msg, error_details)
+    context = (
+        f"Discord HTTP error {e.status} when editing live embed for message_id={message_id}"
+        if isinstance(e, discord.HTTPException)
+        else f"Error editing live embed for message_id={message_id}"
+    )
+    await report(e, context)
     return _CycleOutcome.RETRY
 
 
@@ -851,7 +814,7 @@ async def update_alert(
             except Exception as e:  # noqa: BLE001
                 # A cycle that raised concluded nothing, and must not take the
                 # updater with it; the cap below still stops a hopeless one.
-                await _handle_api_exception(
+                await report(
                     e,
                     f"Error in the live alert update cycle for broadcaster_id={broadcaster_id}",
                 )
@@ -868,7 +831,7 @@ async def update_alert(
                 return
 
     except Exception as e:  # noqa: BLE001
-        await _handle_api_exception(
+        await report(
             e, f"Error updating live alert message for broadcaster_id={broadcaster_id}"
         )
 

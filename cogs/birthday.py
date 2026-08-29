@@ -1,18 +1,16 @@
-import io
 import logging
-import traceback
 from typing import Any, Literal
 
-import discord
 import pendulum
 from discord import Interaction, Member, User, app_commands
 from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
 from pendulum import DateTime
 
-from constants import MAX_DAYS, ErrorDetails, Months
+from constants import MAX_DAYS, Months
 from db import repository
-from services import get_next_leap, send_message
+from errors import notify, report
+from services import get_next_leap
 from services.config import config, has_configured_role
 
 logger = logging.getLogger(__name__)
@@ -155,17 +153,7 @@ class Birthday(GroupCog):
         self, interaction: Interaction, e: Exception
     ) -> None:
         """Handle exceptions that occur during birthday setting."""
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Exception in set_birthday for user={interaction.user.id} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await self._birthday_operation_failed(
-            interaction, error_msg, "set", error_details["traceback"]
-        )
+        await self._birthday_operation_failed(interaction, e, "set")
 
     @set_birthday.autocomplete("timezone")
     async def timezone_autocomplete(
@@ -189,9 +177,8 @@ class Birthday(GroupCog):
         try:
             existing_user = await repository.get_user(interaction.user.id)
             if existing_user is None:
-                await send_message(
-                    f"User {interaction.user.name} ({interaction.user.id}) attempted to remove a birthday but had no record.",
-                    config.channel("bot_admin"),
+                await notify(
+                    f"User {interaction.user.name} ({interaction.user.id}) attempted to remove a birthday but had no record."
                 )
                 await interaction.response.send_message(
                     config.template("birthday_remove_failed")
@@ -214,24 +201,13 @@ class Birthday(GroupCog):
                 config.template("birthday_none_to_remove")
             )
         except Exception as e:  # noqa: BLE001
-            error_details: ErrorDetails = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc(),
-            }
-            error_msg = f"Exception in remove_birthday for user={interaction.user.id}: {error_details['message']}"
-            logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-            await self._birthday_operation_failed(
-                interaction, error_msg, "forget", error_details["traceback"]
-            )
+            await self._birthday_operation_failed(interaction, e, "forget")
 
     async def _birthday_operation_failed(
         self,
         interaction: Interaction,
-        error_msg: str,
+        e: Exception,
         set_forget: Literal["set", "forget"],
-        traceback_str: str,
     ) -> None:
         mention = (
             interaction.guild.owner.mention
@@ -243,12 +219,10 @@ class Birthday(GroupCog):
                 "birthday_operation_failed", action=set_forget, mention=mention
             )
         )
-        traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
-        traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-        await send_message(
-            f"Failed to {set_forget} birthday for {interaction.user.name}: {error_msg}",
-            config.channel("bot_admin"),
-            file=traceback_file,
+        await report(
+            e,
+            f"Failed to {set_forget} birthday for {interaction.user.name} "
+            f"(ID: {interaction.user.id})",
         )
 
 

@@ -1,6 +1,4 @@
-import io
 import logging
-import traceback
 from typing import Literal
 
 import discord
@@ -29,8 +27,9 @@ from discord.abc import PrivateChannel
 from discord.ext.commands import Bot, Cog, CommandError, Context
 from pendulum import DateTime
 
-from constants import DEFAULT_MISSING_CONTENT, UNKNOWN_USER, ErrorDetails
+from constants import DEFAULT_MISSING_CONTENT, UNKNOWN_USER
 from db import repository
+from errors import report
 from services import (
     get_age,
     get_channel_mention,
@@ -49,32 +48,12 @@ class Events(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
 
-    def _create_error_details(self, exception: Exception) -> ErrorDetails:
-        """Create standardized error details dictionary from an exception."""
-        return {
-            "type": type(exception).__name__,
-            "message": str(exception),
-            "args": exception.args,
-            "traceback": traceback.format_exc(),
-        }
-
-    async def _handle_error(
-        self, exception: Exception, context: str, should_raise: bool = False
-    ) -> None:
-        """Centralized error handling and logging."""
-        error_details = self._create_error_details(exception)
-        error_msg = f"{context} - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await self._send_error_message(error_msg, error_details["traceback"])
-        if should_raise:
-            raise exception
-
     async def _safe_db_operation(self, operation: str, func, *args, **kwargs) -> None:
         """Run a database write, reporting failures instead of raising."""
         try:
             await func(*args, **kwargs)
         except Exception as e:  # noqa: BLE001
-            await self._handle_error(e, f"Failed to {operation}")
+            await report(e, f"Failed to {operation}")
 
     def _base_embed(self, description: str, color: int) -> Embed:
         """Create a base embed with common settings (description, color, timestamp)."""
@@ -112,19 +91,6 @@ class Events(Cog):
             [attachment.url for attachment in message.attachments],
         )
 
-    async def _send_error_message(
-        self,
-        error_msg: str,
-        traceback_str: str,
-    ) -> None:
-        traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
-        traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-        await send_message(
-            error_msg,
-            config.channel("bot_admin"),
-            file=traceback_file,
-        )
-
     @Cog.listener()
     async def on_message(self, message: Message) -> None:
         try:
@@ -137,7 +103,7 @@ class Events(Cog):
             if reply is not None:
                 await message.channel.send(reply)
         except Exception as e:  # noqa: BLE001
-            await self._handle_error(e, "Fatal error with on_message event")
+            await report(e, "Fatal error with on_message event")
 
     @Cog.listener()
     async def on_member_join(self, member: Member) -> None:
@@ -181,7 +147,7 @@ class Events(Cog):
                 member.name,
             )
         except Exception as e:  # noqa: BLE001
-            await self._handle_error(e, "Fatal error with on_member_join event")
+            await report(e, "Fatal error with on_member_join event")
 
     async def _get_user_data(self, user: User | Member) -> tuple[str, str]:
         return get_discriminator(user), get_pfp(user)
@@ -227,7 +193,7 @@ class Events(Cog):
                 member.id,
             )
         except Exception as e:  # noqa: BLE001
-            await self._handle_error(e, "Fatal error with on_raw_member_remove event")
+            await report(e, "Fatal error with on_raw_member_remove event")
 
     @Cog.listener()
     async def on_command_error(self, ctx: Context, error: CommandError) -> None:
@@ -245,7 +211,7 @@ class Events(Cog):
             await self._handle_nickname_change(before, after, discriminator, url)
             await self._handle_timeout_changes(before, after, discriminator, url)
         except Exception as e:  # noqa: BLE001
-            await self._handle_error(e, "Fatal error with on_member_update event")
+            await report(e, "Fatal error with on_member_update event")
 
     async def _handle_pfp_change(
         self, before: Member, after: Member, discriminator: str, url: str
@@ -373,7 +339,7 @@ class Events(Cog):
             await self._store_message(after)
 
         except Exception as e:  # noqa: BLE001
-            await self._handle_error(e, "Fatal error with on_raw_message_edit event")
+            await report(e, "Fatal error with on_raw_message_edit event")
 
     @Cog.listener()
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent) -> None:
@@ -409,7 +375,7 @@ class Events(Cog):
                 payload.message_id,
             )
         except Exception as e:  # noqa: BLE001
-            await self._handle_error(e, "Fatal error with on_raw_message_delete event")
+            await report(e, "Fatal error with on_raw_message_delete event")
 
     @Cog.listener()
     async def on_raw_bulk_message_delete(
@@ -444,9 +410,7 @@ class Events(Cog):
                     message_id,
                 )
         except Exception as e:  # noqa: BLE001
-            await self._handle_error(
-                e, "Fatal error with on_raw_bulk_message_delete event"
-            )
+            await report(e, "Fatal error with on_raw_bulk_message_delete event")
 
     async def _log_ban_unban(
         self, user: User | Member, action: Literal["ban", "unban"]
@@ -467,14 +431,14 @@ class Events(Cog):
         try:
             await self._log_ban_unban(user, "ban")
         except Exception as e:  # noqa: BLE001
-            await self._handle_error(e, "Fatal error with on_member_ban event")
+            await report(e, "Fatal error with on_member_ban event")
 
     @Cog.listener()
     async def on_member_unban(self, guild: Guild, user: User | Member) -> None:
         try:
             await self._log_ban_unban(user, "unban")
         except Exception as e:  # noqa: BLE001
-            await self._handle_error(e, "Fatal error with on_member_unban event")
+            await report(e, "Fatal error with on_member_unban event")
 
     @Cog.listener()
     async def on_invite_create(self, invite: Invite) -> None:
@@ -494,7 +458,7 @@ class Events(Cog):
             embed = embed.set_author(name=f"{guild_name}", icon_url=guild_icon)
             await send_embed(embed, config.channel("audit_logs"))
         except Exception as e:  # noqa: BLE001
-            await self._handle_error(e, "Fatal error with on_invite_create event")
+            await report(e, "Fatal error with on_invite_create event")
 
     @Cog.listener()
     async def on_invite_delete(self, invite: Invite) -> None:
@@ -507,7 +471,7 @@ class Events(Cog):
             embed = embed.set_author(name=f"{guild_name}", icon_url=guild_icon)
             await send_embed(embed, config.channel("audit_logs"))
         except Exception as e:  # noqa: BLE001
-            await self._handle_error(e, "Fatal error with on_invite_delete event")
+            await report(e, "Fatal error with on_invite_delete event")
 
     async def _get_message_content(self, message_id: int) -> str:
         stored = await repository.get_message(message_id)

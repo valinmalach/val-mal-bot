@@ -96,9 +96,11 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   `init/bot_init.py` and `views/` import services lazily to break cycles. Leave them.
 - **`token_manager` and `shoutout_queue` are singletons** (`__new__`). Import the
   instance; do not construct another.
-- **Errors surface in Discord**, to `config.channel("bot_admin")`, with the traceback
-  attached as a file. Follow the existing `get_error_details` / `handle_error` pattern
-  rather than only logging.
+- **Everything the bot says about itself goes through `errors.py`.** `report(exc,
+  context)` for an exception, `notify(text)` for anything else worth the admin
+  channel. Neither raises, both log locally first, and both say so when the channel
+  is out of reach. `notify` returns whether it landed, for the one caller that
+  retries. Nothing else may resolve `config.channel("bot_admin")`.
 - **Text from the database is formatted with `safe_format`**, never bare `str.format`
   — a row is not source, and one unmatched brace should not lose the whole message.
   `config.render` additionally resolves `{channel:key}` and `{role:key}`.

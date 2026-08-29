@@ -1,26 +1,17 @@
-import io
 import logging
-import traceback
 from typing import Literal
 
-import discord
 from httpx import Response
 
 from config import settings
-from constants import ErrorDetails, TokenType
+from constants import TokenType
+from errors import notify, report
 from models import ChannelChatMessageEventSub
 from services.config import config
-from services.helper.helper import send_message
 from services.helper.http_client import http_client_manager, is_transient_network_error
 from services.twitch.token_manager import token_manager
 
 logger = logging.getLogger(__name__)
-
-
-async def log_error(message: str, traceback_str: str) -> None:
-    traceback_buffer = io.BytesIO(traceback_str.encode("utf-8"))
-    traceback_file = discord.File(traceback_buffer, filename="traceback.txt")
-    await send_message(message, config.channel("bot_admin"), file=traceback_file)
 
 
 async def _ensure_token_available(token_type: TokenType) -> bool:
@@ -69,9 +60,7 @@ async def _make_http_request(
         return await http_client_manager.request("DELETE", url, headers=headers)
     else:
         logger.error(f"Unsupported HTTP method: {method}")
-        await send_message(
-            f"Unsupported HTTP method: {method}", config.channel("bot_admin")
-        )
+        await notify(f"Unsupported HTTP method: {method}")
         return None
 
 
@@ -100,10 +89,7 @@ async def call_twitch(
         refresh_success = await _ensure_token_available(token_type)
         if not refresh_success:
             logger.warning("No access token available and failed to refresh")
-            await send_message(
-                "No access token available and failed to refresh",
-                config.channel("bot_admin"),
-            )
+            await notify("No access token available and failed to refresh")
             return None
 
         token = _get_token_for_type(token_type)
@@ -130,15 +116,7 @@ async def call_twitch(
             # Re-raise retryable errors so retry_api_call can handle them
             raise
 
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Exception during Twitch API call - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await report(e, "Exception during Twitch API call")
         return None
 
 
@@ -172,18 +150,9 @@ async def twitch_send_message(broadcaster_id: str, message: str) -> None:
             logger.warning(
                 f"Failed to send message: {response.status_code if response else 'No response'}"
             )
-            await send_message(
-                f"Failed to send message: {response.status_code if response else 'No response'} {response.text if response else ''}",
-                config.channel("bot_admin"),
+            await notify(
+                f"Failed to send message: {response.status_code if response else 'No response'} {response.text if response else ''}"
             )
             return
     except Exception as e:  # noqa: BLE001
-        error_details: ErrorDetails = {
-            "type": type(e).__name__,
-            "message": str(e),
-            "args": e.args,
-            "traceback": traceback.format_exc(),
-        }
-        error_msg = f"Error sending Twitch message - Type: {error_details['type']}, Message: {error_details['message']}, Args: {error_details['args']}"
-        logger.error(f"{error_msg}\nTraceback:\n{error_details['traceback']}")
-        await log_error(error_msg, error_details["traceback"])
+        await report(e, "Error sending Twitch message")

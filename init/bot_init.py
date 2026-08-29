@@ -2,11 +2,10 @@ import asyncio
 import logging
 
 import discord
-from discord import CategoryChannel, ForumChannel
-from discord.abc import PrivateChannel
 from discord.ext.commands import Bot
 
 from background import fire_and_forget
+from errors import notify
 
 logger = logging.getLogger(__name__)
 
@@ -91,10 +90,6 @@ async def on_ready() -> None:
         logger.info("Reconnected to Discord")
         return
 
-    channel = bot.get_channel(config.channel("bot_admin"))
-    if channel is None or isinstance(
-        channel, (ForumChannel, CategoryChannel, PrivateChannel)
-    ):
-        return
-    await channel.send(config.template("discord_startup"))
-    _startup_announced = True
+    # Only a delivered announcement counts as announced: one that could not be
+    # sent is tried again on the next reconnect.
+    _startup_announced = await notify(config.template("discord_startup"))
