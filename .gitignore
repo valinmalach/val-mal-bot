@@ -163,3 +163,22 @@ cython_debug/
 
 *.code-workspace
 .vscode/
+
+# Verity — machine-local state. Everything in .verity/ is ignored EXCEPT the
+# shared standard and the knowledge graph, which are meant to be committed.
+# A whitelist on purpose: .verity/ keeps accumulating state files (.snapshot/
+# holds copies of analyzed files, including any secret the gate just flagged),
+# and enumerating them one by one is how .snapshot/ got committed elsewhere.
+.verity/*
+!.verity/standard.yaml
+!.verity/memory/
+.verity/memory/log.md
+
+# Verity telemetry — machine-local Claude Code settings
+.claude/settings.local.json
+
+# Verity's own slash-command skills, installed into the repo by the CLI and
+# byte-identical to its npm package. Committing them pins a stale snapshot of
+# someone else's tool; `verity init` reinstalls them at the current version.
+.claude/skills/verity-*/
+.codacy/generated/

@@ -43,6 +43,13 @@ On Windows `--sql` needs `PYTHONIOENCODING=utf-8`: some seeded text is emoji.
 **There is no test suite** — no pytest, no test files, no CI workflow. Verification
 is the three checks above plus running the bot, so do not describe a change as tested.
 
+A fourth gate runs at commit time. `git commit` is intercepted by Verity, which
+analyses the staged diff and can block the commit. It is a Claude Code hook, not a
+git hook — there is nothing in `.git/hooks`, and it does not fire for other tools.
+Its rules, and the narrow circumstances in which a finding may be waived, live in
+`CLAUDE.md`; the Standard it enforces is `.verity/standard.yaml`, and `VERITY.md`
+covers the setup. Run it by hand with `verity analyze`.
+
 ## Architecture
 
 **One process wearing two faces.** `main.py` is a FastAPI app, and the Discord bot

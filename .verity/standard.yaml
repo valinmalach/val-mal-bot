@@ -1,0 +1,183 @@
+version: "1.0.0"
+created_by: "verity-setup"
+
+knowledge_spec:
+  project_name: "val-mal-bot"
+  languages: [python, shell, dockerfile]
+  frameworks: [fastapi, discord.py, sqlmodel, alembic, pydantic, uvicorn, httpx]
+  architecture: monolith
+  build_system: uv
+  test_framework: none
+
+quality_dimensions:
+  - id: comprehensibility
+    description: "Code readable in one context load"
+    signals:
+      - metric: file_length
+        threshold: 400
+        unit: lines
+        rationale: "Raised from 300: the repo averages ~165 lines/file, but cogs/events.py (705), services/twitch/live_alert.py (605) and controller/twitch.py (476) are the genuine split candidates; 300 would also nag the healthy 335-386 line modules"
+      - metric: cyclomatic_complexity
+        threshold: 15
+        unit: per_function
+        rationale: "Complexity-aware feedback improves AI performance by 35.71%"
+      - metric: function_length
+        threshold: 50
+        unit: lines
+        rationale: "Short functions are easier for agents to modify safely"
+      - metric: naming_quality
+        tool: ai
+        rationale: "Descriptive names improve AI comprehension by 2x"
+
+  - id: modularity
+    description: "Modify one concern without touching 3+ files"
+    signals:
+      - metric: single_responsibility
+        tool: ai
+        rationale: "AI performance drops sharply at 3+ files per change"
+      - metric: shallow_abstractions
+        tool: ai
+        rationale: "LLMs struggle with deep inheritance hierarchies"
+
+  - id: type_safety
+    description: "Type system catches errors before runtime"
+    signals:
+      - metric: strict_types
+        languages: [python]
+        tool: ruff
+        rules:
+          - "ANN001"
+          - "ANN201"
+        rationale: ">50% reduction in compilation errors with type constraints"
+      - metric: static_type_check
+        tool: pyright
+        config: "pyproject.toml [tool.pyright]"
+        rationale: "typeCheckingMode=standard is pinned in pyproject.toml so the editor (Pylance) and CLI agree; pyright must be clean before work is handed over"
+
+  - id: test_adequacy
+    description: "Tests define expected behavior for agents"
+    signals:
+      - metric: test_coverage
+        threshold: 0
+        unit: percent
+        rationale: "This repo has no test suite by current policy (AGENTS.md): no pytest, no test files, no CI workflow. Verification is ruff + ruff format + pyright plus running the bot. Raise this to 80/90 if a suite is ever introduced"
+      - metric: test_quality
+        tool: ai
+        rationale: "Kept active so any test that does arrive is judged, and so a change is never described as tested when it is not"
+
+security_patterns:
+  - id: no-hardcoded-secrets
+    description: "No secrets, API keys, passwords, or tokens in source code"
+    severity: critical
+    cwe: [CWE-798]
+    enforced_by: [Trivy_secret, Ruff_S105, Ruff_S106, Ruff_S107, ai]
+
+  - id: input-sanitization
+    description: "All user input validated and sanitized before use"
+    severity: critical
+    cwe: [CWE-20, CWE-80, CWE-89, CWE-117]
+    enforced_by: [ai]
+
+  - id: parameterized-queries
+    description: "Database queries use parameters, never string concatenation"
+    severity: critical
+    cwe: [CWE-89]
+    enforced_by: [Ruff_S608, ai]
+
+  - id: dependency-verification
+    description: "No known-vulnerable dependencies"
+    severity: high
+    cwe: [CWE-1395]
+    enforced_by: [Trivy_vulnerability_critical, Trivy_vulnerability_high, Trivy_malicious_packages]
+
+  - id: no-unsafe-deserialization
+    description: "No unsafe deserialization of untrusted data"
+    severity: high
+    cwe: [CWE-502]
+    enforced_by: [Ruff_S301, Ruff_S102, ai]
+
+  - id: access-control-checks
+    description: "Authorization verified on all sensitive operations"
+    severity: high
+    cwe: [CWE-639]
+    enforced_by: [ai]
+
+  - id: config-file-integrity
+    description: "Configuration files not manipulable by untrusted input"
+    severity: high
+    cwe: [CWE-15]
+    enforced_by: [ai]
+
+custom_patterns:
+  - id: ids-addressed-by-slug
+    description: "Discord and Twitch IDs are resolved at call time through config.channel/role/setting/template by slug. No snowflake literal in code, and no ID held across calls."
+    severity: high
+    enforced_by: [ai]
+    rationale: "AGENTS.md: an ID must be changeable in the database without a redeploy. A literal or a cached ID silently breaks that."
+
+  - id: background-work-via-fire-and-forget
+    description: "Background tasks go through background.fire_and_forget, never a bare asyncio.create_task."
+    severity: high
+    enforced_by: [ai]
+    rationale: "AGENTS.md: asyncio holds only a weak reference to a running task, so a bare create_task can be garbage collected mid-flight."
+
+  - id: db-text-through-safe-format
+    description: "Text loaded from the database is rendered with safe_format or config.render, never bare str.format."
+    severity: high
+    enforced_by: [ai]
+    rationale: "AGENTS.md: a database row is not source. One unmatched brace in a row must not lose the whole message."
+
+  - id: self-reporting-through-errors-module
+    description: "Everything the bot says about itself goes through errors.report(exc, context) or errors.notify(text). Nothing else may resolve config.channel('bot_admin')."
+    severity: medium
+    enforced_by: [ai]
+    rationale: "AGENTS.md: one module owns admin-channel reporting, so it can log locally first and never raise."
+
+  - id: migration-discipline
+    description: "Configuration changes ship as an Alembic revision. A revision never imports the models or reads a data file, inserts tolerate a conflict, and an UPDATE is guarded by the value it replaces."
+    severity: high
+    enforced_by: [ai]
+    rationale: "db/README.md: migrations run on every container start, so a revision that imports a model breaks the moment the model moves ahead of it."
+
+process_constraints:
+  self_healing_limit: 2
+  analysis_mode: balanced
+
+  compound_enabled: true
+  memory_graph_enabled: true
+  memory_graph_budget_tokens: 2000
+  knowledge_injection_budget_tokens: 2000
+  finding_autosuppress_threshold: 2
+
+  intent_fail_threshold: 4
+  intent_warn_threshold: 7
+
+  exclude_paths:
+    - .venv
+    - .git
+    - __pycache__
+    - .ruff_cache
+    - .idea
+    - .vscode
+    - dist
+    - build
+    - vendor
+    - coverage
+
+tool_configuration:
+  ruff:
+    enabled: true
+    config_file: null
+    note: "No [tool.ruff] section in pyproject.toml — the project runs `uvx ruff check .` on defaults. The gate's rule set is the Ruff patterns in .codacy/codacy.config.json, independent of that."
+  trivy:
+    enabled: true
+  shellcheck:
+    enabled: true
+    note: "start.sh brings up the tunnel, runs alembic upgrade head, then the app — a quoting bug there fails the deploy."
+  hadolint:
+    enabled: true
+    note: "Dockerfile is the Railway deploy path."
+  pyright:
+    enabled: false
+    config_file: "pyproject.toml"
+    note: "Run by the developer (uvx pyright), not by the gate. Recorded here because it is the project's type-safety authority."
