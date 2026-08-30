@@ -75,7 +75,9 @@ def schedule_ad_break_warning(broadcaster_id: str) -> None:
     """Replace this broadcaster's pending warning with one for the next ad break."""
     cancel_ad_break_warning(broadcaster_id)
 
-    task = asyncio.create_task(_warn_before_next_ad(broadcaster_id))
+    task = fire_and_forget(
+        _warn_before_next_ad(broadcaster_id), name=f"ad-break-warning-{broadcaster_id}"
+    )
     _ad_break_tasks[broadcaster_id] = task
     task.add_done_callback(
         lambda finished, bid=broadcaster_id: _forget_ad_break_task(bid, finished)

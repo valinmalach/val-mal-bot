@@ -15,6 +15,7 @@ import discord
 import pendulum
 from discord.ui import View
 
+from background import fire_and_forget
 from db import LiveAlert, repository
 from errors import notify, report
 from models import Channel, Stream, User, Video
@@ -542,8 +543,9 @@ def _start(
     # Created here, not in _run, so a wake issued before the task first runs
     # still lands.
     _wakeups[message_id] = asyncio.Event()
-    task = asyncio.create_task(
-        _run(broadcaster_id, channel_id, message_id, stream_id, stream_started_at)
+    task = fire_and_forget(
+        _run(broadcaster_id, channel_id, message_id, stream_id, stream_started_at),
+        name=f"live-alert-{message_id}",
     )
     _update_tasks[message_id] = task
     task.add_done_callback(

@@ -105,6 +105,12 @@ per broadcaster; a stream session is the main broadcaster being live, and owns
 the shoutout queue and the ad-break warning. Only a stream Helix confirms is gone
 stands a session down.
 
+**Every Twitch chat line goes through `services/twitch/chat.py`.** `say` and
+`say_template` report their own failure and never raise, so a line Twitch refused
+cannot fail whatever was saying it. `api.send_chat_message` is not re-exported
+from `services` — three separate rounds of guarding chat sends each missed a
+different call site, so the guard moved to the one place they all pass through.
+
 **Every Helix call goes through `services/twitch/helix.py`.** It owns the token
 choice, the pre-emptive refresh, the one 401 re-send, retry, status checking and
 parsing, and it raises `HelixError` rather than reporting — whoever catches has
@@ -117,22 +123,35 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 
 ## Conventions
 
-- **Background work goes through `background.fire_and_forget`.** asyncio holds only a
-  weak reference to a running task, so a bare `create_task` can be collected mid-flight.
+- **Background work goes through `background.fire_and_forget`, always named.** asyncio
+  holds only a weak reference to a running task, so a bare `create_task` can be
+  collected mid-flight. It also reports a task that died without its own handler
+  running, which is the last catch in the process — and the report is keyed on the
+  task's name, so an unnamed task would report under a new name every time.
 - **Deferred imports inside functions** are load-order management, not style:
   `init/bot_init.py` and `views/` import services lazily to break cycles. Leave them.
 - **`token_manager` and `shoutout_queue` are singletons** (`__new__`). Import the
   instance; do not construct another.
 - **Everything the bot says about itself goes through `errors.py`.** `report(exc,
   context)` for an exception, `notify(text)` for anything else worth the admin
-  channel. Neither raises, both log locally first, and both say so when the channel
-  is out of reach. `notify` returns whether it landed, for the one caller that
-  retries. Nothing else may resolve `config.channel("bot_admin")`.
+  channel, `notify_soon(text)` for the two synchronous renderers that cannot
+  await. None of them raise, all log locally first, and all say so when the
+  channel is out of reach. `notify` returns whether the channel has the news, for
+  the one caller that retries. Nothing else may resolve
+  `config.channel("bot_admin")`.
 - **A path that degrades or gives up says so in the admin channel.** Catching a
   `HelixError` to carry on without an avatar is fine; catching it into
   `logger.warning` alone is not. The logs are not watched and the Discord server
-  is. A retry loop is the one exception: it stays quiet while retrying and speaks
-  once if it gives up, so an outage costs one message rather than thirty.
+  is. Volume is not a reason to stay quiet: `errors.py` holds back a repeat of
+  something it already delivered for fifteen minutes and says how many it stood
+  in for, so the first of anything always lands and an outage still costs a
+  handful of messages. Pass an explicit `key=` wherever the text carries a detail
+  that varies between repeats of the same problem — a broadcaster id belongs in
+  the key, the error string does not, or nothing is ever held back.
+- **A retry loop stays quiet while retrying and speaks once when it gives up.**
+  The give-up is not optional: a loop that stops into a `logger.warning` has
+  stopped doing its job with nothing to say it. `helix.request` and
+  `_wait_for_stream_info` are the shape to copy.
 - **Text from the database is formatted with `safe_format`**, never bare `str.format`
   — a row is not source, and one unmatched brace should not lose the whole message.
   `config.render` additionally resolves `{channel:key}` and `{role:key}`.
