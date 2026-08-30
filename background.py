@@ -31,5 +31,28 @@ def _finished(task: asyncio.Task) -> None:
     if task.cancelled():
         return
     error = task.exception()
-    if error is not None:
-        logger.error("Background task %s failed", task.get_name(), exc_info=error)
+    if error is None:
+        return
+
+    logger.error("Background task %s failed", task.get_name(), exc_info=error)
+
+    if not isinstance(error, Exception):
+        # A BaseException that is not an Exception is the process being asked to
+        # stop, not a fault worth waking anyone for.
+        return
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # Called as the loop goes down; the log line is all there can be.
+        return
+
+    # The last catch for a task whose own handler did not run, or did not
+    # survive. report never raises, so the task started here cannot come back
+    # through this branch.
+    from errors import report
+
+    fire_and_forget(
+        report(error, f"Background task {task.get_name()} failed"),
+        name=f"report-{task.get_name()}",
+    )

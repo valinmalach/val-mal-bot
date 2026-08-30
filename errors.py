@@ -148,8 +148,10 @@ async def _deliver(text: str, trace: str | None) -> bool:
         if trace is not None
         else None
     )
+    # quiet: send_message announces a channel it cannot resolve, and announcing
+    # this one goes through here again.
     sent = await send_message(
-        text[:_MAX_CONTENT], config.channel(_ADMIN_CHANNEL), file=file
+        text[:_MAX_CONTENT], config.channel(_ADMIN_CHANNEL), file=file, quiet=True
     )
     if sent is None:
         logger.warning("Undelivered, admin channel unavailable: %s", text)
