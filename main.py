@@ -27,15 +27,30 @@ logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
+async def _report_failed_extensions(failures: list[tuple[str, Exception]]) -> None:
+    """Report a cog that would not load, once the admin channel can be reached.
+
+    Cogs load before bot.start, and config.load runs in setup_hook, so nothing
+    said here during loading could resolve a channel to say it in.
+    """
+    await bot.wait_until_ready()
+    for ext, exc in failures:
+        await report(exc, f"Failed to load extension {ext}")
+
+
 async def main() -> None:
     try:
         bot.remove_command("help")
         results = await asyncio.gather(
             *(bot.load_extension(ext) for ext in COGS), return_exceptions=True
         )
-        for ext, res in zip(COGS, results):
-            if isinstance(res, Exception):
-                await report(res, f"Failed to load extension {ext}")
+        failures = [
+            (ext, res) for ext, res in zip(COGS, results) if isinstance(res, Exception)
+        ]
+        for ext, exc in failures:
+            logger.error("Failed to load extension %s", ext, exc_info=exc)
+        if failures:
+            fire_and_forget(_report_failed_extensions(failures), name="cog-failures")
         await bot.start(settings.active_discord_token)
     except Exception as e:  # noqa: BLE001
         await report(e, "Unhandled exception in main")

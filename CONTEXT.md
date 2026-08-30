@@ -25,6 +25,46 @@ A message to the **admin channel** that is not an exception — a rejected webho
 signature, a revoked EventSub subscription, an unavailable token.
 _Avoid_: warning, alert (see flagged ambiguities), admin message
 
+**Held back**:
+Said of a **report** or **notice** identical to one delivered within the last
+fifteen minutes. It is counted rather than sent, and the next one through says
+how many it stood in for. Only a delivery holds anything back, so the first of
+anything is always sent.
+_Avoid_: rate limited, throttled, deduplicated, suppressed
+
+**Key**:
+What two occurrences must share to be **held back** as the same one. Named
+explicitly wherever the text carries a detail that varies between repeats — a
+broadcaster id belongs in the key, the error string does not.
+_Avoid_: id, fingerprint, hash
+
+### Twitch API
+
+**Helix call**:
+A request to Twitch's API, made only through `services/twitch/helix.py`. Its
+answer is the value or `None` when Twitch has none; a call that did not complete
+raises instead, so "absent" and "unknown" are never the same answer.
+_Avoid_: Twitch API call, twitch request
+
+**Repeatable**:
+Said of a **Helix call** that may be sent twice without a second effect. Reads
+and deletes are; posting a chat message or a shoutout is not, which is why those
+are never retried.
+_Avoid_: idempotent, safe, retryable
+
+**Chat line**:
+One message the bot says in Twitch chat, sent only through
+`services/twitch/chat.py`. Saying it never raises and never fails a caller: a
+line Twitch refused is a **notice**, not the end of whatever was saying it.
+_Avoid_: chat message, chat post
+
+**Undeliverable**:
+Said of an EventSub subscription that exists but will never call back — one
+Twitch disabled after too many failed deliveries, or one still pointing at a
+callback this deployment no longer answers on. Indistinguishable from a working
+one in a 409, which is why a 409 is looked into rather than believed.
+_Avoid_: broken, dead, stale
+
 ### Twitch stream lifecycle
 
 **Live alert**:
@@ -72,7 +112,8 @@ and `services/twitch/api.py`. Resolved in language ahead of the code: closing is
 the **alert updater**'s job alone, so there is one closer and one offline embed.
 The webhook cannot identify which stream ended — Twitch's `stream.offline`
 payload carries no stream id — so it can only wake the updater, which re-checks
-Helix and stops if it is **superseded**.
+Helix and, if it is **superseded**, closes its own message without touching the
+newer alert's row.
 
 ## Example dialogue
 
@@ -86,8 +127,9 @@ Helix and stops if it is **superseded**.
 > **Operator**: So you would close the wrong one.
 >
 > **Dev**: That is why the webhook only wakes the alert updater. The updater
-> knows which stream it was started for, so if it has been superseded it stops
-> instead of editing.
+> knows which stream it was started for. If it has been superseded it still
+> closes its own message — leaving it would show a live stream forever — but
+> it leaves the newer alert's row alone.
 >
 > **Operator**: And if nothing ever wakes it?
 >
@@ -108,3 +150,14 @@ Helix and stops if it is **superseded**.
 >
 > **Dev**: Those aren't exceptions, so they're notices. Same channel, no
 > traceback.
+>
+> **Operator**: Last time Twitch was down for two hours I got hundreds of them.
+>
+> **Dev**: Now you get the first one, and then it's held back for fifteen
+> minutes at a time. The next one that gets through tells you how many it stood
+> in for.
+>
+> **Operator**: So a thing that breaks once still reaches me.
+>
+> **Dev**: Always. Only a message that actually landed holds anything back, so
+> the first of anything is never the one you lose.

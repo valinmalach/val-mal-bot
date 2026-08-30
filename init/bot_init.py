@@ -19,18 +19,69 @@ async def restart_live_alert_tasks() -> None:
 
 
 async def activate_if_live() -> None:
-    from services import get_stream_info
+    from errors import report
     from services.config import config
+    from services.twitch.api import get_stream
+    from services.twitch.helix import HelixError
     from services.twitch.shoutout_queue import shoutout_queue
 
-    stream_info = await get_stream_info(int(config.setting("twitch_broadcaster_id")))
-    if stream_info and stream_info.type == "live":
+    try:
+        stream = await get_stream(int(config.setting("twitch_broadcaster_id")))
+    except HelixError as e:
+        # gather(return_exceptions=True) upstream would swallow this silently.
+        await report(e, "Could not check whether the broadcaster is live at startup")
+        return
+
+    if stream and stream.type == "live":
         fire_and_forget(shoutout_queue.activate(), name="shoutout-queue")
+
+
+async def check_subscriptions() -> None:
+    """Say at startup when a Twitch subscription will not deliver.
+
+    The only way Twitch reports a subscription it has disabled is by calling the
+    webhook, which is the very thing that is not working, so nothing else in the
+    bot would ever find out. A stream alert that silently stopped existing is
+    the most expensive failure here and the quietest.
+    """
+    from errors import notify, report
+    from services.twitch.api import expected_callbacks, get_subscriptions
+    from services.twitch.helix import HelixError
+
+    try:
+        subscriptions = await get_subscriptions()
+    except HelixError as e:
+        # gather(return_exceptions=True) below would swallow this silently.
+        await report(e, "Could not check the Twitch subscriptions at startup")
+        return
+
+    callbacks = expected_callbacks()
+    broken = [
+        f"- {subscription.type} for broadcaster "
+        f"{subscription.condition.broadcaster_user_id}: {subscription.status}"
+        + (
+            ""
+            if subscription.transport.callback in callbacks
+            else f", calling back on {subscription.transport.callback}"
+        )
+        for subscription in subscriptions
+        if subscription.status != "enabled"
+        or subscription.transport.callback not in callbacks
+    ]
+    if broken:
+        detail = "\n".join(broken)
+        await notify(
+            f"{len(broken)} Twitch subscription(s) will not deliver:\n{detail}\n"
+            "Re-run /subscribe for each broadcaster to replace them."
+        )
 
 
 async def run_background_tasks():
     await asyncio.gather(
-        restart_live_alert_tasks(), activate_if_live(), return_exceptions=True
+        restart_live_alert_tasks(),
+        activate_if_live(),
+        check_subscriptions(),
+        return_exceptions=True,
     )
 
 

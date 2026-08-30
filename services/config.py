@@ -27,6 +27,7 @@ from db import (
     TwitchCommandResponse,
 )
 from db.session import session_scope
+from errors import notify_soon
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,15 @@ def safe_format(text: str, values: dict[str, Any]) -> str:
     try:
         return protected.format(**values)
     except (IndexError, KeyError, ValueError) as e:
-        logger.warning("Could not format %r: %s", text, e)
+        notify_soon(
+            f"Could not format template text, so it went out with its braces"
+            f" as written: {e}. Text: {text[:200]}",
+            # The whole text, not a prefix: two rows sharing an opening line
+            # would otherwise be held back as each other. It is a database row,
+            # never user input, so the number of distinct keys is bounded by the
+            # number of rows.
+            key=f"template-unformattable:{text}",
+        )
         return text
 
 
@@ -164,7 +173,11 @@ class ConfigCache:
         """Render a message template, resolving channel and role placeholders."""
         content = self._templates.get(key)
         if content is None:
-            logger.warning("No message_template row keyed %r", key)
+            notify_soon(
+                f"No message_template row keyed {key!r}, so the bot sent nothing"
+                f" where that message should have been.",
+                key=f"template-missing:{key}",
+            )
             return ""
         # Placeholders resolve first: str.format reads {channel:promo} as a
         # format spec and raises KeyError on the brace it does not own.

@@ -15,6 +15,7 @@ import discord
 import pendulum
 from discord.ui import View
 
+from background import fire_and_forget
 from db import LiveAlert, repository
 from errors import notify, report
 from models import Channel, Stream, User, Video
@@ -22,7 +23,8 @@ from services.config import config
 from services.helper.helper import edit_embed, get_age, parse_rfc3339, send_embed
 from services.helper.http_client import is_transient_network_error
 from services.twitch import stream_session
-from services.twitch.api import get_channel, get_stream_state, get_stream_vod, get_user
+from services.twitch.api import get_channel, get_stream, get_stream_vod, get_user
+from services.twitch.helix import HelixError
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +63,6 @@ def _decide(
     message_id: int,
     stream_id: int,
     stream: Stream | None,
-    lookup_ok: bool,
 ) -> _Action:
     """The whole rule for one cycle, with every input already in hand.
 
@@ -75,10 +76,6 @@ def _decide(
         # Superseded. This message still shows a live stream, so close it, but
         # the row belongs to the newer alert and its delete will not match.
         return _Action.CLOSE
-
-    if not lookup_ok:
-        # A failed lookup is not an offline stream, so conclude nothing from it.
-        return _Action.RETRY
 
     if stream is None or stream.id != str(stream_id):
         return _Action.CLOSE
@@ -321,19 +318,22 @@ async def _close(
     message_id: int,
     stream_id: int,
     stream: Stream | None,
-    lookup_ok: bool,
     user_info: User | None,
     age: str,
     content: str | None,
 ) -> _Action:
     """Swap the live embed for the offline one and retire the alert."""
-    channel_info = await get_channel(broadcaster_id)
-
-    if lookup_ok and stream is None:
-        # Only a stream Helix confirms is gone stands the session down. A
-        # superseded alert is closed while its broadcaster is still live, and a
-        # failed lookup proves nothing either way.
-        stream_session.ended(broadcaster_id)
+    try:
+        channel_info = await get_channel(broadcaster_id)
+    except HelixError as e:
+        # Only a fallback for the title and game, which the VOD usually supplies
+        # anyway. Not worth abandoning the close over, but worth saying.
+        await notify(
+            f"Closing the live alert for broadcaster {broadcaster_id} without channel"
+            f" details: {e}",
+            key=f"live-alert-close-channel:{broadcaster_id}",
+        )
+        channel_info = None
 
     # A live stream that is not the one this alert announced describes a
     # different broadcast; borrowing its title would retitle this message.
@@ -394,32 +394,46 @@ async def _cycle(
 ) -> _Action:
     alert = await repository.get_live_alert(broadcaster_id)
 
-    stream, lookup_ok = (None, False)
-    if _owns_row(alert, message_id, stream_id):
-        # Once the row has moved on, Helix has nothing to add: the alert is
-        # closed either way, and a newer stream must not lend it a title.
-        stream, lookup_ok = await get_stream_state(broadcaster_id)
+    # Once the row has moved on, Helix has nothing to add: the alert is closed
+    # either way, and a newer stream must not lend it a title. A lookup that
+    # fails raises, and the loop above reads that as an inconclusive cycle.
+    owns_row = _owns_row(alert, message_id, stream_id)
+    stream = await get_stream(broadcaster_id) if owns_row else None
 
-    action = _decide(alert, message_id, stream_id, stream, lookup_ok)
+    action = _decide(alert, message_id, stream_id, stream)
     if action is _Action.STOP:
         logger.info(
             f"No live alert record left for broadcaster_id={broadcaster_id}; stopping updates for message_id={message_id}"
         )
         return action
-    if action is _Action.RETRY:
-        return action
 
-    user_info = await get_user(broadcaster_id)
+    try:
+        user_info = await get_user(broadcaster_id)
+    except HelixError as e:
+        # The avatar and display name are decoration; the embed renders without
+        # them, and losing the alert over them would be worse. Still worth
+        # saying: nobody reads the logs, and the admin channel is watched.
+        await notify(
+            f"Updating the live alert for broadcaster {broadcaster_id} without the"
+            f" broadcaster's profile: {e}",
+            key=f"live-alert-profile:{broadcaster_id}",
+        )
+        user_info = None
+
     age = get_age(started_at, limit_units=2)
 
     if action is _Action.CLOSE:
+        if owns_row and stream is None:
+            # Only a stream Helix confirms is gone stands the session down; a
+            # superseded alert closes while its broadcaster may still be live.
+            stream_session.ended(broadcaster_id)
+
         return await _close(
             broadcaster_id,
             channel_id,
             message_id,
             stream_id,
             stream,
-            lookup_ok,
             user_info,
             age,
             content,
@@ -484,8 +498,16 @@ async def _run(
 
             inconclusive = inconclusive + 1 if action is _Action.RETRY else 0
             if inconclusive >= _MAX_INCONCLUSIVE_CYCLES:
-                logger.warning(
-                    f"Giving up live alert updates for message_id={message_id} after {inconclusive} inconclusive cycles; the record is kept for the next restart"
+                # The one place this loop speaks: it stays quiet while retrying
+                # and says so once when it stops, so an outage costs a message
+                # rather than one a minute.
+                await notify(
+                    f"Gave up updating the live alert for broadcaster"
+                    f" {broadcaster_id} after {inconclusive} cycles that concluded"
+                    f" nothing (message_id={message_id}). The message is left as it"
+                    f" stands and the record is kept, so a restart or the next"
+                    f" stream.offline picks it up again.",
+                    key=f"live-alert-gave-up:{broadcaster_id}",
                 )
                 return
 
@@ -521,8 +543,9 @@ def _start(
     # Created here, not in _run, so a wake issued before the task first runs
     # still lands.
     _wakeups[message_id] = asyncio.Event()
-    task = asyncio.create_task(
-        _run(broadcaster_id, channel_id, message_id, stream_id, stream_started_at)
+    task = fire_and_forget(
+        _run(broadcaster_id, channel_id, message_id, stream_id, stream_started_at),
+        name=f"live-alert-{message_id}",
     )
     _update_tasks[message_id] = task
     task.add_done_callback(
@@ -546,7 +569,8 @@ async def announce(
     if message_id is None:
         logger.error(f"Failed to send embed for broadcaster {broadcaster_id}")
         await notify(
-            f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel_id}"
+            f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel_id}",
+            key=f"live-alert-send:{broadcaster_id}",
         )
         return
 

@@ -14,8 +14,8 @@ from background import fire_and_forget
 from errors import report
 from models import Stream
 from services.config import config
-from services.helper.twitch import twitch_send_message
 from services.twitch.api import get_ad_schedule
+from services.twitch.chat import say_template
 from services.twitch.shoutout_queue import shoutout_queue
 
 logger = logging.getLogger(__name__)
@@ -30,22 +30,22 @@ def is_main_broadcaster(broadcaster_id: str | int) -> bool:
 
 
 async def began(broadcaster_id: int, stream: Stream) -> None:
-    """Greet chat and bring the session's helpers up."""
+    """Greet chat and bring the session's helpers up. Does not raise.
+
+    Each line stands alone, and neither can fail the caller: the live alert is
+    posted after this, and a greeting Twitch refused is not worth losing it over.
+    """
     if not is_main_broadcaster(broadcaster_id):
         return
 
     fire_and_forget(shoutout_queue.activate(), name="shoutout-queue")
-    await twitch_send_message(
-        str(broadcaster_id), config.template("twitch_stream_greeting")
-    )
-    await twitch_send_message(
-        str(broadcaster_id),
-        config.template(
-            "twitch_stream_announce",
-            name=stream.user_name,
-            game=stream.game_name,
-            title=stream.title,
-        ),
+    await say_template(broadcaster_id, "twitch_stream_greeting")
+    await say_template(
+        broadcaster_id,
+        "twitch_stream_announce",
+        name=stream.user_name,
+        game=stream.game_name,
+        title=stream.title,
     )
 
 
@@ -75,7 +75,9 @@ def schedule_ad_break_warning(broadcaster_id: str) -> None:
     """Replace this broadcaster's pending warning with one for the next ad break."""
     cancel_ad_break_warning(broadcaster_id)
 
-    task = asyncio.create_task(_warn_before_next_ad(broadcaster_id))
+    task = fire_and_forget(
+        _warn_before_next_ad(broadcaster_id), name=f"ad-break-warning-{broadcaster_id}"
+    )
     _ad_break_tasks[broadcaster_id] = task
     task.add_done_callback(
         lambda finished, bid=broadcaster_id: _forget_ad_break_task(bid, finished)
@@ -94,9 +96,7 @@ async def _warn_before_next_ad(broadcaster_id: str) -> None:
         wait_seconds = (notify_time - pendulum.now(tz=pendulum.UTC)).total_seconds()
         if wait_seconds > 0:
             await asyncio.sleep(wait_seconds)
-            await twitch_send_message(
-                broadcaster_id, config.template("twitch_ad_break_warning")
-            )
+            await say_template(broadcaster_id, "twitch_ad_break_warning")
     except asyncio.CancelledError:
         logger.info(
             "Cancelled ad break notification task for broadcaster_id=%s", broadcaster_id

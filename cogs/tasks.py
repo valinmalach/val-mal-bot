@@ -68,8 +68,11 @@ class Tasks(Cog):
         await repository.upsert_user(record.id, record.username, next_at, leap)
 
         if stale:
-            logger.warning(
-                f"Birthday for user {record.username} (ID: {record.id}) was due at {record.birthday} and was too stale to announce; rescheduled to {next_at}"
+            await notify(
+                f"Birthday for {record.username} (ID: {record.id}) was due at"
+                f" {record.birthday} and is too stale to announce, so nobody"
+                f" greeted them; rescheduled to {next_at}.",
+                key=f"birthday-stale:{record.id}",
             )
             return
 
