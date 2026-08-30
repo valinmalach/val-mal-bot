@@ -4,7 +4,31 @@
 
 **URL:** https://ofcamwrjwrkazqvdchko.supabase.co
 **Project:** valinmalach/val-mal-bot
-**Standard:** v1 — `.verity/standard.yaml`
+**Standard:** v1 — held on the service; `.verity/standard.yaml` is the local source
+
+## Restoring on a new machine
+
+Everything Verity generates is gitignored — the skills, the hooks, `.codacy/`, and
+all of `.verity/`. A fresh clone has none of it, and this file is the only record of
+how to get it back, so keep this section true.
+
+```sh
+npm install -g @codacy/verity-cli @codacy/analysis-cli
+verity login                                # --force if a grant was added since your last login
+verity init                                 # reinstalls the verity-* skills
+verity hooks install --moments pre-commit   # commit-time gate only: no Stop hook, no pre-push
+verity config get | python -c "import json,sys; print(json.dumps(json.load(sys.stdin)['content'], indent=2))" > .codacy/codacy.config.json
+verity telemetry install                    # optional — cost and usage at /usage
+```
+
+The gate enforces the Standard version uploaded to the service, so it runs without a
+local copy; `.verity/standard.yaml` is only the source you edit and push from, and
+`verity standard get` returns it as JSON. The knowledge graph under `.verity/memory/`
+re-syncs from the service on the next analysis.
+
+On Windows, redo the two workarounds at the end of this file as well — no installer
+applies them for you, and without the second one the gate runs no static analysis at
+all while still reporting success.
 
 ## Quality Dimensions
 - Comprehensibility (file length ≤ 400, complexity ≤ 15, function length ≤ 50, naming)

@@ -48,7 +48,8 @@ analyses the staged diff and can block the commit. It is a Claude Code hook, not
 git hook — there is nothing in `.git/hooks`, and it does not fire for other tools.
 Its rules, and the narrow circumstances in which a finding may be waived, live in
 `CLAUDE.md`; the Standard it enforces is `.verity/standard.yaml`, and `VERITY.md`
-covers the setup. Run it by hand with `verity analyze`.
+covers the setup. Run it by hand with `verity analyze`. Everything Verity generates
+is gitignored, so a fresh clone has none of it — `VERITY.md` has the restore steps.
 
 ## Architecture
 
