@@ -77,8 +77,11 @@ async def _send_once(key: str, text: str, trace: str | None) -> bool:
     _windows[key] = window
 
     if held:
-        # Leading, because _deliver truncates the tail.
-        text = f"[{held} more since the last report] {text}"
+        # Leading, because _deliver truncates the tail. "went unreported" rather
+        # than "since the last report": these are the occurrences nobody saw a
+        # message for, which is true both of ones held back behind a delivery
+        # and of ones whose own delivery failed.
+        text = f"[{held} more went unreported] {text}"
 
     sent = False
     try:

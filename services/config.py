@@ -62,7 +62,11 @@ def safe_format(text: str, values: dict[str, Any]) -> str:
         notify_soon(
             f"Could not format template text, so it went out with its braces"
             f" as written: {e}. Text: {text[:200]}",
-            key=f"template-unformattable:{text[:80]}",
+            # The whole text, not a prefix: two rows sharing an opening line
+            # would otherwise be held back as each other. It is a database row,
+            # never user input, so the number of distinct keys is bounded by the
+            # number of rows.
+            key=f"template-unformattable:{text}",
         )
         return text
 
