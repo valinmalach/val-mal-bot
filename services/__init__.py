@@ -28,7 +28,6 @@ from .twitch.api import (
     get_user,
     get_user_by_username,
     get_users,
-    send_chat_message,
     subscribe_to_user,
     unsubscribe_to_user,
 )
@@ -59,7 +58,6 @@ __all__ = [
     "next_birthday",
     "parse_rfc3339",
     "roles_button_pressed",
-    "send_chat_message",
     "send_embed",
     "send_message",
     "subscribe_to_user",

@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 _MIN_SAME_TARGET_COOLDOWN_SECONDS = 61 * 60
 # Helix: 1 shoutout every 2 minutes (global); small buffer after success.
 _GLOBAL_SHOUTOUT_INTERVAL_SECONDS = 125
+# A lookup that failed says nothing about the target, so hold it back long
+# enough that a sustained outage costs a handful of attempts an hour.
+_LOOKUP_RETRY_BACKOFF_SECONDS = 300
 
 
 class TwitchShoutoutQueue:
@@ -92,22 +95,30 @@ class TwitchShoutoutQueue:
                 try:
                     user = await get_user(int(user_id_str))
                 except HelixError as e:
-                    # One unreachable lookup must not end the queue, but it must
-                    # not spin on it either: back the target off like a 429 does,
-                    # so a sustained outage costs one message rather than dozens.
-                    await notify(f"Could not look up {login} for a shoutout: {e}")
+                    # One unreachable lookup must not end the queue, nor spin on
+                    # it. The back-off has to outlast the wait that follows it:
+                    # setting it to the interval the loop then slept for meant it
+                    # had already expired by the time the loop looked again. No
+                    # shoutout went out, so the global interval does not apply
+                    # here and the queue is free to try a different target.
+                    await notify(
+                        f"Could not look up {login} for a shoutout: {e}",
+                        key=f"shoutout-lookup:{user_id_str}",
+                    )
                     self._next_attempt_allowed_by_target_id[user_id_str] = (
-                        pendulum.now().add(seconds=_GLOBAL_SHOUTOUT_INTERVAL_SECONDS)
+                        pendulum.now().add(seconds=_LOOKUP_RETRY_BACKOFF_SECONDS)
                     )
                     self.add_to_queue(login, user_id_str)
-                    await asyncio.sleep(_GLOBAL_SHOUTOUT_INTERVAL_SECONDS)
                     continue
 
                 if not user:
                     logger.warning(
                         "User id %s (%s) not found for shoutout", user_id_str, login
                     )
-                    await notify(f"User {login} not found for shoutout")
+                    await notify(
+                        f"User {login} not found for shoutout",
+                        key=f"shoutout-not-found:{user_id_str}",
+                    )
                     continue
 
                 try:

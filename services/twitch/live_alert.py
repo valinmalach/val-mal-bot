@@ -329,7 +329,8 @@ async def _close(
         # anyway. Not worth abandoning the close over, but worth saying.
         await notify(
             f"Closing the live alert for broadcaster {broadcaster_id} without channel"
-            f" details: {e}"
+            f" details: {e}",
+            key=f"live-alert-close-channel:{broadcaster_id}",
         )
         channel_info = None
 
@@ -413,7 +414,8 @@ async def _cycle(
         # saying: nobody reads the logs, and the admin channel is watched.
         await notify(
             f"Updating the live alert for broadcaster {broadcaster_id} without the"
-            f" broadcaster's profile: {e}"
+            f" broadcaster's profile: {e}",
+            key=f"live-alert-profile:{broadcaster_id}",
         )
         user_info = None
 
@@ -495,8 +497,16 @@ async def _run(
 
             inconclusive = inconclusive + 1 if action is _Action.RETRY else 0
             if inconclusive >= _MAX_INCONCLUSIVE_CYCLES:
-                logger.warning(
-                    f"Giving up live alert updates for message_id={message_id} after {inconclusive} inconclusive cycles; the record is kept for the next restart"
+                # The one place this loop speaks: it stays quiet while retrying
+                # and says so once when it stops, so an outage costs a message
+                # rather than one a minute.
+                await notify(
+                    f"Gave up updating the live alert for broadcaster"
+                    f" {broadcaster_id} after {inconclusive} cycles that concluded"
+                    f" nothing (message_id={message_id}). The message is left as it"
+                    f" stands and the record is kept, so a restart or the next"
+                    f" stream.offline picks it up again.",
+                    key=f"live-alert-gave-up:{broadcaster_id}",
                 )
                 return
 
@@ -557,7 +567,8 @@ async def announce(
     if message_id is None:
         logger.error(f"Failed to send embed for broadcaster {broadcaster_id}")
         await notify(
-            f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel_id}"
+            f"Failed to send live alert message\nbroadcaster_id: {broadcaster_id}\nchannel_id: {channel_id}",
+            key=f"live-alert-send:{broadcaster_id}",
         )
         return
 
