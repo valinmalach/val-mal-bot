@@ -10,6 +10,7 @@ from typing import Literal
 
 from config import settings
 from constants import TokenType
+from errors import notify
 from models import (
     AdSchedule,
     AdScheduleResponse,
@@ -224,10 +225,11 @@ async def _subscribe(sub_type: Literal["online", "offline"], user_id: str) -> No
     # Whatever is there will not deliver, and it is what the 409 was about, so
     # it has to go before Twitch will accept the replacement.
     for subscription in existing:
-        logger.warning(
-            f"Replacing stream.{sub_type} subscription {subscription.id} for "
-            f"user_id={user_id}: status={subscription.status}, "
-            f"callback={subscription.transport.callback}"
+        await notify(
+            f"Replacing the stream.{sub_type} subscription for user_id={user_id}:"
+            f" it was status={subscription.status} calling back on"
+            f" {subscription.transport.callback}, so it was delivering nothing.",
+            key=f"subscription-replaced:{sub_type}:{user_id}",
         )
         await helix.request(
             "DELETE", "/eventsub/subscriptions", params={"id": subscription.id}

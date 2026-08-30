@@ -44,6 +44,9 @@ class Admin(Cog):
             logger.warning(
                 f"Nuke aborted: invalid channel type {type(interaction.channel)}"
             )
+            await interaction.response.send_message(
+                config.template("admin_wrong_channel"), ephemeral=True
+            )
             return
         await interaction.response.send_message(config.template("admin_nuking"))
         await interaction.channel.purge(limit=None)

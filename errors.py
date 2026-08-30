@@ -13,6 +13,7 @@ anything is never the one that goes missing. The windows live in memory, so a
 restart says everything again.
 """
 
+import asyncio
 import io
 import logging
 import time
@@ -130,6 +131,28 @@ async def notify(text: str, *, key: str | None = None) -> bool:
     except Exception:
         logger.exception("Notifying failed for: %s", text)
         return False
+
+
+def notify_soon(text: str, *, key: str | None = None) -> None:
+    """Notify from a caller that is not async, on the running loop if there is one.
+
+    For the two places that render text out of the database and are ordinary
+    functions. Without this they can only log, and a template that is missing or
+    will not format is a message the viewer sees as wrong with nothing anywhere
+    saying why.
+    """
+    logger.warning(text)
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # No loop: configuration is being read outside the bot, and the log
+        # line is all there can be.
+        return
+
+    # Deferred both ways: background reaches back into this module for report.
+    from background import fire_and_forget
+
+    fire_and_forget(notify(text, key=key), name="notify")
 
 
 async def _deliver(text: str, trace: str | None) -> bool:
