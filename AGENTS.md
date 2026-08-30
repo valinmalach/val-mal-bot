@@ -105,6 +105,13 @@ per broadcaster; a stream session is the main broadcaster being live, and owns
 the shoutout queue and the ad-break warning. Only a stream Helix confirms is gone
 stands a session down.
 
+**Every Helix call goes through `services/twitch/helix.py`.** It owns the token
+choice, the pre-emptive refresh, the one 401 re-send, retry, status checking and
+parsing, and it raises `HelixError` rather than reporting — whoever catches has
+the context worth reporting. `api.py` holds the endpoints on top of it: `None`
+means Twitch has nothing, a failed call raises. Retry follows the method, not the
+call site; `docs/adr/0002-helix-posts-are-not-retried.md` says why POSTs do not.
+
 **Two model packages with confusable names.** `models/` is Pydantic: Twitch API
 responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 

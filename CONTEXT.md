@@ -25,6 +25,20 @@ A message to the **admin channel** that is not an exception — a rejected webho
 signature, a revoked EventSub subscription, an unavailable token.
 _Avoid_: warning, alert (see flagged ambiguities), admin message
 
+### Twitch API
+
+**Helix call**:
+A request to Twitch's API, made only through `services/twitch/helix.py`. Its
+answer is the value or `None` when Twitch has none; a call that did not complete
+raises instead, so "absent" and "unknown" are never the same answer.
+_Avoid_: Twitch API call, twitch request
+
+**Repeatable**:
+Said of a **Helix call** that may be sent twice without a second effect. Reads
+and deletes are; posting a chat message or a shoutout is not, which is why those
+are never retried.
+_Avoid_: idempotent, safe, retryable
+
 ### Twitch stream lifecycle
 
 **Live alert**:
