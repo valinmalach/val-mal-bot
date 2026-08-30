@@ -326,9 +326,10 @@ async def _close(
         channel_info = await get_channel(broadcaster_id)
     except HelixError as e:
         # Only a fallback for the title and game, which the VOD usually supplies
-        # anyway. Not worth abandoning the close over.
-        logger.warning(
-            f"Could not fetch channel for broadcaster_id={broadcaster_id}: {e}"
+        # anyway. Not worth abandoning the close over, but worth saying.
+        await notify(
+            f"Closing the live alert for broadcaster {broadcaster_id} without channel"
+            f" details: {e}"
         )
         channel_info = None
 
@@ -408,8 +409,12 @@ async def _cycle(
         user_info = await get_user(broadcaster_id)
     except HelixError as e:
         # The avatar and display name are decoration; the embed renders without
-        # them, and losing the alert over them would be worse.
-        logger.warning(f"Could not fetch user for broadcaster_id={broadcaster_id}: {e}")
+        # them, and losing the alert over them would be worse. Still worth
+        # saying: nobody reads the logs, and the admin channel is watched.
+        await notify(
+            f"Updating the live alert for broadcaster {broadcaster_id} without the"
+            f" broadcaster's profile: {e}"
+        )
         user_info = None
 
     age = get_age(started_at, limit_units=2)

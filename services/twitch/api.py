@@ -26,6 +26,7 @@ from models import (
 )
 from services.config import config
 from services.twitch import helix
+from services.twitch.helix import HelixError
 
 logger = logging.getLogger(__name__)
 
@@ -148,23 +149,35 @@ async def send_shoutout(to_broadcaster_id: str) -> None:
 
 
 async def _subscribe(sub_type: Literal["online", "offline"], user_id: str) -> None:
-    # Repeatable: Twitch rejects a duplicate subscription rather than creating
-    # one, so the worst a repeat costs is a conflict. See docs/adr/0002.
-    await helix.request(
-        "POST",
-        "/eventsub/subscriptions",
-        json={
-            "type": f"stream.{sub_type}",
-            "version": "1",
-            "condition": {"broadcaster_user_id": user_id},
-            "transport": {
-                "method": "webhook",
-                "callback": f"{settings.app_url}/webhook/twitch{'' if sub_type == 'online' else '/offline'}",
-                "secret": settings.twitch_webhook_secret,
+    """Subscribe, treating an existing subscription as the goal already met.
+
+    Twitch answers 409 for a duplicate. Without this, a retry that followed a
+    subscription Twitch had already created would fail the command, and every
+    later attempt would fail the same way — leaving the second half of the pair
+    permanently uncreatable.
+    """
+    # Repeatable: Twitch rejects a duplicate rather than creating one, so the
+    # worst a repeat costs is the conflict handled below. See docs/adr/0002.
+    try:
+        await helix.request(
+            "POST",
+            "/eventsub/subscriptions",
+            json={
+                "type": f"stream.{sub_type}",
+                "version": "1",
+                "condition": {"broadcaster_user_id": user_id},
+                "transport": {
+                    "method": "webhook",
+                    "callback": f"{settings.app_url}/webhook/twitch{'' if sub_type == 'online' else '/offline'}",
+                    "secret": settings.twitch_webhook_secret,
+                },
             },
-        },
-        repeatable=True,
-    )
+            repeatable=True,
+        )
+    except HelixError as e:
+        if e.status != 409:
+            raise
+        logger.info(f"Already subscribed to stream.{sub_type} for user_id={user_id}")
 
 
 async def subscribe_to_user(username: str) -> bool:

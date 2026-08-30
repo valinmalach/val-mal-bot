@@ -1,8 +1,10 @@
 """One way to call Helix: tokens, retry, status and parsing behind one door.
 
 Anything that stops a call completing raises ``HelixError``. Nothing here
-reports: whoever catches has the context worth reporting, and three layers each
-announcing the same failure is what this replaced.
+announces the call's own failure: whoever catches has the context worth
+reporting, and three layers each announcing the same one is what this replaced.
+A refresh the token manager could not complete is its own news, and it still
+says so.
 """
 
 import asyncio
@@ -115,7 +117,14 @@ async def request(
                     status=401,
                     response=response,
                 )
-            response = await _send(method, url, token_type, params, json)
+            try:
+                response = await _send(method, url, token_type, params, json)
+            except Exception as e:
+                # Guarded like the first send: callers catch HelixError only, so
+                # a raw transport error here would sail past every one of them.
+                raise HelixError(
+                    f"{method} {path} failed after refreshing the token: {e}"
+                ) from e
 
         if 200 <= response.status_code < 300:
             return response

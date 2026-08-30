@@ -92,10 +92,15 @@ class TwitchShoutoutQueue:
                 try:
                     user = await get_user(int(user_id_str))
                 except HelixError as e:
-                    # One unreachable lookup must not end the queue.
-                    logger.warning("Could not look up %s for shoutout: %s", login, e)
+                    # One unreachable lookup must not end the queue, but it must
+                    # not spin on it either: back the target off like a 429 does,
+                    # so a sustained outage costs one message rather than dozens.
+                    await notify(f"Could not look up {login} for a shoutout: {e}")
+                    self._next_attempt_allowed_by_target_id[user_id_str] = (
+                        pendulum.now().add(seconds=_GLOBAL_SHOUTOUT_INTERVAL_SECONDS)
+                    )
                     self.add_to_queue(login, user_id_str)
-                    await asyncio.sleep(5)
+                    await asyncio.sleep(_GLOBAL_SHOUTOUT_INTERVAL_SECONDS)
                     continue
 
                 if not user:

@@ -8,9 +8,11 @@ stored responses in order, and `composite` runs other commands.
 import logging
 from collections.abc import Awaitable, Callable
 
+from errors import notify
 from models import ChannelChatMessageEventSub
 from services.config import config, safe_format
 from services.twitch.api import get_channel, get_user_by_username, send_chat_message
+from services.twitch.helix import HelixError
 
 from .shoutout_queue import shoutout_queue
 
@@ -126,6 +128,11 @@ async def _run(
         return
 
     for message in config.command_responses(name):
-        await send_chat_message(
-            event_sub.event.broadcaster_user_id, _render(message, event_sub, args)
-        )
+        # Each line stands alone: one that Twitch refuses must not silence the
+        # rest of a multi-line command.
+        try:
+            await send_chat_message(
+                event_sub.event.broadcaster_user_id, _render(message, event_sub, args)
+            )
+        except HelixError as e:
+            await notify(f"Could not send a response for !{name}: {e}")

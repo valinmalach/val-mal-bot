@@ -11,10 +11,11 @@ import logging
 import pendulum
 
 from background import fire_and_forget
-from errors import report
+from errors import notify, report
 from models import Stream
 from services.config import config
 from services.twitch.api import get_ad_schedule, send_chat_message
+from services.twitch.helix import HelixError
 from services.twitch.shoutout_queue import shoutout_queue
 
 logger = logging.getLogger(__name__)
@@ -93,9 +94,12 @@ async def _warn_before_next_ad(broadcaster_id: str) -> None:
         wait_seconds = (notify_time - pendulum.now(tz=pendulum.UTC)).total_seconds()
         if wait_seconds > 0:
             await asyncio.sleep(wait_seconds)
-            await send_chat_message(
-                broadcaster_id, config.template("twitch_ad_break_warning")
-            )
+            try:
+                await send_chat_message(
+                    broadcaster_id, config.template("twitch_ad_break_warning")
+                )
+            except HelixError as e:
+                await notify(f"Could not warn chat about the next ad break: {e}")
     except asyncio.CancelledError:
         logger.info(
             "Cancelled ad break notification task for broadcaster_id=%s", broadcaster_id

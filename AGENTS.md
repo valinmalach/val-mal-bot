@@ -128,6 +128,11 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   channel. Neither raises, both log locally first, and both say so when the channel
   is out of reach. `notify` returns whether it landed, for the one caller that
   retries. Nothing else may resolve `config.channel("bot_admin")`.
+- **A path that degrades or gives up says so in the admin channel.** Catching a
+  `HelixError` to carry on without an avatar is fine; catching it into
+  `logger.warning` alone is not. The logs are not watched and the Discord server
+  is. A retry loop is the one exception: it stays quiet while retrying and speaks
+  once if it gives up, so an outage costs one message rather than thirty.
 - **Text from the database is formatted with `safe_format`**, never bare `str.format`
   — a row is not source, and one unmatched brace should not lose the whole message.
   `config.render` additionally resolves `{channel:key}` and `{role:key}`.

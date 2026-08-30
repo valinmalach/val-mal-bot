@@ -23,6 +23,7 @@ from models import (
     ChannelModerateEventSub,
     ChannelRaidEventSub,
     RefreshResponse,
+    Stream,
     StreamOfflineEventSub,
     StreamOnlineEventSub,
     TokenValidationResponse,
@@ -39,6 +40,7 @@ from services.config import config
 from services.helper.http_client import http_client_manager
 from services.twitch import live_alert, stream_session
 from services.twitch.commands import dispatch
+from services.twitch.helix import HelixError
 from services.twitch.oauth import (
     authorization_url,
     callback_uri,
@@ -51,6 +53,10 @@ from services.twitch.token_manager import token_manager
 logger = logging.getLogger(__name__)
 
 twitch_router = APIRouter()
+
+# Twitch announces the stream before Helix lists it. One second apart, bounded so
+# a broadcaster who never appears costs one message rather than a task forever.
+_STREAM_WAIT_ATTEMPTS = 30
 
 
 async def validate_call(request: Request, endpoint: str) -> Response | None:
@@ -108,27 +114,58 @@ async def process_webhook(
         raise HTTPException(status_code=500) from e
 
 
-async def _wait_for_stream_info(broadcaster_id: int):
-    """Poll for stream info until it's available."""
-    stream_info = await get_stream(broadcaster_id)
-    while not stream_info:
+async def _wait_for_stream_info(broadcaster_id: int) -> Stream | None:
+    """Poll until Twitch admits the stream is up, tolerating a failed lookup.
+
+    Bounded, because Twitch delivers stream.online once and never again: waiting
+    forever and giving up both lose the alert, but only one of them says so.
+    """
+    for _ in range(_STREAM_WAIT_ATTEMPTS):
+        try:
+            stream_info = await get_stream(broadcaster_id)
+        except HelixError as e:
+            logger.warning(f"Stream lookup failed for {broadcaster_id}: {e}")
+            stream_info = None
+
+        if stream_info:
+            return stream_info
         await asyncio.sleep(1)
-        stream_info = await get_stream(broadcaster_id)
-    return stream_info
+
+    return None
 
 
 async def _stream_online_task(event_sub: StreamOnlineEventSub) -> None:
     broadcaster_id = int(event_sub.event.broadcaster_user_id)
     try:
         stream_info = await _wait_for_stream_info(broadcaster_id)
-        user_info = await get_user(broadcaster_id)
+        if stream_info is None:
+            await notify(
+                f"Gave up waiting for Twitch to confirm broadcaster {broadcaster_id} is"
+                f" live after {_STREAM_WAIT_ATTEMPTS}s; no alert was posted."
+            )
+            return
+
+        try:
+            user_info = await get_user(broadcaster_id)
+        except HelixError as e:
+            # Decoration. stream.online does not come again, so the alert must
+            # not depend on it.
+            await notify(
+                f"Announcing broadcaster {broadcaster_id} without their profile: {e}"
+            )
+            user_info = None
 
         is_main = stream_info.user_login == config.setting("broadcaster_username")
         channel = (
             config.channel("stream_alerts") if is_main else config.channel("promo")
         )
 
-        await stream_session.began(broadcaster_id, stream_info)
+        try:
+            await stream_session.began(broadcaster_id, stream_info)
+        except HelixError as e:
+            # Greeting chat is not worth the alert either.
+            await notify(f"Could not greet chat for broadcaster {broadcaster_id}: {e}")
+
         await live_alert.announce(broadcaster_id, stream_info, user_info, channel)
 
     except Exception as e:  # noqa: BLE001
@@ -169,28 +206,41 @@ async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> N
 
 async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
     try:
-        await send_chat_message(
+        await _announce_in_chat(
             event_sub.event.broadcaster_user_id,
-            config.template("twitch_follow_thanks", user=event_sub.event.user_name),
+            "twitch_follow_thanks",
+            user=event_sub.event.user_name,
         )
     except Exception as e:  # noqa: BLE001
         await report(e, "Error processing Twitch follow webhook task")
 
 
-async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -> None:
+async def _announce_in_chat(
+    broadcaster_id: str, template_key: str, **values: Any
+) -> None:
+    """Say one thing in chat, treating silence as survivable but not invisible."""
     try:
-        ad_duration = event_sub.event.duration_seconds
-        await send_chat_message(
-            event_sub.event.broadcaster_user_id,
-            config.template("twitch_ad_break_start", minutes=ad_duration // 60),
-        )
-        await asyncio.sleep(ad_duration)
-        await send_chat_message(
-            event_sub.event.broadcaster_user_id,
-            config.template("twitch_ad_break_end"),
+        await send_chat_message(broadcaster_id, config.template(template_key, **values))
+    except HelixError as e:
+        await notify(
+            f"Could not send {template_key} to broadcaster {broadcaster_id}: {e}"
         )
 
-        stream_session.schedule_ad_break_warning(event_sub.event.broadcaster_user_id)
+
+async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -> None:
+    broadcaster_id = event_sub.event.broadcaster_user_id
+    try:
+        ad_duration = event_sub.event.duration_seconds
+
+        # Each step stands alone: a dropped "ads starting" used to take the
+        # "ads over" message and the next break's warning down with it.
+        await _announce_in_chat(
+            broadcaster_id, "twitch_ad_break_start", minutes=ad_duration // 60
+        )
+        await asyncio.sleep(ad_duration)
+        await _announce_in_chat(broadcaster_id, "twitch_ad_break_end")
+
+        stream_session.schedule_ad_break_warning(broadcaster_id)
     except Exception as e:  # noqa: BLE001
         await report(e, "Error processing Twitch ad break webhook task")
 
