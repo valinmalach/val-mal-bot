@@ -173,8 +173,14 @@ cython_debug/
 # .verity/ also accumulates state that must never be committed: .snapshot/
 # holds byte-for-byte copies of analyzed files, including any secret the gate
 # just flagged.
+# Verity installs itself into three harnesses, not one: Claude Code (.claude/),
+# the AGENTS.md convention (.agents/) and Codex (.codex/). The skills and hook
+# wiring are the same files in each.
 .verity/
 .codacy/
 .claude/skills/verity-*/
 .claude/settings.json
 .claude/settings.local.json
+.agents/skills/verity-*/
+.codex/hooks.json
+.codex/config.toml
