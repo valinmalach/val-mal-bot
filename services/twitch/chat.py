@@ -39,7 +39,18 @@ async def say(broadcaster_id: str | int, text: str, what: str) -> bool:
 async def say_template(
     broadcaster_id: str | int, template_key: str, **values: Any
 ) -> bool:
-    """Say a line from the templates table, named by its key in any report."""
-    return await say(
-        broadcaster_id, config.template(template_key, **values), template_key
-    )
+    """Say a line from the templates table, named by its key in any report.
+
+    Rendering is guarded too: a ``{channel:key}`` naming a slug that is not in
+    the database raises KeyError out of config.render, and callers here are
+    promised a chat line that cannot fail them.
+    """
+    try:
+        text = config.template(template_key, **values)
+    except Exception as e:  # noqa: BLE001
+        await notify(
+            f"Could not render {template_key} for broadcaster {broadcaster_id}: {e}",
+            key=f"twitch-chat-render:{template_key}",
+        )
+        return False
+    return await say(broadcaster_id, text, template_key)

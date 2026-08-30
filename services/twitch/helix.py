@@ -58,11 +58,27 @@ def _headers(token_type: TokenType) -> dict[str, str]:
     }
 
 
-async def _ensure_token(token_type: TokenType) -> None:
+async def _refreshed(token_type: TokenType, context: str) -> bool:
+    """Refresh, turning anything the token manager raises into a HelixError.
+
+    A refresh reaches Twitch's OAuth endpoint and then the database, and neither
+    of those raises HelixError. Everyone who calls this module catches only
+    HelixError, so a connection reset while refreshing would sail past every one
+    of them and surface as a traceback from whatever was making the call.
+    """
+    try:
+        return await token_manager.refresh(token_type)
+    except Exception as e:
+        raise HelixError(
+            f"{context}: refreshing the {token_type.value} token failed: {e}"
+        ) from e
+
+
+async def _ensure_token(token_type: TokenType, context: str) -> None:
     """Refresh before the call when the token is missing or due to lapse."""
     if token_manager.token(token_type) and not token_manager.needs_refresh(token_type):
         return
-    if not await token_manager.refresh(token_type):
+    if not await _refreshed(token_type, context):
         raise HelixError(f"No {token_type.value} token available and refresh failed")
 
 
@@ -93,11 +109,12 @@ async def request(
     safe to send twice.
     """
     url = f"{_BASE_URL}{path}"
+    context = f"{method} {path}"
     safe_to_repeat = method in _REPEATABLE_METHODS if repeatable is None else repeatable
     attempts = _MAX_ATTEMPTS if safe_to_repeat else 1
 
     for attempt in range(attempts):
-        await _ensure_token(token_type)
+        await _ensure_token(token_type, context)
 
         try:
             response = await _send(method, url, token_type, params, json)
@@ -111,7 +128,7 @@ async def request(
             # Rejected, so the request cannot have taken effect: re-sending it
             # is safe for every method, POST included.
             logger.warning("Unauthorized %s %s, refreshing the token", method, path)
-            if not await token_manager.refresh(token_type):
+            if not await _refreshed(token_type, context):
                 raise HelixError(
                     f"{method} {path} was unauthorized and the refresh failed",
                     status=401,

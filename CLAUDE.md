@@ -73,6 +73,5 @@ Then, depending on how the session is running:
 - **Autonomous** (headless / CI / cron, or `VERITY_AUTONOMOUS=1`): record your
   draft directly, never blocking —
   `verity reflect --user-input "<your draft>" --kind <kind> --autonomous`.
-
 <!-- /verity-memory:preserve -->
 <!-- verity-memory:end -->
