@@ -3,6 +3,12 @@ from pydantic import BaseModel
 
 class SubscriptionCondition(BaseModel):
     broadcaster_user_id: str | None = None
+    # A raid is keyed on the two ends rather than one broadcaster, and a
+    # moderate subscription carries the moderator as well.
+    to_broadcaster_user_id: str | None = None
+    from_broadcaster_user_id: str | None = None
+    moderator_user_id: str | None = None
+    user_id: str | None = None
 
 
 class SubscriptionTransport(BaseModel):

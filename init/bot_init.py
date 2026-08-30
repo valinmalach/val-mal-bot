@@ -45,7 +45,11 @@ async def check_subscriptions() -> None:
     the most expensive failure here and the quietest.
     """
     from errors import notify, report
-    from services.twitch.api import expected_callbacks, get_subscriptions
+    from services.twitch.api import (
+        get_subscriptions,
+        subscription_target,
+        undeliverable,
+    )
     from services.twitch.helix import HelixError
 
     try:
@@ -55,24 +59,17 @@ async def check_subscriptions() -> None:
         await report(e, "Could not check the Twitch subscriptions at startup")
         return
 
-    callbacks = expected_callbacks()
     broken = [
-        f"- {subscription.type} for broadcaster "
-        f"{subscription.condition.broadcaster_user_id}: {subscription.status}"
-        + (
-            ""
-            if subscription.transport.callback in callbacks
-            else f", calling back on {subscription.transport.callback}"
-        )
+        f"- {subscription.type} ({subscription_target(subscription)}): {reason}"
         for subscription in subscriptions
-        if subscription.status != "enabled"
-        or subscription.transport.callback not in callbacks
+        if (reason := undeliverable(subscription)) is not None
     ]
     if broken:
         detail = "\n".join(broken)
         await notify(
             f"{len(broken)} Twitch subscription(s) will not deliver:\n{detail}\n"
-            "Re-run /subscribe for each broadcaster to replace them."
+            "/subscribe replaces the stream.online and stream.offline pair; the"
+            " rest are registered outside the bot."
         )
 
 
