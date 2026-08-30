@@ -154,12 +154,20 @@ async def send_shoutout(to_broadcaster_id: str) -> None:
     )
 
 
+def callback_prefix() -> str:
+    """What every EventSub callback for this deployment starts with.
+
+    All seven webhook routes live under it, so a callback that does not begin
+    here belongs to another deployment or to this one before it moved. rstrip
+    to match services/twitch/oauth.py: a trailing slash in APP_URL would
+    otherwise build a //webhook/twitch that Twitch dutifully calls and FastAPI
+    does not route.
+    """
+    return f"{settings.app_url.rstrip('/')}/webhook/twitch"
+
+
 def _callback_url(sub_type: Literal["online", "offline"]) -> str:
-    suffix = "" if sub_type == "online" else "/offline"
-    # rstrip to match services/twitch/oauth.py: a trailing slash in APP_URL
-    # would otherwise build a //webhook/twitch that Twitch dutifully calls and
-    # FastAPI does not route.
-    return f"{settings.app_url.rstrip('/')}/webhook/twitch{suffix}"
+    return f"{callback_prefix()}{'' if sub_type == 'online' else '/offline'}"
 
 
 async def _matching_subscriptions(
@@ -273,6 +281,33 @@ async def unsubscribe_to_user(username: str) -> bool:
     return True
 
 
-def expected_callbacks() -> set[str]:
-    """The callbacks a subscription must use to reach this deployment."""
-    return {_callback_url("online"), _callback_url("offline")}
+def subscription_target(subscription: Subscription) -> str:
+    """Whichever id identifies this subscription, since the field varies by type."""
+    condition = subscription.condition
+    for label, value in (
+        ("broadcaster", condition.broadcaster_user_id),
+        ("to broadcaster", condition.to_broadcaster_user_id),
+        ("from broadcaster", condition.from_broadcaster_user_id),
+        ("user", condition.user_id),
+    ):
+        if value:
+            return f"{label} {value}"
+    return f"id {subscription.id}"
+
+
+def undeliverable(subscription: Subscription) -> str | None:
+    """Why this subscription will not reach the bot, or None when it will.
+
+    Two things are checkable without knowing which event types the bot expects,
+    and only two: Twitch having disabled it, and a callback pointing elsewhere.
+    Matching whole URLs instead would call every event type the bot does not
+    create itself — chat, follows, raids — undeliverable on every start. The
+    case this cannot see, a callback on the right host with a wrong path, fails
+    its deliveries until Twitch disables it, which the first check then catches.
+    """
+    if subscription.status != "enabled":
+        return subscription.status
+    callback = subscription.transport.callback or ""
+    if not callback.startswith(callback_prefix()):
+        return f"calling back on {callback or 'nothing'}"
+    return None
