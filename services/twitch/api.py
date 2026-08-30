@@ -284,15 +284,19 @@ async def unsubscribe_to_user(username: str) -> bool:
 def subscription_target(subscription: Subscription) -> str:
     """Whichever id identifies this subscription, since the field varies by type."""
     condition = subscription.condition
-    for label, value in (
-        ("broadcaster", condition.broadcaster_user_id),
-        ("to broadcaster", condition.to_broadcaster_user_id),
-        ("from broadcaster", condition.from_broadcaster_user_id),
-        ("user", condition.user_id),
-    ):
-        if value:
-            return f"{label} {value}"
-    return f"id {subscription.id}"
+    return next(
+        (
+            f"{label} {value}"
+            for label, value in (
+                ("broadcaster", condition.broadcaster_user_id),
+                ("to broadcaster", condition.to_broadcaster_user_id),
+                ("from broadcaster", condition.from_broadcaster_user_id),
+                ("user", condition.user_id),
+            )
+            if value
+        ),
+        f"id {subscription.id}",
+    )
 
 
 def undeliverable(subscription: Subscription) -> str | None:
@@ -301,13 +305,19 @@ def undeliverable(subscription: Subscription) -> str | None:
     Two things are checkable without knowing which event types the bot expects,
     and only two: Twitch having disabled it, and a callback pointing elsewhere.
     Matching whole URLs instead would call every event type the bot does not
-    create itself — chat, follows, raids — undeliverable on every start. The
-    case this cannot see, a callback on the right host with a wrong path, fails
-    its deliveries until Twitch disables it, which the first check then catches.
+    create itself — chat, follows, raids — undeliverable on every start.
+
+    The prefix has to end at a path boundary. A bare ``startswith`` also accepts
+    ``/webhook/twitching`` and ``/webhook/twitch-old``, which are different paths
+    that FastAPI does not route. What is left uncovered is an unrouted segment
+    *under* the prefix, and that fails its deliveries until Twitch disables it,
+    which the status check above then catches.
     """
     if subscription.status != "enabled":
         return subscription.status
+
     callback = subscription.transport.callback or ""
-    if not callback.startswith(callback_prefix()):
+    prefix = callback_prefix()
+    if callback != prefix and not callback.startswith(f"{prefix}/"):
         return f"calling back on {callback or 'nothing'}"
     return None
