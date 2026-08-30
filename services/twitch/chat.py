@@ -20,6 +20,11 @@ async def say(broadcaster_id: str | int, text: str, what: str) -> bool:
     ``what`` names the line in the admin channel, and separates one failing
     line from another so neither stands in for the other.
     """
+    if not text.strip():
+        # A missing message_template renders as "". config.template has already
+        # named the row; sending it would only add a 400 from Twitch on top.
+        return False
+
     try:
         await send_chat_message(str(broadcaster_id), text)
     except HelixError as e:
