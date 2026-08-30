@@ -181,14 +181,18 @@ class TwitchTokenManager:
         if response.status_code < 200 or response.status_code >= 300:
             logger.error(f"Token refresh failed with status={response.status_code}")
             await notify(
-                f"Failed to refresh access token: {response.status_code} {response.text}"
+                f"Failed to refresh access token: {response.status_code} {response.text}",
+                key="token-refresh-failed:app",
             )
             return False
 
         auth_response = AuthResponse.model_validate(response.json())
         if auth_response.token_type != "bearer":
             logger.error(f"Unexpected token type received: {auth_response.token_type}")
-            await notify(f"Unexpected token type: {auth_response.token_type}")
+            await notify(
+                f"Unexpected token type: {auth_response.token_type}",
+                key="token-type-unexpected:app",
+            )
             return False
 
         await self._store(
@@ -232,7 +236,10 @@ class TwitchTokenManager:
         refresh_token = self._refresh.get(token_type)
         if not refresh_token:
             logger.error(f"No {label} refresh token available")
-            await notify(f"No {label} refresh token available")
+            await notify(
+                f"No {label} refresh token available",
+                key=f"token-refresh-missing:{label}",
+            )
             return False
 
         params = {
@@ -251,14 +258,18 @@ class TwitchTokenManager:
             )
             await notify(
                 f"Failed to refresh {label} access token: "
-                f"{response.status_code} {response.text}"
+                f"{response.status_code} {response.text}",
+                key=f"token-refresh-failed:{label}",
             )
             return False
 
         auth_response = RefreshResponse.model_validate(response.json())
         if auth_response.token_type != "bearer":
             logger.error(f"Unexpected token type received: {auth_response.token_type}")
-            await notify(f"Unexpected token type: {auth_response.token_type}")
+            await notify(
+                f"Unexpected token type: {auth_response.token_type}",
+                key=f"token-type-unexpected:{label}",
+            )
             return False
 
         await self._store_refreshed(token_type, auth_response)
