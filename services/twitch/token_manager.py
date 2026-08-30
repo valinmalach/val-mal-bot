@@ -153,6 +153,16 @@ class TwitchTokenManager:
                 return True
             return await refresh()
 
+    async def refresh(self, token_type: TokenType) -> bool:
+        """Refresh one identity, whichever it is.
+
+        The two refresh flows differ, so without this every caller holding a
+        TokenType has to translate it into a method plus a boolean.
+        """
+        if token_type is TokenType.App:
+            return await self.refresh_app_access_token()
+        return await self.refresh_user_access_token(token_type is TokenType.Broadcaster)
+
     async def refresh_app_access_token(self) -> bool:
         return await self._guarded(TokenType.App, self._refresh_app_access_token)
 

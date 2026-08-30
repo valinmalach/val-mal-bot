@@ -12,6 +12,7 @@ from discord import (
 from discord.ext.commands import Bot, Cog
 
 from constants import TokenType
+from errors import report
 from services import (
     get_subscriptions,
     get_users,
@@ -20,6 +21,7 @@ from services import (
     unsubscribe_to_user,
 )
 from services.config import config
+from services.twitch.helix import HelixError
 from services.twitch.oauth import create_authorization_start_url
 from views import role_panels
 
@@ -158,7 +160,15 @@ class Admin(Cog):
     @app_commands.command(description="Gets all active subscriptions' users")
     @app_commands.commands.default_permissions(administrator=True)
     async def subscriptions(self, interaction: Interaction) -> None:
-        subscriptions = await get_subscriptions()
+        try:
+            subscriptions = await get_subscriptions()
+        except HelixError as e:
+            await report(e, "Failed to list Twitch subscriptions")
+            await interaction.response.send_message(
+                "Could not reach Twitch to list subscriptions."
+            )
+            return
+
         if not subscriptions:
             embed = discord.Embed(
                 title="No Subscriptions",
@@ -185,7 +195,11 @@ class Admin(Cog):
         for sub_type, user_ids in grouped_subscriptions.items():
             if not user_ids:
                 continue
-            users = await get_users(user_ids)
+            try:
+                users = await get_users(user_ids)
+            except HelixError as e:
+                await report(e, f"Failed to fetch users for {sub_type}")
+                continue
             if not users:
                 continue
             user_names = [user.display_name for user in users if user]
@@ -207,11 +221,19 @@ class Admin(Cog):
         username="The username of the user to subscribe to",
     )
     async def subscribe(self, interaction: Interaction, username: str) -> None:
-        success = await subscribe_to_user(username)
+        try:
+            found = await subscribe_to_user(username)
+        except HelixError as e:
+            await report(e, f"Failed to subscribe {username}")
+            await interaction.response.send_message(
+                content=f"Could not reach Twitch to subscribe {username}"
+            )
+            return
+
         await interaction.response.send_message(
             content=f"Subscribed to {username}"
-            if success
-            else f"Failed to subscribe to {username}"
+            if found
+            else f"No Twitch user called {username}"
         )
 
     @app_commands.command(
@@ -222,11 +244,19 @@ class Admin(Cog):
         username="The username of the user to unsubscribe from",
     )
     async def unsubscribe(self, interaction: Interaction, username: str) -> None:
-        success = await unsubscribe_to_user(username)
+        try:
+            found = await unsubscribe_to_user(username)
+        except HelixError as e:
+            await report(e, f"Failed to unsubscribe {username}")
+            await interaction.response.send_message(
+                content=f"Could not reach Twitch to unsubscribe {username}"
+            )
+            return
+
         await interaction.response.send_message(
             content=f"Unsubscribed from {username}"
-            if success
-            else f"Failed to unsubscribe from {username}"
+            if found
+            else f"No Twitch user called {username}"
         )
 
 

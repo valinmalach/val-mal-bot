@@ -10,8 +10,7 @@ from collections.abc import Awaitable, Callable
 
 from models import ChannelChatMessageEventSub
 from services.config import config, safe_format
-from services.helper.twitch import check_mod, twitch_send_message
-from services.twitch.api import get_channel, get_user_by_username
+from services.twitch.api import get_channel, get_user_by_username, send_chat_message
 
 from .shoutout_queue import shoutout_queue
 
@@ -40,7 +39,7 @@ def _render(message: str, event_sub: ChannelChatMessageEventSub, args: str) -> s
 async def hug(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     target = _target(args)
     key = "twitch_hug_target" if target else "twitch_hug_everyone"
-    await twitch_send_message(
+    await send_chat_message(
         event_sub.event.broadcaster_user_id,
         config.template(key, chatter=event_sub.event.chatter_user_name, target=target),
     )
@@ -53,7 +52,7 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     user = await get_user_by_username(target)
     target_channel = await get_channel(int(user.id)) if user else None
     if not target_channel:
-        await twitch_send_message(
+        await send_chat_message(
             broadcaster_id, config.template("twitch_shoutout_not_found")
         )
         return
@@ -61,7 +60,7 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     if user and shoutout_queue.activated:
         shoutout_queue.add_to_queue(user.login, str(user.id))
 
-    await twitch_send_message(
+    await send_chat_message(
         broadcaster_id,
         config.template(
             "twitch_shoutout",
@@ -78,12 +77,26 @@ HANDLERS: dict[str, Callable[[ChannelChatMessageEventSub, str], Awaitable[None]]
 }
 
 
+async def _check_mod(event_sub: ChannelChatMessageEventSub) -> bool:
+    """Whether the chatter may run a mod-only command, telling them if not."""
+    if any(
+        badge.set_id in {"moderator", "broadcaster"}
+        for badge in event_sub.event.badges or []
+    ):
+        return True
+
+    await send_chat_message(
+        event_sub.event.broadcaster_user_id, config.template("twitch_mod_only")
+    )
+    return False
+
+
 async def dispatch(event_sub: ChannelChatMessageEventSub, name: str, args: str) -> None:
     """Run a chat command by name; unknown or disabled names do nothing."""
     command = config.command(name)
     if command is None:
         return
-    if command.mod_only and not await check_mod(event_sub):
+    if command.mod_only and not await _check_mod(event_sub):
         return
     await _run(event_sub, name, args)
 
@@ -113,6 +126,6 @@ async def _run(
         return
 
     for message in config.command_responses(name):
-        await twitch_send_message(
+        await send_chat_message(
             event_sub.event.broadcaster_user_id, _render(message, event_sub, args)
         )

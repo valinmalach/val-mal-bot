@@ -30,9 +30,9 @@ from models import (
 from services import (
     get_hmac,
     get_hmac_message,
-    get_stream_info,
+    get_stream,
     get_user,
-    twitch_send_message,
+    send_chat_message,
     verify_message,
 )
 from services.config import config
@@ -110,10 +110,10 @@ async def process_webhook(
 
 async def _wait_for_stream_info(broadcaster_id: int):
     """Poll for stream info until it's available."""
-    stream_info = await get_stream_info(broadcaster_id)
+    stream_info = await get_stream(broadcaster_id)
     while not stream_info:
         await asyncio.sleep(1)
-        stream_info = await get_stream_info(broadcaster_id)
+        stream_info = await get_stream(broadcaster_id)
     return stream_info
 
 
@@ -169,7 +169,7 @@ async def _channel_chat_message_task(event_sub: ChannelChatMessageEventSub) -> N
 
 async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
     try:
-        await twitch_send_message(
+        await send_chat_message(
             event_sub.event.broadcaster_user_id,
             config.template("twitch_follow_thanks", user=event_sub.event.user_name),
         )
@@ -180,12 +180,12 @@ async def _channel_follow_task(event_sub: ChannelFollowEventSub) -> None:
 async def _channel_ad_break_begin_task(event_sub: ChannelAdBreakBeginEventSub) -> None:
     try:
         ad_duration = event_sub.event.duration_seconds
-        await twitch_send_message(
+        await send_chat_message(
             event_sub.event.broadcaster_user_id,
             config.template("twitch_ad_break_start", minutes=ad_duration // 60),
         )
         await asyncio.sleep(ad_duration)
-        await twitch_send_message(
+        await send_chat_message(
             event_sub.event.broadcaster_user_id,
             config.template("twitch_ad_break_end"),
         )
@@ -423,7 +423,7 @@ async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
             twitch_url = (
                 f"https://www.twitch.tv/{event_sub.event.to_broadcaster_user_login}"
             )
-            await twitch_send_message(
+            await send_chat_message(
                 event_sub.event.from_broadcaster_user_id,
                 config.template(
                     "twitch_raid_out",
@@ -432,7 +432,7 @@ async def _channel_raid_task(event_sub: ChannelRaidEventSub) -> None:
                 ),
             )
         elif stream_session.is_main_broadcaster(event_sub.event.to_broadcaster_user_id):
-            await twitch_send_message(
+            await send_chat_message(
                 event_sub.event.to_broadcaster_user_id,
                 f"!so {event_sub.event.from_broadcaster_user_login}",
             )
@@ -457,7 +457,7 @@ async def _channel_moderate_task(event_sub: ChannelModerateEventSub) -> None:
             event_sub.event.broadcaster_user_id
         ):
             return
-        await twitch_send_message(
+        await send_chat_message(
             event_sub.event.broadcaster_user_id,
             config.template("twitch_raid_farewell"),
         )

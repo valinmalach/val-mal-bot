@@ -6,11 +6,9 @@ from typing import ClassVar, Self, cast
 import httpx
 import pendulum
 
-from constants import TokenType
 from errors import notify, report
-from services.config import config
-from services.helper.twitch import call_twitch
-from services.twitch.api import get_user
+from services.twitch.api import get_user, send_shoutout
+from services.twitch.helix import HelixError
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +89,15 @@ class TwitchShoutoutQueue:
                 login, user_id_str = pair
                 self._shoutout_queue.remove(pair)
 
-                user = await get_user(int(user_id_str))
+                try:
+                    user = await get_user(int(user_id_str))
+                except HelixError as e:
+                    # One unreachable lookup must not end the queue.
+                    logger.warning("Could not look up %s for shoutout: %s", login, e)
+                    self.add_to_queue(login, user_id_str)
+                    await asyncio.sleep(5)
+                    continue
+
                 if not user:
                     logger.warning(
                         "User id %s (%s) not found for shoutout", user_id_str, login
@@ -99,42 +105,31 @@ class TwitchShoutoutQueue:
                     await notify(f"User {login} not found for shoutout")
                     continue
 
-                url = "https://api.twitch.tv/helix/chat/shoutouts"
-                data = {
-                    "from_broadcaster_id": config.setting("twitch_broadcaster_id"),
-                    "to_broadcaster_id": user.id,
-                    "moderator_id": config.setting("twitch_bot_user_id"),
-                }
-                response = await call_twitch("POST", url, data, TokenType.User)
-                if response is not None and 200 <= response.status_code < 300:
-                    self._last_shoutout_by_target_id[user_id_str] = pendulum.now()
-                    self._next_attempt_allowed_by_target_id.pop(user_id_str, None)
+                try:
+                    await send_shoutout(user.id)
+                except HelixError as e:
+                    if e.status == 429 and e.response is not None:
+                        wait_until = self._wait_until_from_429(e.response)
+                        self._next_attempt_allowed_by_target_id[user_id_str] = (
+                            wait_until
+                        )
+                        self.add_to_queue(login, user_id_str)
+                        logger.warning(
+                            "Shoutout rate limited for %s (id=%s), re-queued; next attempt after %s",
+                            login,
+                            user_id_str,
+                            wait_until,
+                        )
+                        await asyncio.sleep(_GLOBAL_SHOUTOUT_INTERVAL_SECONDS)
+                        continue
+
+                    await report(e, f"Failed to send shoutout to {login}")
                     await asyncio.sleep(_GLOBAL_SHOUTOUT_INTERVAL_SECONDS)
                     continue
 
-                if response is not None and response.status_code == 429:
-                    wait_until = self._wait_until_from_429(response)
-                    self._next_attempt_allowed_by_target_id[user_id_str] = wait_until
-                    self.add_to_queue(login, user_id_str)
-                    logger.warning(
-                        "Shoutout rate limited for %s (id=%s), re-queued; next attempt after %s — %s",
-                        login,
-                        user_id_str,
-                        wait_until,
-                        response.text[:200],
-                    )
-                    await asyncio.sleep(_GLOBAL_SHOUTOUT_INTERVAL_SECONDS)
-                    continue
-
-                logger.error(
-                    "Failed to send shoutout to %s: %s %s",
-                    login,
-                    response.status_code if response else "No response",
-                    response.text if response else "",
-                )
-                await notify(
-                    f"Failed to send shoutout to {login}: {response.status_code if response else 'No response'} {response.text if response else ''}"
-                )
+                self._last_shoutout_by_target_id[user_id_str] = pendulum.now()
+                self._next_attempt_allowed_by_target_id.pop(user_id_str, None)
+                await asyncio.sleep(_GLOBAL_SHOUTOUT_INTERVAL_SECONDS)
         except Exception as e:  # noqa: BLE001
             await report(e, "Error in activate method")
 

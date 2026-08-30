@@ -14,8 +14,7 @@ from background import fire_and_forget
 from errors import report
 from models import Stream
 from services.config import config
-from services.helper.twitch import twitch_send_message
-from services.twitch.api import get_ad_schedule
+from services.twitch.api import get_ad_schedule, send_chat_message
 from services.twitch.shoutout_queue import shoutout_queue
 
 logger = logging.getLogger(__name__)
@@ -35,10 +34,10 @@ async def began(broadcaster_id: int, stream: Stream) -> None:
         return
 
     fire_and_forget(shoutout_queue.activate(), name="shoutout-queue")
-    await twitch_send_message(
+    await send_chat_message(
         str(broadcaster_id), config.template("twitch_stream_greeting")
     )
-    await twitch_send_message(
+    await send_chat_message(
         str(broadcaster_id),
         config.template(
             "twitch_stream_announce",
@@ -94,7 +93,7 @@ async def _warn_before_next_ad(broadcaster_id: str) -> None:
         wait_seconds = (notify_time - pendulum.now(tz=pendulum.UTC)).total_seconds()
         if wait_seconds > 0:
             await asyncio.sleep(wait_seconds)
-            await twitch_send_message(
+            await send_chat_message(
                 broadcaster_id, config.template("twitch_ad_break_warning")
             )
     except asyncio.CancelledError:

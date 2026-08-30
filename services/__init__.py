@@ -19,24 +19,22 @@ from .helper.helper import (
     toggle_role,
     verify_message,
 )
-from .helper.twitch import call_twitch, check_mod, twitch_send_message
 from .twitch.api import (
     get_ad_schedule,
     get_channel,
-    get_stream_info,
+    get_stream,
     get_stream_vod,
     get_subscriptions,
     get_user,
     get_user_by_username,
     get_users,
+    send_chat_message,
     subscribe_to_user,
     unsubscribe_to_user,
 )
 from .twitch.commands import dispatch
 
 __all__ = [
-    "call_twitch",
-    "check_mod",
     "dispatch",
     "edit_embed",
     "format_unit",
@@ -51,7 +49,7 @@ __all__ = [
     "get_next_leap",
     "get_ordinal_suffix",
     "get_pfp",
-    "get_stream_info",
+    "get_stream",
     "get_stream_vod",
     "get_subscriptions",
     "get_user",
@@ -61,11 +59,11 @@ __all__ = [
     "next_birthday",
     "parse_rfc3339",
     "roles_button_pressed",
+    "send_chat_message",
     "send_embed",
     "send_message",
     "subscribe_to_user",
     "toggle_role",
-    "twitch_send_message",
     "unsubscribe_to_user",
     "verify_message",
 ]

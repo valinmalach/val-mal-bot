@@ -4,8 +4,6 @@ from typing import Self, cast
 
 import httpx
 
-from errors import report
-
 logger = logging.getLogger(__name__)
 
 
@@ -79,26 +77,21 @@ class HttpClientManager:
         data: dict | None = None,
         **kwargs,
     ) -> httpx.Response:
-        """Make an HTTP request using the global client"""
+        """Make an HTTP request using the global client.
+
+        Failures propagate unreported: this is the transport, and the caller
+        that knows what the request was for is the one worth hearing from.
+        """
         client = await self.get_client()
-        try:
-            return await client.request(
-                method=method,
-                url=url,
-                headers=headers,
-                params=params,
-                json=json,
-                data=data,
-                **kwargs,
-            )
-        except Exception as e:
-            is_retryable = is_transient_network_error(e)
-
-            # Retryable errors will be logged by retry_api_call if all retries fail
-            if not is_retryable:
-                await report(e, f"HTTP request failed: {method} {url}")
-
-            raise
+        return await client.request(
+            method=method,
+            url=url,
+            headers=headers,
+            params=params,
+            json=json,
+            data=data,
+            **kwargs,
+        )
 
 
 http_client_manager = HttpClientManager()
