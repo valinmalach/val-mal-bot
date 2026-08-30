@@ -157,7 +157,7 @@ class Admin(Cog):
             ephemeral=True,
         )
 
-    @app_commands.command(description="Gets all active subscriptions' users")
+    @app_commands.command(description="Gets all subscriptions' users")
     @app_commands.commands.default_permissions(administrator=True)
     async def subscriptions(self, interaction: Interaction) -> None:
         try:
@@ -172,7 +172,7 @@ class Admin(Cog):
         if not subscriptions:
             embed = discord.Embed(
                 title="No Subscriptions",
-                description="There are no active subscriptions.",
+                description="There are no subscriptions.",
                 color=discord.Color.red(),
             )
             await interaction.response.send_message(embed=embed)
@@ -180,7 +180,13 @@ class Admin(Cog):
 
         grouped_subscriptions: dict[str, list[str]] = {}
         for subscription in subscriptions:
-            sub_type = subscription.type
+            # A subscription Twitch has disabled delivers nothing, and looks
+            # identical here to a working one unless its status is on the label.
+            sub_type = (
+                subscription.type
+                if subscription.status == "enabled"
+                else f"{subscription.type} ({subscription.status})"
+            )
             if sub_type not in grouped_subscriptions:
                 grouped_subscriptions[sub_type] = []
             if subscription.condition.broadcaster_user_id:
@@ -188,8 +194,11 @@ class Admin(Cog):
                     subscription.condition.broadcaster_user_id
                 )
         embed = discord.Embed(
-            title="Active Subscriptions",
-            description="Here are the active subscriptions grouped by type.",
+            title="Subscriptions",
+            description=(
+                "Here are the subscriptions grouped by type. Anything not "
+                "enabled is labelled with its status and will not deliver."
+            ),
             color=discord.Color.blue(),
         )
         for sub_type, user_ids in grouped_subscriptions.items():

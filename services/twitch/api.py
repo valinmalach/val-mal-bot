@@ -97,12 +97,17 @@ async def get_ad_schedule(broadcaster_id: int) -> AdSchedule | None:
 
 
 async def get_subscriptions() -> list[Subscription]:
-    """Every enabled EventSub subscription, following Helix's pagination."""
+    """Every EventSub subscription in any state, following Helix's pagination.
+
+    Unfiltered on purpose. A subscription Twitch has disabled is the one worth
+    seeing, and hiding it makes a broadcaster whose alerts will never fire look
+    exactly like one who was never subscribed.
+    """
     subscriptions: list[Subscription] = []
     cursor: str | None = None
 
     while True:
-        params: dict[str, str] = {"status": "enabled"}
+        params: dict[str, str] = {}
         if cursor:
             params["after"] = cursor
 
@@ -148,36 +153,86 @@ async def send_shoutout(to_broadcaster_id: str) -> None:
     )
 
 
-async def _subscribe(sub_type: Literal["online", "offline"], user_id: str) -> None:
-    """Subscribe, treating an existing subscription as the goal already met.
+def _callback_url(sub_type: Literal["online", "offline"]) -> str:
+    suffix = "" if sub_type == "online" else "/offline"
+    # rstrip to match services/twitch/oauth.py: a trailing slash in APP_URL
+    # would otherwise build a //webhook/twitch that Twitch dutifully calls and
+    # FastAPI does not route.
+    return f"{settings.app_url.rstrip('/')}/webhook/twitch{suffix}"
 
-    Twitch answers 409 for a duplicate. Without this, a retry that followed a
-    subscription Twitch had already created would fail the command, and every
-    later attempt would fail the same way — leaving the second half of the pair
-    permanently uncreatable.
-    """
-    # Repeatable: Twitch rejects a duplicate rather than creating one, so the
-    # worst a repeat costs is the conflict handled below. See docs/adr/0002.
-    try:
-        await helix.request(
-            "POST",
-            "/eventsub/subscriptions",
-            json={
-                "type": f"stream.{sub_type}",
-                "version": "1",
-                "condition": {"broadcaster_user_id": user_id},
-                "transport": {
-                    "method": "webhook",
-                    "callback": f"{settings.app_url}/webhook/twitch{'' if sub_type == 'online' else '/offline'}",
-                    "secret": settings.twitch_webhook_secret,
-                },
+
+async def _matching_subscriptions(
+    sub_type: Literal["online", "offline"], user_id: str
+) -> list[Subscription]:
+    return [
+        subscription
+        for subscription in await get_subscriptions()
+        if subscription.type == f"stream.{sub_type}"
+        and subscription.condition.broadcaster_user_id == user_id
+    ]
+
+
+async def _create_subscription(
+    sub_type: Literal["online", "offline"], user_id: str
+) -> None:
+    # Repeatable: Twitch rejects a duplicate rather than creating a second, so
+    # the worst a repeat costs is the 409 its caller handles. See docs/adr/0002.
+    await helix.request(
+        "POST",
+        "/eventsub/subscriptions",
+        json={
+            "type": f"stream.{sub_type}",
+            "version": "1",
+            "condition": {"broadcaster_user_id": user_id},
+            "transport": {
+                "method": "webhook",
+                "callback": _callback_url(sub_type),
+                "secret": settings.twitch_webhook_secret,
             },
-            repeatable=True,
-        )
+        },
+        repeatable=True,
+    )
+
+
+async def _subscribe(sub_type: Literal["online", "offline"], user_id: str) -> None:
+    """Subscribe, replacing an existing subscription that would not deliver.
+
+    Twitch answers 409 for a duplicate, and its uniqueness key is the type and
+    the condition alone -- not the transport. So a 409 says just as readily that
+    a subscription exists pointing at a callback this deployment no longer
+    answers on, or one Twitch disabled after too many failed deliveries, as that
+    a working one is already in place. Only the last of those is the goal
+    already met; reporting the other two as subscribed would promise an alert
+    that can never fire.
+    """
+    try:
+        await _create_subscription(sub_type, user_id)
+        return
     except HelixError as e:
         if e.status != 409:
             raise
+
+    callback = _callback_url(sub_type)
+    existing = await _matching_subscriptions(sub_type, user_id)
+    if any(
+        subscription.status == "enabled" and subscription.transport.callback == callback
+        for subscription in existing
+    ):
         logger.info(f"Already subscribed to stream.{sub_type} for user_id={user_id}")
+        return
+
+    # Whatever is there will not deliver, and it is what the 409 was about, so
+    # it has to go before Twitch will accept the replacement.
+    for subscription in existing:
+        logger.warning(
+            f"Replacing stream.{sub_type} subscription {subscription.id} for "
+            f"user_id={user_id}: status={subscription.status}, "
+            f"callback={subscription.transport.callback}"
+        )
+        await helix.request(
+            "DELETE", "/eventsub/subscriptions", params={"id": subscription.id}
+        )
+    await _create_subscription(sub_type, user_id)
 
 
 async def subscribe_to_user(username: str) -> bool:
@@ -214,3 +269,8 @@ async def unsubscribe_to_user(username: str) -> bool:
             "DELETE", "/eventsub/subscriptions", params={"id": subscription.id}
         )
     return True
+
+
+def expected_callbacks() -> set[str]:
+    """The callbacks a subscription must use to reach this deployment."""
+    return {_callback_url("online"), _callback_url("offline")}
