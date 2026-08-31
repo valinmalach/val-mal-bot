@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import logging
+import re
 from datetime import datetime
 from functools import cache
 
@@ -287,36 +288,45 @@ def format_unit(value: int, unit: str) -> str:
     return f"{value} {f'{unit}s' if value != 1 else unit}"
 
 
-@cache
 def get_hmac_message(
     twitch_message_id: str, twitch_message_timestamp: str, body: str
 ) -> str:
+    """Not cached: every argument comes from an unverified request."""
     return twitch_message_id + twitch_message_timestamp + body
 
 
-@cache
 def get_hmac(secret: str, message: str) -> str:
     return hmac.new(
         secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
     ).hexdigest()
 
 
-@cache
 def verify_message(hmac_str: str, verify_signature: str) -> bool:
     return hmac.compare_digest(hmac_str, verify_signature)
 
 
-@cache
+_RFC3339 = re.compile(
+    r"\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}:\d{2}(\.\d{1,9})?([Zz]|[+-]\d{2}:\d{2})"
+)
+
+
 def parse_rfc3339(date_str: str) -> DateTime:
+    """An RFC3339 timestamp (e.g. '2025-05-31T12:34:56Z') as an aware DateTime.
+
+    Shape-checked first: pendulum.parse on its own also accepts durations,
+    intervals, and zone-less times that it silently calls UTC.
     """
-    Parse an RFC3339 / ISO-8601 timestamp (e.g. '2025-05-31T12:34:56Z')
-    and return a timezone-aware DateTime.
-    """
-    parsed = pendulum.parse(date_str)
-    if not isinstance(parsed, DateTime):
-        # ValueError, not TypeError: `date_str` has the right type; pendulum
-        # just parsed it into a Date/Time/Duration rather than a DateTime.
-        raise ValueError(f"Expected DateTime string, got: {date_str}")  # noqa: TRY004
+    # One error type for the caller to catch. The shape check alone still lets
+    # through 2025-13-45T99:99:99Z, which pendulum throws its own type at.
+    rejected = ValueError(f"Not an RFC3339 timestamp: {date_str[:40]!r}")
+    if not _RFC3339.fullmatch(date_str):
+        raise rejected
+    try:
+        parsed = pendulum.parse(date_str)
+    except Exception as unparseable:
+        raise rejected from unparseable
+    if not isinstance(parsed, DateTime) or parsed.tzinfo is None:
+        raise rejected
     return parsed
 
 
