@@ -20,9 +20,9 @@ from models import (
     StreamOfflineEventSub,
     StreamOnlineEventSub,
 )
-from services import get_stream, get_user
 from services.config import config
 from services.twitch import live_alert, stream_session
+from services.twitch.api import get_stream, get_user
 from services.twitch.chat import say, say_template
 from services.twitch.commands import dispatch
 from services.twitch.helix import HelixError
@@ -105,7 +105,7 @@ async def stream_online(event_sub: StreamOnlineEventSub) -> None:
         await live_alert.announce(broadcaster_id, stream_info, user_info, channel)
 
     except Exception as e:  # noqa: BLE001
-        await report(e, f"Error in _stream_online_task for {broadcaster_id}")
+        await report(e, f"Error in stream_online for {broadcaster_id}")
 
 
 async def stream_offline(event_sub: StreamOfflineEventSub) -> None:
@@ -116,7 +116,7 @@ async def stream_offline(event_sub: StreamOfflineEventSub) -> None:
         await live_alert.wake(broadcaster_id)
 
     except Exception as e:  # noqa: BLE001
-        await report(e, f"Error in _stream_offline_task for {broadcaster_id}")
+        await report(e, f"Error in stream_offline for {broadcaster_id}")
 
 
 async def channel_chat_message(event_sub: ChannelChatMessageEventSub) -> None:

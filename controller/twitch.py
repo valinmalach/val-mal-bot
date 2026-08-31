@@ -56,8 +56,22 @@ _MESSAGE_WINDOW_SECONDS = 600
 # worked does not run it twice. Process-local is enough and not a compromise:
 # the Discord gateway connection lives in this process, so a second replica
 # would double every bot action.
-_HANDLED_LIMIT = 1024
+#
+# Twice the freshness window, and that is provably enough rather than a guess:
+# freshness is measured on the wall clock and this on the monotonic one, so a
+# host clock behind Twitch's would leave a gap where a delivery is still fresh
+# but no longer remembered - except that a clock more than one window out
+# refuses everything as stale anyway, so the usable skew cannot exceed a window.
+_HANDLED_TTL_SECONDS = _MESSAGE_WINDOW_SECONDS * 2
+
+# A safety valve, not the eviction policy; the TTL is. The chat route claims one
+# id per chat line, so the old 1024 was reached at under two lines a second and
+# then forgot ids inside their own window, which is precisely a redelivery being
+# handled twice. Reaching even this says the traffic broke the assumption, so it
+# is counted and said out loud rather than silently dropping the oldest.
+_HANDLED_LIMIT = 20_000
 _handled: OrderedDict[str, float] = OrderedDict()
+_forgotten_early = 0
 
 
 def _is_stale(sent: pendulum.DateTime) -> bool:
@@ -67,11 +81,11 @@ def _is_stale(sent: pendulum.DateTime) -> bool:
 def _claim(message_id: str) -> bool:
     """Take this delivery, or say that something already has it.
 
-    Claiming and checking are one step: there is an await between here and the
-    dispatch, so two copies of one delivery could otherwise both get past a
-    check that only looked.
+    Checking and taking are one step so that adding an await between them later
+    cannot let two copies of one delivery both past a check that only looked.
     """
-    cutoff = time.monotonic() - _MESSAGE_WINDOW_SECONDS
+    global _forgotten_early
+    cutoff = time.monotonic() - _HANDLED_TTL_SECONDS
     while _handled and next(iter(_handled.values())) < cutoff:
         _handled.popitem(last=False)
     if message_id in _handled:
@@ -79,7 +93,21 @@ def _claim(message_id: str) -> bool:
     _handled[message_id] = time.monotonic()
     while len(_handled) > _HANDLED_LIMIT:
         _handled.popitem(last=False)
+        _forgotten_early += 1
     return True
+
+
+async def _report_forgotten(endpoint: str) -> None:
+    """Say so when the cap bit, because then a redelivery can be handled twice."""
+    global _forgotten_early
+    if not _forgotten_early:
+        return
+    dropped, _forgotten_early = _forgotten_early, 0
+    await notify(
+        f"Replay cache full on {endpoint}: {dropped} delivery id(s) forgotten"
+        f" inside their window, so a redelivery of one could run twice.",
+        key="replay-cache-full",
+    )
 
 
 def _release(message_id: str) -> None:
@@ -142,25 +170,6 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
         await notify(f"403: Forbidden request on {endpoint}. Signature does not match.")
         raise HTTPException(status_code=403)
 
-    # Only after the signature matched: an unauthenticated caller must not be
-    # able to raise a notice by sending a stale timestamp.
-    try:
-        sent = parse_rfc3339(headers.get(TWITCH_MESSAGE_TIMESTAMP, ""))
-    except ValueError:
-        logger.warning("403: Unreadable message timestamp on %s", endpoint)
-        await notify(f"403: Forbidden request on {endpoint}. Unreadable timestamp.")
-        raise HTTPException(status_code=403) from None
-
-    if _is_stale(sent):
-        logger.warning("403: Stale delivery on %s, sent %s", endpoint, sent)
-        await notify(
-            f"403: Forbidden request on {endpoint}. Timestamp outside the"
-            f" {_MESSAGE_WINDOW_SECONDS}s window, which is also what a wrong"
-            f" clock on this host looks like.",
-            key=f"stale-delivery:{endpoint}",
-        )
-        raise HTTPException(status_code=403)
-
     message_type = headers.get(TWITCH_MESSAGE_TYPE, "").lower()
     try:
         parsed = await request.json()
@@ -198,6 +207,29 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
         )
         return Response(status_code=204)
 
+    # Freshness applies to notifications alone, and deliberately sits below the
+    # handshake. A wrong clock refusing events is recoverable; a wrong clock that
+    # also refuses webhook_callback_verification would block the resubscribe that
+    # repairs it, and five of the seven subscriptions cannot be recreated from
+    # this repo at all.
+    try:
+        sent = parse_rfc3339(headers.get(TWITCH_MESSAGE_TIMESTAMP, ""))
+    except ValueError:
+        logger.warning("403: Unreadable message timestamp on %s", endpoint)
+        await notify(f"403: Forbidden request on {endpoint}. Unreadable timestamp.")
+        raise HTTPException(status_code=403) from None
+
+    if _is_stale(sent):
+        logger.warning("403: Stale delivery on %s, sent %s", endpoint, sent)
+        await notify(
+            f"403: Forbidden request on {endpoint}. Timestamp outside the"
+            f" {_MESSAGE_WINDOW_SECONDS}s window, which is also what a wrong"
+            f" clock on this host looks like. Twitch counts this as a failed"
+            f" delivery, and enough of them revoke the subscription.",
+            key=f"stale-delivery:{endpoint}",
+        )
+        raise HTTPException(status_code=403)
+
 
 async def process_webhook[E: BaseModel](
     request: Request,
@@ -220,6 +252,15 @@ async def process_webhook[E: BaseModel](
         # Twitch says a notification may arrive twice. 202 rather than an error:
         # this end does have it, and saying so is what stops the retries.
         message_id = request.headers.get(TWITCH_MESSAGE_ID, "")
+        if not message_id:
+            # Twitch always sends one, and it is inside the HMAC. Refusing beats
+            # claiming "": that collapses every id-less delivery into one and
+            # throws the rest away saying nothing.
+            logger.warning("400: Delivery carried no message id on %s", endpoint)
+            await notify(f"400: Bad request on {endpoint}. No message id.")
+            raise HTTPException(status_code=400)
+
+        await _report_forgotten(endpoint)
         if not _claim(message_id):
             logger.info(
                 "Duplicate %s on %s, not dispatched again", message_id, endpoint
@@ -237,15 +278,26 @@ async def process_webhook[E: BaseModel](
     except HTTPException:
         raise
     except ValidationError as e:
-        # 4xx rather than 5xx deliberately: Twitch retries a 5xx, and a payload
-        # this model rejects will be rejected identically every time, so the
-        # retries only cost deliveries against the subscription's failure budget.
+        # 4xx rather than 5xx because a payload this end cannot read is not a
+        # server fault, and a full exception report for one is noise. Not for the
+        # reason first given here: Twitch documents no 4xx/5xx distinction at all,
+        # and revocation counts anything that is not a 2xx, so this spends the
+        # subscription's failure budget exactly as a 500 would.
+        # The field, not just the model: what this most often catches is this
+        # end's model falling behind Twitch's payload, and the name of the
+        # field that moved is the whole diagnosis.
+        where = "; ".join(
+            ".".join(str(part) for part in err["loc"]) for err in e.errors()[:3]
+        )
         logger.warning(
-            f"400: {event_model.__name__} rejected the payload on {endpoint}"
+            "400: %s rejected the payload on %s at %s",
+            event_model.__name__,
+            endpoint,
+            where,
         )
         await notify(
-            f"400: Bad request on {endpoint}."
-            f" Payload did not match {event_model.__name__}."
+            f"400: Bad request on {endpoint}. Payload did not match"
+            f" {event_model.__name__} at: {where}"
         )
         raise HTTPException(status_code=400) from e
     except Exception as e:

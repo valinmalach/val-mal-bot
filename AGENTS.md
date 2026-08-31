@@ -117,17 +117,26 @@ behind. A message id that has already reached a handler answers 202 without
 dispatching again, since Twitch says a notification may arrive twice and 202 is
 what stops the retries. Only ids that were *dispatched* are remembered, so a
 delivery Twitch retries because this end failed still gets through. The set is
-process-local, which is enough and not a compromise: the Discord gateway
-connection lives in this process, so a second replica would double every bot
-action. The one cost is real — if the host clock drifts past ten minutes every
-event is refused, loudly, until it is fixed.
+process-local, and remembered for twice the freshness window: a clock further
+out than one window refuses everything anyway, so the skew that could open a gap
+between the two cannot exceed a window. It holds 20,000 ids, which the chat route
+would otherwise fill in minutes — one id per chat line — and reaching the cap
+says so in the admin channel, because past it a redelivery can run twice.
 
-**A signed request that the models reject answers 4xx, not 5xx.** Twitch retries a
-5xx, and a payload rejected once is rejected identically every time, so the
-retries only spend the subscription's failure budget before Twitch disables it. A
-body that is not JSON, is not a JSON object, or does not match the route's model
-is a 400 with a notice. Only something genuinely unexpected is a 500 with a
-report.
+The cost of the freshness check is real and worse than "events are refused". A
+403 is a failed delivery, and enough of them revoke the subscription — of which
+five of the seven cannot be recreated from this repo. That is why the check sits
+*below* the verification handshake and applies to notifications alone: a wrong
+clock must not also refuse the resubscribe that repairs it.
+
+**A signed request that the models reject answers 4xx, not 5xx.** A body that is
+not JSON, is not a JSON object, or does not match the route's model is a 400 with
+a notice naming the field that failed; only something genuinely unexpected is a
+500 with a report. The reason is that a payload this end cannot read is not a
+server fault, and a traceback for one is noise — *not* that it saves retries.
+Twitch documents no 4xx/5xx distinction anywhere, and revocation counts anything
+that is not a 2xx, so a 400 spends the failure budget exactly as a 500 does. That
+wrong justification was recorded here first; do not restore it.
 
 **Only two of the seven EventSub subscriptions can be created from this repo.**
 `/subscribe` creates `stream.online` and `stream.offline`. Chat, follow, ad break,

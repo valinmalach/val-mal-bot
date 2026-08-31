@@ -49,16 +49,16 @@ class ChannelChatMessageEvent(BaseModel):
         "power_ups_gigantified_emote",
     ]
     badges: list[Badge]
-    cheer: Cheer | None
-    color: str | None
-    reply: Reply | None
-    channel_points_custom_reward_id: str | None
-    source_broadcaster_user_id: str | None
-    source_broadcaster_user_name: str | None
-    source_broadcaster_user_login: str | None
-    source_message_id: str | None
-    source_badges: list[Badge] | None
-    is_source_only: bool | None
+    cheer: Cheer | None = None
+    color: str | None = None
+    reply: Reply | None = None
+    channel_points_custom_reward_id: str | None = None
+    source_broadcaster_user_id: str | None = None
+    source_broadcaster_user_name: str | None = None
+    source_broadcaster_user_login: str | None = None
+    source_message_id: str | None = None
+    source_badges: list[Badge] | None = None
+    is_source_only: bool | None = None
 
 
 class ChannelChatMessageEventSub(BaseModel):

@@ -27,6 +27,10 @@ typeCheckingMode = "standard"
 # No exclude key: setting it REPLACES pyright's defaults instead of adding to
 # them, and those already cover .venv and __pycache__. "M.m" only, and required.
 pythonVersion = "3.14"
+# The webhook dispatcher is generic in its model, which binds a route to its
+# handler only as strongly as the handler annotates its own parameter. Without
+# this an unannotated handler is Any and pairs with anything.
+reportMissingParameterType = "error"
 venvPath = "."
 venv = ".venv"
 
