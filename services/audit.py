@@ -29,7 +29,7 @@ from discord import (
 from discord.abc import PrivateChannel
 from pendulum import DateTime
 
-from constants import UNKNOWN_USER
+from constants import EMPTY_CONTENT, UNKNOWN_USER
 from services.config import config
 from services.helper.helper import (
     get_age,
@@ -58,6 +58,11 @@ def _truncate(content: str) -> str:
     if len(content) > _FIELD_LIMIT:
         return f"{content[: _FIELD_LIMIT - 3]}..."
     return content
+
+
+def _field(content: str) -> str:
+    """Discord rejects an empty field value, and that costs the whole entry."""
+    return _truncate(content) or EMPTY_CONTENT
 
 
 def _embed(description: str, color: str) -> Embed:
@@ -202,8 +207,8 @@ async def nickname_changed(member: Member, before: str, after: str) -> None:
     )
     _by(embed, member)
     embed.set_footer(text=f"ID: {member.id}").add_field(
-        name="**Before**", value=f"{before}", inline=False
-    ).add_field(name="**After**", value=f"{after}", inline=False)
+        name="**Before**", value=f"{_field(before)}", inline=False
+    ).add_field(name="**After**", value=f"{_field(after)}", inline=False)
     await _send(embed)
 
 
@@ -249,8 +254,8 @@ async def message_edited(after: Message, before_content: str) -> None:
     )
     _by(embed, after.author)
     embed.set_footer(text=f"User ID: {after.author.id}").add_field(
-        name="**Before**", value=f"{_truncate(before_content)}", inline=False
-    ).add_field(name="**After**", value=f"{_truncate(after.content)}", inline=False)
+        name="**Before**", value=f"{_field(before_content)}", inline=False
+    ).add_field(name="**After**", value=f"{_field(after.content)}", inline=False)
     await _send(embed)
 
 
