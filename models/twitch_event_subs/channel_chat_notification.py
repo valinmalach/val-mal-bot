@@ -1,6 +1,10 @@
-from typing import Literal
+"""Modelled ahead of its route: nothing subscribes to channel.chat.notification
+yet and no endpoint serves it. Deliberate, not an oversight.
+"""
 
-from pydantic import BaseModel
+from typing import Literal, Self
+
+from pydantic import BaseModel, model_validator
 
 from .common import Badge, Message, Subscription
 
@@ -152,6 +156,17 @@ class ChannelChatNotificationEvent(BaseModel):
     shared_chat_pay_it_forward: PayItForward | None
     shared_chat_raid: Raid | None
     shared_chat_announcement: Announcement | None
+
+    @model_validator(mode="after")
+    def _detail_for_notice(self) -> Self:
+        """Twitch fills the field its notice_type names, so a payload without it is
+        one this model has read wrongly. Others may be set too; that is not an error.
+        """
+        # Default, not a bare lookup: a notice type added to the Literal without
+        # its field should fail as a validation error, not an AttributeError.
+        if getattr(self, self.notice_type, None) is None:
+            raise ValueError(f"notice_type {self.notice_type!r} carries no detail")
+        return self
 
 
 class ChannelChatNotificationEventSub(BaseModel):

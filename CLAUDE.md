@@ -49,6 +49,7 @@ a finding. Declarations are budgeted per session and every one is recorded with
 its reason.
 
 <!-- verity-memory:preserve -->
+
 <!-- Add binding, hand-curated guidance here; it survives Verity regeneration. -->
 
 ## Verity runs before the commit, never after

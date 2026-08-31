@@ -93,6 +93,28 @@ flows. Both request `twitch_app_scopes`; the callbacks validate the returned
 Twitch user ID, client ID and scopes before upserting `oauth_token`. The `app`
 row is separate, uses client credentials and has no refresh token.
 
+**A webhook route's model says which event it serves.** Each `*Subscription`
+declares its own `type` as a `Literal`, so a payload for the wrong event fails to
+parse instead of being compared against a string passed in beside it, and the
+shared base carries no `type` at all — a mutable `str` there could not be narrowed
+to a `Literal` soundly. `process_webhook` is generic in the model, which binds it
+to its handler: pairing `StreamOnlineEventSub` with the follow handler stops
+type-checking, where before both parameters were unannotated and so `Any`.
+
+**A signed request that the models reject answers 4xx, not 5xx.** Twitch retries a
+5xx, and a payload rejected once is rejected identically every time, so the
+retries only spend the subscription's failure budget before Twitch disables it. A
+body that is not JSON, is not a JSON object, or does not match the route's model
+is a 400 with a notice. Only something genuinely unexpected is a 500 with a
+report.
+
+**Only two of the seven EventSub subscriptions can be created from this repo.**
+`/subscribe` creates `stream.online` and `stream.offline`. Chat, follow, ad break,
+raid and moderate are provisioned outside it, so a deployment whose public URL
+changes leaves five subscriptions pointing at a dead callback with nothing here
+able to recreate them. The startup check notices an undeliverable subscription;
+it cannot repair these five.
+
 **A live alert is closed by its updater, never by a webhook.** `stream.offline`
 carries no stream id, so the handler cannot tell which stream ended; it calls
 `live_alert.wake()`, and the updater re-checks Helix and stops if it has been
