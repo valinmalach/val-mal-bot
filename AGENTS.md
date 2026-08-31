@@ -118,6 +118,13 @@ the context worth reporting. `api.py` holds the endpoints on top of it: `None`
 means Twitch has nothing, a failed call raises. Retry follows the method, not the
 call site; `docs/adr/0002-helix-posts-are-not-retried.md` says why POSTs do not.
 
+**A stored birthday is the next occurrence, not a date of birth.** One rule
+answers when that is: `next_birthday_on` when it is being set, `next_birthday`
+when it is being rolled forward, both in `services/helper/helper.py`. Two
+implementations of it disagreed once and `/birthday set` wrote dates that had
+already passed. `docs/adr/0003-birthday-holds-the-next-occurrence.md` records why
+the column holds an instant, and what discarding the timezone costs — issue #12.
+
 **Two model packages with confusable names.** `models/` is Pydantic: Twitch API
 responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 
@@ -128,6 +135,9 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   collected mid-flight. It also reports a task that died without its own handler
   running, which is the last catch in the process — and the report is keyed on the
   task's name, so an unnamed task would report under a new name every time.
+  A `@tasks.loop` cog task is not this and does not need it: discord.py keeps the
+  task on the `Loop`, which the cog keeps, and names it. `cogs/tasks.py` is the
+  example; reviewers read it as a bypass about once a round.
 - **Deferred imports inside functions** are load-order management, not style:
   `init/bot_init.py` and `views/` import services lazily to break cycles. Leave them.
 - **`token_manager` and `shoutout_queue` are singletons** (`__new__`). Import the
