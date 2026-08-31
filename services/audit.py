@@ -27,6 +27,8 @@ from discord import (
     VoiceChannel,
 )
 from discord.abc import PrivateChannel
+from discord.ext.commands import CommandError, Context
+from discord.utils import escape_markdown
 from pendulum import DateTime
 
 from constants import EMPTY_CONTENT, UNKNOWN_USER
@@ -338,4 +340,26 @@ async def bulk_deleted(
         "embed_color_info",
     )
     _by(embed, deleted_by)
+    await _send(embed)
+
+
+async def command_failed(ctx: Context, error: CommandError) -> None:
+    """Named for the handler's real scope: not-found is only the reachable case.
+
+    Both values carry what the user typed, so both are escaped - a log entry
+    must not be able to forge formatting in the channel that records it.
+    """
+    embed = _embed(
+        f"**Command error in {get_channel_mention(ctx.channel)}**"
+        f" [Jump to Message]({ctx.message.jump_url})",
+        "embed_color_info",
+    )
+    _by(embed, ctx.author)
+    embed.set_footer(text=f"User ID: {ctx.author.id}").add_field(
+        name="**Command**",
+        value=_field(escape_markdown(ctx.message.content)),
+        inline=False,
+    ).add_field(
+        name="**Error**", value=_field(escape_markdown(str(error))), inline=False
+    )
     await _send(embed)

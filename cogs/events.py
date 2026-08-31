@@ -3,7 +3,6 @@ import logging
 import discord
 import pendulum
 from discord import (
-    AllowedMentions,
     Embed,
     Guild,
     Invite,
@@ -16,7 +15,6 @@ from discord import (
     User,
 )
 from discord.ext.commands import Bot, Cog, CommandError, Context
-from discord.utils import escape_markdown
 from pendulum import DateTime
 
 from constants import DEFAULT_MISSING_CONTENT
@@ -24,12 +22,10 @@ from db import repository
 from errors import report
 from services import (
     audit,
-    get_channel_mention,
     get_discriminator,
     get_ordinal_suffix,
     get_pfp,
     send_embed,
-    send_message,
 )
 from services.config import config
 
@@ -154,21 +150,7 @@ class Events(Cog):
     @Cog.listener()
     async def on_command_error(self, ctx: Context, error: CommandError) -> None:
         try:
-            channel_mention = get_channel_mention(ctx.channel)
-            # Both of these carry whatever the user typed, and this lands in a
-            # staff channel: escaped so it cannot forge formatting, and sent
-            # without the power to mention.
-            attempted = escape_markdown(ctx.message.content)
-            reason = escape_markdown(str(error))
-            message = (
-                f"Command not found: {attempted}\n"
-                f"Sent by: {ctx.author.mention} in {channel_mention}\n{reason}"
-            )
-            await send_message(
-                message,
-                config.channel("audit_logs"),
-                allowed_mentions=AllowedMentions.none(),
-            )
+            await audit.command_failed(ctx, error)
         except Exception as e:  # noqa: BLE001
             await report(e, "Fatal error with on_command_error event")
 
