@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 from .common import Subscription
@@ -8,6 +10,7 @@ class StreamOnlineCondition(BaseModel):
 
 
 class StreamOnlineSubscription(Subscription):
+    type: Literal["stream.online"]
     condition: StreamOnlineCondition
 
 
