@@ -4,6 +4,7 @@ from typing import Literal
 import discord
 import pendulum
 from discord import (
+    AllowedMentions,
     CategoryChannel,
     Embed,
     ForumChannel,
@@ -25,6 +26,7 @@ from discord import (
 )
 from discord.abc import PrivateChannel
 from discord.ext.commands import Bot, Cog, CommandError, Context
+from discord.utils import escape_markdown
 from pendulum import DateTime
 
 from constants import DEFAULT_MISSING_CONTENT, UNKNOWN_USER
@@ -197,9 +199,24 @@ class Events(Cog):
 
     @Cog.listener()
     async def on_command_error(self, ctx: Context, error: CommandError) -> None:
-        channel_mention = get_channel_mention(ctx.channel)
-        message = f"Command not found: {ctx.message.content}\nSent by: {ctx.author.mention} in {channel_mention}\n{error}"
-        await send_message(message, config.channel("audit_logs"))
+        try:
+            channel_mention = get_channel_mention(ctx.channel)
+            # Both of these carry whatever the user typed, and this lands in a
+            # staff channel: escaped so it cannot forge formatting, and sent
+            # without the power to mention.
+            attempted = escape_markdown(ctx.message.content)
+            reason = escape_markdown(str(error))
+            message = (
+                f"Command not found: {attempted}\n"
+                f"Sent by: {ctx.author.mention} in {channel_mention}\n{reason}"
+            )
+            await send_message(
+                message,
+                config.channel("audit_logs"),
+                allowed_mentions=AllowedMentions.none(),
+            )
+        except Exception as e:  # noqa: BLE001
+            await report(e, "Fatal error with on_command_error event")
 
     @Cog.listener()
     async def on_member_update(self, before: Member, after: Member) -> None:
