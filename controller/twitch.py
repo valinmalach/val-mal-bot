@@ -73,8 +73,9 @@ async def _bounded_body(request: Request, endpoint: str) -> bytes:
     request does not send at all. Caches onto the request the way Starlette's own
     ``body()`` does, so the later ``json()`` reads what was counted here.
     """
-    if hasattr(request, "_body"):
-        return request._body
+    cached: bytes | None = getattr(request, "_body", None)
+    if cached is not None:
+        return cached
 
     chunks: list[bytes] = []
     size = 0
@@ -86,8 +87,9 @@ async def _bounded_body(request: Request, endpoint: str) -> bytes:
             raise HTTPException(status_code=413)
         chunks.append(chunk)
 
-    request._body = b"".join(chunks)
-    return request._body
+    body = b"".join(chunks)
+    request._body = body
+    return body
 
 
 async def validate_call(request: Request, endpoint: str) -> Response | None:
@@ -97,7 +99,16 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
     # request is read as anything. Branching first left the handshake echoing
     # attacker text and a revocation putting attacker text, mentions included,
     # into the admin channel -- neither of which needed a signature at all.
-    body_str = (await _bounded_body(request, endpoint)).decode()
+    try:
+        body_str = (await _bounded_body(request, endpoint)).decode()
+    except UnicodeDecodeError:
+        # Twitch sends UTF-8 JSON, so this cannot be a signed request. Answering
+        # it as one keeps it out of the 500 handler, which would report every
+        # malformed byte an unauthenticated caller cared to send.
+        logger.warning("403: Forbidden. Body is not UTF-8 on %s", endpoint)
+        await notify(f"403: Forbidden request on {endpoint}. Body is not UTF-8.")
+        raise HTTPException(status_code=403) from None
+
     message = get_hmac_message(
         headers.get(TWITCH_MESSAGE_ID, ""),
         headers.get(TWITCH_MESSAGE_TIMESTAMP, ""),
