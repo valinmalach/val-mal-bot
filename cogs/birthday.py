@@ -100,7 +100,7 @@ class Birthday(GroupCog):
             existing_user = await repository.get_user(interaction.user.id)
             if existing_user is None:
                 await notify(
-                    f"User {interaction.user.name} ({interaction.user.id}) attempted to remove a birthday but had no record."
+                    f"User {interaction.user.name!r} ({interaction.user.id}) attempted to remove a birthday but had no record."
                 )
                 await interaction.response.send_message(
                     config.template("birthday_remove_failed")
@@ -136,14 +136,26 @@ class Birthday(GroupCog):
             if interaction.guild and interaction.guild.owner
             else f"<@{config.setting('owner_id')}>"
         )
-        await interaction.response.send_message(
-            config.template(
-                "birthday_operation_failed", action=set_forget, mention=mention
-            )
+        text = config.template(
+            "birthday_operation_failed", action=set_forget, mention=mention
         )
+        try:
+            # is_done, because what failed may be a step that already answered:
+            # a second initial response raises, and would take the report below
+            # with it.
+            if interaction.response.is_done():
+                await interaction.followup.send(text)
+            else:
+                await interaction.response.send_message(text)
+        except Exception as unanswerable:  # noqa: BLE001
+            await report(
+                unanswerable,
+                f"Could not tell {interaction.user.name!r} that their birthday "
+                f"{set_forget} failed",
+            )
         await report(
             e,
-            f"Failed to {set_forget} birthday for {interaction.user.name} "
+            f"Failed to {set_forget} birthday for {interaction.user.name!r} "
             f"(ID: {interaction.user.id})",
         )
 
