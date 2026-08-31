@@ -314,8 +314,10 @@ def verify_message(hmac_str: str, verify_signature: str) -> bool:
     return hmac.compare_digest(hmac_str, verify_signature)
 
 
+# Exactly what gets through: pendulum takes a space for the T and would accept
+# it, and rejects a lowercase t or z, so neither belongs in the shape.
 _RFC3339 = re.compile(
-    r"\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}:\d{2}(\.\d{1,9})?([Zz]|[+-]\d{2}:\d{2})"
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})"
 )
 
 
