@@ -330,9 +330,14 @@ class Events(Cog):
             await report(e, "Fatal error with on_invite_delete event")
 
     async def _get_message_content(self, message_id: int) -> str | None:
-        """None when nothing was stored, which is not the same as stored empty."""
+        """None when there is no row, which is not the same as a row storing "".
+
+        An attachment-only message is stored empty, and calling that a cache miss
+        both mislabels the delete and makes an edit that changed nothing look like
+        one that did.
+        """
         stored = await repository.get_message(message_id)
-        return stored.contents if stored and stored.contents else None
+        return stored.contents if stored is not None else None
 
 
 async def setup(bot: Bot) -> None:
