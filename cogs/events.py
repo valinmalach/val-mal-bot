@@ -581,7 +581,10 @@ class Events(Cog):
             | None
         ),
     ) -> None:
-        message_content = await self._get_message_content(message_id)
+        # A recovered message has no upper bound, unlike a live one; a field is 1024.
+        message_content = self._truncate_content(
+            await self._get_message_content(message_id)
+        )
 
         if user is None:
             discriminator = ""
