@@ -249,10 +249,10 @@ def next_birthday(birthday: datetime, is_leap: bool, after: DateTime) -> DateTim
 def next_birthday_on(
     month: Months, day: int, timezone: str, after: DateTime
 ) -> DateTime:
-    """The next local midnight on ``month``/``day``, strictly after ``after``.
+    """The start of the next ``month``/``day`` in ``timezone``, after ``after``.
 
-    Built in ``timezone`` rather than rolled forward from an instant: the year a
-    date falls in and the offset it is observed at are not independent.
+    Local midnight, or the first instant of that day in the zones that spring
+    forward across it and have no midnight on that date.
     """
     zone = pendulum.timezone(timezone)
     is_leap = month == Months.February and day == 29

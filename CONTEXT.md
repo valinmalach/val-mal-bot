@@ -104,9 +104,10 @@ date of birth: the year is chosen rather than remembered, and it moves.
 _Avoid_: birth date, DOB, birthday date
 
 **Roll forward**:
-Moving a **stored birthday** to its next occurrence. The same question whether
-the birthday has just been greeted or is being set for the first time, so it has
-one answer.
+Moving a **stored birthday** to its next occurrence. The same question asked
+when a birthday is set and when one has just been greeted — but not yet the same
+answer: setting one knows the timezone and rolling one forward has had it
+discarded, so the two disagree wherever a zone's rules move the local day.
 _Avoid_: reschedule, bump, advance
 
 **Stale birthday**:

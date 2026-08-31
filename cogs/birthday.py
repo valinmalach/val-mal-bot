@@ -2,9 +2,10 @@ import logging
 from typing import Literal
 
 import pendulum
-from discord import Interaction, app_commands
+from discord import AllowedMentions, Interaction, app_commands
 from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
+from discord.utils import escape_markdown
 
 from constants import MAX_DAYS, Months
 from db import repository
@@ -60,11 +61,15 @@ class Birthday(GroupCog):
     ) -> bool:
         """Validate timezone and day inputs. Returns True if there was an error."""
         if timezone not in pendulum.timezones():
+            # The value is whatever the user typed and it is echoed back, so it
+            # is escaped for Discord and stripped of the power to mention; !r for
+            # the log, where a bare newline would forge a line instead.
             await interaction.response.send_message(
-                config.template("birthday_bad_timezone", timezone=timezone)
+                config.template(
+                    "birthday_bad_timezone", timezone=escape_markdown(timezone)
+                ),
+                allowed_mentions=AllowedMentions.none(),
             )
-            # !r, because the value is whatever the user typed: a bare newline
-            # in it would otherwise forge a log line.
             logger.warning(f"Invalid timezone provided: {timezone!r}")
             return True
 
@@ -100,7 +105,8 @@ class Birthday(GroupCog):
             existing_user = await repository.get_user(interaction.user.id)
             if existing_user is None:
                 await notify(
-                    f"User {interaction.user.name!r} ({interaction.user.id}) attempted to remove a birthday but had no record."
+                    f"User {escape_markdown(interaction.user.name)} ({interaction.user.id})"
+                    " attempted to remove a birthday but had no record."
                 )
                 await interaction.response.send_message(
                     config.template("birthday_remove_failed")
@@ -131,18 +137,22 @@ class Birthday(GroupCog):
         e: Exception,
         set_forget: Literal["set", "forget"],
     ) -> None:
-        mention = (
-            interaction.guild.owner.mention
-            if interaction.guild and interaction.guild.owner
-            else f"<@{config.setting('owner_id')}>"
-        )
-        text = config.template(
-            "birthday_operation_failed", action=set_forget, mention=mention
-        )
+        who = escape_markdown(interaction.user.name)
         try:
-            # is_done, because what failed may be a step that already answered:
-            # a second initial response raises, and would take the report below
-            # with it.
+            # Composing the answer reads configuration, and a template naming a
+            # channel or role row that is gone raises. All of it belongs inside
+            # the guard: nothing here may take the report below with it.
+            mention = (
+                interaction.guild.owner.mention
+                if interaction.guild and interaction.guild.owner
+                else f"<@{config.setting('owner_id')}>"
+            )
+            text = config.template(
+                "birthday_operation_failed", action=set_forget, mention=mention
+            )
+            # No caller can reach this with the response already used, since each
+            # answers and returns. Kept so that adding one cannot resurrect the
+            # second-initial-response bug this replaced.
             if interaction.response.is_done():
                 await interaction.followup.send(text)
             else:
@@ -150,13 +160,12 @@ class Birthday(GroupCog):
         except Exception as unanswerable:  # noqa: BLE001
             await report(
                 unanswerable,
-                f"Could not tell {interaction.user.name!r} that their birthday "
-                f"{set_forget} failed",
+                f"Could not tell {who} that their birthday {set_forget} failed",
+                key=f"birthday-unanswerable:{interaction.user.id}:{set_forget}",
             )
         await report(
             e,
-            f"Failed to {set_forget} birthday for {interaction.user.name!r} "
-            f"(ID: {interaction.user.id})",
+            f"Failed to {set_forget} birthday for {who} (ID: {interaction.user.id})",
         )
 
 

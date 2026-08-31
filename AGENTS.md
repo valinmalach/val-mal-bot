@@ -135,9 +135,11 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   collected mid-flight. It also reports a task that died without its own handler
   running, which is the last catch in the process — and the report is keyed on the
   task's name, so an unnamed task would report under a new name every time.
-  A `@tasks.loop` cog task is not this and does not need it: discord.py keeps the
-  task on the `Loop`, which the cog keeps, and names it. `cogs/tasks.py` is the
-  example; reviewers read it as a bypass about once a round.
+  A `@tasks.loop` cog task does not need it for the reference: discord.py keeps
+  the task on the `Loop`, which the cog keeps, and names it. `cogs/tasks.py` is
+  the example; reviewers read it as a bypass about once a round. It does still
+  need its own reporting — a `Loop` that dies only logs — so wrap the body in a
+  `try` that calls `report`, as `check_birthdays` does.
 - **Deferred imports inside functions** are load-order management, not style:
   `init/bot_init.py` and `views/` import services lazily to break cycles. Leave them.
 - **`token_manager` and `shoutout_queue` are singletons** (`__new__`). Import the
