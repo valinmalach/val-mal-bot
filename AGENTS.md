@@ -56,7 +56,8 @@ is gitignored, so a fresh clone has none of it — `VERITY.md` has the restore s
 **One process wearing two faces.** `main.py` is a FastAPI app, and the Discord bot
 is not the entrypoint: the lifespan handler starts `main()` as a background task,
 which loads `constants.COGS` and calls `bot.start()`. Twitch never connects to the
-bot — it delivers EventSub webhooks over HTTP to the router in `controller/twitch.py`.
+bot — it delivers EventSub webhooks over HTTP to the router in `controller/twitch.py`,
+which verifies and parses them and hands each to `services/twitch/events.py`.
 Stop the web server and the bot goes with it.
 
 **Startup order is spread across three files.** lifespan (`main.py`) → cog loading →
@@ -93,6 +94,14 @@ flows. Both request `twitch_app_scopes`; the callbacks validate the returned
 Twitch user ID, client ID and scopes before upserting `oauth_token`. The `app`
 row is separate, uses client credentials and has no refresh token.
 
+**Three files, three jobs, none of them over the threshold.**
+`controller/twitch.py` receives a signed notification, verifies it, parses it and
+hands it on. `services/twitch/events.py` says what each event makes the bot do —
+it lives under `services/` because it names no HTTP type at all, and nothing
+under `services/` imports `controller/`. `controller/twitch_oauth.py` carries the
+two authorization-code flows on their own router; it shares nothing with the
+webhook controller, not the signature check, the models, or the path prefix.
+
 **A webhook route's model says which event it serves.** Each `*Subscription`
 declares its own `type` as a `Literal`, so a payload for the wrong event fails to
 parse instead of being compared against a string passed in beside it, and the
@@ -100,6 +109,18 @@ shared base carries no `type` at all — a mutable `str` there could not be narr
 to a `Literal` soundly. `process_webhook` is generic in the model, which binds it
 to its handler: pairing `StreamOnlineEventSub` with the follow handler stops
 type-checking, where before both parameters were unannotated and so `Any`.
+
+**A signed delivery is also checked for freshness, and dispatched at most once.**
+A timestamp more than ten minutes from now in either direction is refused with a
+403 — Twitch's own guidance for replay, and a clock ahead is as wrong as one
+behind. A message id that has already reached a handler answers 202 without
+dispatching again, since Twitch says a notification may arrive twice and 202 is
+what stops the retries. Only ids that were *dispatched* are remembered, so a
+delivery Twitch retries because this end failed still gets through. The set is
+process-local, which is enough and not a compromise: the Discord gateway
+connection lives in this process, so a second replica would double every bot
+action. The one cost is real — if the host clock drifts past ten minutes every
+event is refused, loudly, until it is fixed.
 
 **A signed request that the models reject answers 4xx, not 5xx.** Twitch retries a
 5xx, and a payload rejected once is rejected identically every time, so the
