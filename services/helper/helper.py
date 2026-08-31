@@ -214,15 +214,24 @@ def _get_small_time_units(
 
 
 @cache
-def _is_leap(year: int) -> bool:
+def _is_leap_year(year: int) -> bool:
     return (year % 400 == 0) or (year % 100 != 0) and (year % 4 == 0)
 
 
 @cache
-def _get_next_leap(year: int) -> int:
-    while not _is_leap(year):
+def _next_leap_year(year: int) -> int:
+    while not _is_leap_year(year):
         year += 1
     return year
+
+
+def is_leap_day(month: Months, day: int) -> bool:
+    """Whether a birthday falls on 29 February, and so exists only some years.
+
+    Derived here and nowhere else: the answer picks the year to store the
+    birthday in and is also stored beside it, and those two must not disagree.
+    """
+    return month == Months.February and day == 29
 
 
 def next_birthday(birthday: datetime, is_leap: bool, after: DateTime) -> DateTime:
@@ -238,10 +247,10 @@ def next_birthday(birthday: datetime, is_leap: bool, after: DateTime) -> DateTim
     # The flag is the authority, but a 29 February instant cannot be replaced
     # into a common year whatever the flag says.
     if is_leap or (moment.month == 2 and moment.day == 29):
-        candidate = moment.replace(year=_get_next_leap(after.year))
+        candidate = moment.replace(year=_next_leap_year(after.year))
         if candidate > after:
             return candidate
-        return moment.replace(year=_get_next_leap(after.year + 1))
+        return moment.replace(year=_next_leap_year(after.year + 1))
 
     candidate = moment.replace(year=after.year)
     return candidate if candidate > after else moment.replace(year=after.year + 1)
@@ -256,16 +265,16 @@ def next_birthday_on(
     forward across it and have no midnight on that date.
     """
     zone = pendulum.timezone(timezone)
-    is_leap = month == Months.February and day == 29
+    leap = is_leap_day(month, day)
     # Their year, not UTC's: east of UTC the two disagree for part of every day,
     # and starting from UTC's leaves both candidates in the past.
     local_year = after.in_tz(zone).year
-    year = _get_next_leap(local_year) if is_leap else local_year
+    year = _next_leap_year(local_year) if leap else local_year
     midnight = DateTime(year, month.value, day, tzinfo=zone).in_tz("UTC")
     if midnight > after:
         return midnight
 
-    year = _get_next_leap(year + 1) if is_leap else year + 1
+    year = _next_leap_year(year + 1) if leap else year + 1
     return DateTime(year, month.value, day, tzinfo=zone).in_tz("UTC")
 
 

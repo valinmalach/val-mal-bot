@@ -10,7 +10,7 @@ from discord.utils import escape_markdown
 from constants import MAX_DAYS, Months
 from db import repository
 from errors import notify, report
-from services import next_birthday_on
+from services import is_leap_day, next_birthday_on
 from services.config import config, has_configured_role
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class Birthday(GroupCog):
             if validation_error:
                 return
 
-            is_leap = month == Months.February and day == 29
+            is_leap = is_leap_day(month, day)
             await repository.upsert_user(
                 interaction.user.id,
                 interaction.user.name,
