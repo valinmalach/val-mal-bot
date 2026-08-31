@@ -60,34 +60,82 @@ twitch_router = APIRouter()
 # on its own, so thirty of those is a quarter of an hour, not thirty seconds.
 _STREAM_WAIT_SECONDS = 60
 
+# An EventSub payload is a few kilobytes. The whole body has to be read to
+# compute the signature over it, so it is counted as it arrives and abandoned
+# past this.
+_MAX_BODY_BYTES = 256 * 1024
+
+
+async def _bounded_body(request: Request, endpoint: str) -> bytes:
+    """The request body, refusing to hold more than ``_MAX_BODY_BYTES`` of it.
+
+    Counts while streaming rather than trusting Content-Length, which a chunked
+    request does not send at all. Caches onto the request the way Starlette's own
+    ``body()`` does, so the later ``json()`` reads what was counted here.
+    """
+    cached: bytes | None = getattr(request, "_body", None)
+    if cached is not None:
+        return cached
+
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > _MAX_BODY_BYTES:
+            logger.warning("413: Payload too large on %s", endpoint)
+            await notify(f"413: Oversized request on {endpoint}, refused part-read.")
+            raise HTTPException(status_code=413)
+        chunks.append(chunk)
+
+    body = b"".join(chunks)
+    request._body = body
+    return body
+
 
 async def validate_call(request: Request, endpoint: str) -> Response | None:
     headers = request.headers
-    body: dict[str, Any] = await request.json()
 
-    if headers.get(TWITCH_MESSAGE_TYPE) == "webhook_callback_verification":
-        challenge = body.get("challenge", "")
-        return Response(challenge or "", status_code=200)
+    # Twitch signs every message type, so the signature is checked before the
+    # request is read as anything. Branching first left the handshake echoing
+    # attacker text and a revocation putting attacker text, mentions included,
+    # into the admin channel -- neither of which needed a signature at all.
+    try:
+        body_str = (await _bounded_body(request, endpoint)).decode()
+    except UnicodeDecodeError:
+        # Twitch sends UTF-8 JSON, so this cannot be a signed request. Answering
+        # it as one keeps it out of the 500 handler, which would report every
+        # malformed byte an unauthenticated caller cared to send.
+        logger.warning("403: Forbidden. Body is not UTF-8 on %s", endpoint)
+        await notify(f"403: Forbidden request on {endpoint}. Body is not UTF-8.")
+        raise HTTPException(status_code=403) from None
 
-    if headers.get(TWITCH_MESSAGE_TYPE, "").lower() == "revocation":
-        subscription: dict[str, Any] = body.get("subscription", {})
-        condition = subscription.get("condition", {})
-        await notify(
-            f"Revoked {subscription.get('type', 'unknown')} notifications for condition: {condition} because {subscription.get('status', 'No reason provided')}"
-        )
-        return Response(status_code=204)
-
-    twitch_message_id = headers.get(TWITCH_MESSAGE_ID, "")
-    twitch_message_timestamp = headers.get(TWITCH_MESSAGE_TIMESTAMP, "")
-    body_str = (await request.body()).decode()
-    message = get_hmac_message(twitch_message_id, twitch_message_timestamp, body_str)
+    message = get_hmac_message(
+        headers.get(TWITCH_MESSAGE_ID, ""),
+        headers.get(TWITCH_MESSAGE_TIMESTAMP, ""),
+        body_str,
+    )
     secret_hmac = HMAC_PREFIX + get_hmac(settings.twitch_webhook_secret, message)
 
-    twitch_message_signature = headers.get(TWITCH_MESSAGE_SIGNATURE, "")
-    if not verify_message(secret_hmac, twitch_message_signature):
+    if not verify_message(secret_hmac, headers.get(TWITCH_MESSAGE_SIGNATURE, "")):
         logger.warning("403: Forbidden. Signature does not match.")
         await notify(f"403: Forbidden request on {endpoint}. Signature does not match.")
         raise HTTPException(status_code=403)
+
+    message_type = headers.get(TWITCH_MESSAGE_TYPE, "").lower()
+    body: dict[str, Any] = await request.json()
+
+    if message_type == "webhook_callback_verification":
+        challenge = body.get("challenge", "")
+        return Response(challenge or "", status_code=200)
+
+    if message_type == "revocation":
+        subscription: dict[str, Any] = body.get("subscription", {})
+        await notify(
+            f"Revoked {subscription.get('type', 'unknown')} notifications for"
+            f" condition: {subscription.get('condition', {})} because"
+            f" {subscription.get('status', 'No reason provided')}"
+        )
+        return Response(status_code=204)
 
 
 async def process_webhook(

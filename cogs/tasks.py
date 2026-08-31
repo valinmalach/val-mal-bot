@@ -5,6 +5,7 @@ from typing import ClassVar
 import pendulum
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
+from discord.utils import escape_markdown
 
 from db import DiscordUser, repository
 from errors import notify, report
@@ -48,7 +49,8 @@ class Tasks(Cog):
             except Exception as e:  # noqa: BLE001
                 await report(
                     e,
-                    f"Failed to process birthday for user {record.username} (ID: {record.id})",
+                    f"Failed to process birthday for user {escape_markdown(record.username)}"
+                    f" (ID: {record.id})",
                 )
 
     async def _process_birthday(
@@ -69,7 +71,7 @@ class Tasks(Cog):
 
         if stale:
             await notify(
-                f"Birthday for {record.username} (ID: {record.id}) was due at"
+                f"Birthday for {escape_markdown(record.username)} (ID: {record.id}) was due at"
                 f" {record.birthday} and is too stale to announce, so nobody"
                 f" greeted them; rescheduled to {next_at}.",
                 key=f"birthday-stale:{record.id}",

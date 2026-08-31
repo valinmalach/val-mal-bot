@@ -1,16 +1,16 @@
 import logging
-from typing import Any, Literal
+from typing import Literal
 
 import pendulum
-from discord import Interaction, Member, User, app_commands
+from discord import AllowedMentions, Interaction, app_commands
 from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
-from pendulum import DateTime
+from discord.utils import escape_markdown
 
 from constants import MAX_DAYS, Months
 from db import repository
 from errors import notify, report
-from services import get_next_leap
+from services import is_leap_day, next_birthday_on
 from services.config import config, has_configured_role
 
 logger = logging.getLogger(__name__)
@@ -41,28 +41,36 @@ class Birthday(GroupCog):
             if validation_error:
                 return
 
-            year = self._calculate_next_birthday_year(month, day, timezone)
-
-            record = self._create_birthday_record(
-                interaction.user, month, day, year, timezone
+            is_leap = is_leap_day(month, day)
+            await repository.upsert_user(
+                interaction.user.id,
+                interaction.user.name,
+                next_birthday_on(month, day, timezone, pendulum.now("UTC")),
+                is_leap,
             )
 
-            await self._update_birthday_database(interaction, record)
-
-            await self._send_birthday_set_response(interaction, month, day)
+            await interaction.response.send_message(
+                config.template("birthday_set_leap" if is_leap else "birthday_set")
+            )
 
         except Exception as e:  # noqa: BLE001
-            await self._handle_set_birthday_exception(interaction, e)
+            await self._birthday_operation_failed(interaction, e, "set")
 
     async def _validate_birthday_inputs(
         self, interaction: Interaction, month: Months, day: int, timezone: str
     ) -> bool:
         """Validate timezone and day inputs. Returns True if there was an error."""
         if timezone not in pendulum.timezones():
+            # The value is whatever the user typed and it is echoed back, so it
+            # is escaped for Discord and stripped of the power to mention; !r for
+            # the log, where a bare newline would forge a line instead.
             await interaction.response.send_message(
-                config.template("birthday_bad_timezone", timezone=timezone)
+                config.template(
+                    "birthday_bad_timezone", timezone=escape_markdown(timezone)
+                ),
+                allowed_mentions=AllowedMentions.none(),
             )
-            logger.warning(f"Invalid timezone provided: {timezone}")
+            logger.warning(f"Invalid timezone provided: {timezone!r}")
             return True
 
         if day > MAX_DAYS[month]:
@@ -73,87 +81,6 @@ class Birthday(GroupCog):
             return True
 
         return False
-
-    def _calculate_next_birthday_year(
-        self, month: Months, day: int, timezone: str
-    ) -> int:
-        """Calculate the year for the next occurrence of the birthday."""
-        now = pendulum.now(timezone).replace(second=0, microsecond=0)
-        year = now.year
-
-        if month == Months.February and day == 29:
-            return self._calculate_leap_year(year, now, timezone)
-
-        birthday_this_year = DateTime(
-            year=year,
-            month=month.value,
-            day=day,
-            tzinfo=pendulum.timezone(timezone),
-        )
-        return year + 1 if birthday_this_year <= now else year
-
-    def _calculate_leap_year(self, year: int, now: DateTime, timezone: str) -> int:
-        """Calculate the next leap year for February 29th birthdays."""
-        try:
-            birthday_this_year = DateTime(
-                year=year,
-                month=2,
-                day=29,
-                tzinfo=pendulum.timezone(timezone),
-            )
-        except ValueError:
-            birthday_this_year = None
-
-        if birthday_this_year is None or birthday_this_year <= now:
-            return get_next_leap(year)
-        return year
-
-    def _create_birthday_record(
-        self, user: User | Member, month: Months, day: int, year: int, timezone: str
-    ) -> dict[str, Any]:
-        """Build the arguments for storing this birthday."""
-        birthday = (
-            DateTime.strptime(
-                f"{year}-{month.value:02d}-{day:02d} 00:00:00",
-                "%Y-%m-%d %H:%M:%S",
-            )
-            .replace(tzinfo=pendulum.timezone(timezone))
-            .astimezone(pendulum.timezone("UTC"))
-        )
-
-        return {
-            "user_id": user.id,
-            "username": user.name,
-            "birthday": birthday,
-            "is_birthday_leap": month == Months.February and day == 29,
-        }
-
-    async def _update_birthday_database(
-        self, interaction: Interaction, record: dict[str, Any]
-    ) -> None:
-        """Update the birthday in the database with error handling."""
-        try:
-            await repository.upsert_user(**record)
-        except Exception as e:
-            await self._handle_set_birthday_exception(interaction, e)
-            raise  # Re-raise to be caught by the main exception handler
-
-    async def _send_birthday_set_response(
-        self, interaction: Interaction, month: Months, day: int
-    ) -> None:
-        """Send appropriate success message based on birthday type."""
-        if month == Months.February and day == 29:
-            await interaction.response.send_message(
-                config.template("birthday_set_leap")
-            )
-        else:
-            await interaction.response.send_message(config.template("birthday_set"))
-
-    async def _handle_set_birthday_exception(
-        self, interaction: Interaction, e: Exception
-    ) -> None:
-        """Handle exceptions that occur during birthday setting."""
-        await self._birthday_operation_failed(interaction, e, "set")
 
     @set_birthday.autocomplete("timezone")
     async def timezone_autocomplete(
@@ -178,7 +105,8 @@ class Birthday(GroupCog):
             existing_user = await repository.get_user(interaction.user.id)
             if existing_user is None:
                 await notify(
-                    f"User {interaction.user.name} ({interaction.user.id}) attempted to remove a birthday but had no record."
+                    f"User {escape_markdown(interaction.user.name)} ({interaction.user.id})"
+                    " attempted to remove a birthday but had no record."
                 )
                 await interaction.response.send_message(
                     config.template("birthday_remove_failed")
@@ -209,20 +137,35 @@ class Birthday(GroupCog):
         e: Exception,
         set_forget: Literal["set", "forget"],
     ) -> None:
-        mention = (
-            interaction.guild.owner.mention
-            if interaction.guild and interaction.guild.owner
-            else f"<@{config.setting('owner_id')}>"
-        )
-        await interaction.response.send_message(
-            config.template(
+        who = escape_markdown(interaction.user.name)
+        try:
+            # Composing the answer reads configuration, and a template naming a
+            # channel or role row that is gone raises. All of it belongs inside
+            # the guard: nothing here may take the report below with it.
+            mention = (
+                interaction.guild.owner.mention
+                if interaction.guild and interaction.guild.owner
+                else f"<@{config.setting('owner_id')}>"
+            )
+            text = config.template(
                 "birthday_operation_failed", action=set_forget, mention=mention
             )
-        )
+            # No caller can reach this with the response already used, since each
+            # answers and returns. Kept so that adding one cannot resurrect the
+            # second-initial-response bug this replaced.
+            if interaction.response.is_done():
+                await interaction.followup.send(text)
+            else:
+                await interaction.response.send_message(text)
+        except Exception as unanswerable:  # noqa: BLE001
+            await report(
+                unanswerable,
+                f"Could not tell {who} that their birthday {set_forget} failed",
+                key=f"birthday-unanswerable:{interaction.user.id}:{set_forget}",
+            )
         await report(
             e,
-            f"Failed to {set_forget} birthday for {interaction.user.name} "
-            f"(ID: {interaction.user.id})",
+            f"Failed to {set_forget} birthday for {who} (ID: {interaction.user.id})",
         )
 
 

@@ -589,6 +589,15 @@ async def announce(
         await report(e, f"Failed to store live alert for broadcaster {broadcaster_id}")
 
 
+def _stored_start(alert: LiveAlert) -> str:
+    """The stored start as an aware timestamp, whatever the driver handed back.
+
+    pendulum.instance reads a naive datetime as UTC, which is what the column
+    means; parse_rfc3339 will not accept one without a zone.
+    """
+    return pendulum.instance(alert.stream_started_at).isoformat()
+
+
 async def wake(broadcaster_id: int) -> None:
     """Have this broadcaster's alert re-check itself now instead of on its interval.
 
@@ -609,7 +618,7 @@ async def wake(broadcaster_id: int) -> None:
         alert.channel_id,
         alert.message_id,
         alert.stream_id,
-        alert.stream_started_at.isoformat(),
+        _stored_start(alert),
     )
     wakeup = _wakeups.get(alert.message_id)
     if wakeup is not None:
@@ -624,6 +633,6 @@ async def restore_all() -> None:
             alert.channel_id,
             alert.message_id,
             alert.stream_id,
-            alert.stream_started_at.isoformat(),
+            _stored_start(alert),
         )
         await asyncio.sleep(1)
