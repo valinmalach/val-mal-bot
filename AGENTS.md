@@ -147,6 +147,19 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   `init/bot_init.py` and `views/` import services lazily to break cycles. Leave them.
 - **`token_manager` and `shoutout_queue` are singletons** (`__new__`). Import the
   instance; do not construct another.
+- **Everything in the audit channel goes through `services/audit.py`.** One entry
+  point per thing worth recording, each named for the event and taking the domain
+  objects it happened to; the module settles the colour, the author line, how many
+  embeds it takes and which channel it lands in. Nothing else may resolve
+  `config.channel("audit_logs")`. It touches no database: `cogs/events.py` gathers
+  the facts, including reading back a message the gateway cache has dropped, and
+  passes them in. The welcome and goodbye embeds are deliberately not entries —
+  they go to `welcome`, and they are announcements to members rather than a record
+  for staff.
+- **Every field value an audit entry builds is truncated and non-empty.** Discord
+  rejects both an empty value and one over 1024 characters, and a rejected send
+  costs the whole entry. Two separate bugs of this shape were fixed at once: an
+  unbounded recovered message, and a message edited down to no text.
 - **Everything the bot says about itself goes through `errors.py`.** `report(exc,
   context)` for an exception, `notify(text)` for anything else worth the admin
   channel, `notify_soon(text)` for the two synchronous renderers that cannot

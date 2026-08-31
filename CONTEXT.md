@@ -116,6 +116,38 @@ running to greet it. It is rolled forward with a **notice** instead of a
 greeting, so nobody is wished a happy birthday on the wrong day.
 _Avoid_: missed birthday, overdue, expired
 
+### Audit log
+
+**Audit channel**:
+The Discord channel holding the **audit entries**, resolved by the slug
+`audit_logs`. Written only by `services/audit.py`. Not the **admin channel**:
+this one records what people did, that one records what the bot could not do.
+_Avoid_: mod log, staff channel, audit_logs (in prose)
+
+**Audit entry**:
+One recorded thing in the **audit channel**, written by one call to
+`services/audit.py`. An entry is not an embed — a deleted message that carried
+attachments is one entry and several embeds — and callers never learn which.
+_Avoid_: log line, audit message, event log
+
+**Person author**:
+An **audit entry**'s author line naming who the entry is about: their name,
+discriminator and avatar. The usual shape.
+_Avoid_: user header, byline
+
+**Caption author**:
+An **audit entry**'s author line naming the event instead of a person, used
+where no one person is its subject — a member joining, a ban, an invite. The
+distinction is internal; nothing outside `services/audit.py` chooses between
+them.
+_Avoid_: title, header, label
+
+**Recovered content**:
+The stored copy of a message the gateway cache no longer holds, read back from
+Postgres when one is edited or deleted. Unbounded, unlike a live message, so it
+is truncated before it can become a field.
+_Avoid_: cached content, old message, history
+
 ## Flagged ambiguities
 
 **`log_error` names two different behaviours.** Four files define it as
@@ -123,6 +155,12 @@ _Avoid_: missed birthday, overdue, expired
 the local logger and stop". Resolved: **report** is the only name for reaching
 the admin channel. Local logging is not a separate concept — every report logs
 locally first, and says so when it cannot go further.
+
+**"Audit log" names two different things.** Discord keeps one per guild, which
+the bot reads through `guild.audit_logs` to find out who deleted a message or
+cleared a channel. The bot also keeps its own, in the **audit channel**.
+Resolved: **audit entry** and **audit channel** are always the bot's; Discord's
+is always spelled out as "Discord's audit log".
 
 **"Alert" means the live alert, never an admin notice.** An admin-channel
 message about a failure is a **notice** or a **report**. Nothing else in this
