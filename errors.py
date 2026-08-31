@@ -177,7 +177,14 @@ async def _deliver(text: str, trace: str | None) -> bool:
     # quiet: send_message announces a channel it cannot resolve, and announcing
     # this one goes through here again.
     sent = await send_message(
-        text[:_MAX_CONTENT], config.channel(_ADMIN_CHANNEL), file=file, quiet=True
+        text[:_MAX_CONTENT],
+        config.channel(_ADMIN_CHANNEL),
+        file=file,
+        quiet=True,
+        # Nothing here is ever meant to ping. Reports and notices relay text
+        # from Twitch, Discord and the database, and any of it could carry a
+        # mention that nobody chose to send.
+        allowed_mentions=discord.AllowedMentions.none(),
     )
     if sent is None:
         logger.warning("Undelivered, admin channel unavailable: %s", text)

@@ -67,15 +67,17 @@ async def send_message(
     channel_id: int,
     file: discord.File | None = None,
     quiet: bool = False,
+    allowed_mentions: discord.AllowedMentions | None = None,
 ) -> int | None:
     # quiet is for errors.py alone: announcing an unreachable admin channel
     # through the admin channel does not terminate.
     channel = await _sendable(channel_id, quiet)
     if channel is None:
         return None
+    mentions = allowed_mentions or discord.AllowedMentions()
     if file:
-        return (await channel.send(content, file=file)).id
-    return (await channel.send(content)).id
+        return (await channel.send(content, file=file, allowed_mentions=mentions)).id
+    return (await channel.send(content, allowed_mentions=mentions)).id
 
 
 async def send_embed(
