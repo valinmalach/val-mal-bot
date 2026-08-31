@@ -1,3 +1,4 @@
+from . import audit
 from .helper.helper import (
     edit_embed,
     format_unit,
@@ -34,6 +35,7 @@ from .twitch.api import (
 from .twitch.commands import dispatch
 
 __all__ = [
+    "audit",
     "dispatch",
     "edit_embed",
     "format_unit",

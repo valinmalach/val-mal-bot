@@ -11,6 +11,8 @@ COGS = ["cogs.admin", "cogs.birthday", "cogs.events", "cogs.tasks"]
 
 UNKNOWN_USER = "Unknown User"
 DEFAULT_MISSING_CONTENT = "`Message content not found in cache`"
+EMPTY_CONTENT = "`No text`"
+UNNAMED_EVENT = "Audit entry"
 
 
 class Months(Enum):

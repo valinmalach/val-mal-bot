@@ -147,6 +147,31 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   `init/bot_init.py` and `views/` import services lazily to break cycles. Leave them.
 - **`token_manager` and `shoutout_queue` are singletons** (`__new__`). Import the
   instance; do not construct another.
+- **Everything in the audit channel goes through `services/audit.py`.** One entry
+  point per thing worth recording, each named for the event and taking the domain
+  objects it happened to; the module settles the colour, the author line, how many
+  embeds it takes and which channel it lands in. Nothing else may resolve
+  `config.channel("audit_logs")`. It touches no database: `cogs/events.py` gathers
+  the facts, including reading back a message the gateway cache has dropped, and
+  passes them in. The welcome and goodbye embeds are deliberately not entries —
+  they go to `welcome`, and they are announcements to members rather than a record
+  for staff.
+- **No audit entry can build a value Discord will reject.** Capping happens in
+  `_cap`, reached from `_embed` (description, 4096), `_field` (field value, 1024
+  and non-empty) and both author helpers (256), so a call site cannot produce one
+  by forgetting. This is enforced rather than documented because the documented
+  version was false: four separate values were outside it, and the worst — a
+  member's roles at 43 mentions — cost the entry *and* the row deletion queued
+  after it, leaving a departed member in Postgres for good. Footers are bounded by
+  construction, being ids and fixed text.
+- **What a person wrote is escaped; what the bot wrote is not.** `_said` for a
+  person's words, `_named` for a name going into a description, `_quoted` for
+  content that may instead be the bot's not-found marker. The distinction is not
+  cosmetic: a description and a field value both render masked links, so an
+  unescaped message can put a label of its choosing on a URL of its choosing in
+  front of whoever reads the audit log. An **author line** and a **footer** are
+  plain text to Discord and are deliberately left alone, which is why a name is
+  escaped in one place on an entry and not the other.
 - **Everything the bot says about itself goes through `errors.py`.** `report(exc,
   context)` for an exception, `notify(text)` for anything else worth the admin
   channel, `notify_soon(text)` for the two synchronous renderers that cannot
