@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Literal
+from typing import Literal
 
 import pendulum
 from discord import Interaction, app_commands
@@ -41,21 +41,19 @@ class Birthday(GroupCog):
                 return
 
             is_leap = month == Months.February and day == 29
-            record = {
-                "user_id": interaction.user.id,
-                "username": interaction.user.name,
-                "birthday": next_birthday_on(month, day, timezone, pendulum.now("UTC")),
-                "is_birthday_leap": is_leap,
-            }
-
-            await self._update_birthday_database(interaction, record)
+            await repository.upsert_user(
+                interaction.user.id,
+                interaction.user.name,
+                next_birthday_on(month, day, timezone, pendulum.now("UTC")),
+                is_leap,
+            )
 
             await interaction.response.send_message(
                 config.template("birthday_set_leap" if is_leap else "birthday_set")
             )
 
         except Exception as e:  # noqa: BLE001
-            await self._handle_set_birthday_exception(interaction, e)
+            await self._birthday_operation_failed(interaction, e, "set")
 
     async def _validate_birthday_inputs(
         self, interaction: Interaction, month: Months, day: int, timezone: str
@@ -78,22 +76,6 @@ class Birthday(GroupCog):
             return True
 
         return False
-
-    async def _update_birthday_database(
-        self, interaction: Interaction, record: dict[str, Any]
-    ) -> None:
-        """Update the birthday in the database with error handling."""
-        try:
-            await repository.upsert_user(**record)
-        except Exception as e:
-            await self._handle_set_birthday_exception(interaction, e)
-            raise  # Re-raise to be caught by the main exception handler
-
-    async def _handle_set_birthday_exception(
-        self, interaction: Interaction, e: Exception
-    ) -> None:
-        """Handle exceptions that occur during birthday setting."""
-        await self._birthday_operation_failed(interaction, e, "set")
 
     @set_birthday.autocomplete("timezone")
     async def timezone_autocomplete(
