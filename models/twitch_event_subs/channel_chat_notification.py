@@ -11,6 +11,7 @@ class ChannelChatNotificationCondition(BaseModel):
 
 
 class ChannelChatNotificationSubscription(Subscription):
+    type: Literal["channel.chat.notification"]
     condition: ChannelChatNotificationCondition
 
 

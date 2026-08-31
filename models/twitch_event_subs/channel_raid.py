@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 from .common import Subscription
@@ -9,6 +11,7 @@ class ChannelRaidCondition(BaseModel):
 
 
 class ChannelRaidSubscription(Subscription):
+    type: Literal["channel.raid"]
     condition: ChannelRaidCondition
 
 

@@ -11,6 +11,7 @@ class ChannelModerateCondition(BaseModel):
 
 
 class ChannelModerateSubscription(Subscription):
+    type: Literal["channel.moderate"]
     condition: ChannelModerateCondition
 
 

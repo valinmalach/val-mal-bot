@@ -1,10 +1,12 @@
 import asyncio
 import logging
 import time
+from collections.abc import Callable, Coroutine
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, ValidationError
 
 from background import fire_and_forget
 from config import settings
@@ -122,14 +124,31 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
         raise HTTPException(status_code=403)
 
     message_type = headers.get(TWITCH_MESSAGE_TYPE, "").lower()
-    body: dict[str, Any] = await request.json()
+    try:
+        parsed = await request.json()
+    except ValueError as e:
+        # The signature already matched, so this is Twitch sending something
+        # unparseable rather than an intruder. 4xx because the retry would carry
+        # the same bytes and fail the same way.
+        logger.warning("400: Body is not JSON on %s", endpoint)
+        await notify(f"400: Bad request on {endpoint}. Body is not JSON.")
+        raise HTTPException(status_code=400) from e
+
+    if not isinstance(parsed, dict):
+        logger.warning("400: Body is not a JSON object on %s", endpoint)
+        await notify(f"400: Bad request on {endpoint}. Body is not a JSON object.")
+        raise HTTPException(status_code=400)
+    body: dict[str, Any] = parsed
 
     if message_type == "webhook_callback_verification":
-        challenge = body.get("challenge", "")
-        return Response(challenge or "", status_code=200)
+        challenge = body.get("challenge")
+        return Response(
+            challenge if isinstance(challenge, str) else "", status_code=200
+        )
 
     if message_type == "revocation":
-        subscription: dict[str, Any] = body.get("subscription", {})
+        raw = body.get("subscription")
+        subscription: dict[str, Any] = raw if isinstance(raw, dict) else {}
         await notify(
             f"Revoked {subscription.get('type', 'unknown')} notifications for"
             f" condition: {subscription.get('condition', {})} because"
@@ -138,9 +157,19 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
         return Response(status_code=204)
 
 
-async def process_webhook(
-    request: Request, endpoint: str, event_model, expected_type: str, task_func
+async def process_webhook[E: BaseModel](
+    request: Request,
+    endpoint: str,
+    event_model: type[E],
+    task_func: Callable[[E], Coroutine[Any, Any, None]],
 ) -> Response:
+    """Validate, parse and dispatch one EventSub notification.
+
+    The type parameter ties a route's model to its handler, so a pair that
+    disagree stops type-checking; both were unannotated, and therefore Any.
+    Which event the route serves is asserted by the model itself, whose
+    subscription type is a Literal.
+    """
     try:
         validation = await validate_call(request, endpoint)
         if validation:
@@ -148,17 +177,22 @@ async def process_webhook(
 
         body: dict[str, Any] = await request.json()
         event_sub = event_model.model_validate(body)
-        if event_sub.subscription.type != expected_type:
-            logger.warning(
-                f"400: Bad request. Invalid subscription type: {event_sub.subscription.type}"
-            )
-            await notify(f"400: Bad request on {endpoint}. Invalid subscription type.")
-            raise HTTPException(status_code=400)
-
         fire_and_forget(task_func(event_sub), name=endpoint)
         return Response(status_code=202)
     except HTTPException:
         raise
+    except ValidationError as e:
+        # 4xx rather than 5xx deliberately: Twitch retries a 5xx, and a payload
+        # this model rejects will be rejected identically every time, so the
+        # retries only cost deliveries against the subscription's failure budget.
+        logger.warning(
+            f"400: {event_model.__name__} rejected the payload on {endpoint}"
+        )
+        await notify(
+            f"400: Bad request on {endpoint}."
+            f" Payload did not match {event_model.__name__}."
+        )
+        raise HTTPException(status_code=400) from e
     except Exception as e:
         await report(e, f"500: Internal server error on {endpoint}")
         raise HTTPException(status_code=500) from e
@@ -471,7 +505,6 @@ async def stream_online_webhook(request: Request) -> Response:
         request,
         "/webhook/twitch",
         StreamOnlineEventSub,
-        "stream.online",
         _stream_online_task,
     )
 
@@ -482,7 +515,6 @@ async def stream_offline_webhook(request: Request) -> Response:
         request,
         "/webhook/twitch/offline",
         StreamOfflineEventSub,
-        "stream.offline",
         _stream_offline_task,
     )
 
@@ -493,7 +525,6 @@ async def channel_chat_message_webhook(request: Request) -> Response:
         request,
         "/webhook/twitch/chat",
         ChannelChatMessageEventSub,
-        "channel.chat.message",
         _channel_chat_message_task,
     )
 
@@ -504,7 +535,6 @@ async def channel_follow_webhook(request: Request) -> Response:
         request,
         "/webhook/twitch/follow",
         ChannelFollowEventSub,
-        "channel.follow",
         _channel_follow_task,
     )
 
@@ -515,7 +545,6 @@ async def channel_ad_break_begin_webhook(request: Request) -> Response:
         request,
         "/webhook/twitch/adbreak",
         ChannelAdBreakBeginEventSub,
-        "channel.ad_break.begin",
         _channel_ad_break_begin_task,
     )
 
@@ -548,7 +577,6 @@ async def channel_raid_webhook(request: Request) -> Response:
         request,
         "/webhook/twitch/raid",
         ChannelRaidEventSub,
-        "channel.raid",
         _channel_raid_task,
     )
 
@@ -570,6 +598,5 @@ async def channel_moderate_webhook(request: Request) -> Response:
         request,
         "/webhook/twitch/moderate",
         ChannelModerateEventSub,
-        "channel.moderate",
         _channel_moderate_task,
     )

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 from .common import Subscription
@@ -9,6 +11,7 @@ class ChannelFollowCondition(BaseModel):
 
 
 class ChannelFollowSubscription(Subscription):
+    type: Literal["channel.follow"]
     condition: ChannelFollowCondition
 
 
