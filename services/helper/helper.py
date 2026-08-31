@@ -313,6 +313,13 @@ def get_hmac(secret: str, message: str) -> str:
 
 
 def verify_message(hmac_str: str, verify_signature: str) -> bool:
+    """Whether a presented signature matches, in constant time.
+
+    The presented one arrives in a header, which decodes as latin-1, and
+    compare_digest raises on non-ASCII rather than returning False.
+    """
+    if not verify_signature.isascii():
+        return False
     return hmac.compare_digest(hmac_str, verify_signature)
 
 
