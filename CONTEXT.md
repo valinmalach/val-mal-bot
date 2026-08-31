@@ -142,6 +142,13 @@ distinction is internal; nothing outside `services/audit.py` chooses between
 them.
 _Avoid_: title, header, label
 
+**Their words**:
+The part of an **audit entry** a person wrote — a message, a nickname, an
+attempted command. Always escaped, because a description and a field value both
+render markdown; an **author line** and a footer are plain text and are left
+alone. The bot's own text is never escaped, so its formatting survives.
+_Avoid_: user input, raw content, unsafe text
+
 **Recovered content**:
 The stored copy of a message the gateway cache no longer holds, read back from
 Postgres when one is edited or deleted. Unbounded, unlike a live message, so it

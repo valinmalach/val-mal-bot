@@ -156,10 +156,22 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   passes them in. The welcome and goodbye embeds are deliberately not entries —
   they go to `welcome`, and they are announcements to members rather than a record
   for staff.
-- **Every field value an audit entry builds is truncated and non-empty.** Discord
-  rejects both an empty value and one over 1024 characters, and a rejected send
-  costs the whole entry. Two separate bugs of this shape were fixed at once: an
-  unbounded recovered message, and a message edited down to no text.
+- **No audit entry can build a value Discord will reject.** Capping happens in
+  `_cap`, reached from `_embed` (description, 4096), `_field` (field value, 1024
+  and non-empty) and both author helpers (256), so a call site cannot produce one
+  by forgetting. This is enforced rather than documented because the documented
+  version was false: four separate values were outside it, and the worst — a
+  member's roles at 43 mentions — cost the entry *and* the row deletion queued
+  after it, leaving a departed member in Postgres for good. Footers are bounded by
+  construction, being ids and fixed text.
+- **What a person wrote is escaped; what the bot wrote is not.** `_said` for a
+  person's words, `_named` for a name going into a description, `_quoted` for
+  content that may instead be the bot's not-found marker. The distinction is not
+  cosmetic: a description and a field value both render masked links, so an
+  unescaped message can put a label of its choosing on a URL of its choosing in
+  front of whoever reads the audit log. An **author line** and a **footer** are
+  plain text to Discord and are deliberately left alone, which is why a name is
+  escaped in one place on an entry and not the other.
 - **Everything the bot says about itself goes through `errors.py`.** `report(exc,
   context)` for an exception, `notify(text)` for anything else worth the admin
   channel, `notify_soon(text)` for the two synchronous renderers that cannot
