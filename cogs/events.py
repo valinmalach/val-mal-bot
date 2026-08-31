@@ -1,4 +1,4 @@
-import logging
+from collections.abc import Awaitable, Callable
 
 import discord
 import pendulum
@@ -17,7 +17,6 @@ from discord import (
 from discord.ext.commands import Bot, Cog, CommandError, Context
 from pendulum import DateTime
 
-from constants import DEFAULT_MISSING_CONTENT
 from db import repository
 from errors import report
 from services import (
@@ -29,14 +28,18 @@ from services import (
 )
 from services.config import config
 
-logger = logging.getLogger(__name__)
-
 
 class Events(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
 
-    async def _safe_db_operation(self, operation: str, func, *args, **kwargs) -> None:
+    async def _safe_db_operation(
+        self,
+        operation: str,
+        func: Callable[..., Awaitable[object]],
+        *args: object,
+        **kwargs: object,
+    ) -> None:
         """Run a database write, reporting failures instead of raising."""
         try:
             await func(*args, **kwargs)
@@ -207,15 +210,6 @@ class Events(Cog):
             and payload.cached_message.author == self.bot.user
         )
 
-    async def _get_before_content(self, before: Message | None, message_id: int) -> str:
-        """Get the content of the message before editing."""
-        try:
-            if before:
-                return before.content
-            return await self._get_message_content(message_id)
-        except KeyError:
-            return DEFAULT_MISSING_CONTENT
-
     @Cog.listener()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent) -> None:
         try:
@@ -228,7 +222,11 @@ class Events(Cog):
             if before and before.pinned != after.pinned:
                 await audit.pin_changed(after)
 
-            before_content = await self._get_before_content(before, after.id)
+            # Message.content is a slot set in __init__, so reading it cannot
+            # raise; a payload without it fails inside discord.py before dispatch.
+            before_content = (
+                before.content if before else await self._get_message_content(after.id)
+            )
 
             if before_content == after.content:
                 return
@@ -263,7 +261,7 @@ class Events(Cog):
                 )
             else:
                 await audit.message_deleted(
-                    content=await self._deleted_content(message, payload.message_id),
+                    content=message.content,
                     attachments=message.attachments,
                     message_id=payload.message_id,
                     author=message.author,
@@ -278,13 +276,6 @@ class Events(Cog):
             )
         except Exception as e:  # noqa: BLE001
             await report(e, "Fatal error with on_raw_message_delete event")
-
-    async def _deleted_content(self, message: Message, message_id: int) -> str:
-        """Reading .content off a cached message raises when discord.py has evicted it."""
-        try:
-            return message.content
-        except KeyError:
-            return await self._get_message_content(message_id)
 
     @Cog.listener()
     async def on_raw_bulk_message_delete(
@@ -338,11 +329,10 @@ class Events(Cog):
         except Exception as e:  # noqa: BLE001
             await report(e, "Fatal error with on_invite_delete event")
 
-    async def _get_message_content(self, message_id: int) -> str:
+    async def _get_message_content(self, message_id: int) -> str | None:
+        """None when nothing was stored, which is not the same as stored empty."""
         stored = await repository.get_message(message_id)
-        if stored and stored.contents:
-            return stored.contents
-        return DEFAULT_MISSING_CONTENT
+        return stored.contents if stored and stored.contents else None
 
 
 async def setup(bot: Bot) -> None:

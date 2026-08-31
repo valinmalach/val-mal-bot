@@ -12,26 +12,26 @@ from typing import Literal
 import pendulum
 from discord import (
     Attachment,
-    CategoryChannel,
     Embed,
-    ForumChannel,
     Invite,
     Member,
     Message,
     Object,
     Role,
-    StageChannel,
-    TextChannel,
     Thread,
     User,
-    VoiceChannel,
 )
-from discord.abc import PrivateChannel
+from discord.abc import GuildChannel, PrivateChannel
 from discord.ext.commands import CommandError, Context
 from discord.utils import escape_markdown
 from pendulum import DateTime
 
-from constants import EMPTY_CONTENT, UNKNOWN_USER
+from constants import (
+    DEFAULT_MISSING_CONTENT,
+    EMPTY_CONTENT,
+    UNKNOWN_USER,
+    UNNAMED_EVENT,
+)
 from services.config import config
 from services.helper.helper import (
     get_age,
@@ -41,50 +41,86 @@ from services.helper.helper import (
     send_embed,
 )
 
-# What bot.get_channel hands back, which is what the message events carry.
-AuditChannel = (
-    VoiceChannel
-    | StageChannel
-    | ForumChannel
-    | TextChannel
-    | CategoryChannel
-    | Thread
-    | PrivateChannel
-    | None
-)
+# Exactly what bot.get_channel hands back, which is what the message events carry.
+AuditChannel = GuildChannel | Thread | PrivateChannel | None
 
+# Discord rejects the whole embed if any one of these is exceeded, so they are
+# enforced here rather than trusted to the callers.
 _FIELD_LIMIT = 1024
+_DESCRIPTION_LIMIT = 4096
+_AUTHOR_LIMIT = 256
 
 
-def _truncate(content: str) -> str:
-    if len(content) > _FIELD_LIMIT:
-        return f"{content[: _FIELD_LIMIT - 3]}..."
-    return content
+def _cap(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    cut = text[: limit - 3]
+    # An escape sequence cut in half leaves a lone backslash, which would eat the
+    # first character of the ellipsis.
+    if (len(cut) - len(cut.rstrip("\\"))) % 2:
+        cut = cut[:-1]
+    return f"{cut}..."
 
 
-def _field(content: str) -> str:
-    """Discord rejects an empty field value, and that costs the whole entry."""
-    return _truncate(content) or EMPTY_CONTENT
+def _field(value: str) -> str:
+    """A field value is rejected for being empty as well as for being too long."""
+    return _cap(value, _FIELD_LIMIT) or EMPTY_CONTENT
+
+
+def _said(text: str) -> str:
+    """Text a person wrote, going somewhere Discord renders markdown.
+
+    Escaped, not merely capped: a description or a field value renders a masked
+    link, so an unescaped message could put a label of its choosing on a URL of
+    its choosing in front of whoever reads the audit log.
+    """
+    return _field(escape_markdown(text))
+
+
+def _named(user: User | Member) -> str:
+    """Escaped: a description renders markdown where an author line does not, and
+    bot and unmigrated names are not held to the modern username charset."""
+    return f"{escape_markdown(user.name)}{get_discriminator(user)}"
+
+
+def _quoted(text: str | None) -> str:
+    """A person's words, or the bot's marker for words it no longer has.
+
+    Only the person's are escaped: the marker is the bot's own text and its
+    formatting is deliberate.
+    """
+    return DEFAULT_MISSING_CONTENT if text is None else _said(text)
 
 
 def _embed(description: str, color: str) -> Embed:
     return Embed(
-        description=description, color=config.color(color), timestamp=pendulum.now()
+        description=_cap(description, _DESCRIPTION_LIMIT),
+        color=config.color(color),
+        timestamp=pendulum.now(),
     )
 
 
-def _by(embed: Embed, user: User | Member | None) -> Embed:
-    """Author line naming a person. None is a deleter the audit log did not name."""
+def _by(embed: Embed, user: User | Member | None) -> None:
+    """Author line naming a person. None is a deleter the audit log did not name.
+
+    Discord renders an author name as plain text, so nothing here is escaped.
+    """
     if user is None:
-        return embed.set_author(name=UNKNOWN_USER, icon_url=None)
-    return embed.set_author(
-        name=f"{user.name}{get_discriminator(user)}", icon_url=get_pfp(user)
+        embed.set_author(name=UNKNOWN_USER, icon_url=None)
+        return
+    embed.set_author(
+        name=_cap(f"{user.name}{get_discriminator(user)}", _AUTHOR_LIMIT),
+        icon_url=get_pfp(user),
     )
 
 
-def _captioned(embed: Embed, text: str, icon: str | None) -> Embed:
-    """Author line naming the event instead of a person."""
-    return embed.set_author(name=text, icon_url=icon)
+def _captioned(embed: Embed, text: str, icon: str | None) -> None:
+    """Author line naming the event instead of a person.
+
+    The fallback is for a template row that has gone missing: config has already
+    said so, and an empty author name would lose the entry on top of that.
+    """
+    embed.set_author(name=_cap(text, _AUTHOR_LIMIT) or UNNAMED_EVENT, icon_url=icon)
 
 
 async def _send(embed: Embed) -> None:
@@ -94,13 +130,13 @@ async def _send(embed: Embed) -> None:
 async def member_joined(member: Member) -> None:
     url = get_pfp(member)
     embed = _embed(
-        f"{member.mention} {member.name}{get_discriminator(member)}",
+        f"{member.mention} {_named(member)}",
         "embed_color_join",
     )
     _captioned(embed, config.template("audit_member_joined"), url)
     embed.set_thumbnail(url=url).add_field(
         name="**Account Age**",
-        value=get_age(pendulum.instance(member.created_at)),
+        value=_field(get_age(pendulum.instance(member.created_at))),
         inline=False,
     ).set_footer(text=f"ID: {member.id}")
     await _send(embed)
@@ -113,7 +149,7 @@ async def member_left(user: User | Member) -> None:
     # embed keeps its height either way.
     padding = "" if roles else "\n\n\n"
     embed = _embed(
-        f"{user.mention} {user.name}{get_discriminator(user)}{padding}",
+        f"{user.mention} {_named(user)}{padding}",
         "embed_color_danger",
     )
     _captioned(embed, config.template("audit_member_left"), url)
@@ -121,7 +157,7 @@ async def member_left(user: User | Member) -> None:
     if roles:
         embed.add_field(
             name="**Roles**",
-            value=" ".join([f"{role.mention}" for role in roles]),
+            value=_field(" ".join([role.mention for role in roles])),
             inline=False,
         )
     await _send(embed)
@@ -130,7 +166,7 @@ async def member_left(user: User | Member) -> None:
 async def _ban_state(user: User | Member, action: Literal["ban", "unban"]) -> None:
     url = get_pfp(user)
     embed = _embed(
-        f"{user.mention} {user.name}{get_discriminator(user)}",
+        f"{user.mention} {_named(user)}",
         "embed_color_danger" if action == "ban" else "embed_color_info",
     )
     _captioned(embed, f"User {action.capitalize()}ed", url)
@@ -169,7 +205,7 @@ async def invite_created(invite: Invite) -> None:
         f" created{inviter_mention}**\nExpires: {expiry}",
         "embed_color_info",
     )
-    _captioned(embed, f"{guild_name}", guild_icon)
+    _captioned(embed, guild_name, guild_icon)
     await _send(embed)
 
 
@@ -178,7 +214,7 @@ async def invite_deleted(invite: Invite) -> None:
     embed = _embed(
         f"**Invite [{invite.code}]({invite.url}) deleted**", "embed_color_danger"
     )
-    _captioned(embed, f"{guild_name}", guild_icon)
+    _captioned(embed, guild_name, guild_icon)
     await _send(embed)
 
 
@@ -209,8 +245,8 @@ async def nickname_changed(member: Member, before: str, after: str) -> None:
     )
     _by(embed, member)
     embed.set_footer(text=f"ID: {member.id}").add_field(
-        name="**Before**", value=f"{_field(before)}", inline=False
-    ).add_field(name="**After**", value=f"{_field(after)}", inline=False)
+        name="**Before**", value=_said(before), inline=False
+    ).add_field(name="**After**", value=_said(after), inline=False)
     await _send(embed)
 
 
@@ -248,7 +284,7 @@ async def timeout_lifted(member: Member) -> None:
     await _send(embed)
 
 
-async def message_edited(after: Message, before_content: str) -> None:
+async def message_edited(after: Message, before_content: str | None) -> None:
     embed = _embed(
         f"**Message edited in {get_channel_mention(after.channel)}**"
         f" [Jump to Message]({after.jump_url})",
@@ -256,8 +292,8 @@ async def message_edited(after: Message, before_content: str) -> None:
     )
     _by(embed, after.author)
     embed.set_footer(text=f"User ID: {after.author.id}").add_field(
-        name="**Before**", value=f"{_field(before_content)}", inline=False
-    ).add_field(name="**After**", value=f"{_field(after.content)}", inline=False)
+        name="**Before**", value=_quoted(before_content), inline=False
+    ).add_field(name="**After**", value=_said(after.content), inline=False)
     await _send(embed)
 
 
@@ -294,7 +330,7 @@ async def message_deleted(
     _by(embed, author)
     embed.set_footer(text=footer)
     if content:
-        embed.add_field(name="**Message**", value=f"{_truncate(content)}", inline=False)
+        embed.add_field(name="**Message**", value=_said(content), inline=False)
     await _send(embed)
 
     for attachment in attachments:
@@ -313,7 +349,7 @@ async def message_deleted(
 
 async def message_deleted_uncached(
     *,
-    content: str,
+    content: str | None,
     message_id: int,
     deleted_by: User | Member | None,
     channel: AuditChannel,
@@ -327,7 +363,7 @@ async def message_deleted_uncached(
     )
     _by(embed, deleted_by)
     embed.add_field(
-        name="**Message**", value=f"{_truncate(content)}", inline=False
+        name="**Message**", value=_quoted(content), inline=False
     ).set_footer(text=f"Deleter: {deleter_id} | Message ID: {message_id}")
     await _send(embed)
 
@@ -357,9 +393,7 @@ async def command_failed(ctx: Context, error: CommandError) -> None:
     _by(embed, ctx.author)
     embed.set_footer(text=f"User ID: {ctx.author.id}").add_field(
         name="**Command**",
-        value=_field(escape_markdown(ctx.message.content)),
+        value=_said(ctx.message.content),
         inline=False,
-    ).add_field(
-        name="**Error**", value=_field(escape_markdown(str(error))), inline=False
-    )
+    ).add_field(name="**Error**", value=_said(str(error)), inline=False)
     await _send(embed)
