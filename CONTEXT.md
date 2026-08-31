@@ -2,7 +2,8 @@
 
 One process serving two faces: a Discord bot and a FastAPI app that receives
 Twitch EventSub webhooks. This file fixes the words used for the concepts that
-span both, so a term means one thing wherever it appears.
+span both, so a term means one thing wherever it appears. It also fixes any term
+two modules answer differently, whichever face it belongs to.
 
 ## Language
 
@@ -95,6 +96,25 @@ The pending `!so` targets, drained at a rate Helix accepts. Active only for the
 duration of a **stream session**.
 _Avoid_: shoutout list, so queue
 
+### Birthdays
+
+**Stored birthday**:
+The next occurrence of someone's birthday, held as an instant in UTC. Never a
+date of birth: the year is chosen rather than remembered, and it moves.
+_Avoid_: birth date, DOB, birthday date
+
+**Roll forward**:
+Moving a **stored birthday** to its next occurrence. The same question whether
+the birthday has just been greeted or is being set for the first time, so it has
+one answer.
+_Avoid_: reschedule, bump, advance
+
+**Stale birthday**:
+A **stored birthday** that came due more than a day ago, because nothing was
+running to greet it. It is rolled forward with a **notice** instead of a
+greeting, so nobody is wished a happy birthday on the wrong day.
+_Avoid_: missed birthday, overdue, expired
+
 ## Flagged ambiguities
 
 **`log_error` names two different behaviours.** Four files define it as
@@ -106,6 +126,11 @@ locally first, and says so when it cannot go further.
 **"Alert" means the live alert, never an admin notice.** An admin-channel
 message about a failure is a **notice** or a **report**. Nothing else in this
 project is called an alert.
+
+**Age is never a person's age.** It is the time elapsed since an instant — how
+long ago an account was created, how long a stream has been live. A **stored
+birthday** carries no birth year, so the bot cannot know anyone's age and never
+says one.
 
 **Two functions named `_create_offline_embed`** exist, in `controller/twitch.py`
 and `services/twitch/api.py`. Resolved in language ahead of the code: closing is
@@ -161,3 +186,28 @@ newer alert's row.
 >
 > **Dev**: Always. Only a message that actually landed holds anything back, so
 > the first of anything is never the one you lose.
+>
+> **Operator**: Different thing. Someone tells you their birthday is the 29th of
+> February. What do you write down?
+>
+> **Dev**: The next one. Not the day they were born — we never ask for that, and
+> we could not tell you anyone's age if you asked.
+>
+> **Operator**: So it is a date in the future, and it changes.
+>
+> **Dev**: Every time we greet them, we roll it forward to the next one. For the
+> 29th that is four years, unless the century gets in the way — 2100 is not a
+> leap year.
+>
+> **Operator**: And if the bot is off for a week and misses one?
+>
+> **Dev**: Then it is stale, and it gets rolled forward without a greeting. You
+> get a notice saying nobody wished them a happy birthday, because greeting them
+> six days late is worse than not greeting them.
+>
+> **Operator**: Who works out the next one — the command, or the thing that
+> greets?
+>
+> **Dev**: Same question, so it had better be the same answer. It was not, once:
+> setting a 29th of February birthday inside a leap year wrote down a date that
+> had already gone.

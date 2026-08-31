@@ -2,15 +2,14 @@ import logging
 from typing import Any, Literal
 
 import pendulum
-from discord import Interaction, Member, User, app_commands
+from discord import Interaction, app_commands
 from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
-from pendulum import DateTime
 
 from constants import MAX_DAYS, Months
 from db import repository
 from errors import notify, report
-from services import get_next_leap
+from services import next_birthday_on
 from services.config import config, has_configured_role
 
 logger = logging.getLogger(__name__)
@@ -41,15 +40,19 @@ class Birthday(GroupCog):
             if validation_error:
                 return
 
-            year = self._calculate_next_birthday_year(month, day, timezone)
-
-            record = self._create_birthday_record(
-                interaction.user, month, day, year, timezone
-            )
+            is_leap = month == Months.February and day == 29
+            record = {
+                "user_id": interaction.user.id,
+                "username": interaction.user.name,
+                "birthday": next_birthday_on(month, day, timezone, pendulum.now("UTC")),
+                "is_birthday_leap": is_leap,
+            }
 
             await self._update_birthday_database(interaction, record)
 
-            await self._send_birthday_set_response(interaction, month, day)
+            await interaction.response.send_message(
+                config.template("birthday_set_leap" if is_leap else "birthday_set")
+            )
 
         except Exception as e:  # noqa: BLE001
             await self._handle_set_birthday_exception(interaction, e)
@@ -62,7 +65,9 @@ class Birthday(GroupCog):
             await interaction.response.send_message(
                 config.template("birthday_bad_timezone", timezone=timezone)
             )
-            logger.warning(f"Invalid timezone provided: {timezone}")
+            # !r, because the value is whatever the user typed: a bare newline
+            # in it would otherwise forge a log line.
+            logger.warning(f"Invalid timezone provided: {timezone!r}")
             return True
 
         if day > MAX_DAYS[month]:
@@ -74,60 +79,6 @@ class Birthday(GroupCog):
 
         return False
 
-    def _calculate_next_birthday_year(
-        self, month: Months, day: int, timezone: str
-    ) -> int:
-        """Calculate the year for the next occurrence of the birthday."""
-        now = pendulum.now(timezone).replace(second=0, microsecond=0)
-        year = now.year
-
-        if month == Months.February and day == 29:
-            return self._calculate_leap_year(year, now, timezone)
-
-        birthday_this_year = DateTime(
-            year=year,
-            month=month.value,
-            day=day,
-            tzinfo=pendulum.timezone(timezone),
-        )
-        return year + 1 if birthday_this_year <= now else year
-
-    def _calculate_leap_year(self, year: int, now: DateTime, timezone: str) -> int:
-        """Calculate the next leap year for February 29th birthdays."""
-        try:
-            birthday_this_year = DateTime(
-                year=year,
-                month=2,
-                day=29,
-                tzinfo=pendulum.timezone(timezone),
-            )
-        except ValueError:
-            birthday_this_year = None
-
-        if birthday_this_year is None or birthday_this_year <= now:
-            return get_next_leap(year)
-        return year
-
-    def _create_birthday_record(
-        self, user: User | Member, month: Months, day: int, year: int, timezone: str
-    ) -> dict[str, Any]:
-        """Build the arguments for storing this birthday."""
-        birthday = (
-            DateTime.strptime(
-                f"{year}-{month.value:02d}-{day:02d} 00:00:00",
-                "%Y-%m-%d %H:%M:%S",
-            )
-            .replace(tzinfo=pendulum.timezone(timezone))
-            .astimezone(pendulum.timezone("UTC"))
-        )
-
-        return {
-            "user_id": user.id,
-            "username": user.name,
-            "birthday": birthday,
-            "is_birthday_leap": month == Months.February and day == 29,
-        }
-
     async def _update_birthday_database(
         self, interaction: Interaction, record: dict[str, Any]
     ) -> None:
@@ -137,17 +88,6 @@ class Birthday(GroupCog):
         except Exception as e:
             await self._handle_set_birthday_exception(interaction, e)
             raise  # Re-raise to be caught by the main exception handler
-
-    async def _send_birthday_set_response(
-        self, interaction: Interaction, month: Months, day: int
-    ) -> None:
-        """Send appropriate success message based on birthday type."""
-        if month == Months.February and day == 29:
-            await interaction.response.send_message(
-                config.template("birthday_set_leap")
-            )
-        else:
-            await interaction.response.send_message(config.template("birthday_set"))
 
     async def _handle_set_birthday_exception(
         self, interaction: Interaction, e: Exception
