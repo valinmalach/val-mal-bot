@@ -61,8 +61,33 @@ twitch_router = APIRouter()
 _STREAM_WAIT_SECONDS = 60
 
 # An EventSub payload is a few kilobytes. The whole body has to be read to
-# compute the signature over it, so the size is capped before that happens.
+# compute the signature over it, so it is counted as it arrives and abandoned
+# past this.
 _MAX_BODY_BYTES = 256 * 1024
+
+
+async def _bounded_body(request: Request, endpoint: str) -> bytes:
+    """The request body, refusing to hold more than ``_MAX_BODY_BYTES`` of it.
+
+    Counts while streaming rather than trusting Content-Length, which a chunked
+    request does not send at all. Caches onto the request the way Starlette's own
+    ``body()`` does, so the later ``json()`` reads what was counted here.
+    """
+    if hasattr(request, "_body"):
+        return request._body
+
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > _MAX_BODY_BYTES:
+            logger.warning("413: Payload too large on %s", endpoint)
+            await notify(f"413: Oversized request on {endpoint}, refused part-read.")
+            raise HTTPException(status_code=413)
+        chunks.append(chunk)
+
+    request._body = b"".join(chunks)
+    return request._body
 
 
 async def validate_call(request: Request, endpoint: str) -> Response | None:
@@ -72,15 +97,7 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
     # request is read as anything. Branching first left the handshake echoing
     # attacker text and a revocation putting attacker text, mentions included,
     # into the admin channel -- neither of which needed a signature at all.
-    declared = headers.get("content-length")
-    if declared is not None and declared.isdigit() and int(declared) > _MAX_BODY_BYTES:
-        # A chunked request declares no length and gets past this; the platform
-        # in front is the backstop for that. This stops the honest large POST.
-        logger.warning("413: Payload too large on %s", endpoint)
-        await notify(f"413: Oversized request on {endpoint}, rejected unread.")
-        raise HTTPException(status_code=413)
-
-    body_str = (await request.body()).decode()
+    body_str = (await _bounded_body(request, endpoint)).decode()
     message = get_hmac_message(
         headers.get(TWITCH_MESSAGE_ID, ""),
         headers.get(TWITCH_MESSAGE_TIMESTAMP, ""),
