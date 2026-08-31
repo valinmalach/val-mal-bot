@@ -51,6 +51,43 @@ its reason.
 <!-- verity-memory:preserve -->
 <!-- Add binding, hand-curated guidance here; it survives Verity regeneration. -->
 
+## Verity runs before the commit, never after
+
+`verity analyze` must come back clean **while the change is still uncommitted** —
+staged or unstaged, both count — and only then `git commit`.
+
+This is mechanical, not a preference. `getChangedFiles()` in the Verity CLI takes
+the union of `git diff --name-only HEAD`, `git diff --name-only --cached` and
+untracked files. Committed work is reached only through
+`.verity/.last-reviewed-sha`, which does not exist in this repo, and the fallback
+for that case looks back exactly one commit and only within 120 seconds of it
+being made. So on a clean tree `verity analyze` answers
+
+```json
+{"gate_decision":"PASS","systemMessage":"Verity: No analyzable files changed"}
+```
+
+which is a PASS that reviewed nothing, and reads exactly like a real one.
+
+The sequence for every commit:
+
+```sh
+git add <paths>
+verity analyze     # must not be a "No analyzable files changed" PASS
+git commit ...     # only after it comes back clean
+```
+
+**A PASS whose message says nothing was analyzed does not count as a gate.** That
+message has two causes and they need telling apart: the change is already
+committed, or nothing in it is analyzable. `ANALYZABLE_EXTENSIONS` covers `.py`
+and the other source extensions but not `.md`, so a docs-only commit cannot be
+gated and will always answer this way — which is fine, but it must be reported as
+"not gated", never as a green gate. For anything touching `.py`, seeing this
+message means the reading was taken too late.
+
+The same applies to a whole branch: getting a real reading after the fact means
+uncommitting or re-running per commit, not quoting the empty PASS.
+
 ## Post-task reflection
 When a task is complete (you've created a PR, the user says "done" or "ship it",
 or the work is clearly finished), **draft the reflection yourself first** — 1–3
