@@ -141,7 +141,13 @@ async def _bounded_body(request: Request, endpoint: str) -> bytes:
     return body
 
 
-async def validate_call(request: Request, endpoint: str) -> Response | None:
+async def validate_call(request: Request, endpoint: str) -> dict[str, Any] | Response:
+    """Either an answer already given, or the body of a notification to dispatch.
+
+    Returning the body rather than None is what stops the caller parsing it a
+    second time and re-asserting a shape it did not check: this is the function
+    that proved it is an object, so this is the one that can say so.
+    """
     headers = request.headers
 
     # Twitch signs every message type, so the signature is checked before the
@@ -230,6 +236,8 @@ async def validate_call(request: Request, endpoint: str) -> Response | None:
         )
         raise HTTPException(status_code=403)
 
+    return body
+
 
 async def process_webhook[E: BaseModel](
     request: Request,
@@ -245,9 +253,9 @@ async def process_webhook[E: BaseModel](
     subscription type is a Literal.
     """
     try:
-        validation = await validate_call(request, endpoint)
-        if validation:
-            return validation
+        validated = await validate_call(request, endpoint)
+        if isinstance(validated, Response):
+            return validated
 
         # Twitch says a notification may arrive twice. 202 rather than an error:
         # this end does have it, and saying so is what stops the retries.
@@ -268,8 +276,7 @@ async def process_webhook[E: BaseModel](
             return Response(status_code=202)
 
         try:
-            body: dict[str, Any] = await request.json()
-            event_sub = event_model.model_validate(body)
+            event_sub = event_model.model_validate(validated)
             fire_and_forget(task_func(event_sub), name=endpoint)
         except BaseException:
             _release(message_id)
