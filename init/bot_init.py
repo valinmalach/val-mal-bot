@@ -24,6 +24,16 @@ async def resume_stream_session() -> None:
     await stream_session.resume()
 
 
+def undeliverable_summary(broken: dict[str, str]) -> str:
+    """The admin-channel wording, shared by the startup check and the loop."""
+    detail = "\n".join(f"- {identity}: {reason}" for identity, reason in broken.items())
+    return (
+        f"{len(broken)} Twitch subscription(s) will not deliver:\n{detail}\n"
+        "/subscribe replaces the stream.online and stream.offline pair; the"
+        " rest are registered outside the bot."
+    )
+
+
 async def check_subscriptions() -> None:
     """Say at startup when a Twitch subscription will not deliver.
 
@@ -33,32 +43,18 @@ async def check_subscriptions() -> None:
     the most expensive failure here and the quietest.
     """
     from errors import notify, report
-    from services.twitch.api import (
-        get_subscriptions,
-        subscription_target,
-        undeliverable,
-    )
+    from services.twitch.api import broken_subscriptions
     from services.twitch.helix import HelixError
 
     try:
-        subscriptions = await get_subscriptions()
+        broken = await broken_subscriptions()
     except HelixError as e:
         # gather(return_exceptions=True) below would swallow this silently.
         await report(e, "Could not check the Twitch subscriptions at startup")
         return
 
-    broken = [
-        f"- {subscription.type} ({subscription_target(subscription)}): {reason}"
-        for subscription in subscriptions
-        if (reason := undeliverable(subscription)) is not None
-    ]
     if broken:
-        detail = "\n".join(broken)
-        await notify(
-            f"{len(broken)} Twitch subscription(s) will not deliver:\n{detail}\n"
-            "/subscribe replaces the stream.online and stream.offline pair; the"
-            " rest are registered outside the bot."
-        )
+        await notify(undeliverable_summary(broken))
 
 
 async def run_background_tasks() -> None:
