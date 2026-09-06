@@ -18,22 +18,10 @@ async def restart_live_alert_tasks() -> None:
     await live_alert.restore_all()
 
 
-async def activate_if_live() -> None:
-    from errors import report
-    from services.config import config
-    from services.twitch.api import get_stream
-    from services.twitch.helix import HelixError
-    from services.twitch.shoutout_queue import shoutout_queue
+async def resume_stream_session() -> None:
+    from services.twitch import stream_session
 
-    try:
-        stream = await get_stream(int(config.setting("twitch_broadcaster_id")))
-    except HelixError as e:
-        # gather(return_exceptions=True) upstream would swallow this silently.
-        await report(e, "Could not check whether the broadcaster is live at startup")
-        return
-
-    if stream and stream.type == "live":
-        fire_and_forget(shoutout_queue.activate(), name="shoutout-queue")
+    await stream_session.resume()
 
 
 async def check_subscriptions() -> None:
@@ -73,10 +61,10 @@ async def check_subscriptions() -> None:
         )
 
 
-async def run_background_tasks():
+async def run_background_tasks() -> None:
     await asyncio.gather(
         restart_live_alert_tasks(),
-        activate_if_live(),
+        resume_stream_session(),
         check_subscriptions(),
         return_exceptions=True,
     )
