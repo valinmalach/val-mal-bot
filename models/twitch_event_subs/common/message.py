@@ -25,9 +25,9 @@ class Mention(BaseModel):
 class Fragment(BaseModel):
     type: Literal["text", "cheermote", "emote", "mention"]
     text: str
-    cheermote: Cheermote | None
-    emote: Emote | None
-    mention: Mention | None
+    cheermote: Cheermote | None = None
+    emote: Emote | None = None
+    mention: Mention | None = None
 
 
 class Message(BaseModel):

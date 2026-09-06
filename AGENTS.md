@@ -56,7 +56,8 @@ is gitignored, so a fresh clone has none of it — `VERITY.md` has the restore s
 **One process wearing two faces.** `main.py` is a FastAPI app, and the Discord bot
 is not the entrypoint: the lifespan handler starts `main()` as a background task,
 which loads `constants.COGS` and calls `bot.start()`. Twitch never connects to the
-bot — it delivers EventSub webhooks over HTTP to the router in `controller/twitch.py`.
+bot — it delivers EventSub webhooks over HTTP to the router in `controller/twitch.py`,
+which verifies and parses them and hands each to `services/twitch/events.py`.
 Stop the web server and the bot goes with it.
 
 **Startup order is spread across three files.** lifespan (`main.py`) → cog loading →
@@ -92,6 +93,57 @@ and `broadcaster` (the account in `twitch_broadcaster_id`) authorization-code
 flows. Both request `twitch_app_scopes`; the callbacks validate the returned
 Twitch user ID, client ID and scopes before upserting `oauth_token`. The `app`
 row is separate, uses client credentials and has no refresh token.
+
+**Three files, three jobs, none of them over the threshold.**
+`controller/twitch.py` receives a signed notification, verifies it, parses it and
+hands it on. `services/twitch/events.py` says what each event makes the bot do —
+it lives under `services/` because it names no HTTP type at all, and nothing
+under `services/` imports `controller/`. `controller/twitch_oauth.py` carries the
+two authorization-code flows on their own router; it shares nothing with the
+webhook controller, not the signature check, the models, or the path prefix.
+
+**A webhook route's model says which event it serves.** Each `*Subscription`
+declares its own `type` as a `Literal`, so a payload for the wrong event fails to
+parse instead of being compared against a string passed in beside it, and the
+shared base carries no `type` at all — a mutable `str` there could not be narrowed
+to a `Literal` soundly. `process_webhook` is generic in the model, which binds it
+to its handler: pairing `StreamOnlineEventSub` with the follow handler stops
+type-checking, where before both parameters were unannotated and so `Any`.
+
+**A signed delivery is also checked for freshness, and dispatched at most once.**
+A timestamp more than ten minutes from now in either direction is refused with a
+403 — Twitch's own guidance for replay, and a clock ahead is as wrong as one
+behind. A message id that has already reached a handler answers 202 without
+dispatching again, since Twitch says a notification may arrive twice and 202 is
+what stops the retries. Only ids that were *dispatched* are remembered, so a
+delivery Twitch retries because this end failed still gets through. The set is
+process-local, and remembered for twice the freshness window: a clock further
+out than one window refuses everything anyway, so the skew that could open a gap
+between the two cannot exceed a window. It holds 20,000 ids, which the chat route
+would otherwise fill in minutes — one id per chat line — and reaching the cap
+says so in the admin channel, because past it a redelivery can run twice.
+
+The cost of the freshness check is real and worse than "events are refused". A
+403 is a failed delivery, and enough of them revoke the subscription — of which
+five of the seven cannot be recreated from this repo. That is why the check sits
+*below* the verification handshake and applies to notifications alone: a wrong
+clock must not also refuse the resubscribe that repairs it.
+
+**A signed request that the models reject answers 4xx, not 5xx.** A body that is
+not JSON, is not a JSON object, or does not match the route's model is a 400 with
+a notice naming the field that failed; only something genuinely unexpected is a
+500 with a report. The reason is that a payload this end cannot read is not a
+server fault, and a traceback for one is noise — *not* that it saves retries.
+Twitch documents no 4xx/5xx distinction anywhere, and revocation counts anything
+that is not a 2xx, so a 400 spends the failure budget exactly as a 500 does. That
+wrong justification was recorded here first; do not restore it.
+
+**Only two of the seven EventSub subscriptions can be created from this repo.**
+`/subscribe` creates `stream.online` and `stream.offline`. Chat, follow, ad break,
+raid and moderate are provisioned outside it, so a deployment whose public URL
+changes leaves five subscriptions pointing at a dead callback with nothing here
+able to recreate them. The startup check notices an undeliverable subscription;
+it cannot repair these five.
 
 **A live alert is closed by its updater, never by a webhook.** `stream.offline`
 carries no stream id, so the handler cannot tell which stream ended; it calls

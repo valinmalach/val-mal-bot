@@ -1,6 +1,7 @@
 import asyncio
 import logging
-from typing import Self, cast
+from types import TracebackType
+from typing import Any, Self, cast
 
 import httpx
 
@@ -59,10 +60,15 @@ class HttpClientManager:
                     self._client = None
                     logger.info("Global HTTP client closed")
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> httpx.AsyncClient:
         return await self.get_client()
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         # Don't close on context exit to maintain global connection pool
         pass
 
@@ -75,7 +81,7 @@ class HttpClientManager:
         params: dict | None = None,
         json: dict | None = None,
         data: dict | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> httpx.Response:
         """Make an HTTP request using the global client.
 

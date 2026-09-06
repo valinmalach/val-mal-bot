@@ -11,6 +11,7 @@ class ChannelModerateCondition(BaseModel):
 
 
 class ChannelModerateSubscription(Subscription):
+    type: Literal["channel.moderate"]
     condition: ChannelModerateCondition
 
 
@@ -29,11 +30,11 @@ class User(BaseModel):
 
 
 class Ban(User):
-    reason: str | None
+    reason: str | None = None
 
 
 class Timeout(User):
-    reason: str | None
+    reason: str | None = None
     expires_at: str
 
 
@@ -55,21 +56,21 @@ class AutomodTerms(BaseModel):
 
 class UnbanRequest(User):
     is_approved: bool
-    moderator_message: str | None
+    moderator_message: str | None = None
 
 
 class Warn(User):
-    reason: str | None
-    chat_rules_cited: list[str] | None
+    reason: str | None = None
+    chat_rules_cited: list[str] | None = None
 
 
 class ChannelModerateEvent(BaseModel):
     broadcaster_user_id: str
     broadcaster_user_login: str
     broadcaster_user_name: str
-    source_broadcaster_user_id: str | None
-    source_broadcaster_user_login: str | None
-    source_broadcaster_user_name: str | None
+    source_broadcaster_user_id: str | None = None
+    source_broadcaster_user_login: str | None = None
+    source_broadcaster_user_name: str | None = None
     moderator_user_id: str
     moderator_user_login: str
     moderator_user_name: str
@@ -109,27 +110,27 @@ class ChannelModerateEvent(BaseModel):
         "shared_chat_untimeout",
         "shared_chat_delete",
     ]
-    followers: Followers | None
-    slow: Slow | None
-    vip: User | None
-    unvip: User | None
-    mod: User | None
-    unmod: User | None
-    ban: Ban | None
-    unban: User | None
-    timeout: Timeout | None
-    untimeout: User | None
-    raid: Raid | None
-    unraid: User | None
-    delete: Delete | None
-    automod_terms: AutomodTerms | None
-    unban_request: UnbanRequest | None
-    warn: Warn | None
-    shared_chat_ban: Ban | None
-    shared_chat_unban: User | None
-    shared_chat_timeout: Timeout | None
-    shared_chat_untimeout: User | None
-    shared_chat_delete: Delete | None
+    followers: Followers | None = None
+    slow: Slow | None = None
+    vip: User | None = None
+    unvip: User | None = None
+    mod: User | None = None
+    unmod: User | None = None
+    ban: Ban | None = None
+    unban: User | None = None
+    timeout: Timeout | None = None
+    untimeout: User | None = None
+    raid: Raid | None = None
+    unraid: User | None = None
+    delete: Delete | None = None
+    automod_terms: AutomodTerms | None = None
+    unban_request: UnbanRequest | None = None
+    warn: Warn | None = None
+    shared_chat_ban: Ban | None = None
+    shared_chat_unban: User | None = None
+    shared_chat_timeout: Timeout | None = None
+    shared_chat_untimeout: User | None = None
+    shared_chat_delete: Delete | None = None
 
 
 class ChannelModerateEventSub(BaseModel):

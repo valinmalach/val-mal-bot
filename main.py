@@ -6,6 +6,7 @@ truststore.inject_into_ssl()
 import asyncio
 import logging
 import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Response
@@ -15,7 +16,7 @@ from rich.logging import RichHandler
 from background import fire_and_forget
 from config import settings
 from constants import COGS
-from controller import twitch_router
+from controller import twitch_oauth_router, twitch_router
 from errors import report
 from init import bot
 from services.helper.http_client import http_client_manager
@@ -57,7 +58,7 @@ async def main() -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     fire_and_forget(main(), name="bot")
     yield
     await http_client_manager.close()
@@ -65,6 +66,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(twitch_router)
+app.include_router(twitch_oauth_router)
 
 
 def static_file_response(filename: str) -> Response:
