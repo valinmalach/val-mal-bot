@@ -100,6 +100,35 @@ class MyBot(Bot):
 bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 
+@bot.tree.error
+async def on_app_command_error(
+    interaction: discord.Interaction, error: discord.app_commands.AppCommandError
+) -> None:
+    """The floor under every slash command.
+
+    Each command guards its own body, so this only fires when one forgets - which
+    is exactly the case where nobody would otherwise hear about it, and the
+    person who ran it would be left on a spinner.
+    """
+    from errors import report
+    from services.config import config
+
+    command = interaction.command.qualified_name if interaction.command else "unknown"
+    # Reported first: the original failure is the thing that must be recorded,
+    # whatever happens when this tries to answer.
+    await report(error, f"Unhandled error in /{command}")
+
+    try:
+        # Composing the answer reads configuration, which is its own way to fail.
+        text = config.template("command_failed")
+        if interaction.response.is_done():
+            await interaction.followup.send(text, ephemeral=True)
+        else:
+            await interaction.response.send_message(text, ephemeral=True)
+    except Exception as unanswerable:  # noqa: BLE001
+        await report(unanswerable, f"Could not tell anyone that /{command} failed")
+
+
 @bot.event
 async def on_ready() -> None:
     global _startup_announced
