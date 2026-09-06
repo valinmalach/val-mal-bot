@@ -152,6 +152,36 @@ superseded. `docs/adr/0001-alert-updater-is-the-only-closer.md` has the why. The
 one rule the cycle turns on is `live_alert._decide`, which is pure — put new
 conditions there, not in the surrounding I/O.
 
+**The shoutout queue stops when it stops, and says so.** A pass that fails costs
+that pass, not the stream's shoutouts: the Helix failures inside handle
+themselves, so the outer guard is for what nobody anticipated, and one of those
+used to end the drainer silently while `activated` went on saying it was running
+— which meant `!so` kept accepting shoutouts for a drainer that no longer
+existed. Each activation takes a generation and clears the flag only if it is
+still the current one, because a drainer told to stand down can still be inside
+a sleep when the next stream activates.
+
+**`stream_session` owns all three of its transitions.** `began`, `resume` and
+`ended`. `resume` is deliberately not a second `began`: nothing is greeted,
+because the stream did not just start, and that difference is why the startup
+path could never have been `began`.
+
+**A subject per file, and no file holding six.** `services/helper/helper.py` used
+to hold sending, presentation, durations, birthdays, roles and webhook
+signatures. They are now `send.py`, `present.py`, `duration.py`, `birthday.py`,
+`roles.py` and `services/twitch/signature.py` — the last where it belongs, since
+none of it was ever about Discord. `services/__init__.py` re-exports the same
+names, so a consumer that went through the facade never noticed.
+
+**Escaping depends on where the text lands, not on whether it is untrusted.**
+`discord.utils.escape_markdown` escapes `*`, `_`, `~`, `|` and a backtick, and
+neutralises a whole `[label](url)` through its URL awareness — but it leaves a
+bare bracket alone. That is enough for a field value, where an attacker would
+have to supply both brackets. It is *not* enough inside a link label, where the
+bot has already supplied the opening one and `](` is all that is needed; a live
+alert wraps a Twitch stream title exactly that way, so it escapes the brackets
+itself. An author line and a footer are plain text to Discord and are left alone.
+
 **`live_alert` and `stream_session` are different scopes.** A live alert exists
 per broadcaster; a stream session is the main broadcaster being live, and owns
 the shoutout queue and the ad-break warning. Only a stream Helix confirms is gone
@@ -172,7 +202,7 @@ call site; `docs/adr/0002-helix-posts-are-not-retried.md` says why POSTs do not.
 
 **A stored birthday is the next occurrence, not a date of birth.** One rule
 answers when that is: `next_birthday_on` when it is being set, `next_birthday`
-when it is being rolled forward, both in `services/helper/helper.py`. Two
+when it is being rolled forward, both in `services/birthday.py`. Two
 implementations of it disagreed once and `/birthday set` wrote dates that had
 already passed. `is_leap_day` is there for the same reason and is derived nowhere
 else — its answer picks the year the instant lands in *and* is stored beside it
