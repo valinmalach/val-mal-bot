@@ -180,7 +180,7 @@ async def _deliver(text: str, trace: str | None) -> bool:
         logger.warning("Undelivered, no configuration loaded: %r", text)
         return False
 
-    from services.helper.helper import send_message
+    from services.send import send_message
 
     file = (
         discord.File(io.BytesIO(trace.encode("utf-8")), filename="traceback.txt")

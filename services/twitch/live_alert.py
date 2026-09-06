@@ -14,17 +14,20 @@ from enum import Enum, auto
 import discord
 import pendulum
 from discord.ui import View
+from discord.utils import escape_markdown
 
 from background import fire_and_forget
 from db import LiveAlert, repository
 from errors import notify, report
 from models import Channel, Stream, User, Video
 from services.config import config
-from services.helper.helper import edit_embed, get_age, parse_rfc3339, send_embed
+from services.duration import get_age
 from services.helper.http_client import is_transient_network_error
+from services.send import edit_embed, send_embed
 from services.twitch import stream_session
 from services.twitch.api import get_channel, get_stream, get_stream_vod, get_user
 from services.twitch.helix import HelixError
+from services.twitch.signature import parse_rfc3339
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +111,24 @@ def _watch_button(url: str) -> View:
     return view
 
 
+# Inside a markdown link label, one pass, so nothing is escaped twice.
+# escape_markdown neutralises a whole [label](url) but leaves a bare bracket
+# alone, which is all this position needs: the brackets around the title are the
+# bot's own, so "](" in a title ends that link and starts one going anywhere.
+_IN_LINK = str.maketrans({c: "\\" + c for c in "[]()*_~`|\\"})
+
+
+def _linkable(text: str) -> str:
+    """Text safe to sit inside a markdown link label."""
+    return text.translate(_IN_LINK)
+
+
+# What Twitch hands back is whatever the broadcaster typed, and these alerts are
+# posted for every broadcaster the bot announces, not only the owner. A title or
+# a game name goes into a description or a field value, both of which render
+# markdown: an unescaped "](" ends the link it sits inside and starts one
+# pointing anywhere. An author name is plain text to Discord and is left alone,
+# the same rule services/audit.py records.
 def _announcement_embed(stream: Stream, user_info: User | None) -> discord.Embed:
     """The alert as first posted, timestamped at the stream's start."""
     url = _twitch_url(stream.user_login)
@@ -115,7 +136,7 @@ def _announcement_embed(stream: Stream, user_info: User | None) -> discord.Embed
 
     return (
         discord.Embed(
-            description=f"[**{stream.title}**]({url})",
+            description=f"[**{_linkable(stream.title)}**]({url})",
             color=config.color("embed_color_stream"),
             timestamp=parse_rfc3339(stream.started_at),
         )
@@ -126,7 +147,7 @@ def _announcement_embed(stream: Stream, user_info: User | None) -> discord.Embed
         )
         .add_field(
             name=config.template("stream_field_game"),
-            value=f"{stream.game_name}",
+            value=escape_markdown(stream.game_name),
             inline=True,
         )
         .add_field(
@@ -151,7 +172,7 @@ def _live_embed(
 
     return (
         discord.Embed(
-            description=f"[**{stream.title}**]({url})",
+            description=f"[**{_linkable(stream.title)}**]({url})",
             color=config.color("embed_color_stream"),
             timestamp=now,
         )
@@ -162,7 +183,7 @@ def _live_embed(
         )
         .add_field(
             name=config.template("stream_field_game"),
-            value=f"{stream.game_name}",
+            value=escape_markdown(stream.game_name),
             inline=True,
         )
         .add_field(
@@ -212,7 +233,7 @@ def _offline_embed(
     """The alert as left behind once the stream is over."""
     embed = (
         discord.Embed(
-            description=f"**{_title(stream, vod, channel)}**",
+            description=f"**{escape_markdown(_title(stream, vod, channel))}**",
             color=config.color("embed_color_stream"),
             timestamp=now,
         )
@@ -225,7 +246,7 @@ def _offline_embed(
         )
         .add_field(
             name=config.template("stream_field_game"),
-            value=_game(stream, channel),
+            value=escape_markdown(_game(stream, channel)),
             inline=True,
         )
         .set_footer(text=config.template("stream_footer_offline", age=age))
