@@ -86,15 +86,45 @@ stream forever — and leaves the newer alert's row alone.
 _Avoid_: stale, replaced, orphaned
 
 **Stream session**:
-The main broadcaster being live. At most one at a time, and it owns the
-**shoutout queue** and the ad-break notification. Distinct from a **live alert**,
-which exists per broadcaster.
-_Avoid_: broadcast, live session, stream run
+The main broadcaster being live, and the single answer to whether the bot is
+live. At most one at a time, and it owns every piece of state that lasts exactly
+one stream — the **shoutout queue**, the ad-break notification and which
+**autoshoutout list** members are **spent** — all of it in memory. Distinct from
+a **live alert**, which exists per broadcaster and is kept in Postgres because it
+names a Discord message that has to outlive a redeploy.
+_Avoid_: broadcast, live session, stream run, session manager
 
 **Shoutout queue**:
-The pending `!so` targets, drained at a rate Helix accepts. Active only for the
-duration of a **stream session**.
+The pending shoutout targets, drained at a rate Helix accepts by one task that
+runs for the life of the process. Each pass asks the **stream session** whether
+it may send and sleeps if not; the queue has no lifetime of its own and no
+opinion about who is live.
 _Avoid_: shoutout list, so queue
+
+**Autoshoutout**:
+A shoutout a **stream session** gives unprompted, the first time someone on the
+**autoshoutout list** chats, raids or redeems. Never what a mod's `!so` produces:
+that is a manual shoutout, and it spends nothing.
+_Avoid_: auto SO, automatic shoutout, greeting
+
+**Autoshoutout list**:
+The Twitch users due an **autoshoutout**, keyed by Twitch user id so a rename
+cannot drop anyone. Held in Postgres and curated with `!aso` and `!unaso`, so it
+outlives any one **stream session**.
+_Avoid_: roster, auto list, shoutout list (see **shoutout queue**)
+
+**Spent**:
+Said of an **autoshoutout list** member who has had their **autoshoutout** this
+**stream session** — at most one each, however many times they chat. `!aso`
+spends it, because it shouts them out as it adds them; a manual `!so` does not.
+_Avoid_: seen, done, greeted, shouted
+
+**Settled**:
+Said of a chatter this **stream session** has already resolved: either **spent**,
+or looked up and found not to be on the **autoshoutout list**. Holding both
+answers in one word is what keeps the list from being queried again for every
+line the same person types.
+_Avoid_: cached, checked, known
 
 ### Birthdays
 
@@ -188,6 +218,17 @@ The webhook cannot identify which stream ended — Twitch's `stream.offline`
 payload carries no stream id — so it can only wake the updater, which re-checks
 Helix and, if it is **superseded**, closes its own message without touching the
 newer alert's row.
+
+**"Closing" answers two questions, not one.** Closing a **live alert** and
+standing a **stream session** down are different decisions about different
+scopes, and they are still one code path — which is how a session outlives its
+stream whenever no alert row exists to close. Resolved in language ahead of the
+code: the **alert updater** remains the only closer *of an alert*, per ADR 0001;
+the **stream session** ends itself, woken by `stream.offline` and confirmed
+against Helix. A
+`stream.offline` payload names no stream, which is fatal to the alert question
+and irrelevant to the session one, because there is only ever one session and it
+belongs to a broadcaster the bot already knows.
 
 ## Example dialogue
 
