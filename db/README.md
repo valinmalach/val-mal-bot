@@ -189,7 +189,16 @@ constraints.
 
 **Enums are checked `VARCHAR`, not native Postgres enums.** Adding a value to a
 native enum needs `ALTER TYPE`; rewriting a CHECK constraint is an ordinary
-migration. `enum_column()` in `db/base.py` builds them.
+migration. `enum_column()` in `db/base.py` builds them. `oauth_token.key` uses
+`constants.TokenType` rather than a second enum of its own: the column's values
+and the ones the Helix layer passes around are the same three strings.
+
+**Two columns are deliberately unread.** `twitch_command.cooldown_seconds` and
+`discord_role.assignable` each name a feature nothing implements yet — a
+per-command rate limit, and a role listed on a panel without being
+self-assignable. They cost nothing at runtime, and dropping them means a
+migration now and another one to put them back, so they stay. Anything sweeping
+the schema for dead columns will find these two; this is the answer.
 
 **Two SQLModel typing workarounds live in `db/base.py`** and both look redundant
 without knowing why:
