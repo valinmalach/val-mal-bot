@@ -155,9 +155,6 @@ class ConfigCache:
         except KeyError:
             raise KeyError(f"No discord_role row keyed {key!r}") from None
 
-    def role_name(self, key: str) -> str:
-        return self._roles[key].name
-
     def role_name_for_emoji(self, emoji: str) -> str | None:
         found = self._roles_by_emoji.get(emoji)
         return found.name if found else None
