@@ -1,8 +1,3 @@
-import truststore
-
-truststore.inject_into_ssl()
-
-
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
