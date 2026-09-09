@@ -10,7 +10,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse
-from rich.logging import RichHandler
 
 from background import fire_and_forget
 from config import settings
@@ -20,8 +19,12 @@ from errors import report
 from init import bot
 from services import http_client
 
+# The level and the logger name are in the line rather than in a handler's
+# columns: these are read in Railway's log viewer, which renders neither.
 logging.basicConfig(
-    level=logging.INFO, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-8s %(name)s %(message)s",
+    datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
