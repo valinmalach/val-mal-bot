@@ -312,71 +312,36 @@ async def process_webhook[E: BaseModel](
         raise HTTPException(status_code=500) from e
 
 
-@twitch_router.post("/webhook/twitch")
-async def stream_online_webhook(request: Request) -> Response:
-    return await process_webhook(
-        request,
-        "/webhook/twitch",
-        StreamOnlineEventSub,
-        events.stream_online,
-    )
+def _route[E: BaseModel](
+    path: str,
+    event_model: type[E],
+    task_func: Callable[[E], Coroutine[Any, Any, None]],
+) -> None:
+    """Register one webhook route, with the path written once.
+
+    Generic for the reason process_webhook is: a route whose model and handler
+    disagree has to fail type-checking rather than at the first delivery. The
+    path was previously given twice per route, in the decorator and again as
+    the endpoint the notices name, where the two could drift apart.
+    """
+
+    async def webhook(request: Request) -> Response:
+        return await process_webhook(request, path, event_model, task_func)
+
+    # Applied as a call rather than as a decorator: every route's function is
+    # named "webhook", so each needs a name of its own for url_for and the
+    # OpenAPI operation ids to stay distinct.
+    twitch_router.post(path, name=path)(webhook)
 
 
-@twitch_router.post("/webhook/twitch/offline")
-async def stream_offline_webhook(request: Request) -> Response:
-    return await process_webhook(
-        request,
-        "/webhook/twitch/offline",
-        StreamOfflineEventSub,
-        events.stream_offline,
-    )
-
-
-@twitch_router.post("/webhook/twitch/chat")
-async def channel_chat_message_webhook(request: Request) -> Response:
-    return await process_webhook(
-        request,
-        "/webhook/twitch/chat",
-        ChannelChatMessageEventSub,
-        events.channel_chat_message,
-    )
-
-
-@twitch_router.post("/webhook/twitch/follow")
-async def channel_follow_webhook(request: Request) -> Response:
-    return await process_webhook(
-        request,
-        "/webhook/twitch/follow",
-        ChannelFollowEventSub,
-        events.channel_follow,
-    )
-
-
-@twitch_router.post("/webhook/twitch/adbreak")
-async def channel_ad_break_begin_webhook(request: Request) -> Response:
-    return await process_webhook(
-        request,
-        "/webhook/twitch/adbreak",
-        ChannelAdBreakBeginEventSub,
-        events.channel_ad_break_begin,
-    )
-
-
-@twitch_router.post("/webhook/twitch/raid")
-async def channel_raid_webhook(request: Request) -> Response:
-    return await process_webhook(
-        request,
-        "/webhook/twitch/raid",
-        ChannelRaidEventSub,
-        events.channel_raid,
-    )
-
-
-@twitch_router.post("/webhook/twitch/moderate")
-async def channel_moderate_webhook(request: Request) -> Response:
-    return await process_webhook(
-        request,
-        "/webhook/twitch/moderate",
-        ChannelModerateEventSub,
-        events.channel_moderate,
-    )
+_route("/webhook/twitch", StreamOnlineEventSub, events.stream_online)
+_route("/webhook/twitch/offline", StreamOfflineEventSub, events.stream_offline)
+_route("/webhook/twitch/chat", ChannelChatMessageEventSub, events.channel_chat_message)
+_route("/webhook/twitch/follow", ChannelFollowEventSub, events.channel_follow)
+_route(
+    "/webhook/twitch/adbreak",
+    ChannelAdBreakBeginEventSub,
+    events.channel_ad_break_begin,
+)
+_route("/webhook/twitch/raid", ChannelRaidEventSub, events.channel_raid)
+_route("/webhook/twitch/moderate", ChannelModerateEventSub, events.channel_moderate)
