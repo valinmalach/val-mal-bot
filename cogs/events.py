@@ -19,14 +19,11 @@ from pendulum import DateTime
 
 from db import repository
 from errors import report
-from services import (
-    audit,
-    get_discriminator,
-    get_ordinal_suffix,
-    get_pfp,
-    send_embed,
-)
+from services import audit
 from services.config import config
+from services.duration import get_ordinal_suffix
+from services.present import get_discriminator, get_pfp
+from services.send import send_embed
 
 
 class Events(Cog):

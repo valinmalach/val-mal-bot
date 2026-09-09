@@ -27,13 +27,13 @@ from models import (
     StreamOfflineEventSub,
     StreamOnlineEventSub,
 )
-from services import (
+from services.twitch import events
+from services.twitch.signature import (
     get_hmac,
     get_hmac_message,
     parse_rfc3339,
     verify_message,
 )
-from services.twitch import events
 
 logger = logging.getLogger(__name__)
 

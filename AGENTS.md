@@ -179,10 +179,16 @@ path could never have been `began`.
 to hold sending, presentation, durations, birthdays, roles and webhook
 signatures. They are now `send.py`, `present.py`, `duration.py`, `birthday.py`,
 `roles.py` and `services/twitch/signature.py` — the last where it belongs, since
-none of it was ever about Discord. `services/__init__.py` re-exports the same
-names, so a consumer that went through the facade never noticed. The `helper/`
-package went with them: it was left holding one module, and a directory is not
-a subject.
+none of it was ever about Discord. The `helper/` package went with them: it was
+left holding one module, and a directory is not a subject.
+
+**A name is imported from the module that owns it.** `services/__init__.py` and
+`db/__init__.py` re-exported everything beneath them, which is what let the
+split above land without touching a consumer — a migration convenience, and it
+outlived the migration. Both are docstrings now, so `from services import
+send_embed` is `from services.send import send_embed` and a reader lands on the
+file that defines it. `db/models/__init__.py` still re-exports, because
+importing it is what registers the tables on the metadata Alembic reads.
 
 **Escaping depends on where the text lands, not on whether it is untrusted.**
 `discord.utils.escape_markdown` escapes `*`, `_`, `~`, `|` and a backtick, and

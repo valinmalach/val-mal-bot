@@ -15,14 +15,14 @@ from discord.utils import escape_markdown
 
 from constants import TokenType
 from errors import report
-from services import (
+from services.config import config
+from services.send import send_embed
+from services.twitch.api import (
     get_subscriptions,
     get_users,
-    send_embed,
     subscribe_to_user,
     unsubscribe_to_user,
 )
-from services.config import config
 from services.twitch.helix import HelixError
 from services.twitch.oauth import create_authorization_start_url
 from views import role_panels
