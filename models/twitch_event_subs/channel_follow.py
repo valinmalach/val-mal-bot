@@ -2,17 +2,9 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from .common import Subscription
 
-
-class ChannelFollowCondition(BaseModel):
-    broadcaster_user_id: str
-    moderator_user_id: str
-
-
-class ChannelFollowSubscription(Subscription):
+class ChannelFollowSubscription(BaseModel):
     type: Literal["channel.follow"]
-    condition: ChannelFollowCondition
 
 
 class ChannelFollowEvent(BaseModel):

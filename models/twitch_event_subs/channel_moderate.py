@@ -2,17 +2,9 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from .common import Subscription
 
-
-class ChannelModerateCondition(BaseModel):
-    broadcaster_user_id: str
-    moderator_user_id: str
-
-
-class ChannelModerateSubscription(Subscription):
+class ChannelModerateSubscription(BaseModel):
     type: Literal["channel.moderate"]
-    condition: ChannelModerateCondition
 
 
 class ChannelModerateEvent(BaseModel):

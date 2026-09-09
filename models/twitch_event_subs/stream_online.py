@@ -2,16 +2,9 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from .common import Subscription
 
-
-class StreamOnlineCondition(BaseModel):
-    broadcaster_user_id: str
-
-
-class StreamOnlineSubscription(Subscription):
+class StreamOnlineSubscription(BaseModel):
     type: Literal["stream.online"]
-    condition: StreamOnlineCondition
 
 
 class StreamOnlineEvent(BaseModel):

@@ -104,11 +104,20 @@ webhook controller, not the signature check, the models, or the path prefix.
 
 **A webhook route's model says which event it serves.** Each `*Subscription`
 declares its own `type` as a `Literal`, so a payload for the wrong event fails to
-parse instead of being compared against a string passed in beside it, and the
-shared base carries no `type` at all — a mutable `str` there could not be narrowed
-to a `Literal` soundly. `process_webhook` is generic in the model, which binds it
-to its handler: pairing `StreamOnlineEventSub` with the follow handler stops
-type-checking, where before both parameters were unannotated and so `Any`.
+parse instead of being compared against a string passed in beside it. That
+`Literal` is the *whole* reason the subscription is modelled: nothing reads
+`event_sub.subscription`, so there is no base class, no `condition`, and none of
+the `id`/`status`/`cost` fields Twitch sends beside them. `process_webhook` is
+generic in the model, which binds it to its handler: pairing
+`StreamOnlineEventSub` with the follow handler stops type-checking, where before
+both parameters were unannotated and so `Any`.
+
+**An event models the fields its handler reads, and no more.** Pydantic ignores
+what is not declared, so the rest is ballast that has to be maintained against
+Twitch's docs and can only fail. A field is `str` rather than a `Literal` of the
+values Twitch documents unless something branches on all of them: a value Twitch
+adds would otherwise fail validation, and a 400 spends the subscription's failure
+budget exactly as a 500 does.
 
 **A signed delivery is also checked for freshness, and dispatched at most once.**
 A timestamp more than ten minutes from now in either direction is refused with a

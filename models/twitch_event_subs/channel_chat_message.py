@@ -2,17 +2,11 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from .common import Badge, Message, Subscription
+from .common import Badge, Message
 
 
-class ChannelChatMessageCondition(BaseModel):
-    broadcaster_user_id: str
-    user_id: str
-
-
-class ChannelChatMessageSubscription(Subscription):
+class ChannelChatMessageSubscription(BaseModel):
     type: Literal["channel.chat.message"]
-    condition: ChannelChatMessageCondition
 
 
 class ChannelChatMessageEvent(BaseModel):
