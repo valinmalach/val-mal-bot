@@ -15,8 +15,8 @@ from db.models import OAuthToken, OAuthTokenKey
 from db.session import session_scope
 from errors import notify
 from models import AuthResponse, RefreshResponse
-from services.config import config
 from services.http_client import client
+from services.twitch.oauth import configured_scopes
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +167,17 @@ class TwitchTokenManager:
         return await self._guarded(TokenType.App, self._refresh_app_access_token)
 
     async def _refresh_app_access_token(self) -> bool:
-        scopes = cast("list[str]", config.setting("twitch_app_scopes", []))
+        try:
+            # Validated, not cast: the value is a JSON column somebody edits,
+            # and a cast only tells the type checker to stop asking. The same
+            # check the authorization-code flow makes, in the one place that
+            # owns it.
+            scopes = configured_scopes()
+        except RuntimeError as e:
+            logger.error(f"Cannot refresh the app token: {e}")
+            await notify(f"Cannot refresh the app token: {e}", key="app-scopes-invalid")
+            return False
+
         params = {
             "client_id": settings.twitch_client_id,
             "client_secret": settings.twitch_client_secret,
