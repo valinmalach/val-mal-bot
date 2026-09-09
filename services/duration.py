@@ -11,9 +11,14 @@ def _unit(value: int, name: str) -> str:
 def get_age(date_time: DateTime, limit_units: int = -1) -> str:
     """The distance from now, largest unit first, e.g. "2 months, 3 days".
 
-    Anything a year or a month old is said in years, months and days; below
-    that, days down to seconds. Zero of a unit is dropped, so the string never
-    leads with "0 hours" -- except when everything is zero, which is "0 seconds".
+    Anything a year or a month old is said in years, months, weeks and days;
+    below that, weeks down to seconds. Zero of a unit is dropped, so the string
+    never leads with "0 hours" -- except when everything is zero, which is
+    "0 seconds".
+
+    weeks is asked for explicitly because remaining_days is the remainder after
+    them: a three-week-old thing has remaining_days == 0, and reading only that
+    called it "0 seconds".
     """
     now = pendulum.now("UTC")
     age = now - date_time if date_time <= now else date_time - now
@@ -22,10 +27,12 @@ def get_age(date_time: DateTime, limit_units: int = -1) -> str:
         units = [
             (age.years, "year"),
             (age.months, "month"),
+            (age.weeks, "week"),
             (age.remaining_days, "day"),
         ]
     else:
         units = [
+            (age.weeks, "week"),
             (age.remaining_days, "day"),
             (age.hours, "hour"),
             (age.minutes, "minute"),
