@@ -11,15 +11,16 @@ import contextlib
 import logging
 from enum import Enum, auto
 
+import aiohttp
 import discord
 import pendulum
 
 from background import fire_and_forget
-from db import LiveAlert, repository
+from db import repository
+from db.models import LiveAlert
 from errors import notify, report
 from models import Stream, User, Video
 from services.duration import get_age
-from services.helper.http_client import is_transient_network_error
 from services.send import edit_embed, send_embed
 from services.twitch import stream_session
 from services.twitch.api import get_channel, get_stream, get_stream_vod, get_user
@@ -92,12 +93,14 @@ def _decide(
 
 
 def _is_transient_edit_error(e: Exception) -> bool:
-    """Discord edits fail transiently on 5xx replies and on dropped sockets."""
-    if isinstance(e, discord.HTTPException) and 500 <= e.status < 600:
-        return True
-    if is_transient_network_error(e):
-        return True
-    return "clientoserror" in f"{type(e).__name__} {e}".lower()
+    """Discord edits fail transiently on 5xx replies and on dropped sockets.
+
+    aiohttp because that is what discord.py sends on: a dropped socket arrives
+    as one of its ClientError subclasses, not as anything discord.py names.
+    """
+    if isinstance(e, discord.HTTPException):
+        return 500 <= e.status < 600
+    return isinstance(e, (aiohttp.ClientError, TimeoutError))
 
 
 async def _forget_row(broadcaster_id: int, message_id: int) -> None:

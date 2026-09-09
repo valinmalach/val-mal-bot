@@ -2,16 +2,9 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from .common import Subscription
 
-
-class ChannelAdBreakBeginCondition(BaseModel):
-    broadcaster_user_id: str
-
-
-class ChannelAdBreakBeginSubscription(Subscription):
+class ChannelAdBreakBeginSubscription(BaseModel):
     type: Literal["channel.ad_break.begin"]
-    condition: ChannelAdBreakBeginCondition
 
 
 class ChannelAdBreakBeginEvent(BaseModel):

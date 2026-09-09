@@ -1,4 +1,5 @@
 import logging
+import re
 
 import discord
 from discord import (
@@ -10,17 +11,18 @@ from discord import (
     app_commands,
 )
 from discord.ext.commands import Bot, Cog
+from discord.utils import escape_markdown
 
 from constants import TokenType
 from errors import report
-from services import (
+from services.config import config
+from services.send import send_embed
+from services.twitch.api import (
     get_subscriptions,
     get_users,
-    send_embed,
     subscribe_to_user,
     unsubscribe_to_user,
 )
-from services.config import config
 from services.twitch.helix import HelixError
 from services.twitch.oauth import create_authorization_start_url
 from views import role_panels
@@ -28,6 +30,33 @@ from views import role_panels
 logger = logging.getLogger(__name__)
 
 _PURGE_MESSAGE_LIMIT_MAX = 500
+
+# A Twitch login is 4-25 characters of ASCII letter, digit and underscore.
+# Anything else cannot name a user, so it is refused here rather than sent to
+# Helix and then echoed back into a channel.
+_TWITCH_LOGIN = re.compile(r"[A-Za-z0-9_]{4,25}")
+
+# What is echoed back when the input was refused, so the person can see their
+# typo. Capped because the value is theirs, not Twitch's.
+_MAX_ECHOED_LOGIN = 50
+
+
+def _login(value: str) -> str | None:
+    """The Twitch login this names, or None. Leading @ is how people type one."""
+    candidate = value.strip().removeprefix("@")
+    return candidate if _TWITCH_LOGIN.fullmatch(candidate) else None
+
+
+async def _refuse_login(interaction: Interaction, value: str) -> None:
+    # Escaped and stripped of mentions: this is the one string here that carries
+    # what somebody typed. A login that passed _login cannot need either, except
+    # for the underscore escape_markdown adds.
+    await interaction.response.send_message(
+        f"`{escape_markdown(value[:_MAX_ECHOED_LOGIN])}` is not a Twitch username:"
+        " 4-25 characters, letters, digits and underscore.",
+        ephemeral=True,
+        allowed_mentions=discord.AllowedMentions.none(),
+    )
 
 
 class Admin(Cog):
@@ -233,19 +262,24 @@ class Admin(Cog):
         username="The username of the user to subscribe to",
     )
     async def subscribe(self, interaction: Interaction, username: str) -> None:
+        login = _login(username)
+        if login is None:
+            await _refuse_login(interaction, username)
+            return
+
         try:
-            found = await subscribe_to_user(username)
+            found = await subscribe_to_user(login)
         except HelixError as e:
-            await report(e, f"Failed to subscribe {username}")
+            await report(e, f"Failed to subscribe {login}")
             await interaction.response.send_message(
-                content=f"Could not reach Twitch to subscribe {username}"
+                content=f"Could not reach Twitch to subscribe {escape_markdown(login)}"
             )
             return
 
         await interaction.response.send_message(
-            content=f"Subscribed to {username}"
+            content=f"Subscribed to {escape_markdown(login)}"
             if found
-            else f"No Twitch user called {username}"
+            else f"No Twitch user called {escape_markdown(login)}"
         )
 
     @app_commands.command(
@@ -256,19 +290,24 @@ class Admin(Cog):
         username="The username of the user to unsubscribe from",
     )
     async def unsubscribe(self, interaction: Interaction, username: str) -> None:
+        login = _login(username)
+        if login is None:
+            await _refuse_login(interaction, username)
+            return
+
         try:
-            found = await unsubscribe_to_user(username)
+            found = await unsubscribe_to_user(login)
         except HelixError as e:
-            await report(e, f"Failed to unsubscribe {username}")
+            await report(e, f"Failed to unsubscribe {login}")
             await interaction.response.send_message(
-                content=f"Could not reach Twitch to unsubscribe {username}"
+                content=f"Could not reach Twitch to unsubscribe {escape_markdown(login)}"
             )
             return
 
         await interaction.response.send_message(
-            content=f"Unsubscribed from {username}"
+            content=f"Unsubscribed from {escape_markdown(login)}"
             if found
-            else f"No Twitch user called {username}"
+            else f"No Twitch user called {escape_markdown(login)}"
         )
 
 

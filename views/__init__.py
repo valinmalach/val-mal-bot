@@ -29,7 +29,7 @@ class RolePickerView(View):
 
 def _toggle(button: Button[View]):
     async def callback(interaction: Interaction) -> None:
-        from services import roles_button_pressed
+        from services.roles import roles_button_pressed
 
         await roles_button_pressed(interaction, button)
 

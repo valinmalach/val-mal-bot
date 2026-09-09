@@ -6,6 +6,7 @@ it is not. Two implementations of this disagreed once and wrote dates that had
 already passed.
 """
 
+from calendar import isleap
 from datetime import datetime
 from functools import cache
 
@@ -16,13 +17,8 @@ from constants import Months
 
 
 @cache
-def _is_leap_year(year: int) -> bool:
-    return (year % 400 == 0) or (year % 100 != 0) and (year % 4 == 0)
-
-
-@cache
 def _next_leap_year(year: int) -> int:
-    while not _is_leap_year(year):
+    while not isleap(year):
         year += 1
     return year
 

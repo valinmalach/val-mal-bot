@@ -8,11 +8,12 @@ synchronous because the call sites are everywhere and mostly not async.
 import json
 import logging
 import re
-from typing import Any
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from sqlalchemy import select
 
-from db import (
+from db.models import (
     AppSetting,
     AutoResponseMatch,
     DiscordAutoResponse,
@@ -155,9 +156,6 @@ class ConfigCache:
         except KeyError:
             raise KeyError(f"No discord_role row keyed {key!r}") from None
 
-    def role_name(self, key: str) -> str:
-        return self._roles[key].name
-
     def role_name_for_emoji(self, emoji: str) -> str | None:
         found = self._roles_by_emoji.get(emoji)
         return found.name if found else None
@@ -215,15 +213,14 @@ class ConfigCache:
         for row in self._auto_responses:
             subject = content if row.case_sensitive else content.lower()
             trigger = row.trigger if row.case_sensitive else row.trigger.lower()
-            matched = (
+            if (
                 (row.match_type is AutoResponseMatch.EXACT and subject == trigger)
                 or (
                     row.match_type is AutoResponseMatch.PREFIX
                     and subject.startswith(trigger)
                 )
                 or (row.match_type is AutoResponseMatch.CONTAINS and trigger in subject)
-            )
-            if matched:
+            ):
                 return row.response
         return None
 
@@ -251,8 +248,13 @@ def _coerce(setting: AppSetting) -> Any:
 
 config = ConfigCache()
 
+# Not a PEP 695 parameter list: Sourcery 1.45 silently analyses nothing in a
+# file that has one, so the custom rules stop guarding it and say so by
+# reporting clean.
+_CheckT = TypeVar("_CheckT")
 
-def has_configured_role(key: str):
+
+def has_configured_role(key: str) -> Callable[[_CheckT], _CheckT]:
     """An app command check against a role whose ID lives in the database.
 
     Resolved when the command runs, so the ID can change without a redeploy --

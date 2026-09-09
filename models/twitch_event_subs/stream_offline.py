@@ -2,16 +2,9 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from .common import Subscription
 
-
-class StreamOfflineCondition(BaseModel):
-    broadcaster_user_id: str
-
-
-class StreamOfflineSubscription(Subscription):
+class StreamOfflineSubscription(BaseModel):
     type: Literal["stream.offline"]
-    condition: StreamOfflineCondition
 
 
 class StreamOfflineEvent(BaseModel):

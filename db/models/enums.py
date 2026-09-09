@@ -2,7 +2,7 @@
 
 from enum import Enum
 
-__all__ = ["AutoResponseMatch", "OAuthTokenKey", "SettingValueType"]
+__all__ = ["AutoResponseMatch", "SettingValueType"]
 
 
 class SettingValueType(str, Enum):
@@ -20,14 +20,3 @@ class AutoResponseMatch(str, Enum):
     EXACT = "exact"
     PREFIX = "prefix"
     CONTAINS = "contains"
-
-
-class OAuthTokenKey(str, Enum):
-    """Which Twitch identity a stored token belongs to.
-
-    Mirrors ``constants.TokenType``; the two should converge on this one.
-    """
-
-    APP = "app"
-    USER = "user"
-    BROADCASTER = "broadcaster"

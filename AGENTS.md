@@ -20,13 +20,46 @@ uv run alembic upgrade head                        # schema and the configuratio
 uv run main.py                                     # run the bot (uvicorn on PORT, default 8000)
 ```
 
-Checks, all three clean before committing:
+Checks, all four clean before committing, and **in this order**:
 
 ```sh
+sourcery review --fix .                            # apply what it can fix mechanically
+sourcery review --check .                          # what is left needs a person
+uvx ruff format . --exclude .venv
 uvx ruff check . --exclude .venv
-uvx ruff format --check . --exclude .venv
 uvx pyright                                        # the [tool.pyright] settings Pylance also reads
 ```
+
+**Sourcery runs first because its fixes are not guaranteed to satisfy the other
+three.** `use-named-expression` rewrote an `if matched:` into a walrus whose
+variable nothing then read — a ruff `F841` *and* a format violation, from a tool
+that had just reported itself clean. Running ruff afterwards is what catches that;
+running it first only means doing it twice.
+
+**A finding `--fix` cannot repair is yours to address, not to skip.** Sourcery
+leaves the judgement calls — a long function, a name that says its own type —
+and silence from `--check` is the only clean state. If a rule is genuinely wrong
+for this repo, disable it by id in `.sourcery.yaml` with the reason, so the next
+run does not re-raise it.
+
+`.sourcery.yaml` carries four custom rules for conventions the other tools cannot
+see: a bare `create_task`, the audit channel outside `services/audit.py`, a chat
+send outside `services/twitch/chat.py`, and `str.format` on database text. Each
+excludes the one file that legitimately does the thing, and those exclusions are
+relative to the config file — moving it breaks them silently. The Google style
+set (`sourcery review --enable gpsg .`) is deliberately not enabled: 232 of its
+272 findings here are the docstring mandate the comment convention below rejects.
+It is worth running by hand occasionally for the dozen findings that are not.
+
+**A PEP 695 parameter list blinds Sourcery to the whole file, silently.** Sourcery
+1.45 returns no pattern-rule findings at all for a file containing `def f[T]`,
+`class C[T]` or `type X = ...` — no parse error, no warning, and a clean report
+that reads exactly like a clean file. Worse, it is partial: structural rules such
+as `no-long-functions` still fire, so the output looks normal while every custom
+rule above has stopped guarding that file. `controller/twitch.py` is in this state
+today because `_route[E: BaseModel]` is worth more than the coverage; nothing else
+should join it without knowing the trade. `has_configured_role` uses a module-level
+`TypeVar` for exactly this reason — it needs the annotation and the coverage both.
 
 Migrations — see `db/README.md` for the rules:
 
@@ -41,9 +74,9 @@ uv run alembic current
 On Windows `--sql` needs `PYTHONIOENCODING=utf-8`: some seeded text is emoji.
 
 **There is no test suite** — no pytest, no test files, no CI workflow. Verification
-is the three checks above plus running the bot, so do not describe a change as tested.
+is the four checks above plus running the bot, so do not describe a change as tested.
 
-A fourth gate runs at commit time. `git commit` is intercepted by Verity, which
+A fifth gate runs at commit time. `git commit` is intercepted by Verity, which
 analyses the staged diff and can block the commit. It is a Claude Code hook, not a
 git hook — there is nothing in `.git/hooks`, and it does not fire for other tools.
 Its rules, and the narrow circumstances in which a finding may be waived, live in
@@ -104,11 +137,20 @@ webhook controller, not the signature check, the models, or the path prefix.
 
 **A webhook route's model says which event it serves.** Each `*Subscription`
 declares its own `type` as a `Literal`, so a payload for the wrong event fails to
-parse instead of being compared against a string passed in beside it, and the
-shared base carries no `type` at all — a mutable `str` there could not be narrowed
-to a `Literal` soundly. `process_webhook` is generic in the model, which binds it
-to its handler: pairing `StreamOnlineEventSub` with the follow handler stops
-type-checking, where before both parameters were unannotated and so `Any`.
+parse instead of being compared against a string passed in beside it. That
+`Literal` is the *whole* reason the subscription is modelled: nothing reads
+`event_sub.subscription`, so there is no base class, no `condition`, and none of
+the `id`/`status`/`cost` fields Twitch sends beside them. `process_webhook` is
+generic in the model, which binds it to its handler: pairing
+`StreamOnlineEventSub` with the follow handler stops type-checking, where before
+both parameters were unannotated and so `Any`.
+
+**An event models the fields its handler reads, and no more.** Pydantic ignores
+what is not declared, so the rest is ballast that has to be maintained against
+Twitch's docs and can only fail. A field is `str` rather than a `Literal` of the
+values Twitch documents unless something branches on all of them: a value Twitch
+adds would otherwise fail validation, and a 400 spends the subscription's failure
+budget exactly as a 500 does.
 
 **A signed delivery is also checked for freshness, and dispatched at most once.**
 A timestamp more than ten minutes from now in either direction is refused with a
@@ -170,8 +212,16 @@ path could never have been `began`.
 to hold sending, presentation, durations, birthdays, roles and webhook
 signatures. They are now `send.py`, `present.py`, `duration.py`, `birthday.py`,
 `roles.py` and `services/twitch/signature.py` — the last where it belongs, since
-none of it was ever about Discord. `services/__init__.py` re-exports the same
-names, so a consumer that went through the facade never noticed.
+none of it was ever about Discord. The `helper/` package went with them: it was
+left holding one module, and a directory is not a subject.
+
+**A name is imported from the module that owns it.** `services/__init__.py` and
+`db/__init__.py` re-exported everything beneath them, which is what let the
+split above land without touching a consumer — a migration convenience, and it
+outlived the migration. Both are docstrings now, so `from services import
+send_embed` is `from services.send import send_embed` and a reader lands on the
+file that defines it. `db/models/__init__.py` still re-exports, because
+importing it is what registers the tables on the metadata Alembic reads.
 
 **Escaping depends on where the text lands, not on whether it is untrusted.**
 `discord.utils.escape_markdown` escapes `*`, `_`, `~`, `|` and a backtick, and

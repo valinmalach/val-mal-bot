@@ -2,6 +2,8 @@ from enum import Enum
 
 from pydantic import BaseModel
 
+from .pagination import Pagination
+
 
 class VideoType(str, Enum):
     archive = "archive"
@@ -32,10 +34,6 @@ class Video(BaseModel):
     type: VideoType
     duration: str
     muted_segments: list[MutedSegment] | None = None
-
-
-class Pagination(BaseModel):
-    cursor: str | None = None
 
 
 class VideoResponse(BaseModel):

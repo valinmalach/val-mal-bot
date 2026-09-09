@@ -7,10 +7,12 @@ from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
 from discord.utils import escape_markdown
 
-from db import DiscordUser, repository
+from db import repository
+from db.models import DiscordUser
 from errors import notify, report
-from services import next_birthday, send_message
+from services.birthday import next_birthday
 from services.config import config
+from services.send import send_message
 from services.twitch.api import broken_subscriptions
 from services.twitch.helix import HelixError
 

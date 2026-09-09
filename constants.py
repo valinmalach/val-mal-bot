@@ -1,3 +1,4 @@
+from calendar import monthrange
 from enum import Enum
 
 TWITCH_MESSAGE_ID = "Twitch-Eventsub-Message-Id"
@@ -30,20 +31,10 @@ class Months(Enum):
     December = 12
 
 
-MAX_DAYS = {
-    Months.January: 31,
-    Months.February: 29,
-    Months.March: 31,
-    Months.April: 30,
-    Months.May: 31,
-    Months.June: 30,
-    Months.July: 31,
-    Months.August: 31,
-    Months.September: 30,
-    Months.October: 31,
-    Months.November: 30,
-    Months.December: 31,
-}
+# The longest that month can ever be, so 29 February is accepted and the year
+# it lands in is settled later, by services/birthday. A leap year is passed in
+# for exactly that reason.
+MAX_DAYS = {month: monthrange(2024, month.value)[1] for month in Months}
 
 
 class TokenType(str, Enum):

@@ -11,24 +11,18 @@ from sqlalchemy.dialects.postgresql import insert
 
 from config import settings
 from constants import TokenType
-from db import OAuthToken, OAuthTokenKey
+from db.models import OAuthToken
 from db.session import session_scope
 from errors import notify
 from models import AuthResponse, RefreshResponse
-from services.config import config
-from services.helper.http_client import http_client_manager
+from services.http_client import client
+from services.twitch.oauth import configured_scopes
 
 logger = logging.getLogger(__name__)
 
 # Treat a token as due slightly before Twitch actually expires it, so a request
 # already in flight cannot cross the boundary.
 _EXPIRY_MARGIN_SECONDS = 60
-
-_KEYS = {
-    TokenType.App: OAuthTokenKey.APP,
-    TokenType.User: OAuthTokenKey.USER,
-    TokenType.Broadcaster: OAuthTokenKey.BROADCASTER,
-}
 
 
 class TwitchTokenManager:
@@ -58,8 +52,8 @@ class TwitchTokenManager:
         expires_at: dict[TokenType, pendulum.DateTime] = {}
 
         by_key = {row.key: row for row in rows}
-        for token_type, key in _KEYS.items():
-            row = by_key.get(key)
+        for token_type in TokenType:
+            row = by_key.get(token_type)
             if row is None:
                 continue
             access[token_type] = row.access_token
@@ -93,7 +87,7 @@ class TwitchTokenManager:
             self._expires_at[token_type] = expires_at
 
         values = {
-            "key": _KEYS[token_type],
+            "key": token_type,
             "access_token": access_token,
             "refresh_token": refresh_token or self._refresh.get(token_type),
             "expires_at": expires_at,
@@ -122,18 +116,6 @@ class TwitchTokenManager:
 
     def token(self, token_type: TokenType) -> str:
         return self._access.get(token_type, "")
-
-    @property
-    def app_access_token(self) -> str:
-        return self.token(TokenType.App)
-
-    @property
-    def user_access_token(self) -> str:
-        return self.token(TokenType.User)
-
-    @property
-    def broadcaster_access_token(self) -> str:
-        return self.token(TokenType.Broadcaster)
 
     async def _guarded(
         self, token_type: TokenType, refresh: Callable[[], Awaitable[bool]]
@@ -167,14 +149,24 @@ class TwitchTokenManager:
         return await self._guarded(TokenType.App, self._refresh_app_access_token)
 
     async def _refresh_app_access_token(self) -> bool:
-        scopes = cast("list[str]", config.setting("twitch_app_scopes", []))
+        try:
+            # Validated, not cast: the value is a JSON column somebody edits,
+            # and a cast only tells the type checker to stop asking. The same
+            # check the authorization-code flow makes, in the one place that
+            # owns it.
+            scopes = configured_scopes()
+        except RuntimeError as e:
+            logger.error(f"Cannot refresh the app token: {e}")
+            await notify(f"Cannot refresh the app token: {e}", key="app-scopes-invalid")
+            return False
+
         params = {
             "client_id": settings.twitch_client_id,
             "client_secret": settings.twitch_client_secret,
             "grant_type": "client_credentials",
             "scope": " ".join(scopes),
         }
-        response = await http_client_manager.request(
+        response = await client().request(
             "POST", "https://id.twitch.tv/oauth2/token", params=params
         )
 
@@ -248,7 +240,7 @@ class TwitchTokenManager:
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
         }
-        response = await http_client_manager.request(
+        response = await client().request(
             "POST", "https://id.twitch.tv/oauth2/token", data=params
         )
 

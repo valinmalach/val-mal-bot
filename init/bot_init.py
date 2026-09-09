@@ -57,7 +57,7 @@ class MyBot(Bot):
             self.add_view(view)
 
     async def close(self) -> None:
-        from db import dispose_engine
+        from db.session import dispose_engine
 
         await super().close()
         await dispose_engine()

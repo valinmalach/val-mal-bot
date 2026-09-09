@@ -8,7 +8,6 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from config import settings
 
 ASYNC_DRIVER = "postgresql+asyncpg"
-SYNC_DRIVER = "postgresql+psycopg2"
 
 _POSTGRES_SCHEMES = (
     "postgresql+asyncpg",
@@ -39,27 +38,11 @@ _SSLMODE_TO_ASYNCPG_SSL = {
 }
 
 
-def normalize_database_url(url: str, *, driver: str = ASYNC_DRIVER) -> str:
-    """Point a Postgres URL at an explicit SQLAlchemy driver.
-
-    Railway's ``postgresql://`` names no DBAPI and carries options asyncpg rejects.
-    """
-    parts = urlsplit(url)
-    if parts.scheme not in _POSTGRES_SCHEMES:
-        return url
-
-    query = _translate_query(parts.query, driver=driver)
-    return urlunsplit((driver, parts.netloc, parts.path, query, parts.fragment))
-
-
-def _translate_query(query: str, *, driver: str) -> str:
+def _translate_query(query: str) -> str:
     if not query:
         return query
 
     params = parse_qsl(query, keep_blank_values=True)
-    if driver != ASYNC_DRIVER:
-        return urlencode(params)
-
     translated = [
         (key, value) for key, value in params if key not in _LIBPQ_ONLY_PARAMS
     ]
@@ -67,11 +50,28 @@ def _translate_query(query: str, *, driver: str) -> str:
         (value for key, value in params if key == "sslmode"),
         None,
     )
-    if sslmode and not any(key == "ssl" for key, _ in translated):
+    if sslmode and all(key != "ssl" for key, _ in translated):
         translated.append(("ssl", _SSLMODE_TO_ASYNCPG_SSL.get(sslmode, sslmode)))
     return urlencode(translated)
 
 
-def get_database_url(*, driver: str = ASYNC_DRIVER) -> str:
-    """Return the configured database URL, ready for ``create_engine``."""
-    return normalize_database_url(settings.database_url, driver=driver)
+def get_database_url() -> str:
+    """The configured database URL, pointed at asyncpg and ready for an engine.
+
+    Railway's ``postgresql://`` names no DBAPI and carries options asyncpg
+    rejects. Alembic runs on the same async engine, so there is one driver here
+    and no caller has ever asked for another.
+    """
+    parts = urlsplit(settings.database_url)
+    if parts.scheme not in _POSTGRES_SCHEMES:
+        return settings.database_url
+
+    return urlunsplit(
+        (
+            ASYNC_DRIVER,
+            parts.netloc,
+            parts.path,
+            _translate_query(parts.query),
+            parts.fragment,
+        )
+    )

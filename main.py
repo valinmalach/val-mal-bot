@@ -1,17 +1,10 @@
-import truststore
-
-truststore.inject_into_ssl()
-
-
 import asyncio
 import logging
-import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Response
-from fastapi.responses import FileResponse, PlainTextResponse
-from rich.logging import RichHandler
+from fastapi import FastAPI, Response
+from fastapi.responses import PlainTextResponse
 
 from background import fire_and_forget
 from config import settings
@@ -19,10 +12,14 @@ from constants import COGS
 from controller import twitch_oauth_router, twitch_router
 from errors import report
 from init import bot
-from services.helper.http_client import http_client_manager
+from services import http_client
 
+# The level and the logger name are in the line rather than in a handler's
+# columns: these are read in Railway's log viewer, which renders neither.
 logging.basicConfig(
-    level=logging.INFO, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-8s %(name)s %(message)s",
+    datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -61,19 +58,12 @@ async def main() -> None:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     fire_and_forget(main(), name="bot")
     yield
-    await http_client_manager.close()
+    await http_client.aclose()
 
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(twitch_router)
 app.include_router(twitch_oauth_router)
-
-
-def static_file_response(filename: str) -> Response:
-    if not os.path.exists(filename):
-        logger.warning(f"{filename} file not found, returning empty response")
-        raise HTTPException(status_code=404)
-    return FileResponse(filename)
 
 
 @app.get("/")
@@ -84,16 +74,6 @@ async def root() -> Response:
 @app.get("/health")
 async def health() -> Response:
     return PlainTextResponse("Healthy")
-
-
-@app.get("/robots.txt")
-async def robots_txt() -> Response:
-    return static_file_response("robots.txt")
-
-
-@app.get("/favicon.ico")
-async def favicon() -> Response:
-    return static_file_response("favicon.ico")
 
 
 if __name__ == "__main__":

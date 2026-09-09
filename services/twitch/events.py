@@ -53,7 +53,7 @@ async def _wait_for_stream_info(
             stream_info = await get_stream(broadcaster_id)
         except HelixError as e:
             last_error = e
-            logger.warning(f"Stream lookup failed for {broadcaster_id}: {e}")
+            logger.warning(f"Stream lookup failed for {broadcaster_id}: {last_error}")
             stream_info = None
 
         if stream_info:

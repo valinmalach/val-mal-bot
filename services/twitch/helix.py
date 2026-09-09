@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from config import settings
 from constants import TokenType
-from services.helper.http_client import http_client_manager, is_transient_network_error
+from services.http_client import client
 from services.twitch.token_manager import token_manager
 
 logger = logging.getLogger(__name__)
@@ -26,6 +26,11 @@ _MAX_ATTEMPTS = 3
 _BACKOFF_SECONDS = 1.0
 
 Method = Literal["GET", "POST", "DELETE"]
+
+# Worth another attempt: the request never reached Twitch, or the connection
+# died mid-reply. Not the rest of httpx.TransportError -- an unsupported scheme
+# or a malformed request of ours fails again identically.
+_TRANSIENT = (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError)
 
 # Repeating a read or a delete costs nothing; repeating a POST can send a second
 # chat message. docs/adr/0002-helix-posts-are-not-retried.md has the why.
@@ -89,7 +94,7 @@ async def _send(
     params: dict[str, Any] | None,
     json: dict[str, Any] | None,
 ) -> httpx.Response:
-    return await http_client_manager.request(
+    return await client().request(
         method, url, headers=_headers(token_type), params=params, json=json
     )
 
@@ -119,7 +124,7 @@ async def request(
         try:
             response = await _send(method, url, token_type, params, json)
         except Exception as e:
-            if attempt + 1 >= attempts or not is_transient_network_error(e):
+            if attempt + 1 >= attempts or not isinstance(e, _TRANSIENT):
                 raise HelixError(f"{method} {path} failed: {e}") from e
             await asyncio.sleep(_BACKOFF_SECONDS * 2**attempt)
             continue
