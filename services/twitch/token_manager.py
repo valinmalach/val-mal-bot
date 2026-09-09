@@ -16,7 +16,7 @@ from db.session import session_scope
 from errors import notify
 from models import AuthResponse, RefreshResponse
 from services.config import config
-from services.helper.http_client import http_client_manager
+from services.helper.http_client import client
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +174,7 @@ class TwitchTokenManager:
             "grant_type": "client_credentials",
             "scope": " ".join(scopes),
         }
-        response = await http_client_manager.request(
+        response = await client().request(
             "POST", "https://id.twitch.tv/oauth2/token", params=params
         )
 
@@ -248,7 +248,7 @@ class TwitchTokenManager:
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
         }
-        response = await http_client_manager.request(
+        response = await client().request(
             "POST", "https://id.twitch.tv/oauth2/token", data=params
         )
 

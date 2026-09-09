@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from config import settings
 from constants import TokenType
-from services.helper.http_client import http_client_manager, is_transient_network_error
+from services.helper.http_client import client, is_transient_network_error
 from services.twitch.token_manager import token_manager
 
 logger = logging.getLogger(__name__)
@@ -89,7 +89,7 @@ async def _send(
     params: dict[str, Any] | None,
     json: dict[str, Any] | None,
 ) -> httpx.Response:
-    return await http_client_manager.request(
+    return await client().request(
         method, url, headers=_headers(token_type), params=params, json=json
     )
 

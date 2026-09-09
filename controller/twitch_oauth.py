@@ -14,7 +14,7 @@ from config import settings
 from constants import TokenType
 from errors import notify, report
 from models import RefreshResponse, TokenValidationResponse
-from services.helper.http_client import http_client_manager
+from services.helper.http_client import client
 from services.twitch.oauth import (
     authorization_url,
     callback_uri,
@@ -37,7 +37,7 @@ async def _validate_oauth_identity(
     token_type: TokenType,
     endpoint: str,
 ) -> TokenValidationResponse:
-    response = await http_client_manager.request(
+    response = await client().request(
         "GET",
         "https://id.twitch.tv/oauth2/validate",
         headers={"Authorization": f"OAuth {auth_response.access_token}"},
@@ -111,7 +111,7 @@ async def _oauth_callback_common(
         "grant_type": "authorization_code",
         "redirect_uri": callback_uri(token_type),
     }
-    response = await http_client_manager.request(
+    response = await client().request(
         "POST", "https://id.twitch.tv/oauth2/token", data=params
     )
 
