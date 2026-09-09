@@ -33,8 +33,8 @@ _twitch_command_component = sa.table(
 _OLD_DISCORD = "https://discord.gg/tkJyNJH2k7 Come join us and hang out! This is also where all my updates on streams and whatnot go"
 _NEW_DISCORD = "Due to an influx of bots, the Discord link is no longer public. Moots and friends can DM me or a mod directly to join the server. Sorry for the inconvenience!"
 
-# The positions 0002 gave them; !everything sorts on position, so removing two
-# leaves gaps and no reordering.
+# The positions 0002 gave them, which only the downgrade needs: !everything sorts
+# on position, so removing two leaves gaps and no reordering.
 _DROPPED_COMPONENTS = [
     {"parent_name": "everything", "child_name": "kofi", "position": 2},
     {"parent_name": "everything", "child_name": "throne", "position": 3},
@@ -56,6 +56,10 @@ def _set_discord_message(new: str, old: str) -> None:
 
 def upgrade() -> None:
     _set_discord_message(_NEW_DISCORD, _OLD_DISCORD)
+    # Matched on (parent_name, child_name), which is unique, so this removes the
+    # one link whatever position it has been moved to. Guarding it on position
+    # instead — the rule for an UPDATE — would make the revision a silent no-op
+    # on a reordered fanout, which is !everything still naming !kofi.
     op.execute(
         sa.delete(_twitch_command_component).where(
             _twitch_command_component.c.parent_name == "everything",
