@@ -15,7 +15,7 @@ from db.models.discord_config import (
     DiscordEmbedField,
     DiscordRole,
 )
-from db.models.enums import AutoResponseMatch, OAuthTokenKey, SettingValueType
+from db.models.enums import AutoResponseMatch, SettingValueType
 from db.models.records import DiscordMessage, DiscordUser, LiveAlert
 from db.models.settings import AppSetting
 from db.models.twitch_config import (
@@ -41,7 +41,6 @@ __all__ = [
     "LiveAlert",
     "MessageTemplate",
     "OAuthToken",
-    "OAuthTokenKey",
     "SettingValueType",
     "TimestampMixin",
     "TwitchCommand",

@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from config import settings
 from constants import TokenType
-from db.models import OAuthToken, OAuthTokenKey
+from db.models import OAuthToken
 from db.session import session_scope
 from errors import notify
 from models import AuthResponse, RefreshResponse
@@ -23,12 +23,6 @@ logger = logging.getLogger(__name__)
 # Treat a token as due slightly before Twitch actually expires it, so a request
 # already in flight cannot cross the boundary.
 _EXPIRY_MARGIN_SECONDS = 60
-
-_KEYS = {
-    TokenType.App: OAuthTokenKey.APP,
-    TokenType.User: OAuthTokenKey.USER,
-    TokenType.Broadcaster: OAuthTokenKey.BROADCASTER,
-}
 
 
 class TwitchTokenManager:
@@ -58,8 +52,8 @@ class TwitchTokenManager:
         expires_at: dict[TokenType, pendulum.DateTime] = {}
 
         by_key = {row.key: row for row in rows}
-        for token_type, key in _KEYS.items():
-            row = by_key.get(key)
+        for token_type in TokenType:
+            row = by_key.get(token_type)
             if row is None:
                 continue
             access[token_type] = row.access_token
@@ -93,7 +87,7 @@ class TwitchTokenManager:
             self._expires_at[token_type] = expires_at
 
         values = {
-            "key": _KEYS[token_type],
+            "key": token_type,
             "access_token": access_token,
             "refresh_token": refresh_token or self._refresh.get(token_type),
             "expires_at": expires_at,

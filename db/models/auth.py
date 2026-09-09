@@ -9,8 +9,8 @@ from sqlalchemy import Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field
 
+from constants import TokenType
 from db.base import UTC_TIMESTAMP, TimestampMixin, enum_column
-from db.models.enums import OAuthTokenKey
 
 __all__ = ["OAuthToken"]
 
@@ -23,9 +23,13 @@ class OAuthToken(TimestampMixin, table=True):
 
     __tablename__ = "oauth_token"
 
-    key: OAuthTokenKey = Field(
+    # constants.TokenType, not a second enum mirroring it: the column's values
+    # and the ones the Helix layer passes around are the same three strings, and
+    # a copy only creates a mapping to keep in step. The SQLAlchemy type name
+    # stays oauth_token_key, so the CHECK constraint is unchanged.
+    key: TokenType = Field(
         primary_key=True,
-        sa_type=enum_column(OAuthTokenKey, "oauth_token_key"),
+        sa_type=enum_column(TokenType, "oauth_token_key"),
     )
     access_token: str = Field(sa_type=Text)
     refresh_token: str | None = Field(default=None, sa_type=Text)
