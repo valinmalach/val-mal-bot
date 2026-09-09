@@ -194,7 +194,7 @@ migration. `enum_column()` in `db/base.py` builds them. `oauth_token.key` uses
 and the ones the Helix layer passes around are the same three strings.
 
 **Two columns are deliberately unread.** `twitch_command.cooldown_seconds` and
-`discord_role.assignable` each name a feature nothing implements yet — a
+`discord_role.assignable` each name a feature nothing implements yet â€” a
 per-command rate limit, and a role listed on a panel without being
 self-assignable. They cost nothing at runtime, and dropping them means a
 migration now and another one to put them back, so they stay. Anything sweeping
