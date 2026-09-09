@@ -123,18 +123,6 @@ class TwitchTokenManager:
     def token(self, token_type: TokenType) -> str:
         return self._access.get(token_type, "")
 
-    @property
-    def app_access_token(self) -> str:
-        return self.token(TokenType.App)
-
-    @property
-    def user_access_token(self) -> str:
-        return self.token(TokenType.User)
-
-    @property
-    def broadcaster_access_token(self) -> str:
-        return self.token(TokenType.Broadcaster)
-
     async def _guarded(
         self, token_type: TokenType, refresh: Callable[[], Awaitable[bool]]
     ) -> bool:
