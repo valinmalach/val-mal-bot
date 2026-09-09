@@ -258,7 +258,10 @@ answers when that is: `next_birthday_on` from the parts when it is being set,
 asks the first: it reads the local date back off the instant using
 `birthday_timezone` and hands it over as parts. Only a row written before that
 column existed has no zone to read, and falls back to bumping the year on the
-instant. `is_leap_day` is derived nowhere else — its answer picks the year the
+instant, and a name the tz database has dropped since is cleared with a notice
+rather than raised: `next_birthday` is called one line *before* the write that
+reschedules the record, so anything that raises there is a birthday that never
+moves and so is never greeted again. `is_leap_day` is derived nowhere else — its answer picks the year the
 instant lands in *and* is stored beside it as `is_birthday_leap`, so a second
 copy could put those two out of step; the timezone path leaves it to
 `next_birthday_on`, which asks the same predicate. All three birthday columns

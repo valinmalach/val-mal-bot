@@ -115,7 +115,7 @@ class Tasks(Cog):
         # is a greeting nobody sent, but if the write failed after a greeting
         # went out it is the same greeting again, every quarter of an hour.
         leap = bool(record.is_birthday_leap)
-        zone = record.birthday_timezone
+        zone = await self._usable_timezone(record)
         next_at = next_birthday(record.birthday, leap, now, zone)
         await repository.upsert_user(record.id, record.username, next_at, leap, zone)
 
@@ -129,6 +129,31 @@ class Tasks(Cog):
             return
 
         await self._announce_birthday(record)
+
+    @staticmethod
+    async def _usable_timezone(record: DiscordUser) -> str | None:
+        """The record's timezone, or None if it is not one any more.
+
+        next_birthday raises on a name pendulum cannot resolve, and it is called
+        before the write above deliberately - so a raise there is a birthday
+        that never moves, comes due on every tick and is never greeted again.
+        The tz database does drop names: US/Pacific-New went in 2020. Clearing
+        the column degrades that row to the UTC roll, which is wrong by a day at
+        worst rather than silent, and stops the notice repeating for ever.
+        """
+        zone = record.birthday_timezone
+        if zone is None or zone in pendulum.timezones():
+            return zone
+
+        await notify(
+            f"Birthday timezone {escape_markdown(zone)} for"
+            f" {escape_markdown(record.username)} (ID: {record.id}) is not a timezone"
+            " any more, so it has been cleared and their birthday now rolls forward"
+            " in UTC, which can land on the wrong local day. Re-running"
+            " /birthday set fixes it.",
+            key=f"birthday-bad-zone:{record.id}",
+        )
+        return None
 
     @staticmethod
     def _within_announce_grace(birthday: datetime, now: pendulum.DateTime) -> bool:
