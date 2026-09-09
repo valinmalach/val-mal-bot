@@ -12,7 +12,7 @@ from typing import Any
 
 from sqlalchemy import select
 
-from db import (
+from db.models import (
     AppSetting,
     AutoResponseMatch,
     DiscordAutoResponse,

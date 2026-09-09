@@ -16,7 +16,8 @@ import discord
 import pendulum
 
 from background import fire_and_forget
-from db import LiveAlert, repository
+from db import repository
+from db.models import LiveAlert
 from errors import notify, report
 from models import Stream, User, Video
 from services.duration import get_age

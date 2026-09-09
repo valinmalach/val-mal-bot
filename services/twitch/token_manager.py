@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from config import settings
 from constants import TokenType
-from db import OAuthToken, OAuthTokenKey
+from db.models import OAuthToken, OAuthTokenKey
 from db.session import session_scope
 from errors import notify
 from models import AuthResponse, RefreshResponse
