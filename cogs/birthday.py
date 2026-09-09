@@ -47,6 +47,7 @@ class Birthday(GroupCog):
                 interaction.user.name,
                 next_birthday_on(month, day, timezone, pendulum.now("UTC")),
                 is_leap,
+                timezone,
             )
 
             await interaction.response.send_message(
@@ -114,9 +115,9 @@ class Birthday(GroupCog):
                 return
 
             had_birthday = existing_user.birthday is not None
-            # The explicit Nones are the removal: they clear both columns.
+            # The explicit Nones are the removal: they clear all three columns.
             await repository.upsert_user(
-                interaction.user.id, interaction.user.name, None, None
+                interaction.user.id, interaction.user.name, None, None, None
             )
 
             if had_birthday:

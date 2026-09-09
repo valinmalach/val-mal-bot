@@ -251,14 +251,20 @@ means Twitch has nothing, a failed call raises. Retry follows the method, not th
 call site; `docs/adr/0002-helix-posts-are-not-retried.md` says why POSTs do not.
 
 **A stored birthday is the next occurrence, not a date of birth.** One rule
-answers when that is: `next_birthday_on` when it is being set, `next_birthday`
-when it is being rolled forward, both in `services/birthday.py`. Two
-implementations of it disagreed once and `/birthday set` wrote dates that had
-already passed. `is_leap_day` is there for the same reason and is derived nowhere
-else — its answer picks the year the instant lands in *and* is stored beside it
-as `is_birthday_leap`, so a second copy could put those two out of step.
+answers when that is: `next_birthday_on` from the parts when it is being set,
+`next_birthday` from the instant when it is being rolled forward, both in
+`services/birthday.py`. Two implementations of it disagreed once and
+`/birthday set` wrote dates that had already passed, which is why the second now
+asks the first: it reads the local date back off the instant using
+`birthday_timezone` and hands it over as parts. Only a row written before that
+column existed has no zone to read, and falls back to bumping the year on the
+instant. `is_leap_day` is derived nowhere else — its answer picks the year the
+instant lands in *and* is stored beside it as `is_birthday_leap`, so a second
+copy could put those two out of step; the timezone path leaves it to
+`next_birthday_on`, which asks the same predicate. All three birthday columns
+are written together by `upsert_user`, since they describe one birthday.
 `docs/adr/0003-birthday-holds-the-next-occurrence.md` records why the column
-holds an instant, and what discarding the timezone costs — issue #12.
+holds an instant.
 
 **Two model packages with confusable names.** `models/` is Pydantic: Twitch API
 responses and EventSub payloads. `db/models/` is SQLModel: the tables.

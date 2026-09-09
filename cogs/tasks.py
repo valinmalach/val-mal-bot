@@ -115,8 +115,9 @@ class Tasks(Cog):
         # is a greeting nobody sent, but if the write failed after a greeting
         # went out it is the same greeting again, every quarter of an hour.
         leap = bool(record.is_birthday_leap)
-        next_at = next_birthday(record.birthday, leap, now)
-        await repository.upsert_user(record.id, record.username, next_at, leap)
+        zone = record.birthday_timezone
+        next_at = next_birthday(record.birthday, leap, now, zone)
+        await repository.upsert_user(record.id, record.username, next_at, leap, zone)
 
         if stale:
             await notify(

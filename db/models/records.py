@@ -18,6 +18,8 @@ class DiscordUser(TimestampMixin, table=True):
     """A guild member and, optionally, their next birthday.
 
     ``birthday`` holds the next occurrence in UTC, which the birthday task matches on.
+    ``birthday_timezone`` is what the roll-forward rebuilds the local date in; it
+    is null on every row written before the column existed.
     """
 
     __tablename__ = "discord_user"
@@ -34,6 +36,7 @@ class DiscordUser(TimestampMixin, table=True):
         index=True,
     )
     is_birthday_leap: bool | None = Field(default=None)
+    birthday_timezone: str | None = Field(default=None, max_length=64)
 
 
 class DiscordMessage(CreatedAtMixin, table=True):

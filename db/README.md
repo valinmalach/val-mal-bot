@@ -69,7 +69,7 @@ uvx pyright                                        # same settings Pylance uses
 
 | Table | Replaces | Notes |
 | --- | --- | --- |
-| `discord_user` | `data/users.parquet` | `isBirthdayLeap` → `is_birthday_leap`; `birthday` becomes a real `timestamptz` holding the next occurrence in UTC |
+| `discord_user` | `data/users.parquet` | `isBirthdayLeap` → `is_birthday_leap`; `birthday` becomes a real `timestamptz` holding the next occurrence in UTC, with `birthday_timezone` beside it so rolling it forward can rebuild the local date |
 | `discord_message` | `data/messages.parquet` | `attachment_urls` becomes a `JSONB` array instead of a JSON string |
 | `live_alert` | `data/live_alerts.parquet` | the parquet `id` is the Twitch broadcaster, so it is named `broadcaster_id` |
 
