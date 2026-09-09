@@ -3,7 +3,6 @@ set -e
 
 PORT="${PORT:-8000}"
 
-# 1. Authenticate and start loclx in the background
 if [ -n "$LOCLX_TOKEN" ]; then
     # loclx has no `authtoken` subcommand; anything it does not recognise falls
     # through to the web GUI, which blocks on :54537 and never returns.
@@ -60,10 +59,8 @@ if [ -n "$LOCLX_TOKEN" ]; then
     fi
 fi
 
-# 2. Apply database migrations, configuration included
 echo "Running database migrations..."
 uv run alembic upgrade head
 
-# 3. Launch main application
 echo "Starting application..."
 exec uv run main.py
