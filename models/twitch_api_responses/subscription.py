@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 
+from .pagination import Pagination
+
 
 class SubscriptionCondition(BaseModel):
     broadcaster_user_id: str | None = None
@@ -28,10 +30,6 @@ class Subscription(BaseModel):
     created_at: str
     transport: SubscriptionTransport
     cost: int
-
-
-class Pagination(BaseModel):
-    cursor: str | None = None
 
 
 class SubscriptionResponse(BaseModel):

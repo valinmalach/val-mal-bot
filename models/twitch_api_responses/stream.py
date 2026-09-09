@@ -2,6 +2,8 @@ from enum import Enum
 
 from pydantic import BaseModel
 
+from .pagination import Pagination
+
 
 class StreamType(str, Enum):
     live = "live"
@@ -23,10 +25,6 @@ class Stream(BaseModel):
     language: str
     thumbnail_url: str
     is_mature: bool
-
-
-class Pagination(BaseModel):
-    cursor: str | None = None
 
 
 class StreamResponse(BaseModel):
