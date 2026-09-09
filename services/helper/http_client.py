@@ -7,20 +7,6 @@ importing a module must not require a network stack.
 
 import httpx
 
-
-def is_transient_network_error(exc: BaseException) -> bool:
-    """True for timeouts and connection issues where str(exc) may be empty (e.g. httpx.ConnectTimeout)."""
-    msg = str(exc).lower()
-    name = type(exc).__name__.lower()
-    terms = (
-        "connection",
-        "timeout",
-        "network",
-        "remoteprotocolerror",
-    )
-    return any(t in msg or t in name for t in terms)
-
-
 _client: httpx.AsyncClient | None = None
 
 
