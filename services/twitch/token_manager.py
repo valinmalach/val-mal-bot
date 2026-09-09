@@ -16,7 +16,7 @@ from db.session import session_scope
 from errors import notify
 from models import AuthResponse, RefreshResponse
 from services.config import config
-from services.helper.http_client import client
+from services.http_client import client
 
 logger = logging.getLogger(__name__)
 

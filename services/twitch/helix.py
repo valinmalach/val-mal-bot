@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from config import settings
 from constants import TokenType
-from services.helper.http_client import client
+from services.http_client import client
 from services.twitch.token_manager import token_manager
 
 logger = logging.getLogger(__name__)

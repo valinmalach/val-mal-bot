@@ -19,7 +19,7 @@ from constants import COGS
 from controller import twitch_oauth_router, twitch_router
 from errors import report
 from init import bot
-from services.helper import http_client
+from services import http_client
 
 logging.basicConfig(
     level=logging.INFO, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]

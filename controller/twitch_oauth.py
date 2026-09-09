@@ -14,7 +14,7 @@ from config import settings
 from constants import TokenType
 from errors import notify, report
 from models import RefreshResponse, TokenValidationResponse
-from services.helper.http_client import client
+from services.http_client import client
 from services.twitch.oauth import (
     authorization_url,
     callback_uri,

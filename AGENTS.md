@@ -180,7 +180,9 @@ to hold sending, presentation, durations, birthdays, roles and webhook
 signatures. They are now `send.py`, `present.py`, `duration.py`, `birthday.py`,
 `roles.py` and `services/twitch/signature.py` — the last where it belongs, since
 none of it was ever about Discord. `services/__init__.py` re-exports the same
-names, so a consumer that went through the facade never noticed.
+names, so a consumer that went through the facade never noticed. The `helper/`
+package went with them: it was left holding one module, and a directory is not
+a subject.
 
 **Escaping depends on where the text lands, not on whether it is untrusted.**
 `discord.utils.escape_markdown` escapes `*`, `_`, `~`, `|` and a backtick, and
