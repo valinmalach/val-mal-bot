@@ -43,16 +43,6 @@ class Events(Cog):
         except Exception as e:  # noqa: BLE001
             await report(e, f"Failed to {operation}")
 
-    def _base_embed(self, description: str, color: int) -> Embed:
-        """Create a base embed with common settings (description, color, timestamp)."""
-        return Embed(description=description, color=color, timestamp=pendulum.now())
-
-    def _set_author(
-        self, embed: Embed, name: str, discriminator: str, url: str | None
-    ) -> Embed:
-        """Set the author on an embed using name+discriminator and avatar URL."""
-        return embed.set_author(name=f"{name}{discriminator}", icon_url=url)
-
     async def _get_audit_user(
         self, guild_id: int | None, action: discord.AuditLogAction
     ) -> User | Member | None:
@@ -97,11 +87,11 @@ class Events(Cog):
     async def on_member_join(self, member: Member) -> None:
         try:
             url = get_pfp(member)
-            embed = self._base_embed(
-                config.template("discord_welcome", mention=member.mention),
-                config.color("embed_color_welcome"),
-            )
-            embed = self._set_author(embed, member.name, get_discriminator(member), url)
+            embed = Embed(
+                description=config.template("discord_welcome", mention=member.mention),
+                color=config.color("embed_color_welcome"),
+                timestamp=pendulum.now(),
+            ).set_author(name=f"{member.name}{get_discriminator(member)}", icon_url=url)
             embed = embed.set_image(url=url)
             # None for a guild the gateway sent without one, which no ordinal
             # can be made of; the footer is decoration, so it is left off.
@@ -130,11 +120,11 @@ class Events(Cog):
         try:
             member = payload.user
             url = get_pfp(member)
-            embed = self._base_embed(
-                config.template("discord_goodbye", mention=member.mention),
-                config.color("embed_color_goodbye"),
-            )
-            embed = self._set_author(embed, member.name, get_discriminator(member), url)
+            embed = Embed(
+                description=config.template("discord_goodbye", mention=member.mention),
+                color=config.color("embed_color_goodbye"),
+                timestamp=pendulum.now(),
+            ).set_author(name=f"{member.name}{get_discriminator(member)}", icon_url=url)
             embed = embed.set_image(url=url)
             await send_embed(
                 embed,
