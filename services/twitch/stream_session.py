@@ -56,11 +56,12 @@ async def resume() -> None:
     Not began(): nothing is greeted, because the stream did not just start. That
     difference is the whole reason this is not a second call to began().
     """
-    broadcaster_id = int(config.setting("twitch_broadcaster_id"))
     try:
-        stream = await get_stream(broadcaster_id)
-    except HelixError as e:
-        # gather(return_exceptions=True) upstream would swallow this silently.
+        # Inside the guard: a broadcaster id that is missing or not a number
+        # raises here, and the gather(return_exceptions=True) upstream would
+        # swallow it, leaving the queue down with nothing said.
+        stream = await get_stream(int(config.setting("twitch_broadcaster_id")))
+    except (HelixError, TypeError, ValueError) as e:
         await report(e, "Could not check whether the broadcaster is live at startup")
         return
 

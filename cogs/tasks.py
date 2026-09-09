@@ -9,7 +9,6 @@ from discord.utils import escape_markdown
 
 from db import DiscordUser, repository
 from errors import notify, report
-from init.bot_init import undeliverable_summary
 from services import next_birthday, send_message
 from services.config import config
 from services.twitch.api import broken_subscriptions
@@ -20,6 +19,15 @@ logger = logging.getLogger(__name__)
 # A tick that ran late should still announce. A birthday staler than this is
 # only moved on, so a bot that was down for days does not greet the wrong day.
 _ANNOUNCE_GRACE_SECONDS = 24 * 60 * 60
+
+
+def undeliverable_summary(broken: dict[str, str]) -> str:
+    detail = "\n".join(f"- {identity}: {reason}" for identity, reason in broken.items())
+    return (
+        f"{len(broken)} Twitch subscription(s) will not deliver:\n{detail}\n"
+        "/subscribe replaces the stream.online and stream.offline pair; the"
+        " rest are registered outside the bot."
+    )
 
 
 class Tasks(Cog):
@@ -40,11 +48,13 @@ class Tasks(Cog):
 
     @tasks.loop(hours=1)
     async def recheck_subscriptions(self) -> None:
-        """Notice a subscription that breaks, or recovers, while the bot is up.
+        """Notice a subscription that will not deliver, and one that starts to.
 
         Twitch only reports a subscription it disabled by calling the webhook,
-        which is the thing that is not working, so the startup check was the only
-        thing that ever found out.
+        which is the thing that is not working, so nothing else would ever find
+        out. An interval loop runs its first pass immediately, so this is the
+        startup check as well as the hourly one - having both meant the first
+        hourly pass reported everything startup had already reported.
         """
         try:
             broken = await broken_subscriptions()

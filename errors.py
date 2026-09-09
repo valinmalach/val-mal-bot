@@ -198,6 +198,9 @@ async def _deliver(text: str, trace: str | None) -> bool:
             f" unreachable]\n{text}"
         )
 
+    # Counted before the attempt, not after it: send_message raises on a
+    # channel it resolved but could not post to, and that reached nobody too.
+    _undelivered += 1
     sent = await send_message(
         text[:_MAX_CONTENT],
         config.channel(_ADMIN_CHANNEL),
@@ -209,7 +212,6 @@ async def _deliver(text: str, trace: str | None) -> bool:
         allowed_mentions=discord.AllowedMentions.none(),
     )
     if sent is None:
-        _undelivered += 1
         logger.warning("Undelivered, admin channel unavailable: %r", text)
         return False
 

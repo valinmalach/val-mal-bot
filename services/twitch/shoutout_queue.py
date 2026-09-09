@@ -47,7 +47,11 @@ class TwitchShoutoutQueue:
         fires on a caller that does not - and finding that out here beats
         finding it out as an int() failure inside the drainer.
         """
-        if not login or not user_id.isdigit():
+        # isdecimal, not isdigit: isdigit passes a superscript that int() then
+        # rejects inside the drainer, after the pair has left the queue.
+        # isascii because a Twitch id is ASCII - int() would take an
+        # Arabic-Indic numeral quite happily.
+        if not login or not user_id.isascii() or not user_id.isdecimal():
             fire_and_forget(
                 notify(
                     f"Refused a shoutout for {login!r} (id {user_id!r}):"
@@ -161,7 +165,7 @@ class TwitchShoutoutQueue:
             return None
 
         if not user:
-            logger.warning("User id %s (%s) not found for shoutout", user_id_str, login)
+            logger.warning("User id %r (%r) not found for shoutout", user_id_str, login)
             await notify(
                 f"User {login} not found for shoutout",
                 key=f"shoutout-not-found:{user_id_str}",
@@ -180,7 +184,7 @@ class TwitchShoutoutQueue:
                 self._next_attempt_allowed_by_target_id[user_id_str] = wait_until
                 self.add_to_queue(login, user_id_str)
                 logger.warning(
-                    "Shoutout rate limited for %s (id=%s), re-queued;"
+                    "Shoutout rate limited for %r (id=%r), re-queued;"
                     " next attempt after %s",
                     login,
                     user_id_str,
