@@ -14,8 +14,9 @@ from background import fire_and_forget
 from errors import report
 from models import Stream
 from services.config import config
-from services.twitch.api import get_ad_schedule
+from services.twitch.api import get_ad_schedule, get_stream
 from services.twitch.chat import say_template
+from services.twitch.helix import HelixError
 from services.twitch.shoutout_queue import shoutout_queue
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,25 @@ async def began(broadcaster_id: int, stream: Stream) -> None:
         game=stream.game_name,
         title=stream.title,
     )
+
+
+async def resume() -> None:
+    """Bring the session up for a stream that was already running. Does not raise.
+
+    Not began(): nothing is greeted, because the stream did not just start. That
+    difference is the whole reason this is not a second call to began().
+    """
+    try:
+        # Inside the guard: a broadcaster id that is missing or not a number
+        # raises here, and the gather(return_exceptions=True) upstream would
+        # swallow it, leaving the queue down with nothing said.
+        stream = await get_stream(int(config.setting("twitch_broadcaster_id")))
+    except (HelixError, TypeError, ValueError) as e:
+        await report(e, "Could not check whether the broadcaster is live at startup")
+        return
+
+    if stream and stream.type == "live":
+        fire_and_forget(shoutout_queue.activate(), name="shoutout-queue")
 
 
 def ended(broadcaster_id: str | int) -> None:

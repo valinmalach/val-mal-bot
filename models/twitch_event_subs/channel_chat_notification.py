@@ -95,15 +95,25 @@ class CharityDonation(BaseModel):
     amount: Amount
 
 
-# Twitch documents unraid as "Returns an empty payload if notice_type is not
-# unraid, otherwise returns null" — the one type whose field is empty exactly when
-# it applies, inverting the rule the validator below asserts. The docs do not say
-# which way is real, so nothing is asserted for it either way.
+# The notice types this model accepts but cannot read the detail of, so the
+# validator below asserts nothing about them.
 #
-# The Literal below also carries 21 of the 25 types Twitch documents. watch_streak,
-# modiversary and shared_chat_modiversary are unmodelled, and "unknown" names no
-# field at all, so completing the list needs entries here as well as fields.
-_NO_DETAIL = {"unraid"}
+# unraid because Twitch documents it as "Returns an empty payload if notice_type
+# is not unraid, otherwise returns null" - the one type whose field is empty
+# exactly when it applies, inverting the rule. The docs do not say which way is
+# real, so neither does this.
+#
+# The other three because their detail objects are not modelled here. They are
+# accepted rather than rejected: refusing a notice Twitch really sends is worse
+# than accepting one whose extra field nothing reads. "unknown" is Twitch's own
+# catch-all and names no field at all, so it can never leave this set.
+_NO_DETAIL = {
+    "unraid",
+    "watch_streak",
+    "modiversary",
+    "shared_chat_modiversary",
+    "unknown",
+}
 
 
 class ChannelChatNotificationEvent(BaseModel):
@@ -140,6 +150,10 @@ class ChannelChatNotificationEvent(BaseModel):
         "shared_chat_raid",
         "shared_chat_pay_it_forward",
         "shared_chat_announcement",
+        "watch_streak",
+        "modiversary",
+        "shared_chat_modiversary",
+        "unknown",
     ]
     sub: Sub | None = None
     resub: Resub | None = None

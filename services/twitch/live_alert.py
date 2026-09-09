@@ -13,18 +13,26 @@ from enum import Enum, auto
 
 import discord
 import pendulum
-from discord.ui import View
 
 from background import fire_and_forget
 from db import LiveAlert, repository
 from errors import notify, report
-from models import Channel, Stream, User, Video
-from services.config import config
-from services.helper.helper import edit_embed, get_age, parse_rfc3339, send_embed
+from models import Stream, User, Video
+from services.duration import get_age
 from services.helper.http_client import is_transient_network_error
+from services.send import edit_embed, send_embed
 from services.twitch import stream_session
 from services.twitch.api import get_channel, get_stream, get_stream_vod, get_user
 from services.twitch.helix import HelixError
+from services.twitch.live_alert_embeds import (
+    announcement_embed,
+    live_embed,
+    mention,
+    offline_embed,
+    twitch_url,
+    watch_button,
+)
+from services.twitch.signature import parse_rfc3339
 
 logger = logging.getLogger(__name__)
 
@@ -83,164 +91,6 @@ def _decide(
     return _Action.REFRESH
 
 
-def _twitch_url(user_login: str) -> str:
-    return f"https://www.twitch.tv/{user_login}"
-
-
-def _mention(channel_id: int) -> str | None:
-    """The live-alerts role ping, which only the stream alerts channel gets."""
-    return (
-        f"<@&{config.role('live_alerts')}>"
-        if channel_id == config.channel("stream_alerts")
-        else None
-    )
-
-
-def _watch_button(url: str) -> View:
-    view = View(timeout=None)
-    view.add_item(
-        discord.ui.Button(
-            label=config.template("stream_watch_button"),
-            style=discord.ButtonStyle.link,
-            url=url,
-        )
-    )
-    return view
-
-
-def _announcement_embed(stream: Stream, user_info: User | None) -> discord.Embed:
-    """The alert as first posted, timestamped at the stream's start."""
-    url = _twitch_url(stream.user_login)
-    raw_thumb_url = stream.thumbnail_url.replace("{width}x{height}", "400x225")
-
-    return (
-        discord.Embed(
-            description=f"[**{stream.title}**]({url})",
-            color=config.color("embed_color_stream"),
-            timestamp=parse_rfc3339(stream.started_at),
-        )
-        .set_author(
-            name=config.template("stream_live_title", name=stream.user_name),
-            icon_url=user_info.profile_image_url if user_info else None,
-            url=url,
-        )
-        .add_field(
-            name=config.template("stream_field_game"),
-            value=f"{stream.game_name}",
-            inline=True,
-        )
-        .add_field(
-            name=config.template("stream_field_viewers"),
-            value=f"{stream.viewer_count}",
-            inline=True,
-        )
-        .set_image(url=f"{raw_thumb_url}?cb={int(pendulum.now().timestamp())}")
-    )
-
-
-def _live_embed(
-    stream: Stream,
-    user_info: User | None,
-    url: str,
-    age: str,
-    started_at_timestamp: str,
-    now: pendulum.DateTime,
-) -> discord.Embed:
-    """The alert as refreshed, carrying how long the stream has been up."""
-    raw_thumb_url = stream.thumbnail_url.replace("{width}x{height}", "400x225")
-
-    return (
-        discord.Embed(
-            description=f"[**{stream.title}**]({url})",
-            color=config.color("embed_color_stream"),
-            timestamp=now,
-        )
-        .set_author(
-            name=config.template("stream_live_title", name=stream.user_name),
-            icon_url=user_info.profile_image_url if user_info else None,
-            url=url,
-        )
-        .add_field(
-            name=config.template("stream_field_game"),
-            value=f"{stream.game_name}",
-            inline=True,
-        )
-        .add_field(
-            name=config.template("stream_field_viewers"),
-            value=f"{stream.viewer_count}",
-            inline=True,
-        )
-        .add_field(
-            name=config.template("stream_field_started_at"),
-            value=started_at_timestamp,
-            inline=True,
-        )
-        .set_image(url=f"{raw_thumb_url}?cb={int(pendulum.now().timestamp())}")
-        .set_footer(text=config.template("stream_footer_online", age=age))
-    )
-
-
-def _title(stream: Stream | None, vod: Video | None, channel: Channel | None) -> str:
-    if stream:
-        return stream.title
-    if vod:
-        return vod.title
-    return channel.title if channel else "Unknown"
-
-
-def _display_name(stream: Stream | None, user_info: User | None) -> str:
-    if stream:
-        return stream.user_name
-    return user_info.display_name if user_info else "Unknown"
-
-
-def _game(stream: Stream | None, channel: Channel | None) -> str:
-    if stream:
-        return stream.game_name
-    return channel.game_name if channel else "Unknown"
-
-
-def _offline_embed(
-    stream: Stream | None,
-    vod: Video | None,
-    channel: Channel | None,
-    user_info: User | None,
-    url: str,
-    age: str,
-    now: pendulum.DateTime,
-) -> discord.Embed:
-    """The alert as left behind once the stream is over."""
-    embed = (
-        discord.Embed(
-            description=f"**{_title(stream, vod, channel)}**",
-            color=config.color("embed_color_stream"),
-            timestamp=now,
-        )
-        .set_author(
-            name=config.template(
-                "stream_offline_title", name=_display_name(stream, user_info)
-            ),
-            icon_url=user_info.profile_image_url if user_info else None,
-            url=url,
-        )
-        .add_field(
-            name=config.template("stream_field_game"),
-            value=_game(stream, channel),
-            inline=True,
-        )
-        .set_footer(text=config.template("stream_footer_offline", age=age))
-    )
-
-    if vod:
-        embed = embed.add_field(
-            name=config.template("stream_field_vod"),
-            value=config.template("stream_field_vod_value", url=vod.url),
-            inline=True,
-        )
-
-    return embed
-
-
 def _is_transient_edit_error(e: Exception) -> bool:
     """Discord edits fail transiently on 5xx replies and on dropped sockets."""
     if isinstance(e, discord.HTTPException) and 500 <= e.status < 600:
@@ -280,14 +130,14 @@ async def _refresh(
     started_at_timestamp: str,
     content: str | None,
 ) -> _Action:
-    url = _twitch_url(stream.user_login)
-    embed = _live_embed(
+    url = twitch_url(stream.user_login)
+    embed = live_embed(
         stream, user_info, url, age, started_at_timestamp, pendulum.now()
     )
 
     try:
         edited = await edit_embed(
-            message_id, embed, channel_id, _watch_button(url), content=content
+            message_id, embed, channel_id, watch_button(url), content=content
         )
     except discord.NotFound:
         logger.warning(
@@ -347,12 +197,12 @@ async def _close(
         login = ""
 
     vod = await _vod(broadcaster_id, stream_id)
-    embed = _offline_embed(
+    embed = offline_embed(
         own_stream,
         vod,
         channel_info,
         user_info,
-        _twitch_url(login),
+        twitch_url(login),
         age,
         pendulum.now(),
     )
@@ -461,7 +311,7 @@ async def _run(
     stream_started_at: str,
 ) -> None:
     try:
-        content = _mention(channel_id)
+        content = mention(channel_id)
         started_at = parse_rfc3339(stream_started_at)
         started_at_timestamp = f"<t:{int(started_at.timestamp())}:f>"
         wakeup = _wakeups.setdefault(message_id, asyncio.Event())
@@ -561,10 +411,10 @@ async def announce(
 ) -> None:
     """Post the alert for a stream that has just gone live, and start its updater."""
     message_id = await send_embed(
-        _announcement_embed(stream, user_info),
+        announcement_embed(stream, user_info),
         channel_id,
-        _watch_button(_twitch_url(stream.user_login)),
-        content=_mention(channel_id),
+        watch_button(twitch_url(stream.user_login)),
+        content=mention(channel_id),
     )
     if message_id is None:
         logger.error(f"Failed to send embed for broadcaster {broadcaster_id}")

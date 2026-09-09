@@ -37,6 +37,16 @@ _WINDOW_SECONDS = 15 * 60
 # would otherwise hide as unbounded memory.
 _MAX_TRACKED = 512
 
+# Messages that reached nobody, counted across keys rather than per key. A
+# window only ever reports repeats of its own key, so when the channel itself is
+# unreachable every key fails and one that never fires again says nothing at all.
+# This is what the operator is owed on the way back: how much they did not see.
+_undelivered = 0
+
+# Every log line below carries text relayed from Twitch, Discord or the
+# database, so all of them use %r: a newline in a relayed message would
+# otherwise forge a log line. The traceback is the exception, and stays %s.
+
 
 @dataclass
 class _Window:
@@ -67,7 +77,7 @@ async def _send_once(key: str, text: str, trace: str | None) -> bool:
     window = _windows.get(key)
     if window is not None and now < window.until:
         window.suppressed += 1
-        logger.info("Held back (%d since the last report): %s", window.suppressed, text)
+        logger.info("Held back (%d since the last report): %r", window.suppressed, text)
         return True
 
     # Claimed before the send, and nothing between here and it yields: two tasks
@@ -106,14 +116,14 @@ async def report(exc: Exception, context: str, *, key: str | None = None) -> Non
         # asyncio.gather(return_exceptions=True) is not the one being handled,
         # and format_exc would describe nothing.
         trace = "".join(traceback.format_exception(exc))
-        logger.error("%s\nTraceback:\n%s", summary, trace)
+        logger.error("%r\nTraceback:\n%s", summary, trace)
         # Context names the thing that failed; the type keeps two different
         # failures reported from one place from standing in for each other.
         await _send_once(key or f"{context}\x00{type(exc).__name__}", summary, trace)
     except Exception:
         # Describing an exception can itself fail: a __str__ that raises, or a
         # services import that never completed.
-        logger.exception("Reporting failed for: %s", context)
+        logger.exception("Reporting failed for: %r", context)
 
 
 async def notify(text: str, *, key: str | None = None) -> bool:
@@ -129,10 +139,10 @@ async def notify(text: str, *, key: str | None = None) -> bool:
     try:
         # Callers that have a severity log it themselves; this is the record
         # that a notice was raised at all.
-        logger.info(text)
+        logger.info("%r", text)
         return await _send_once(key or text, text, None)
     except Exception:
-        logger.exception("Notifying failed for: %s", text)
+        logger.exception("Notifying failed for: %r", text)
         return False
 
 
@@ -144,7 +154,7 @@ def notify_soon(text: str, *, key: str | None = None) -> None:
     will not format is a message the viewer sees as wrong with nothing anywhere
     saying why.
     """
-    logger.warning(text)
+    logger.warning("%r", text)
     try:
         asyncio.get_running_loop()
     except RuntimeError:
@@ -163,11 +173,14 @@ async def _deliver(text: str, trace: str | None) -> bool:
     # main.py reports cog-load failures before any of it is up.
     from services.config import config
 
+    global _undelivered
+
     if not config.loaded:
-        logger.warning("Undelivered, no configuration loaded: %s", text)
+        _undelivered += 1
+        logger.warning("Undelivered, no configuration loaded: %r", text)
         return False
 
-    from services.helper.helper import send_message
+    from services.send import send_message
 
     file = (
         discord.File(io.BytesIO(trace.encode("utf-8")), filename="traceback.txt")
@@ -176,6 +189,18 @@ async def _deliver(text: str, trace: str | None) -> bool:
     )
     # quiet: send_message announces a channel it cannot resolve, and announcing
     # this one goes through here again.
+    if _undelivered:
+        # Leading, because the tail is what gets truncated. Prepended here rather
+        # than at the call site so every path through the admin channel carries
+        # it, and cleared only once something has actually arrived.
+        text = (
+            f"[{_undelivered} message(s) reached nobody while this channel was"
+            f" unreachable]\n{text}"
+        )
+
+    # Counted before the attempt, not after it: send_message raises on a
+    # channel it resolved but could not post to, and that reached nobody too.
+    _undelivered += 1
     sent = await send_message(
         text[:_MAX_CONTENT],
         config.channel(_ADMIN_CHANNEL),
@@ -187,6 +212,8 @@ async def _deliver(text: str, trace: str | None) -> bool:
         allowed_mentions=discord.AllowedMentions.none(),
     )
     if sent is None:
-        logger.warning("Undelivered, admin channel unavailable: %s", text)
+        logger.warning("Undelivered, admin channel unavailable: %r", text)
         return False
+
+    _undelivered = 0
     return True

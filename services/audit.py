@@ -33,13 +33,9 @@ from constants import (
     UNNAMED_EVENT,
 )
 from services.config import config
-from services.helper.helper import (
-    get_age,
-    get_channel_mention,
-    get_discriminator,
-    get_pfp,
-    send_embed,
-)
+from services.duration import get_age
+from services.present import get_channel_mention, get_discriminator, get_pfp
+from services.send import send_embed
 
 # Exactly what bot.get_channel hands back, which is what the message events carry.
 AuditChannel = GuildChannel | Thread | PrivateChannel | None

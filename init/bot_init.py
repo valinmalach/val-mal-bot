@@ -18,66 +18,16 @@ async def restart_live_alert_tasks() -> None:
     await live_alert.restore_all()
 
 
-async def activate_if_live() -> None:
-    from errors import report
-    from services.config import config
-    from services.twitch.api import get_stream
-    from services.twitch.helix import HelixError
-    from services.twitch.shoutout_queue import shoutout_queue
+async def resume_stream_session() -> None:
+    from services.twitch import stream_session
 
-    try:
-        stream = await get_stream(int(config.setting("twitch_broadcaster_id")))
-    except HelixError as e:
-        # gather(return_exceptions=True) upstream would swallow this silently.
-        await report(e, "Could not check whether the broadcaster is live at startup")
-        return
-
-    if stream and stream.type == "live":
-        fire_and_forget(shoutout_queue.activate(), name="shoutout-queue")
+    await stream_session.resume()
 
 
-async def check_subscriptions() -> None:
-    """Say at startup when a Twitch subscription will not deliver.
-
-    The only way Twitch reports a subscription it has disabled is by calling the
-    webhook, which is the very thing that is not working, so nothing else in the
-    bot would ever find out. A stream alert that silently stopped existing is
-    the most expensive failure here and the quietest.
-    """
-    from errors import notify, report
-    from services.twitch.api import (
-        get_subscriptions,
-        subscription_target,
-        undeliverable,
-    )
-    from services.twitch.helix import HelixError
-
-    try:
-        subscriptions = await get_subscriptions()
-    except HelixError as e:
-        # gather(return_exceptions=True) below would swallow this silently.
-        await report(e, "Could not check the Twitch subscriptions at startup")
-        return
-
-    broken = [
-        f"- {subscription.type} ({subscription_target(subscription)}): {reason}"
-        for subscription in subscriptions
-        if (reason := undeliverable(subscription)) is not None
-    ]
-    if broken:
-        detail = "\n".join(broken)
-        await notify(
-            f"{len(broken)} Twitch subscription(s) will not deliver:\n{detail}\n"
-            "/subscribe replaces the stream.online and stream.offline pair; the"
-            " rest are registered outside the bot."
-        )
-
-
-async def run_background_tasks():
+async def run_background_tasks() -> None:
     await asyncio.gather(
         restart_live_alert_tasks(),
-        activate_if_live(),
-        check_subscriptions(),
+        resume_stream_session(),
         return_exceptions=True,
     )
 
@@ -114,6 +64,35 @@ class MyBot(Bot):
 
 
 bot = MyBot(command_prefix="$", intents=discord.Intents.all())
+
+
+@bot.tree.error
+async def on_app_command_error(
+    interaction: discord.Interaction, error: discord.app_commands.AppCommandError
+) -> None:
+    """The floor under every slash command.
+
+    Each command guards its own body, so this only fires when one forgets - which
+    is exactly the case where nobody would otherwise hear about it, and the
+    person who ran it would be left on a spinner.
+    """
+    from errors import report
+    from services.config import config
+
+    command = interaction.command.qualified_name if interaction.command else "unknown"
+    # Reported first: the original failure is the thing that must be recorded,
+    # whatever happens when this tries to answer.
+    await report(error, f"Unhandled error in /{command}")
+
+    try:
+        # Composing the answer reads configuration, which is its own way to fail.
+        text = config.template("command_failed")
+        if interaction.response.is_done():
+            await interaction.followup.send(text, ephemeral=True)
+        else:
+            await interaction.response.send_message(text, ephemeral=True)
+    except Exception as unanswerable:  # noqa: BLE001
+        await report(unanswerable, f"Could not tell anyone that /{command} failed")
 
 
 @bot.event

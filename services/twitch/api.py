@@ -281,6 +281,19 @@ async def unsubscribe_to_user(username: str) -> bool:
     return True
 
 
+async def broken_subscriptions() -> dict[str, str]:
+    """Every subscription that will not reach the bot, by identity and reason.
+
+    Computes, says nothing: the startup check reports whatever it finds, while
+    the loop reports only what changed, and neither wants the other's rule.
+    """
+    return {
+        f"{subscription.type} ({subscription_target(subscription)})": reason
+        for subscription in await get_subscriptions()
+        if (reason := undeliverable(subscription)) is not None
+    }
+
+
 def subscription_target(subscription: Subscription) -> str:
     """Whichever id identifies this subscription, since the field varies by type."""
     condition = subscription.condition

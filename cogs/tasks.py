@@ -11,12 +11,23 @@ from db import DiscordUser, repository
 from errors import notify, report
 from services import next_birthday, send_message
 from services.config import config
+from services.twitch.api import broken_subscriptions
+from services.twitch.helix import HelixError
 
 logger = logging.getLogger(__name__)
 
 # A tick that ran late should still announce. A birthday staler than this is
 # only moved on, so a bot that was down for days does not greet the wrong day.
 _ANNOUNCE_GRACE_SECONDS = 24 * 60 * 60
+
+
+def undeliverable_summary(broken: dict[str, str]) -> str:
+    detail = "\n".join(f"- {identity}: {reason}" for identity, reason in broken.items())
+    return (
+        f"{len(broken)} Twitch subscription(s) will not deliver:\n{detail}\n"
+        "/subscribe replaces the stream.online and stream.offline pair; the"
+        " rest are registered outside the bot."
+    )
 
 
 class Tasks(Cog):
@@ -27,6 +38,42 @@ class Tasks(Cog):
     async def on_ready(self) -> None:
         if not self.check_birthdays.is_running():
             self.check_birthdays.start()
+        if not self.recheck_subscriptions.is_running():
+            self.recheck_subscriptions.start()
+
+    # What was undeliverable last time this looked. A broken subscription stays
+    # broken until somebody fixes it, so a loop that reported every pass would
+    # report the same thing forever; this is what makes it report a change.
+    _known_broken: ClassVar[dict[str, str]] = {}
+
+    @tasks.loop(hours=1)
+    async def recheck_subscriptions(self) -> None:
+        """Notice a subscription that will not deliver, and one that starts to.
+
+        Twitch only reports a subscription it disabled by calling the webhook,
+        which is the thing that is not working, so nothing else would ever find
+        out. An interval loop runs its first pass immediately, so this is the
+        startup check as well as the hourly one - having both meant the first
+        hourly pass reported everything startup had already reported.
+        """
+        try:
+            broken = await broken_subscriptions()
+        except HelixError as e:
+            await report(e, "Could not re-check the Twitch subscriptions")
+            return
+
+        newly = {k: v for k, v in broken.items() if k not in self._known_broken}
+        recovered = [k for k in self._known_broken if k not in broken]
+        self._known_broken.clear()
+        self._known_broken.update(broken)
+
+        if newly:
+            await notify(undeliverable_summary(newly))
+        if recovered:
+            await notify(
+                f"{len(recovered)} Twitch subscription(s) deliver again:\n"
+                + "\n".join(f"- {identity}" for identity in recovered)
+            )
 
     _quarter_hours: ClassVar[list[pendulum.Time]] = [
         pendulum.Time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)

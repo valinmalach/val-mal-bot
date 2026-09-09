@@ -6,7 +6,9 @@ from typing import ClassVar, Self, cast
 import httpx
 import pendulum
 
+from background import fire_and_forget
 from errors import notify, report
+from models import User
 from services.twitch.api import get_user, send_shoutout
 from services.twitch.helix import HelixError
 
@@ -22,8 +24,9 @@ _LOOKUP_RETRY_BACKOFF_SECONDS = 300
 
 
 class TwitchShoutoutQueue:
-    _instance: TwitchShoutoutQueue | None = None
+    _instance: ClassVar[TwitchShoutoutQueue | None] = None
     _activated: bool = False
+    _generation: int = 0
     _shoutout_queue: ClassVar[list[tuple[str, str]]] = []
     _last_shoutout_by_target_id: ClassVar[dict[str, pendulum.DateTime]] = {}
     _next_attempt_allowed_by_target_id: ClassVar[dict[str, pendulum.DateTime]] = {}
@@ -38,6 +41,27 @@ class TwitchShoutoutQueue:
         return self._activated
 
     def add_to_queue(self, login: str, user_id: str) -> None:
+        """Queue a target, refusing what the drainer could not act on.
+
+        The one caller passes fields off a validated Helix model, so this only
+        fires on a caller that does not - and finding that out here beats
+        finding it out as an int() failure inside the drainer.
+        """
+        # isdecimal, not isdigit: isdigit passes a superscript that int() then
+        # rejects inside the drainer, after the pair has left the queue.
+        # isascii because a Twitch id is ASCII - int() would take an
+        # Arabic-Indic numeral quite happily.
+        if not login or not user_id.isascii() or not user_id.isdecimal():
+            fire_and_forget(
+                notify(
+                    f"Refused a shoutout for {login!r} (id {user_id!r}):"
+                    f" not a Twitch login and numeric id.",
+                    key="shoutout-bad-target",
+                ),
+                name="shoutout-bad-target",
+            )
+            return
+
         if all(uid != user_id for _, uid in self._shoutout_queue):
             self._shoutout_queue.append((login, user_id))
 
@@ -76,78 +100,103 @@ class TwitchShoutoutQueue:
     async def activate(self) -> None:
         if self._activated:
             return
+
+        # Each activation takes a generation. The loop sleeps for up to the
+        # global interval, so one told to stand down can still be inside a sleep
+        # when the next stream starts and activates again; without this the older
+        # one would wake to a set flag and keep draining alongside the newer, and
+        # its own exit would clear the flag the newer is running on.
+        self._generation += 1
+        mine = self._generation
+        self._activated = True
         try:
-            self._activated = True
-            while self._activated:
-                if len(self._shoutout_queue) == 0:
-                    await asyncio.sleep(5)
-                    continue
-
-                pair = self._get_next_available_pair()
-
-                if pair is None:
-                    await asyncio.sleep(5)
-                    continue
-
-                login, user_id_str = pair
-                self._shoutout_queue.remove(pair)
-
+            while self._activated and self._generation == mine:
                 try:
-                    user = await get_user(int(user_id_str))
-                except HelixError as e:
-                    # One unreachable lookup must not end the queue, nor spin on
-                    # it. The back-off has to outlast the wait that follows it:
-                    # setting it to the interval the loop then slept for meant it
-                    # had already expired by the time the loop looked again. No
-                    # shoutout went out, so the global interval does not apply
-                    # here and the queue is free to try a different target.
-                    await notify(
-                        f"Could not look up {login} for a shoutout: {e}",
-                        key=f"shoutout-lookup:{user_id_str}",
-                    )
-                    self._next_attempt_allowed_by_target_id[user_id_str] = (
-                        pendulum.now().add(seconds=_LOOKUP_RETRY_BACKOFF_SECONDS)
-                    )
-                    self.add_to_queue(login, user_id_str)
-                    continue
+                    await self._drain_once()
+                except Exception as e:  # noqa: BLE001
+                    # One pass, not the queue. The Helix failures inside handle
+                    # themselves; this is for what was never anticipated, and
+                    # without it one of those ended shoutouts for the stream
+                    # while `activated` went on saying the queue was running.
+                    await report(e, "Shoutout queue: a pass failed unexpectedly")
+                    await asyncio.sleep(5)
+        finally:
+            if self._generation == mine:
+                self._activated = False
 
-                if not user:
-                    logger.warning(
-                        "User id %s (%s) not found for shoutout", user_id_str, login
-                    )
-                    await notify(
-                        f"User {login} not found for shoutout",
-                        key=f"shoutout-not-found:{user_id_str}",
-                    )
-                    continue
+    async def _drain_once(self) -> None:
+        """Send at most one shoutout, or wait. Its own unit so a failure is too."""
+        if len(self._shoutout_queue) == 0:
+            await asyncio.sleep(5)
+            return
 
-                try:
-                    await send_shoutout(user.id)
-                except HelixError as e:
-                    if e.status == 429 and e.response is not None:
-                        wait_until = self._wait_until_from_429(e.response)
-                        self._next_attempt_allowed_by_target_id[user_id_str] = (
-                            wait_until
-                        )
-                        self.add_to_queue(login, user_id_str)
-                        logger.warning(
-                            "Shoutout rate limited for %s (id=%s), re-queued; next attempt after %s",
-                            login,
-                            user_id_str,
-                            wait_until,
-                        )
-                        await asyncio.sleep(_GLOBAL_SHOUTOUT_INTERVAL_SECONDS)
-                        continue
+        pair = self._get_next_available_pair()
 
-                    await report(e, f"Failed to send shoutout to {login}")
-                    await asyncio.sleep(_GLOBAL_SHOUTOUT_INTERVAL_SECONDS)
-                    continue
+        if pair is None:
+            await asyncio.sleep(5)
+            return
 
-                self._last_shoutout_by_target_id[user_id_str] = pendulum.now()
-                self._next_attempt_allowed_by_target_id.pop(user_id_str, None)
-                await asyncio.sleep(_GLOBAL_SHOUTOUT_INTERVAL_SECONDS)
-        except Exception as e:  # noqa: BLE001
-            await report(e, "Error in activate method")
+        login, user_id_str = pair
+        self._shoutout_queue.remove(pair)
+
+        user = await self._look_up(login, user_id_str)
+        if user is not None:
+            await self._send(login, user_id_str, user)
+
+    async def _look_up(self, login: str, user_id_str: str) -> User | None:
+        """The target, or None with the reason already said."""
+        try:
+            user = await get_user(int(user_id_str))
+        except HelixError as e:
+            # One unreachable lookup must not end the queue, nor spin on it. The
+            # back-off has to outlast the wait that follows it: setting it to the
+            # interval the loop then slept for meant it had already expired by
+            # the time the loop looked again. No shoutout went out, so the global
+            # interval does not apply here and the queue is free to try a
+            # different target.
+            await notify(
+                f"Could not look up {login} for a shoutout: {e}",
+                key=f"shoutout-lookup:{user_id_str}",
+            )
+            self._next_attempt_allowed_by_target_id[user_id_str] = pendulum.now().add(
+                seconds=_LOOKUP_RETRY_BACKOFF_SECONDS
+            )
+            self.add_to_queue(login, user_id_str)
+            return None
+
+        if not user:
+            logger.warning("User id %r (%r) not found for shoutout", user_id_str, login)
+            await notify(
+                f"User {login} not found for shoutout",
+                key=f"shoutout-not-found:{user_id_str}",
+            )
+            return None
+
+        return user
+
+    async def _send(self, login: str, user_id_str: str, user: User) -> None:
+        """Shout the target out, and wait out the global interval either way."""
+        try:
+            await send_shoutout(user.id)
+        except HelixError as e:
+            if e.status == 429 and e.response is not None:
+                wait_until = self._wait_until_from_429(e.response)
+                self._next_attempt_allowed_by_target_id[user_id_str] = wait_until
+                self.add_to_queue(login, user_id_str)
+                logger.warning(
+                    "Shoutout rate limited for %r (id=%r), re-queued;"
+                    " next attempt after %s",
+                    login,
+                    user_id_str,
+                    wait_until,
+                )
+            else:
+                await report(e, f"Failed to send shoutout to {login}")
+        else:
+            self._last_shoutout_by_target_id[user_id_str] = pendulum.now()
+            self._next_attempt_allowed_by_target_id.pop(user_id_str, None)
+
+        await asyncio.sleep(_GLOBAL_SHOUTOUT_INTERVAL_SECONDS)
 
     def deactivate(self) -> None:
         self._activated = False

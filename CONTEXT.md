@@ -178,7 +178,7 @@ long ago an account was created, how long a stream has been live. A **stored
 birthday** carries no birth year, so the bot cannot know anyone's age and never
 says one.
 
-**Two functions named `_create_offline_embed`** exist, in `controller/twitch.py`
+**Two functions named `_create_offline_embed`** existed, in `controller/twitch.py`
 and `services/twitch/api.py`. Resolved in language ahead of the code: closing is
 the **alert updater**'s job alone, so there is one closer and one offline embed.
 The webhook cannot identify which stream ended — Twitch's `stream.offline`
