@@ -52,7 +52,13 @@ async def upsert_user(
     username: str,
     birthday: datetime | None = None,
     is_birthday_leap: bool | None = None,
+    birthday_timezone: str | None = None,
 ) -> None:
+    """Write a user and all three birthday columns.
+
+    All three, together: they describe one birthday, and a caller that wrote two
+    of them would leave the third describing a different one.
+    """
     await _upsert(
         DiscordUser,
         {
@@ -60,6 +66,7 @@ async def upsert_user(
             "username": username,
             "birthday": birthday,
             "is_birthday_leap": is_birthday_leap,
+            "birthday_timezone": birthday_timezone,
         },
         ["id"],
     )

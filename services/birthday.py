@@ -1,9 +1,9 @@
 """When a birthday next falls.
 
-One rule answers that, asked two ways: next_birthday_on when it is being set and
-the timezone is still known, next_birthday when it is being rolled forward and
-it is not. Two implementations of this disagreed once and wrote dates that had
-already passed.
+One rule answers that, asked two ways: next_birthday_on from the parts, when a
+birthday is being set, and next_birthday from a stored instant, when one is
+being rolled forward. Two implementations of this disagreed once and wrote dates
+that had already passed, so the second asks the first wherever it can.
 """
 
 from calendar import isleap
@@ -32,15 +32,25 @@ def is_leap_day(month: Months, day: int) -> bool:
     return month == Months.February and day == 29
 
 
-def next_birthday(birthday: datetime, is_leap: bool, after: DateTime) -> DateTime:
+def next_birthday(
+    birthday: datetime, is_leap: bool, after: DateTime, timezone: str | None = None
+) -> DateTime:
     """The next occurrence of a stored birthday, strictly after ``after``.
 
-    A stored birthday is a UTC instant for one particular year, so advancing it
-    is a year bump; 29 February has to land on a leap year to exist at all.
+    With the zone it was set in, the local date is read back off the instant and
+    ``next_birthday_on`` answers from the parts, as it did when the birthday was
+    set. Without one there is nothing to construct a local date in, so advancing
+    a UTC instant is a year bump - which preserves neither the local day nor
+    local midnight across a zone's transitions, and is why the column exists
+    (issue #12). ``None`` is every row written before it did.
     """
     moment = pendulum.instance(birthday)
     if moment > after:
         return moment
+
+    if timezone is not None:
+        local = moment.in_tz(timezone)
+        return next_birthday_on(Months(local.month), local.day, timezone, after)
 
     # The flag is the authority, but a 29 February instant cannot be replaced
     # into a common year whatever the flag says.

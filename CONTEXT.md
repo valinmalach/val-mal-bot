@@ -99,15 +99,18 @@ _Avoid_: shoutout list, so queue
 ### Birthdays
 
 **Stored birthday**:
-The next occurrence of someone's birthday, held as an instant in UTC. Never a
-date of birth: the year is chosen rather than remembered, and it moves.
+The next occurrence of someone's birthday, held as an instant in UTC beside the
+timezone it was set in. Never a date of birth: the year is chosen rather than
+remembered, and it moves.
 _Avoid_: birth date, DOB, birthday date
 
 **Roll forward**:
 Moving a **stored birthday** to its next occurrence. The same question asked
-when a birthday is set and when one has just been greeted — but not yet the same
-answer: setting one knows the timezone and rolling one forward has had it
-discarded, so the two disagree wherever a zone's rules move the local day.
+when a birthday is set and when one has just been greeted, and now the same
+answer: rolling forward reads the local date back out of the instant and asks
+the setting rule for the parts. A row stored before the timezone was kept has
+none to read, and falls back to bumping the year on the instant — which is what
+moved the local day in 201 of 598 zones.
 _Avoid_: reschedule, bump, advance
 
 **Stale birthday**:
