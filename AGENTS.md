@@ -51,6 +51,16 @@ set (`sourcery review --enable gpsg .`) is deliberately not enabled: 232 of its
 272 findings here are the docstring mandate the comment convention below rejects.
 It is worth running by hand occasionally for the dozen findings that are not.
 
+**A PEP 695 parameter list blinds Sourcery to the whole file, silently.** Sourcery
+1.45 returns no pattern-rule findings at all for a file containing `def f[T]`,
+`class C[T]` or `type X = ...` — no parse error, no warning, and a clean report
+that reads exactly like a clean file. Worse, it is partial: structural rules such
+as `no-long-functions` still fire, so the output looks normal while every custom
+rule above has stopped guarding that file. `controller/twitch.py` is in this state
+today because `_route[E: BaseModel]` is worth more than the coverage; nothing else
+should join it without knowing the trade. `has_configured_role` uses a module-level
+`TypeVar` for exactly this reason — it needs the annotation and the coverage both.
+
 Migrations — see `db/README.md` for the rules:
 
 ```sh

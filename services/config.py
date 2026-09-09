@@ -9,7 +9,7 @@ import json
 import logging
 import re
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypeVar
 
 from sqlalchemy import select
 
@@ -248,8 +248,13 @@ def _coerce(setting: AppSetting) -> Any:
 
 config = ConfigCache()
 
+# Not a PEP 695 parameter list: Sourcery 1.45 silently analyses nothing in a
+# file that has one, so the custom rules stop guarding it and say so by
+# reporting clean.
+_CheckT = TypeVar("_CheckT")
 
-def has_configured_role[T](key: str) -> Callable[[T], T]:
+
+def has_configured_role(key: str) -> Callable[[_CheckT], _CheckT]:
     """An app command check against a role whose ID lives in the database.
 
     Resolved when the command runs, so the ID can change without a redeploy --
