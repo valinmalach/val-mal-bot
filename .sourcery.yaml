@@ -1,0 +1,76 @@
+version: '1'
+
+ignore:
+- .git
+- env
+- .env
+- .tox
+- node_modules
+- vendor
+- venv
+- .venv
+- ~/.pyenv
+- ~/.rye
+- ~/.vscode
+- .vscode
+- ~/.cache
+- ~/.config
+- ~/.local
+- migrations  # Alembic autogenerates these; its template shape is not ours to refactor.
+- .verity
+
+rule_settings:
+  enable:
+  - default
+  # Zero findings today. A ratchet, not a cleanup: a debug print on Railway is
+  # unstructured stdout beside the logger everything else uses.
+  - no-debug
+  # Both fire on the same guard in token_manager._guarded and turn a guard clause
+  # into a ternary with an await in the else branch -- which gpsg's own
+  # no-complex-if-expressions would then flag. Disabled by id so --fix, now part
+  # of the documented check order, does not silently reapply it unattended.
+  disable:
+  - assign-if-exp
+  - reintroduce-else
+  rule_types:
+  - refactoring
+  - suggestion
+  - comment
+  python_version: '3.14'
+
+# The four conventions in AGENTS.md that neither ruff nor pyright can express.
+# Each is a single choke point the codebase already routes through, and each has
+# been missed by a human reviewer at least once.
+rules:
+- id: no-bare-create-task
+  description: Use background.fire_and_forget(coro, name=...). asyncio keeps only a weak reference to a running task, so a bare create_task can be collected mid-flight and dies unreported.
+  pattern: asyncio.create_task(...)
+  language: python
+  paths:
+    exclude:
+    - background.py
+
+- id: audit-channel-is-audit-pys
+  description: Only services/audit.py may resolve the audit_logs channel. One entry point per thing worth recording.
+  pattern: config.channel("audit_logs")
+  language: python
+  paths:
+    exclude:
+    - services/audit.py
+
+- id: chat-sends-go-through-chat-py
+  description: Call services.twitch.chat.say or say_template. api.send_chat_message raises; three rounds of guarding call sites each missed one, so the guard lives in chat.py.
+  pattern: send_chat_message(...)
+  language: python
+  paths:
+    exclude:
+    - services/twitch/api.py
+    - services/twitch/chat.py
+
+- id: db-text-uses-safe-format
+  description: Text from the database is formatted with services.config.safe_format. A row is not source, and one unmatched brace should not lose the whole message.
+  pattern: ${text}.format(...)
+  language: python
+  paths:
+    exclude:
+    - services/config.py

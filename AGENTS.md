@@ -20,13 +20,36 @@ uv run alembic upgrade head                        # schema and the configuratio
 uv run main.py                                     # run the bot (uvicorn on PORT, default 8000)
 ```
 
-Checks, all three clean before committing:
+Checks, all four clean before committing, and **in this order**:
 
 ```sh
+sourcery review --fix .                            # apply what it can fix mechanically
+sourcery review --check .                          # what is left needs a person
+uvx ruff format . --exclude .venv
 uvx ruff check . --exclude .venv
-uvx ruff format --check . --exclude .venv
 uvx pyright                                        # the [tool.pyright] settings Pylance also reads
 ```
+
+**Sourcery runs first because its fixes are not guaranteed to satisfy the other
+three.** `use-named-expression` rewrote an `if matched:` into a walrus whose
+variable nothing then read — a ruff `F841` *and* a format violation, from a tool
+that had just reported itself clean. Running ruff afterwards is what catches that;
+running it first only means doing it twice.
+
+**A finding `--fix` cannot repair is yours to address, not to skip.** Sourcery
+leaves the judgement calls — a long function, a name that says its own type —
+and silence from `--check` is the only clean state. If a rule is genuinely wrong
+for this repo, disable it by id in `.sourcery.yaml` with the reason, so the next
+run does not re-raise it.
+
+`.sourcery.yaml` carries four custom rules for conventions the other tools cannot
+see: a bare `create_task`, the audit channel outside `services/audit.py`, a chat
+send outside `services/twitch/chat.py`, and `str.format` on database text. Each
+excludes the one file that legitimately does the thing, and those exclusions are
+relative to the config file — moving it breaks them silently. The Google style
+set (`sourcery review --enable gpsg .`) is deliberately not enabled: 232 of its
+272 findings here are the docstring mandate the comment convention below rejects.
+It is worth running by hand occasionally for the dozen findings that are not.
 
 Migrations — see `db/README.md` for the rules:
 
@@ -41,9 +64,9 @@ uv run alembic current
 On Windows `--sql` needs `PYTHONIOENCODING=utf-8`: some seeded text is emoji.
 
 **There is no test suite** — no pytest, no test files, no CI workflow. Verification
-is the three checks above plus running the bot, so do not describe a change as tested.
+is the four checks above plus running the bot, so do not describe a change as tested.
 
-A fourth gate runs at commit time. `git commit` is intercepted by Verity, which
+A fifth gate runs at commit time. `git commit` is intercepted by Verity, which
 analyses the staged diff and can block the commit. It is a Claude Code hook, not a
 git hook — there is nothing in `.git/hooks`, and it does not fire for other tools.
 Its rules, and the narrow circumstances in which a finding may be waived, live in

@@ -8,6 +8,7 @@ synchronous because the call sites are everywhere and mostly not async.
 import json
 import logging
 import re
+from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy import select
@@ -212,15 +213,14 @@ class ConfigCache:
         for row in self._auto_responses:
             subject = content if row.case_sensitive else content.lower()
             trigger = row.trigger if row.case_sensitive else row.trigger.lower()
-            matched = (
+            if (
                 (row.match_type is AutoResponseMatch.EXACT and subject == trigger)
                 or (
                     row.match_type is AutoResponseMatch.PREFIX
                     and subject.startswith(trigger)
                 )
                 or (row.match_type is AutoResponseMatch.CONTAINS and trigger in subject)
-            )
-            if matched:
+            ):
                 return row.response
         return None
 
@@ -249,7 +249,7 @@ def _coerce(setting: AppSetting) -> Any:
 config = ConfigCache()
 
 
-def has_configured_role(key: str):
+def has_configured_role[T](key: str) -> Callable[[T], T]:
     """An app command check against a role whose ID lives in the database.
 
     Resolved when the command runs, so the ID can change without a redeploy --

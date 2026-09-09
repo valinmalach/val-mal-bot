@@ -50,7 +50,7 @@ def _translate_query(query: str) -> str:
         (value for key, value in params if key == "sslmode"),
         None,
     )
-    if sslmode and not any(key == "ssl" for key, _ in translated):
+    if sslmode and all(key != "ssl" for key, _ in translated):
         translated.append(("ssl", _SSLMODE_TO_ASYNCPG_SSL.get(sslmode, sslmode)))
     return urlencode(translated)
 
