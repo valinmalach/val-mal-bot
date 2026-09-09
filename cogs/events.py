@@ -102,9 +102,13 @@ class Events(Cog):
                 config.color("embed_color_welcome"),
             )
             embed = self._set_author(embed, member.name, get_discriminator(member), url)
-            embed = embed.set_footer(
-                text=f"{get_ordinal_suffix(member.guild.member_count)} member"
-            ).set_image(url=url)
+            embed = embed.set_image(url=url)
+            # None for a guild the gateway sent without one, which no ordinal
+            # can be made of; the footer is decoration, so it is left off.
+            if member.guild.member_count is not None:
+                embed = embed.set_footer(
+                    text=f"{get_ordinal_suffix(member.guild.member_count)} member"
+                )
             await send_embed(
                 embed,
                 config.channel("welcome"),
