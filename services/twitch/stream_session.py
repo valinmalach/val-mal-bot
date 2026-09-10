@@ -51,8 +51,18 @@ def _start(stream: Stream) -> None:
     A reset, not a teardown. It is also the recovery for a session nothing was
     ever in a position to end: a stream.offline that never arrived leaves one
     standing, and this is what stops that outliving the gap between two streams.
+
+    Taking up the stream already held does nothing, because resetting is only
+    right for a stream that is over. `resume()` runs on every gateway
+    reconnect, not just at startup, so without this a reconnect halfway
+    through a stream would empty the queue of shoutouts already promised in
+    chat and cancel the pending ad-break warning. `live_alert._start` guards
+    the same reconnect for the same reason.
     """
     global _stream
+
+    if _stream is not None and _stream.id == stream.id:
+        return
 
     _stream = stream
     shoutout_queue.clear()
@@ -188,6 +198,11 @@ async def _warn_before_next_ad(broadcaster_id: str) -> None:
         wait_seconds = (notify_time - pendulum.now(tz=pendulum.UTC)).total_seconds()
         if wait_seconds > 0:
             await asyncio.sleep(wait_seconds)
+            if not is_live():
+                # The sleep is most of an ad cycle, and cancellation only
+                # reaches a session that ended in a way something noticed. A
+                # warning about ads nobody is watching is worse than silence.
+                return
             await say_template(broadcaster_id, "twitch_ad_break_warning")
     except asyncio.CancelledError:
         logger.info(

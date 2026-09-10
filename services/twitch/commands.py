@@ -25,15 +25,33 @@ __all__ = ["dispatch"]
 
 COMPOSITE_HANDLER = "composite"
 
-# A Twitch login: 4 to 25 characters of ASCII letter, digit or underscore.
+# A Twitch login: up to 25 characters of ASCII letter, digit or underscore.
 # Anything else cannot name a channel, so it is refused before the lookup
 # rather than after: it costs no Helix call, and nothing a chatter typed
 # reaches Twitch as a query parameter on the strength of being a word.
-_TWITCH_LOGIN = re.compile(r"\A[a-zA-Z0-9_]{4,25}\Z")
+#
+# No lower bound, though Twitch has required four since long before this bot.
+# That rule binds signups, not accounts, so a legacy handle shorter than four
+# is Twitch's to have issued and not this code's to refuse - and refusing one
+# would silently drop the shoutout for a raid from that channel, since the
+# raid handler posts `!so <login>` and it arrives back through here. The
+# charset and the maximum are what make the value safe to hand to Helix; the
+# minimum only ever adds false rejections.
+_TWITCH_LOGIN = re.compile(r"\A[a-zA-Z0-9_]{1,25}\Z")
 
 
 def _target(args: str) -> str:
-    return (args.split(" ", 1)[0] if args else "").removeprefix("@")
+    """The first word of the arguments, stripped of what would make it a command.
+
+    `!` as well as `@`, and stripped rather than removed once, because a target
+    reaches chat through `_render` and the bot's own lines come back in through
+    the chat webhook. A template beginning with `{target}` would otherwise let
+    any chatter post `!so ...` in the bot's voice, and the bot holds a
+    moderator badge, so a mod-only command would run for someone who is not a
+    mod. No such template exists today; this is what keeps adding one from
+    being a privilege escalation.
+    """
+    return (args.split(" ", 1)[0] if args else "").lstrip("@!")
 
 
 def _render(message: str, event_sub: ChannelChatMessageEventSub, args: str) -> str:

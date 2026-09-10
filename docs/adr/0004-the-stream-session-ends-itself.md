@@ -45,10 +45,12 @@ them needs a stream id.
   the pending shoutouts with it, moments before `stream.online` starts a new
   session.
 - **A periodic Helix heartbeat while active** — ends the session even if the
-  `stream.offline` webhook never arrives, which is a real risk given that
-  subscription is one of the five provisioned outside this repo. Rejected for
+  `stream.offline` webhook never arrives, which revocation, an outage or a
+  clock far enough out to fail the freshness check can all cause. Rejected for
   now as a polling loop that mostly re-asks what the alert updater already asks
-  Helix about the main broadcaster; the wake covers the ordinary case.
+  Helix about the main broadcaster; the wake covers the ordinary case, and
+  `stream.offline` is one of the two subscriptions `/subscribe` can rebuild, so
+  a lasting failure here is repairable from Discord rather than by hand.
 - **Wake on `stream.offline`, confirm against Helix** — chosen. It reuses the
   pattern ADR 0001 established rather than inventing one, survives a stream
   dropping and coming straight back without losing the queue, and costs no poll.
