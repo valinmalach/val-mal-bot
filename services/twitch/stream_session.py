@@ -1,8 +1,14 @@
 """The main broadcaster being live: at most one at a time.
 
-Owns what only applies while that one account is streaming — the shoutout queue
-and the ad-break warning — which a live alert does not, since alerts exist for
-every broadcaster the bot announces.
+Owns every piece of state that lasts exactly one stream — what the shoutout
+queue is holding and the ad-break warning — and is the single answer to whether
+the bot is live. A live alert is deliberately not here: one exists per
+broadcaster and is kept in Postgres, because it names a Discord message that has
+to outlive a redeploy.
+
+Only Helix confirming the broadcaster gone ends a session. Beginning one is a
+different transition, and resets rather than tears down; see
+``docs/adr/0004-the-stream-session-ends-itself.md``.
 """
 
 import asyncio
@@ -11,7 +17,7 @@ import logging
 import pendulum
 
 from background import fire_and_forget
-from errors import report
+from errors import notify, report
 from models import Stream
 from services.config import config
 from services.twitch.api import get_ad_schedule, get_stream
@@ -21,17 +27,59 @@ from services.twitch.shoutout_queue import shoutout_queue
 
 logger = logging.getLogger(__name__)
 
-# Keyed by broadcaster because the EventSub subscription is, even though only
-# the session's own warning is ever stood down.
-_ad_break_tasks: dict[str, asyncio.Task] = {}
+# The stream this session is for, or None when nobody is live. It holds the
+# Stream rather than a flag because an offline check that took a moment has to
+# tell "the stream I asked about is gone" from "a different one began while I
+# was asking".
+_stream: Stream | None = None
+
+_ad_break_task: asyncio.Task | None = None
 
 
 def is_main_broadcaster(broadcaster_id: str | int) -> bool:
     return str(broadcaster_id) == config.setting("twitch_broadcaster_id")
 
 
+def is_live() -> bool:
+    """Whether the main broadcaster is streaming, and the only answer to that."""
+    return _stream is not None
+
+
+def _start(stream: Stream) -> None:
+    """Take up a stream, discarding whatever a previous session left behind.
+
+    A reset, not a teardown. It is also the recovery for a session nothing was
+    ever in a position to end: a stream.offline that never arrived leaves one
+    standing, and this is what stops that outliving the gap between two streams.
+
+    Taking up the stream already held does nothing, because resetting is only
+    right for a stream that is over. `resume()` runs on every gateway
+    reconnect, not just at startup, so without this a reconnect halfway
+    through a stream would empty the queue of shoutouts already promised in
+    chat and cancel the pending ad-break warning. `live_alert._start` guards
+    the same reconnect for the same reason.
+    """
+    global _stream
+
+    if _stream is not None and _stream.id == stream.id:
+        return
+
+    _stream = stream
+    shoutout_queue.clear()
+    cancel_ad_break_warning()
+
+
+def _end() -> None:
+    """Stand the session down. Only a confirmed-gone stream reaches here."""
+    global _stream
+
+    _stream = None
+    shoutout_queue.clear()
+    cancel_ad_break_warning()
+
+
 async def began(broadcaster_id: int, stream: Stream) -> None:
-    """Greet chat and bring the session's helpers up. Does not raise.
+    """Greet chat and bring the session up. Does not raise.
 
     Each line stands alone, and neither can fail the caller: the live alert is
     posted after this, and a greeting Twitch refused is not worth losing it over.
@@ -39,7 +87,7 @@ async def began(broadcaster_id: int, stream: Stream) -> None:
     if not is_main_broadcaster(broadcaster_id):
         return
 
-    fire_and_forget(shoutout_queue.activate(), name="shoutout-queue")
+    _start(stream)
     await say_template(broadcaster_id, "twitch_stream_greeting")
     await say_template(
         broadcaster_id,
@@ -59,48 +107,82 @@ async def resume() -> None:
     try:
         # Inside the guard: a broadcaster id that is missing or not a number
         # raises here, and the gather(return_exceptions=True) upstream would
-        # swallow it, leaving the queue down with nothing said.
+        # swallow it, leaving the session down with nothing said.
         stream = await get_stream(int(config.setting("twitch_broadcaster_id")))
     except (HelixError, TypeError, ValueError) as e:
         await report(e, "Could not check whether the broadcaster is live at startup")
         return
 
     if stream and stream.type == "live":
-        fire_and_forget(shoutout_queue.activate(), name="shoutout-queue")
+        _start(stream)
 
 
-def ended(broadcaster_id: str | int) -> None:
-    """Stand the session's helpers down. A no-op for any other broadcaster."""
+async def wake(broadcaster_id: str | int) -> None:
+    """Re-check a session that a stream.offline says may be over. Does not raise.
+
+    The webhook is a prompt, not the answer. Twitch sends one for a connection
+    that dropped as readily as for a stream that is finished, and standing the
+    session down on the webhook alone would dump the queue for a broadcaster who
+    is back thirty seconds later. Helix decides.
+    """
     if not is_main_broadcaster(broadcaster_id):
         return
 
-    shoutout_queue.deactivate()
-    cancel_ad_break_warning(broadcaster_id)
+    asked_about = _stream
+    if asked_about is None:
+        return
+
+    try:
+        stream = await get_stream(int(broadcaster_id))
+    except HelixError as e:
+        # helix.request has already retried a GET, so reaching here means Twitch
+        # could not be reached at all rather than that it was slow. The session
+        # is left standing: the next stream starting resets it, which is the
+        # same bound ADR 0004 accepts for an undeliverable subscription.
+        await notify(
+            f"Could not check whether broadcaster {broadcaster_id} is still live,"
+            f" so the stream session is left up: {e}",
+            key=f"session-wake:{broadcaster_id}",
+        )
+        return
+
+    if stream is not None and stream.type == "live":
+        return
+
+    if _stream is None or _stream.id != asked_about.id:
+        # Superseded. A stream that came straight back began while this check
+        # was in flight, and the answer above is about the one before it.
+        logger.info(
+            "Offline check for stream %s is stale; session now holds %s",
+            asked_about.id,
+            _stream.id if _stream else None,
+        )
+        return
+
+    _end()
 
 
-def cancel_ad_break_warning(broadcaster_id: str | int) -> None:
-    task = _ad_break_tasks.get(str(broadcaster_id))
-    if task and not task.done():
-        task.cancel()
+def cancel_ad_break_warning() -> None:
+    global _ad_break_task
 
-
-def _forget_ad_break_task(broadcaster_id: str, finished: asyncio.Task) -> None:
-    # Identity-checked: a cancelled task finishes after its replacement is
-    # registered, and an unconditional pop would drop the live one.
-    if _ad_break_tasks.get(broadcaster_id) is finished:
-        del _ad_break_tasks[broadcaster_id]
+    if _ad_break_task and not _ad_break_task.done():
+        _ad_break_task.cancel()
+    _ad_break_task = None
 
 
 def schedule_ad_break_warning(broadcaster_id: str) -> None:
-    """Replace this broadcaster's pending warning with one for the next ad break."""
-    cancel_ad_break_warning(broadcaster_id)
+    """Replace the pending warning with one for the next ad break."""
+    global _ad_break_task
 
-    task = fire_and_forget(
+    # A session is one broadcaster, so there is one warning. Guarded rather than
+    # keyed: an ad break on any other channel would otherwise stand down the
+    # main broadcaster's warning by taking its place.
+    if not is_main_broadcaster(broadcaster_id):
+        return
+
+    cancel_ad_break_warning()
+    _ad_break_task = fire_and_forget(
         _warn_before_next_ad(broadcaster_id), name=f"ad-break-warning-{broadcaster_id}"
-    )
-    _ad_break_tasks[broadcaster_id] = task
-    task.add_done_callback(
-        lambda finished, bid=broadcaster_id: _forget_ad_break_task(bid, finished)
     )
 
 
@@ -116,6 +198,11 @@ async def _warn_before_next_ad(broadcaster_id: str) -> None:
         wait_seconds = (notify_time - pendulum.now(tz=pendulum.UTC)).total_seconds()
         if wait_seconds > 0:
             await asyncio.sleep(wait_seconds)
+            if not is_live():
+                # The sleep is most of an ad cycle, and cancellation only
+                # reaches a session that ended in a way something noticed. A
+                # warning about ads nobody is watching is worse than silence.
+                return
             await say_template(broadcaster_id, "twitch_ad_break_warning")
     except asyncio.CancelledError:
         logger.info(

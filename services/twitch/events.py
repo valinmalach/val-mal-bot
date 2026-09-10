@@ -24,7 +24,7 @@ from services.config import config
 from services.twitch import live_alert, stream_session
 from services.twitch.api import get_stream, get_user
 from services.twitch.chat import say, say_template
-from services.twitch.commands import dispatch
+from services.twitch.commands import dispatch, is_twitch_login
 from services.twitch.helix import HelixError
 
 logger = logging.getLogger(__name__)
@@ -112,8 +112,15 @@ async def stream_offline(event_sub: StreamOfflineEventSub) -> None:
     broadcaster_id = int(event_sub.event.broadcaster_user_id)
     try:
         # The payload names no stream, so this handler cannot tell which one
-        # ended. It wakes the updater, which can. See docs/adr/0001.
+        # ended. It wakes both, and each re-checks Helix for its own scope: the
+        # updater to find out which alert this was (docs/adr/0001), the session
+        # to find out whether anyone is still live at all (docs/adr/0004).
+        #
+        # Neither can fail the other: both report their own failures and return.
+        # They are sequential only because nothing here needs them concurrent -
+        # the alert wake sets an Event and returns without waiting on Helix.
         await live_alert.wake(broadcaster_id)
+        await stream_session.wake(broadcaster_id)
 
     except Exception as e:  # noqa: BLE001
         await report(e, f"Error in stream_offline for {broadcaster_id}")
@@ -182,9 +189,23 @@ async def channel_raid(event_sub: ChannelRaidEventSub) -> None:
                 url=twitch_url,
             )
         elif stream_session.is_main_broadcaster(event_sub.event.to_broadcaster_user_id):
+            raider = event_sub.event.from_broadcaster_user_login
+            # Checked before the line is built, not after it is read back. The
+            # shoutout is delivered by posting `!so <login>` into chat, which
+            # returns through the chat webhook and is dispatched, so a login
+            # that cannot name a channel must not reach a command at all. The
+            # payload is signed, which is why this has never fired - it is the
+            # boundary, not a doubt about Twitch.
+            if not is_twitch_login(raider):
+                await notify(
+                    f"Refused to shout out an incoming raid from {raider!r}:"
+                    f" that cannot name a Twitch channel.",
+                    key="raid-bad-login",
+                )
+                return
             await say(
                 event_sub.event.to_broadcaster_user_id,
-                f"!so {event_sub.event.from_broadcaster_user_login}",
+                f"!so {raider}",
                 "the incoming raid shoutout",
             )
     except Exception as e:  # noqa: BLE001
