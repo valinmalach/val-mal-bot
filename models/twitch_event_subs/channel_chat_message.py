@@ -2,7 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from .common import Badge, Message
+from .common.badge import Badge
+from .common.message import Message
 
 
 class ChannelChatMessageSubscription(BaseModel):

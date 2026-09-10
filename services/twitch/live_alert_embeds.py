@@ -10,7 +10,10 @@ import pendulum
 from discord.ui import View
 from discord.utils import escape_markdown
 
-from models import Channel, Stream, User, Video
+from models.twitch_api_responses.channel import Channel
+from models.twitch_api_responses.stream import Stream
+from models.twitch_api_responses.user import User
+from models.twitch_api_responses.video import Video
 from services.config import config
 from services.twitch.signature import parse_rfc3339
 

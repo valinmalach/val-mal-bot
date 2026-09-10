@@ -20,7 +20,9 @@ import pendulum
 from db import repository
 from db.models import LiveAlert
 from errors import notify, report
-from models import Stream, User, Video
+from models.twitch_api_responses.stream import Stream
+from models.twitch_api_responses.user import User
+from models.twitch_api_responses.video import Video
 from services.duration import get_age
 from services.send import edit_embed
 from services.twitch.api import get_channel, get_stream, get_stream_vod, get_user

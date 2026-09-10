@@ -1,42 +1,6 @@
-from .auth.auth_response import AuthResponse, RefreshResponse, TokenValidationResponse
-from .twitch_api_responses.ad_schedule import AdSchedule, AdScheduleResponse
-from .twitch_api_responses.channel import Channel, ChannelResponse
-from .twitch_api_responses.stream import Stream, StreamResponse
-from .twitch_api_responses.subscription import (
-    Subscription,
-    SubscriptionResponse,
-)
-from .twitch_api_responses.user import User, UserResponse
-from .twitch_api_responses.video import Video, VideoResponse
-from .twitch_event_subs.channel_ad_break_begin import ChannelAdBreakBeginEventSub
-from .twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
-from .twitch_event_subs.channel_follow import ChannelFollowEventSub
-from .twitch_event_subs.channel_moderate import ChannelModerateEventSub
-from .twitch_event_subs.channel_raid import ChannelRaidEventSub
-from .twitch_event_subs.stream_offline import StreamOfflineEventSub
-from .twitch_event_subs.stream_online import StreamOnlineEventSub
+"""The shapes Twitch sends and returns, described with Pydantic.
 
-__all__ = [
-    "AdSchedule",
-    "AdScheduleResponse",
-    "AuthResponse",
-    "Channel",
-    "ChannelAdBreakBeginEventSub",
-    "ChannelChatMessageEventSub",
-    "ChannelFollowEventSub",
-    "ChannelModerateEventSub",
-    "ChannelRaidEventSub",
-    "ChannelResponse",
-    "RefreshResponse",
-    "Stream",
-    "StreamOfflineEventSub",
-    "StreamOnlineEventSub",
-    "StreamResponse",
-    "Subscription",
-    "SubscriptionResponse",
-    "TokenValidationResponse",
-    "User",
-    "UserResponse",
-    "Video",
-    "VideoResponse",
-]
+Nothing is re-exported here: import from the module that owns the name, so a
+reader lands on the file that defines it rather than on a list of twenty-two.
+`db/models/` is the other model package, and holds the SQLModel tables.
+"""

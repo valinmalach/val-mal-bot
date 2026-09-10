@@ -10,16 +10,14 @@ import logging
 import time
 
 from errors import notify, report
-from models import (
-    ChannelAdBreakBeginEventSub,
-    ChannelChatMessageEventSub,
-    ChannelFollowEventSub,
-    ChannelModerateEventSub,
-    ChannelRaidEventSub,
-    Stream,
-    StreamOfflineEventSub,
-    StreamOnlineEventSub,
-)
+from models.twitch_api_responses.stream import Stream
+from models.twitch_event_subs.channel_ad_break_begin import ChannelAdBreakBeginEventSub
+from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
+from models.twitch_event_subs.channel_follow import ChannelFollowEventSub
+from models.twitch_event_subs.channel_moderate import ChannelModerateEventSub
+from models.twitch_event_subs.channel_raid import ChannelRaidEventSub
+from models.twitch_event_subs.stream_offline import StreamOfflineEventSub
+from models.twitch_event_subs.stream_online import StreamOnlineEventSub
 from services.config import config
 from services.twitch import live_alert, stream_session
 from services.twitch.api import get_stream, get_user

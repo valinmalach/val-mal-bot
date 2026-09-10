@@ -13,7 +13,7 @@ from fastapi.responses import RedirectResponse
 from config import settings
 from constants import TokenType
 from errors import notify, report
-from models import RefreshResponse, TokenValidationResponse
+from models.auth.auth_response import RefreshResponse, TokenValidationResponse
 from services.http_client import client
 from services.twitch.oauth import (
     authorization_url,

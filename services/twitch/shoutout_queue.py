@@ -8,7 +8,7 @@ import pendulum
 
 from background import fire_and_forget
 from errors import notify, report
-from models import User
+from models.twitch_api_responses.user import User
 from services.twitch.api import get_user, send_shoutout
 from services.twitch.helix import HelixError
 

@@ -1,7 +1,1 @@
-from .badge import Badge
-from .message import Message
-
-__all__ = [
-    "Badge",
-    "Message",
-]
+"""Fields that appear inside more than one EventSub payload."""
