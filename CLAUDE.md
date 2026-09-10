@@ -71,7 +71,20 @@ its reason.
 <!-- verity-memory:preserve -->
 
 
+
 <!-- Add binding, hand-curated guidance here; it survives Verity regeneration. -->
+
+## Never report a false positive without `--file`
+
+The generated section above says to use `verity feedback finding <run-id>
+<pattern-id> false_positive` for a pattern-level false positive. Always add
+`--file <path>` (and `--line`). Without it the suppression is scoped to
+`**/*.py` — every Python file — and it cannot be listed or removed from the
+CLI afterwards. This has already blinded `type-safety` on this repo once; the
+reproduction and the consequences are in `VERITY.md`.
+
+Before treating a Verity run as clean, read `suppressions_applied` in its JSON.
+Zero findings and a blinded pattern look identical.
 
 ## Verity runs before the commit, never after
 

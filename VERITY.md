@@ -81,6 +81,43 @@ Note that the IDs this adapter defines carry a slug suffix
 (`Ruff_ANN001_missing-type-function-argument`, not `Ruff_ANN001`). A wrong ID disables
 the tool **silently**, so never hand-author one — derive it with `--list` and validate.
 
+### Reporting a false positive: always pass `--file`
+
+`verity feedback finding <run-id> <pattern-id> false_positive` **without
+`--file` suppresses that pattern across `**/*.py`** — the whole language, not
+the finding you reported. It is not obvious from the output, and there is no
+CLI way to list or remove a suppression afterwards; `feedback finding ...
+useful` does not reverse it and `verity config get` does not show it.
+
+Demonstrated on 2026-09-10: three unscoped `false_positive` reports for
+`type-safety` left a probe file containing a genuinely undefined name **and** a
+function annotated `-> int` returning a `str` reviewing as `PASS` with zero
+findings and `suppressions_applied: [{pattern_id: type-safety, file_glob:
+"**/*.py", count: 2}]`. Reported upstream; until it is cleared, Verity's
+`type-safety` dimension is blind on this repo and `uvx pyright` plus
+`uvx ruff check` are the cover — both catch exactly what it now swallows.
+
+So: pass `--file` (and `--line`), and before trusting a clean run, read
+`suppressions_applied`. Zero findings is indistinguishable from a blinded
+pattern — the same failure shape as a wrong pattern ID above.
+
+### Why `Ruff_F821_undefined-name` is not in the pattern list
+
+Codacy's Ruff runs below `--target-version py314`, so it reports F821 on a
+class annotating itself in its own body —
+`_instance: ClassVar[TwitchShoutoutQueue | None] = None` inside
+`class TwitchShoutoutQueue`. On Python 3.14 that is correct code: PEP 649
+compiles annotations into a lazy `__annotate__` thunk, so the class body never
+evaluates the name. The modules import and `__annotations__` resolves.
+
+`ruff check --target-version py314` passes; py313 and below report it. The
+repo's `requires-python = ">=3.14.7"` makes the project's own Ruff infer py314,
+which is why `uvx ruff check` is clean and Verity's was not, and
+`.codacy/codacy.config.json` exposes no target-version to fix it with. F821 was
+therefore removed from the list rather than suppressed: the project's own Ruff
+and pyright both enforce it correctly, so nothing is lost, and the recurring
+false positive no longer invites another suppression.
+
 ### Two Windows workarounds this setup depends on
 
 Both are upstream bugs in the current releases (`@codacy/verity-cli` 0.31.1,
