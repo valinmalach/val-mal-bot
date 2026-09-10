@@ -16,7 +16,8 @@ from background import fire_and_forget
 from db import repository
 from db.models import LiveAlert
 from errors import notify, report
-from models import Stream, User
+from models.twitch_api_responses.stream import Stream
+from models.twitch_api_responses.user import User
 from services.send import send_embed
 from services.twitch.live_alert_cycle import Action, cycle
 from services.twitch.live_alert_embeds import (

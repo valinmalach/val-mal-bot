@@ -18,7 +18,7 @@ import pendulum
 
 from background import fire_and_forget
 from errors import notify, report
-from models import Stream
+from models.twitch_api_responses.stream import Stream
 from services.config import config
 from services.twitch.api import get_ad_schedule, get_stream
 from services.twitch.chat import say_template

@@ -18,10 +18,8 @@ from discord import (
     Message,
     Object,
     Role,
-    Thread,
     User,
 )
-from discord.abc import GuildChannel, PrivateChannel
 from discord.ext.commands import CommandError, Context
 from discord.utils import escape_markdown
 from pendulum import DateTime
@@ -34,11 +32,13 @@ from constants import (
 )
 from services.config import config
 from services.duration import get_age
-from services.present import get_channel_mention, get_discriminator, get_pfp
+from services.present import (
+    MentionableChannel,
+    get_channel_mention,
+    get_discriminator,
+    get_pfp,
+)
 from services.send import send_embed
-
-# Exactly what bot.get_channel hands back, which is what the message events carry.
-AuditChannel = GuildChannel | Thread | PrivateChannel | None
 
 # Discord rejects the whole embed if any one of these is exceeded, so they are
 # enforced here rather than trusted to the callers.
@@ -287,7 +287,7 @@ async def message_edited(after: Message, before_content: str | None) -> None:
         "embed_color_info",
     )
     _by(embed, after.author)
-    embed.set_footer(text=f"User ID: {after.author.id}").add_field(
+    embed.set_footer(text=f"ID: {after.author.id}").add_field(
         name="**Before**", value=_quoted(before_content), inline=False
     ).add_field(name="**After**", value=_said(after.content), inline=False)
     await _send(embed)
@@ -301,7 +301,7 @@ async def pin_changed(message: Message) -> None:
         "embed_color_info",
     )
     _by(embed, message.author)
-    embed.set_footer(text=f"User ID: {message.author.id}")
+    embed.set_footer(text=f"ID: {message.author.id}")
     await _send(embed)
 
 
@@ -312,7 +312,7 @@ async def message_deleted(
     message_id: int,
     author: User | Member,
     deleted_by: User | Member | None,
-    channel: AuditChannel,
+    channel: MentionableChannel,
 ) -> None:
     """One embed for the message, then one more for each attachment it carried."""
     channel_mention = get_channel_mention(channel)
@@ -348,7 +348,7 @@ async def message_deleted_uncached(
     content: str | None,
     message_id: int,
     deleted_by: User | Member | None,
-    channel: AuditChannel,
+    channel: MentionableChannel,
 ) -> None:
     """A deletion the bot has no copy of the message for, only the stored text."""
     mention = UNKNOWN_USER if deleted_by is None else deleted_by.mention
@@ -365,7 +365,7 @@ async def message_deleted_uncached(
 
 
 async def bulk_deleted(
-    *, count: int, deleted_by: User | Member | None, channel: AuditChannel
+    *, count: int, deleted_by: User | Member | None, channel: MentionableChannel
 ) -> None:
     embed = _embed(
         f"**Bulk Delete in {get_channel_mention(channel)}, {count} messages deleted**",
@@ -387,7 +387,7 @@ async def command_failed(ctx: Context, error: CommandError) -> None:
         "embed_color_info",
     )
     _by(embed, ctx.author)
-    embed.set_footer(text=f"User ID: {ctx.author.id}").add_field(
+    embed.set_footer(text=f"ID: {ctx.author.id}").add_field(
         name="**Command**",
         value=_said(ctx.message.content),
         inline=False,

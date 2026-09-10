@@ -18,15 +18,13 @@ from constants import (
     TWITCH_MESSAGE_TYPE,
 )
 from errors import notify, report
-from models import (
-    ChannelAdBreakBeginEventSub,
-    ChannelChatMessageEventSub,
-    ChannelFollowEventSub,
-    ChannelModerateEventSub,
-    ChannelRaidEventSub,
-    StreamOfflineEventSub,
-    StreamOnlineEventSub,
-)
+from models.twitch_event_subs.channel_ad_break_begin import ChannelAdBreakBeginEventSub
+from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
+from models.twitch_event_subs.channel_follow import ChannelFollowEventSub
+from models.twitch_event_subs.channel_moderate import ChannelModerateEventSub
+from models.twitch_event_subs.channel_raid import ChannelRaidEventSub
+from models.twitch_event_subs.stream_offline import StreamOfflineEventSub
+from models.twitch_event_subs.stream_online import StreamOnlineEventSub
 from services.twitch import events
 from services.twitch.signature import (
     get_hmac,

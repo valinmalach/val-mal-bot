@@ -58,15 +58,15 @@ def build_embed(key: str) -> Embed:
 
 def role_panels(channel_key: str) -> list[tuple[Embed, RolePickerView, int]]:
     """Every embed destined for one channel, in stored order."""
-    panels = []
-    for key in config.embed_keys():
-        stored = config.embed(key)
-        if stored is None or stored.channel_key != channel_key:
-            continue
-        panels.append(
-            (build_embed(key), RolePickerView(key), config.channel(channel_key))
-        )
-    return panels
+    # config.channel stays inside: it raises for a key with no row, and hoisting
+    # it would turn "nothing is configured for this panel" from an empty list
+    # into a failed command.
+    return [
+        (build_embed(key), RolePickerView(key), config.channel(channel_key))
+        for key in config.embed_keys()
+        if (stored := config.embed(key)) is not None
+        and stored.channel_key == channel_key
+    ]
 
 
 def persistent_views() -> list[RolePickerView]:

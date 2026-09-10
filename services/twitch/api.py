@@ -11,20 +11,12 @@ from typing import Literal
 from config import settings
 from constants import TokenType
 from errors import notify
-from models import (
-    AdSchedule,
-    AdScheduleResponse,
-    Channel,
-    ChannelResponse,
-    Stream,
-    StreamResponse,
-    Subscription,
-    SubscriptionResponse,
-    User,
-    UserResponse,
-    Video,
-    VideoResponse,
-)
+from models.twitch_api_responses.ad_schedule import AdSchedule, AdScheduleResponse
+from models.twitch_api_responses.channel import Channel, ChannelResponse
+from models.twitch_api_responses.stream import Stream, StreamResponse
+from models.twitch_api_responses.subscription import Subscription, SubscriptionResponse
+from models.twitch_api_responses.user import User, UserResponse
+from models.twitch_api_responses.video import Video, VideoResponse
 from services.config import config
 from services.twitch import helix
 from services.twitch.helix import HelixError

@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable
 
 import discord
 import pendulum
@@ -31,15 +31,17 @@ class Events(Cog):
         self.bot = bot
 
     async def _safe_db_operation(
-        self,
-        operation: str,
-        func: Callable[..., Awaitable[object]],
-        *args: object,
-        **kwargs: object,
+        self, operation: str, write: Awaitable[object]
     ) -> None:
-        """Run a database write, reporting failures instead of raising."""
+        """Run a database write, reporting failures instead of raising.
+
+        Takes the call already made rather than a function and its arguments.
+        Passed as `*args: object` they were checked against nothing, so
+        upsert_message's six could be reordered and pyright would agree; written
+        out at the call site they are checked as ordinary arguments.
+        """
         try:
-            await func(*args, **kwargs)
+            await write
         except Exception as e:  # noqa: BLE001
             await report(e, f"Failed to {operation}")
 
@@ -60,19 +62,20 @@ class Events(Cog):
         guild = message.guild
         await self._safe_db_operation(
             f"store message {message.id}",
-            repository.upsert_message,
-            message.id,
-            message.content,
-            config.setting("guild_id") if guild is None else guild.id,
-            message.author.id,
-            message.channel.id,
-            [attachment.url for attachment in message.attachments],
+            repository.upsert_message(
+                message.id,
+                message.content,
+                config.setting("guild_id") if guild is None else guild.id,
+                message.author.id,
+                message.channel.id,
+                [attachment.url for attachment in message.attachments],
+            ),
         )
 
     @Cog.listener()
     async def on_message(self, message: Message) -> None:
         try:
-            if message.author == self.bot.user:
+            if self._is_bot_message(message):
                 return
 
             await self._store_message(message)
@@ -108,9 +111,7 @@ class Events(Cog):
 
             await self._safe_db_operation(
                 f"insert user {member.name} ({member.id})",
-                repository.upsert_username,
-                member.id,
-                member.name,
+                repository.upsert_username(member.id, member.name),
             )
         except Exception as e:  # noqa: BLE001
             await report(e, "Fatal error with on_member_join event")
@@ -135,8 +136,7 @@ class Events(Cog):
 
             await self._safe_db_operation(
                 f"remove user {member.name} ({member.id})",
-                repository.delete_user,
-                member.id,
+                repository.delete_user(member.id),
             )
         except Exception as e:  # noqa: BLE001
             await report(e, "Fatal error with on_raw_member_remove event")
@@ -194,17 +194,20 @@ class Events(Cog):
         """Check if a member is currently timed out."""
         return timeout_until is not None and timeout_until > pendulum.now()
 
-    async def _is_bot_message(self, payload: RawMessageUpdateEvent) -> bool:
-        """Check if the message was sent by the bot."""
-        return payload.message.author == self.bot.user or (
-            payload.cached_message is not None
-            and payload.cached_message.author == self.bot.user
-        )
+    def _is_bot_message(self, *messages: Message | None) -> bool:
+        """Whether any of these is a message the bot itself sent.
+
+        Variadic because the three callers hold different things: a live
+        Message, an edit payload's before and after, and a delete payload's
+        cached copy alone. Spelling it three times is how the delete path came
+        to check only half of what the edit path checks.
+        """
+        return any(m is not None and m.author == self.bot.user for m in messages)
 
     @Cog.listener()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent) -> None:
         try:
-            if await self._is_bot_message(payload):
+            if self._is_bot_message(payload.message, payload.cached_message):
                 return
 
             before = payload.cached_message
@@ -231,10 +234,7 @@ class Events(Cog):
     @Cog.listener()
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent) -> None:
         try:
-            if (
-                payload.cached_message is not None
-                and payload.cached_message.author == self.bot.user
-            ):
+            if self._is_bot_message(payload.cached_message):
                 return
 
             user_who_deleted = await self._get_audit_user(
@@ -262,8 +262,7 @@ class Events(Cog):
 
             await self._safe_db_operation(
                 f"delete message {payload.message_id}",
-                repository.delete_message,
-                payload.message_id,
+                repository.delete_message(payload.message_id),
             )
         except Exception as e:  # noqa: BLE001
             await report(e, "Fatal error with on_raw_message_delete event")
@@ -286,8 +285,7 @@ class Events(Cog):
             for message_id in payload.message_ids:
                 await self._safe_db_operation(
                     f"delete message {message_id}",
-                    repository.delete_message,
-                    message_id,
+                    repository.delete_message(message_id),
                 )
         except Exception as e:  # noqa: BLE001
             await report(e, "Fatal error with on_raw_bulk_message_delete event")

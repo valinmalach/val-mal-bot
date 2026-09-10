@@ -10,7 +10,7 @@ import re
 from collections.abc import Awaitable, Callable
 
 from errors import notify
-from models import ChannelChatMessageEventSub
+from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
 from services.config import config, safe_format
 from services.twitch import stream_session
 from services.twitch.api import get_channel, get_user_by_username
