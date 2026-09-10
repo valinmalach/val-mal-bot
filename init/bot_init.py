@@ -39,10 +39,16 @@ class MyBot(Bot):
 
     async def setup_hook(self) -> None:
         from services.config import config
+        from services.twitch.shoutout_queue import shoutout_queue
         from services.twitch.token_manager import token_manager
 
         await config.load()
         await token_manager.load()
+
+        # Here rather than in on_ready, which fires again on every gateway
+        # reconnect: one drainer is wanted for the life of the process, and it
+        # idles until a session puts something in the queue.
+        fire_and_forget(shoutout_queue.drain(), name="shoutout-queue")
 
         self.command_prefix = config.setting("command_prefix", "$")
         guild = discord.Object(id=config.setting("guild_id"))

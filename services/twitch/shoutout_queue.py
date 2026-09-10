@@ -25,8 +25,6 @@ _LOOKUP_RETRY_BACKOFF_SECONDS = 300
 
 class TwitchShoutoutQueue:
     _instance: ClassVar[TwitchShoutoutQueue | None] = None
-    _activated: bool = False
-    _generation: int = 0
     _shoutout_queue: ClassVar[list[tuple[str, str]]] = []
     _last_shoutout_by_target_id: ClassVar[dict[str, pendulum.DateTime]] = {}
     _next_attempt_allowed_by_target_id: ClassVar[dict[str, pendulum.DateTime]] = {}
@@ -35,10 +33,6 @@ class TwitchShoutoutQueue:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cast("Self", cls._instance)
-
-    @property
-    def activated(self) -> bool:
-        return self._activated
 
     def add_to_queue(self, login: str, user_id: str) -> None:
         """Queue a target, refusing what the drainer could not act on.
@@ -97,32 +91,36 @@ class TwitchShoutoutQueue:
                     return reset
         return now.add(seconds=_MIN_SAME_TARGET_COOLDOWN_SECONDS)
 
-    async def activate(self) -> None:
-        if self._activated:
-            return
+    async def drain(self) -> None:
+        """Send queued shoutouts for as long as the process runs.
 
-        # Each activation takes a generation. The loop sleeps for up to the
-        # global interval, so one told to stand down can still be inside a sleep
-        # when the next stream starts and activates again; without this the older
-        # one would wake to a set flag and keep draining alongside the newer, and
-        # its own exit would clear the flag the newer is running on.
-        self._generation += 1
-        mine = self._generation
-        self._activated = True
-        try:
-            while self._activated and self._generation == mine:
-                try:
-                    await self._drain_once()
-                except Exception as e:  # noqa: BLE001
-                    # One pass, not the queue. The Helix failures inside handle
-                    # themselves; this is for what was never anticipated, and
-                    # without it one of those ended shoutouts for the stream
-                    # while `activated` went on saying the queue was running.
-                    await report(e, "Shoutout queue: a pass failed unexpectedly")
+        One task, started once, rather than one per stream. Tying its lifetime
+        to the stream is what used to need a generation counter: a drainer told
+        to stand down could still be inside a two-minute sleep when the next
+        stream started one alongside it.
+
+        Each pass asks the session, rather than draining whatever it finds. The
+        queue is only fed while a session is live and is emptied when one ends,
+        but a target whose lookup failed re-queues itself afterwards, and
+        without this that straggler would be shouted out into an offline chat.
+        """
+        # Deferred: the session imports this module to empty the queue when a
+        # stream ends, so importing it at module level would be a cycle. By the
+        # time anything calls this, every module is loaded.
+        from services.twitch import stream_session
+
+        while True:
+            try:
+                if not stream_session.is_live():
                     await asyncio.sleep(5)
-        finally:
-            if self._generation == mine:
-                self._activated = False
+                    continue
+                await self._drain_once()
+            except Exception as e:  # noqa: BLE001
+                # One pass, not the queue. The Helix failures inside handle
+                # themselves; this is for what was never anticipated, and
+                # without it one of those ended shoutouts for the whole stream.
+                await report(e, "Shoutout queue: a pass failed unexpectedly")
+                await asyncio.sleep(5)
 
     async def _drain_once(self) -> None:
         """Send at most one shoutout, or wait. Its own unit so a failure is too."""
@@ -198,8 +196,13 @@ class TwitchShoutoutQueue:
 
         await asyncio.sleep(_GLOBAL_SHOUTOUT_INTERVAL_SECONDS)
 
-    def deactivate(self) -> None:
-        self._activated = False
+    def clear(self) -> None:
+        """Drop what is pending, because it belonged to a stream that is over.
+
+        Not `_last_shoutout_by_target_id`: that mirrors a cooldown Twitch keeps
+        for an hour whatever this process does, so forgetting it would only earn
+        a 429 on the next stream.
+        """
         self._shoutout_queue.clear()
         self._next_attempt_allowed_by_target_id.clear()
 

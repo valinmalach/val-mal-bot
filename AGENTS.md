@@ -95,9 +95,11 @@ Stop the web server and the bot goes with it.
 
 **Startup order is spread across three files.** lifespan (`main.py`) → cog loading →
 `MyBot.setup_hook()` (`init/bot_init.py`: `config.load()`, `token_manager.load()`,
-command prefix, guild command-tree sync, persistent view registration) → `on_ready`
-(background tasks; the startup announcement is guarded by a module flag because
-`on_ready` fires again every time a gateway session cannot be resumed).
+the shoutout drainer, command prefix, guild command-tree sync, persistent view
+registration) → `on_ready` (background tasks; the startup announcement is guarded
+by a module flag because `on_ready` fires again every time a gateway session
+cannot be resumed). Anything wanted once per process belongs in `setup_hook` for
+that reason — the drainer is there, not beside the other background tasks.
 
 **Two configuration sources, one hard line.** `.env` → `config.settings` answers *how
 this instance authenticates and where it runs*, validated once at import and failing
@@ -190,23 +192,38 @@ it cannot repair these five.
 **A live alert is closed by its updater, never by a webhook.** `stream.offline`
 carries no stream id, so the handler cannot tell which stream ended; it calls
 `live_alert.wake()`, and the updater re-checks Helix and stops if it has been
-superseded. `docs/adr/0001-alert-updater-is-the-only-closer.md` has the why. The
-one rule the cycle turns on is `live_alert._decide`, which is pure — put new
-conditions there, not in the surrounding I/O.
+superseded. The same webhook also calls `stream_session.wake()`, which asks Helix
+the same question for a different scope and is not the same decision. Both guard
+against being superseded, for the same reason.
+`docs/adr/0001-alert-updater-is-the-only-closer.md` has the why. The one rule the
+cycle turns on is `live_alert_cycle._decide`, which is pure — put new conditions
+there, not in the surrounding I/O.
 
-**The shoutout queue stops when it stops, and says so.** A pass that fails costs
-that pass, not the stream's shoutouts: the Helix failures inside handle
-themselves, so the outer guard is for what nobody anticipated, and one of those
-used to end the drainer silently while `activated` went on saying it was running
-— which meant `!so` kept accepting shoutouts for a drainer that no longer
-existed. Each activation takes a generation and clears the flag only if it is
-still the current one, because a drainer told to stand down can still be inside
-a sleep when the next stream activates.
+**An alert's lifecycle and one of its passes are separate files.**
+`live_alert.py` starts an updater, wakes it, and restores them all after a
+restart; `live_alert_cycle.py` is one pass — `_decide`, and the refresh and
+close that carry its answer out — and knows nothing about tasks. It answers with
+an `Action`, which is why the split holds: the loop reads a conclusion rather
+than watching the I/O that reached it.
 
-**`stream_session` owns all three of its transitions.** `began`, `resume` and
-`ended`. `resume` is deliberately not a second `began`: nothing is greeted,
-because the stream did not just start, and that difference is why the startup
-path could never have been `began`.
+**One drainer, for the life of the process.** A pass that fails costs that pass,
+not the stream's shoutouts: the Helix failures inside handle themselves, so the
+outer guard is for what nobody anticipated. The drainer no longer starts and
+stops with the stream, which is what used to need a generation counter — one
+told to stand down could still be inside a two-minute sleep when the next stream
+started another alongside it. It asks the session each pass instead, and that is
+not decoration: a target whose lookup failed re-queues itself, and a lookup that
+failed as the stream ended would otherwise be shouted out into an offline chat.
+`shoutout_queue` therefore imports `stream_session` inside `drain`, because the
+session imports the queue to empty it.
+
+**`stream_session` owns every transition of its own.** `began` and `resume` take
+a session up, `wake` is the only thing that can bring one down, and both ends are
+private to the module. `resume` is deliberately not a second `began`: nothing is
+greeted, because the stream did not just start, and that difference is why the
+startup path could never have been `began`. Beginning is not the opposite of
+ending — it resets whatever a previous session left, which is also how a session
+nothing could end recovers at the next `stream.online`.
 
 **A subject per file, and no file holding six.** `services/helper/helper.py` used
 to hold sending, presentation, durations, birthdays, roles and webhook
@@ -233,9 +250,14 @@ alert wraps a Twitch stream title exactly that way, so it escapes the brackets
 itself. An author line and a footer are plain text to Discord and are left alone.
 
 **`live_alert` and `stream_session` are different scopes.** A live alert exists
-per broadcaster; a stream session is the main broadcaster being live, and owns
-the shoutout queue and the ad-break warning. Only a stream Helix confirms is gone
-stands a session down.
+per broadcaster and is kept in Postgres, because it names a Discord message that
+outlives a redeploy; a stream session is the main broadcaster being live, holds
+the `Stream` it began for, and owns everything lasting exactly one stream — the
+queue's contents and the ad-break warning — in memory. Only a stream Helix
+confirms is gone stands a session down, and the alert updater is no longer what
+asks: it used to call `ended()`, which made the session depend on an alert row
+existing, and three ways of ending an updater never reached that call.
+`docs/adr/0004-the-stream-session-ends-itself.md` has the why.
 
 **Every Twitch chat line goes through `services/twitch/chat.py`.** `say` and
 `say_template` report their own failure and never raise, so a line Twitch refused

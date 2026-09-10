@@ -6,11 +6,13 @@ stored responses in order, and `composite` runs other commands.
 """
 
 import logging
+import re
 from collections.abc import Awaitable, Callable
 
 from errors import notify
 from models import ChannelChatMessageEventSub
 from services.config import config, safe_format
+from services.twitch import stream_session
 from services.twitch.api import get_channel, get_user_by_username
 from services.twitch.chat import say, say_template
 from services.twitch.helix import HelixError
@@ -22,6 +24,12 @@ logger = logging.getLogger(__name__)
 __all__ = ["dispatch"]
 
 COMPOSITE_HANDLER = "composite"
+
+# A Twitch login: 4 to 25 characters of ASCII letter, digit or underscore.
+# Anything else cannot name a channel, so it is refused before the lookup
+# rather than after: it costs no Helix call, and nothing a chatter typed
+# reaches Twitch as a query parameter on the strength of being a word.
+_TWITCH_LOGIN = re.compile(r"\A[a-zA-Z0-9_]{4,25}\Z")
 
 
 def _target(args: str) -> str:
@@ -54,6 +62,12 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     target = _target(args) or event_sub.event.broadcaster_user_login
 
+    if not _TWITCH_LOGIN.match(target):
+        # The same answer a real login nobody owns gets: chat has no use for
+        # the difference between "no such channel" and "that is not a name".
+        await say_template(broadcaster_id, "twitch_shoutout_not_found")
+        return
+
     try:
         user = await get_user_by_username(target)
         target_channel = await get_channel(int(user.id)) if user else None
@@ -71,7 +85,7 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
         await say_template(broadcaster_id, "twitch_shoutout_not_found")
         return
 
-    if user and shoutout_queue.activated:
+    if user and stream_session.is_live():
         shoutout_queue.add_to_queue(user.login, str(user.id))
 
     await say_template(

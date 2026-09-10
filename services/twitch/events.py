@@ -112,8 +112,11 @@ async def stream_offline(event_sub: StreamOfflineEventSub) -> None:
     broadcaster_id = int(event_sub.event.broadcaster_user_id)
     try:
         # The payload names no stream, so this handler cannot tell which one
-        # ended. It wakes the updater, which can. See docs/adr/0001.
+        # ended. It wakes both, and each re-checks Helix for its own scope: the
+        # updater to find out which alert this was (docs/adr/0001), the session
+        # to find out whether anyone is still live at all (docs/adr/0004).
         await live_alert.wake(broadcaster_id)
+        await stream_session.wake(broadcaster_id)
 
     except Exception as e:  # noqa: BLE001
         await report(e, f"Error in stream_offline for {broadcaster_id}")
