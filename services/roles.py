@@ -44,29 +44,27 @@ async def toggle_role(
 
 async def roles_button_pressed(interaction: Interaction, button: Button) -> None:
     guild_id = interaction.guild_id
-    member_id = interaction.user.id
     emoji = button.emoji
-    if not guild_id or not emoji:
-        await interaction.response.send_message(
-            config.template("discord_role_error"),
-            ephemeral=True,
-        )
-        return
-    res = await toggle_role(guild_id, member_id, emoji)
+
+    # A button with no emoji and a toggle that could not resolve the role are
+    # one answer to the presser: the reason is theirs to act on in neither case.
+    res = (
+        await toggle_role(guild_id, interaction.user.id, emoji)
+        if guild_id and emoji
+        else None
+    )
     if res is None:
         await interaction.response.send_message(
             config.template("discord_role_error"),
             ephemeral=True,
         )
         return
-    success, role = res
-    if not success:
-        await interaction.response.send_message(
-            config.template("discord_role_removed", role=role.mention),
-            ephemeral=True,
-        )
-        return
+
+    added, role = res
     await interaction.response.send_message(
-        config.template("discord_role_added", role=role.mention),
+        config.template(
+            "discord_role_added" if added else "discord_role_removed",
+            role=role.mention,
+        ),
         ephemeral=True,
     )

@@ -72,7 +72,7 @@ class Events(Cog):
     @Cog.listener()
     async def on_message(self, message: Message) -> None:
         try:
-            if message.author == self.bot.user:
+            if self._is_bot_message(message):
                 return
 
             await self._store_message(message)
@@ -194,17 +194,20 @@ class Events(Cog):
         """Check if a member is currently timed out."""
         return timeout_until is not None and timeout_until > pendulum.now()
 
-    async def _is_bot_message(self, payload: RawMessageUpdateEvent) -> bool:
-        """Check if the message was sent by the bot."""
-        return payload.message.author == self.bot.user or (
-            payload.cached_message is not None
-            and payload.cached_message.author == self.bot.user
-        )
+    def _is_bot_message(self, *messages: Message | None) -> bool:
+        """Whether any of these is a message the bot itself sent.
+
+        Variadic because the three callers hold different things: a live
+        Message, an edit payload's before and after, and a delete payload's
+        cached copy alone. Spelling it three times is how the delete path came
+        to check only half of what the edit path checks.
+        """
+        return any(m is not None and m.author == self.bot.user for m in messages)
 
     @Cog.listener()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent) -> None:
         try:
-            if await self._is_bot_message(payload):
+            if self._is_bot_message(payload.message, payload.cached_message):
                 return
 
             before = payload.cached_message
@@ -231,10 +234,7 @@ class Events(Cog):
     @Cog.listener()
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent) -> None:
         try:
-            if (
-                payload.cached_message is not None
-                and payload.cached_message.author == self.bot.user
-            ):
+            if self._is_bot_message(payload.cached_message):
                 return
 
             user_who_deleted = await self._get_audit_user(

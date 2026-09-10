@@ -35,6 +35,11 @@ logger = logging.getLogger(__name__)
 _PLACEHOLDER = re.compile(r"\{(channel|role):([a-z0-9_]+)\}")
 _FORMAT_FIELD = re.compile(r"\{([^{}]*)\}")
 
+# Only reached when a colour key is missing from the settings table entirely;
+# a key that exists answers with its own row. It deliberately matches the
+# seeded embed_color_info, so a caller that names nothing looks like the rest.
+_FALLBACK_COLOR = 0x337FD5
+
 
 def _field_name(field: str) -> str:
     """The value a replacement field reads, without conversion or format spec."""
@@ -163,7 +168,7 @@ class ConfigCache:
     def setting(self, key: str, default: Any = None) -> Any:
         return self._settings.get(key, default)
 
-    def color(self, key: str, default: int = 0x337FD5) -> int:
+    def color(self, key: str, default: int = _FALLBACK_COLOR) -> int:
         value = self._settings.get(key, default)
         return int(value) if value is not None else default
 
