@@ -191,26 +191,38 @@ async def wake(broadcaster_id: int) -> None:
 
     Safe to call at any time: the cycle decides what to do, so a wake for a
     stream that has already been replaced closes only the message it owns.
-    """
-    alert = await repository.get_live_alert(broadcaster_id)
-    if alert is None:
-        logger.info(
-            f"No live alert to wake for broadcaster_id={broadcaster_id}; nothing to do"
-        )
-        return
 
-    # Starting is a no-op when an updater is already running, so this also
-    # repairs a row whose updater died or gave up.
-    _start(
-        alert.broadcaster_id,
-        alert.channel_id,
-        alert.message_id,
-        alert.stream_id,
-        _stored_start(alert),
-    )
-    wakeup = _wakeups.get(alert.message_id)
-    if wakeup is not None:
-        wakeup.set()
+    Does not raise, which is load-bearing rather than tidy. The one caller wakes
+    the stream session on the same webhook, and this reads a row from Postgres
+    while that needs no database at all - so an unreachable database must not
+    also stop a session standing down. The same contract stream_session.wake
+    already keeps.
+    """
+    try:
+        alert = await repository.get_live_alert(broadcaster_id)
+        if alert is None:
+            logger.info(
+                f"No live alert to wake for broadcaster_id={broadcaster_id};"
+                f" nothing to do"
+            )
+            return
+
+        # Starting is a no-op when an updater is already running, so this also
+        # repairs a row whose updater died or gave up.
+        _start(
+            alert.broadcaster_id,
+            alert.channel_id,
+            alert.message_id,
+            alert.stream_id,
+            _stored_start(alert),
+        )
+        wakeup = _wakeups.get(alert.message_id)
+        if wakeup is not None:
+            wakeup.set()
+    except Exception as e:  # noqa: BLE001
+        await report(
+            e, f"Could not wake the live alert for broadcaster {broadcaster_id}"
+        )
 
 
 async def restore_all() -> None:

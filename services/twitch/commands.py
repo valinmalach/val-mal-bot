@@ -21,7 +21,7 @@ from .shoutout_queue import shoutout_queue
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["dispatch"]
+__all__ = ["dispatch", "is_twitch_login"]
 
 COMPOSITE_HANDLER = "composite"
 
@@ -38,6 +38,17 @@ COMPOSITE_HANDLER = "composite"
 # charset and the maximum are what make the value safe to hand to Helix; the
 # minimum only ever adds false rejections.
 _TWITCH_LOGIN = re.compile(r"\A[a-zA-Z0-9_]{1,25}\Z")
+
+
+def is_twitch_login(value: str) -> bool:
+    """Whether this could name a Twitch channel.
+
+    The one boundary for every shoutout path. `!so` asks before its lookup, and
+    the raid handler asks before composing a `!so` line at all - that line is
+    posted to chat and arrives back through the webhook, so a value that cannot
+    name a channel should never be built into a command in the first place.
+    """
+    return _TWITCH_LOGIN.match(value) is not None
 
 
 def _target(args: str) -> str:
@@ -80,7 +91,7 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     broadcaster_id = event_sub.event.broadcaster_user_id
     target = _target(args) or event_sub.event.broadcaster_user_login
 
-    if not _TWITCH_LOGIN.match(target):
+    if not is_twitch_login(target):
         # The same answer a real login nobody owns gets: chat has no use for
         # the difference between "no such channel" and "that is not a name".
         await say_template(broadcaster_id, "twitch_shoutout_not_found")
@@ -121,25 +132,20 @@ HANDLERS: dict[str, Callable[[ChannelChatMessageEventSub, str], Awaitable[None]]
 }
 
 
-async def _check_mod(event_sub: ChannelChatMessageEventSub) -> bool:
-    """Whether the chatter may run a mod-only command, telling them if not."""
-    if any(
+def _is_mod(event_sub: ChannelChatMessageEventSub) -> bool:
+    """Whether the chatter holds a badge that may run a mod-only command."""
+    return any(
         badge.set_id in {"moderator", "broadcaster"}
         for badge in event_sub.event.badges or []
-    ):
-        return True
-
-    await say_template(event_sub.event.broadcaster_user_id, "twitch_mod_only")
-    return False
+    )
 
 
 async def dispatch(event_sub: ChannelChatMessageEventSub, name: str, args: str) -> None:
-    """Run a chat command by name; unknown or disabled names do nothing."""
-    command = config.command(name)
-    if command is None:
-        return
-    if command.mod_only and not await _check_mod(event_sub):
-        return
+    """Run a chat command by name; unknown or disabled names do nothing.
+
+    A wrapper only so that `seen`, which exists for the composite cycle guard,
+    stays out of the name every caller uses.
+    """
     await _run(event_sub, name, args)
 
 
@@ -149,9 +155,25 @@ async def _run(
     args: str,
     seen: frozenset[str] = frozenset(),
 ) -> None:
-    """Dispatch without the permission check, which a composite does once."""
+    """Run one command, and each command it is composed of.
+
+    Permission is checked per command rather than once at the root. Checking
+    only what was typed made a composite a way around its children: one that
+    is not itself mod-only would run a mod-only member for anybody, and
+    nothing stops a migration adding that pairing. Today's only composite is
+    mod-only, so this closes the hole rather than a live bypass.
+
+    Only the command the chatter actually named is refused out loud. A member
+    they never asked for is skipped in silence, so one refusal cannot become
+    one per member of the composite.
+    """
     command = config.command(name)
     if command is None:
+        return
+
+    if command.mod_only and not _is_mod(event_sub):
+        if not seen:
+            await say_template(event_sub.event.broadcaster_user_id, "twitch_mod_only")
         return
 
     if command.handler == COMPOSITE_HANDLER:
