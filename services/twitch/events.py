@@ -176,24 +176,30 @@ async def channel_ad_break_begin(event_sub: ChannelAdBreakBeginEventSub) -> None
 
 async def channel_raid(event_sub: ChannelRaidEventSub) -> None:
     try:
+        # Both logins are checked before anything is built from them, rather
+        # than after it is read back. Outbound, the login becomes a URL the bot
+        # posts in chat; inbound, it becomes a `!so <login>` line that returns
+        # through the chat webhook and is dispatched, so a value that cannot
+        # name a channel must not reach either. The payload is signed, which is
+        # why neither has ever fired - this is the boundary, not a doubt about
+        # Twitch, and it is the same one `!so` itself uses.
         if stream_session.is_main_broadcaster(event_sub.event.from_broadcaster_user_id):
-            twitch_url = (
-                f"https://www.twitch.tv/{event_sub.event.to_broadcaster_user_login}"
-            )
+            raided = event_sub.event.to_broadcaster_user_login
+            if not is_twitch_login(raided):
+                await notify(
+                    f"Said nothing about an outgoing raid to {raided!r}:"
+                    f" that cannot name a Twitch channel, so it cannot be a URL.",
+                    key="raid-out-bad-login",
+                )
+                return
             await say_template(
                 event_sub.event.from_broadcaster_user_id,
                 "twitch_raid_out",
                 name=event_sub.event.to_broadcaster_user_name,
-                url=twitch_url,
+                url=f"https://www.twitch.tv/{raided}",
             )
         elif stream_session.is_main_broadcaster(event_sub.event.to_broadcaster_user_id):
             raider = event_sub.event.from_broadcaster_user_login
-            # Checked before the line is built, not after it is read back. The
-            # shoutout is delivered by posting `!so <login>` into chat, which
-            # returns through the chat webhook and is dispatched, so a login
-            # that cannot name a channel must not reach a command at all. The
-            # payload is signed, which is why this has never fired - it is the
-            # boundary, not a doubt about Twitch.
             if not is_twitch_login(raider):
                 await notify(
                     f"Refused to shout out an incoming raid from {raider!r}:"
