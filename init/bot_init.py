@@ -5,31 +5,37 @@ import discord
 from discord.ext.commands import Bot
 
 from background import fire_and_forget
-from errors import notify
+from errors import notify, report
 
 logger = logging.getLogger(__name__)
 
 _startup_announced = False
 
 
-async def restart_live_alert_tasks() -> None:
-    from services.twitch import live_alert
-
-    await live_alert.restore_all()
-
-
-async def resume_stream_session() -> None:
-    from services.twitch import stream_session
-
-    await stream_session.resume()
-
-
 async def run_background_tasks() -> None:
-    await asyncio.gather(
-        restart_live_alert_tasks(),
-        resume_stream_session(),
-        return_exceptions=True,
+    """Bring the per-process helpers back up, saying which one failed.
+
+    The arms are gathered so one cannot delay the other, and their results are
+    read: `return_exceptions=True` on its own is silence, because the gather
+    completes normally and `background._finished` sees nothing to report. An
+    unreachable database at boot would then leave every stored alert without an
+    updater for the life of the process with nothing said. `main()` reads its
+    cog-loading results the same way.
+
+    Each arm is named for what was lost rather than for the function that lost
+    it, because that is what the admin channel needs to act on.
+    """
+    # Deferred: both reach services.send, which imports this package for `bot`.
+    from services.twitch import live_alert, stream_session
+
+    arms = (
+        ("restore the live alert updaters", live_alert.restore_all()),
+        ("resume the stream session", stream_session.resume()),
     )
+    results = await asyncio.gather(*(arm for _, arm in arms), return_exceptions=True)
+    for (lost, _), result in zip(arms, results, strict=True):
+        if isinstance(result, Exception):
+            await report(result, f"Startup could not {lost}")
 
 
 class MyBot(Bot):
