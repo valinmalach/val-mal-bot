@@ -218,12 +218,6 @@ async def channel_raid(event_sub: ChannelRaidEventSub) -> None:
                 url=f"https://www.twitch.tv/{raided}",
             )
         elif stream_session.is_main_broadcaster(event_sub.event.to_broadcaster_user_id):
-            # The raid is the appearance that spends their autoshoutout: the
-            # `!so` below already gives them one, so their first chat line
-            # afterwards must not give them a second. Marked here rather than
-            # in the shoutout handler, which a mod's manual `!so` also reaches.
-            autoshoutout.raided(event_sub.event.from_broadcaster_user_id)
-
             raider = event_sub.event.from_broadcaster_user_login
             if not is_twitch_login(raider):
                 await notify(
@@ -232,11 +226,20 @@ async def channel_raid(event_sub: ChannelRaidEventSub) -> None:
                     key="raid-bad-login",
                 )
                 return
-            await say(
+
+            # The raid is the appearance that spends their autoshoutout, but
+            # only once the line is actually out: it is the `!so` that gives
+            # them one, so a login that could not be used and a line Twitch
+            # refused both leave them owed it, and their first chat message
+            # should still earn it. Marked here rather than in the shoutout
+            # handler, which a mod's manual `!so` also reaches and which must
+            # spend nothing.
+            if await say(
                 event_sub.event.to_broadcaster_user_id,
                 f"!so {raider}",
                 "the incoming raid shoutout",
-            )
+            ):
+                autoshoutout.raided(event_sub.event.from_broadcaster_user_id)
     except Exception as e:  # noqa: BLE001
         await report(e, "Error processing Twitch raid webhook task")
 
