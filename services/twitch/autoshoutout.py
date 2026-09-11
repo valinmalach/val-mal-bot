@@ -22,6 +22,7 @@ from enum import Enum, auto
 from db import repository
 from errors import notify, report
 from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
+from services.config import config
 from services.present import quoted
 from services.twitch import stream_session
 from services.twitch.chat import say
@@ -107,6 +108,14 @@ async def _consider(broadcaster_id: str, twitch_user_id: int, login: str) -> Non
 async def chatted(event_sub: ChannelChatMessageEventSub) -> None:
     """Consider the chatter behind one message. Does not raise."""
     try:
+        # The bot is not a viewer turning up. It says `!so <login>` for every
+        # raid and every autoshoutout, and each of those lines comes back
+        # through this same webhook, so without this the bot is looked up in
+        # the list the first time it speaks each stream. Harmless but wasted,
+        # and it reads as an oversight rather than a decision.
+        if event_sub.event.chatter_user_id == config.setting("twitch_bot_user_id"):
+            return
+
         await _consider(
             event_sub.event.broadcaster_user_id,
             int(event_sub.event.chatter_user_id),
