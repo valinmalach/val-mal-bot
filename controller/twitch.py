@@ -217,7 +217,7 @@ async def validate_call(request: Request, endpoint: str) -> dict[str, Any] | Res
     # Freshness applies to notifications alone, and deliberately sits below the
     # handshake. A wrong clock refusing events is recoverable; a wrong clock that
     # also refuses webhook_callback_verification would block the resubscribe that
-    # repairs it, and five of the seven subscriptions cannot be recreated from
+    # repairs it, and six of the eight subscriptions cannot be recreated from
     # this repo at all.
     try:
         sent = parse_rfc3339(headers.get(TWITCH_MESSAGE_TIMESTAMP, ""))
