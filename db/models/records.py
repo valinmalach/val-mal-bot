@@ -11,7 +11,7 @@ from sqlmodel import Field
 
 from db.base import UTC_TIMESTAMP, CreatedAtMixin, TimestampMixin
 
-__all__ = ["DiscordMessage", "DiscordUser", "LiveAlert"]
+__all__ = ["DiscordMessage", "DiscordUser", "LiveAlert", "TwitchAutoShoutout"]
 
 
 class DiscordUser(TimestampMixin, table=True):
@@ -80,3 +80,21 @@ class LiveAlert(TimestampMixin, table=True):
     message_id: int = Field(sa_type=BigInteger)
     stream_id: int = Field(sa_type=BigInteger)
     stream_started_at: datetime = Field(sa_type=UTC_TIMESTAMP)
+
+
+class TwitchAutoShoutout(TimestampMixin, table=True):
+    """A Twitch user due an autoshoutout the first time they turn up.
+
+    Keyed by Twitch user id, so renaming a channel cannot drop anyone off the
+    list. ``login`` is a display convenience for reading the table and may go
+    stale; every trigger uses the login off the event it is handling.
+    """
+
+    __tablename__ = "twitch_autoshoutout"
+
+    twitch_user_id: int = Field(
+        sa_type=BigInteger,
+        primary_key=True,
+        sa_column_kwargs={"autoincrement": False},
+    )
+    login: str = Field(max_length=25)

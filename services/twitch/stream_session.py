@@ -35,6 +35,13 @@ _stream: Stream | None = None
 
 _ad_break_task: asyncio.Task | None = None
 
+# Twitch user ids this session has already resolved: each is either **spent**,
+# meaning they had their autoshoutout, or was looked up and found not to be on
+# the **autoshoutout list**. One set rather than two because nothing needs the
+# halves apart - what both mean here is "do not ask about this chatter again
+# until the next stream", which is what keeps the list out of the hot path.
+_settled: set[int] = set()
+
 
 def is_main_broadcaster(broadcaster_id: str | int) -> bool:
     return str(broadcaster_id) == config.setting("twitch_broadcaster_id")
@@ -64,9 +71,19 @@ def _start(stream: Stream) -> None:
     if _stream is not None and _stream.id == stream.id:
         return
 
+    # Settled ids are cleared only when a *different* stream is being replaced,
+    # which is the leak recovery this guard exists for. Coming up from nothing
+    # they are kept, because `stream.online` can spend a minute in
+    # `_wait_for_stream_info` before this runs, and a raid landing in that
+    # window is already answered with `!so <raider>` - clearing its mark here
+    # would shout them out a second time on their first chat line.
+    replacing_a_live_stream = _stream is not None
+
     _stream = stream
     shoutout_queue.clear()
     cancel_ad_break_warning()
+    if replacing_a_live_stream:
+        _settled.clear()
 
 
 def _end() -> None:
@@ -76,6 +93,41 @@ def _end() -> None:
     _stream = None
     shoutout_queue.clear()
     cancel_ad_break_warning()
+    _settled.clear()
+
+
+def current_stream_id() -> str | None:
+    """Which stream this session is for, or None when nobody is live.
+
+    For work that awaits and then acts: `is_live()` afterwards only says that
+    *a* stream is running, and comparing this instead says it is still the same
+    one. `live_alert._owns_row` guards its own cycle the same way.
+    """
+    return _stream.id if _stream is not None else None
+
+
+def is_settled(twitch_user_id: int) -> bool:
+    """Whether this session has already resolved this Twitch user."""
+    return twitch_user_id in _settled
+
+
+def settle(twitch_user_id: int) -> None:
+    """Record that this session need not ask about this Twitch user again.
+
+    Called for a list member who has had their autoshoutout and for a chatter
+    found not to be on the list, because the session does nothing further for
+    either.
+
+    Recorded even when nobody is live, because a raid can arrive while
+    `stream.online` is still confirming the stream with Helix and is answered
+    straight away; the mark has to outlive that gap or the raider is shouted
+    out twice. `_start` keeps what it finds for exactly that reason, so a mark
+    made between streams survives until one ends or another replaces it - a
+    raid into an offline channel therefore costs that raider their
+    autoshoutout next stream, which is the side to err on, since the raid
+    answered them already.
+    """
+    _settled.add(twitch_user_id)
 
 
 async def began(broadcaster_id: int, stream: Stream) -> None:

@@ -206,6 +206,28 @@ close that carry its answer out — and knows nothing about tasks. It answers wi
 an `Action`, which is why the split holds: the loop reads a conclusion rather
 than watching the I/O that reached it.
 
+**An autoshoutout is one per person per stream, and the session remembers who.**
+`services/twitch/autoshoutout.py` owns the list, the rule and the three places
+someone can turn up. The rule is `_decide` and is pure, like
+`live_alert_cycle._decide`; the lookup is *inside* it, as `LOOK_UP`, because
+the cost guarantee — one query per distinct chatter per stream — is the rule
+rather than an optimisation wrapped around it. The session holds one set of
+**settled** ids, not two: **spent** and "looked up and not on the list" are
+both "do not ask again this stream", and nothing needs the halves apart.
+
+It shouts nobody out itself. It posts `!so <login>`, the round trip
+`channel_raid` already uses, so there is one implementation of what a shoutout
+is — at the price of the wording being `!so`'s. An incoming raid is settled
+rather than shouted, because the raid handler's own `!so` already gave them
+one; that mark lives in `channel_raid` and not in the shoutout handler, which a
+mod's manual `!so` also reaches. `!aso` is the exception that calls `shoutout`
+directly, having a chat event already in hand.
+
+**The shared-chat guard runs before anything reads a chat line.** It used to sit
+below the command parse, which was harmless while a relayed line could only
+produce a command. An autoshoutout is owed to someone who turned up in *this*
+channel, so a line relayed from another one is dropped first.
+
 **One drainer, for the life of the process.** A pass that fails costs that pass,
 not the stream's shoutouts: the Helix failures inside handle themselves, so the
 outer guard is for what nobody anticipated. The drainer no longer starts and

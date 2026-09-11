@@ -9,6 +9,7 @@ import pendulum
 from background import fire_and_forget
 from errors import notify, report
 from models.twitch_api_responses.user import User
+from services.present import quoted
 from services.twitch.api import get_user, send_shoutout
 from services.twitch.helix import HelixError
 
@@ -48,7 +49,7 @@ class TwitchShoutoutQueue:
         if not login or not user_id.isascii() or not user_id.isdecimal():
             fire_and_forget(
                 notify(
-                    f"Refused a shoutout for {login!r} (id {user_id!r}):"
+                    f"Refused a shoutout for {quoted(login)} (id {quoted(user_id)}):"
                     f" not a Twitch login and numeric id.",
                     key="shoutout-bad-target",
                 ),

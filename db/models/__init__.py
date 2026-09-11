@@ -16,7 +16,12 @@ from db.models.discord_config import (
     DiscordRole,
 )
 from db.models.enums import AutoResponseMatch, SettingValueType
-from db.models.records import DiscordMessage, DiscordUser, LiveAlert
+from db.models.records import (
+    DiscordMessage,
+    DiscordUser,
+    LiveAlert,
+    TwitchAutoShoutout,
+)
 from db.models.settings import AppSetting
 from db.models.twitch_config import (
     TwitchCommand,
@@ -43,6 +48,7 @@ __all__ = [
     "OAuthToken",
     "SettingValueType",
     "TimestampMixin",
+    "TwitchAutoShoutout",
     "TwitchCommand",
     "TwitchCommandComponent",
     "TwitchCommandResponse",
