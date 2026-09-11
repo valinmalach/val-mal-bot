@@ -16,6 +16,7 @@ from discord.utils import escape_markdown
 from constants import TokenType
 from errors import report
 from services.config import config
+from services.present import quoted
 from services.send import send_embed
 from services.twitch.api import (
     get_subscriptions,
@@ -38,7 +39,6 @@ _TWITCH_LOGIN = re.compile(r"[A-Za-z0-9_]{4,25}")
 
 # What is echoed back when the input was refused, so the person can see their
 # typo. Capped because the value is theirs, not Twitch's.
-_MAX_ECHOED_LOGIN = 50
 
 
 def _login(value: str) -> str | None:
@@ -48,11 +48,12 @@ def _login(value: str) -> str | None:
 
 
 async def _refuse_login(interaction: Interaction, value: str) -> None:
-    # Escaped and stripped of mentions: this is the one string here that carries
-    # what somebody typed. A login that passed _login cannot need either, except
-    # for the underscore escape_markdown adds.
+    # Stripped of mentions here, escaped and truncated by `quoted`: this is the
+    # one string in this file that carries what somebody typed, and it is only
+    # ever reached by a value that failed _login - so unlike a real login it
+    # can hold anything at all.
     await interaction.response.send_message(
-        f"`{escape_markdown(value[:_MAX_ECHOED_LOGIN])}` is not a Twitch username:"
+        f"{quoted(value)} is not a Twitch username:"
         " 4-25 characters, letters, digits and underscore.",
         ephemeral=True,
         allowed_mentions=discord.AllowedMentions.none(),

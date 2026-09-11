@@ -14,6 +14,12 @@ class ChannelChatMessageEvent(BaseModel):
     broadcaster_user_id: str
     broadcaster_user_login: str
     broadcaster_user_name: str
+    # The id matches the autoshoutout list, because a rename cannot move it;
+    # the login is what a `!so` line needs. chatter_user_name is the display
+    # name, which for some locales is a different string from the login
+    # entirely, so it is for showing and never for matching.
+    chatter_user_id: str
+    chatter_user_login: str
     chatter_user_name: str
     message: Message
     badges: list[Badge]

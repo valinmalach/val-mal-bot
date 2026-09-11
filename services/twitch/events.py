@@ -19,7 +19,8 @@ from models.twitch_event_subs.channel_raid import ChannelRaidEventSub
 from models.twitch_event_subs.stream_offline import StreamOfflineEventSub
 from models.twitch_event_subs.stream_online import StreamOnlineEventSub
 from services.config import config
-from services.twitch import live_alert, stream_session
+from services.present import quoted
+from services.twitch import autoshoutout, live_alert, stream_session
 from services.twitch.api import get_stream, get_user
 from services.twitch.chat import say, say_template
 from services.twitch.commands import dispatch, is_twitch_login
@@ -63,8 +64,14 @@ async def _wait_for_stream_info(
 
 
 async def stream_online(event_sub: StreamOnlineEventSub) -> None:
-    broadcaster_id = int(event_sub.event.broadcaster_user_id)
+    raw_broadcaster_id = event_sub.event.broadcaster_user_id
     try:
+        # Converted inside the guard. A payload whose broadcaster id is not a
+        # number cannot come from Twitch through a verified signature, but if
+        # one ever did, converting it above the try would raise past this
+        # handler's own report onto the task floor - which names the route and
+        # not the event, and so says the least exactly when it matters most.
+        broadcaster_id = int(raw_broadcaster_id)
         stream_info, lookup_error = await _wait_for_stream_info(broadcaster_id)
         if stream_info is None:
             reason = (
@@ -103,12 +110,14 @@ async def stream_online(event_sub: StreamOnlineEventSub) -> None:
         await live_alert.announce(broadcaster_id, stream_info, user_info, channel)
 
     except Exception as e:  # noqa: BLE001
-        await report(e, f"Error in stream_online for {broadcaster_id}")
+        await report(e, f"Error in stream_online for {quoted(raw_broadcaster_id)}")
 
 
 async def stream_offline(event_sub: StreamOfflineEventSub) -> None:
-    broadcaster_id = int(event_sub.event.broadcaster_user_id)
+    raw_broadcaster_id = event_sub.event.broadcaster_user_id
     try:
+        # Inside the guard, for the reason stream_online gives.
+        broadcaster_id = int(raw_broadcaster_id)
         # The payload names no stream, so this handler cannot tell which one
         # ended. It wakes both, and each re-checks Helix for its own scope: the
         # updater to find out which alert this was (docs/adr/0001), the session
@@ -121,24 +130,34 @@ async def stream_offline(event_sub: StreamOfflineEventSub) -> None:
         await stream_session.wake(broadcaster_id)
 
     except Exception as e:  # noqa: BLE001
-        await report(e, f"Error in stream_offline for {broadcaster_id}")
+        await report(e, f"Error in stream_offline for {quoted(raw_broadcaster_id)}")
 
 
 async def channel_chat_message(event_sub: ChannelChatMessageEventSub) -> None:
     try:
-        if not event_sub.event.message.text.startswith("!"):
-            return
-        text_without_prefix = event_sub.event.message.text[1:]
-        command_parts = text_without_prefix.split(" ", 1)
-        command = command_parts[0].lower()
-        args = command_parts[1] if len(command_parts) > 1 else ""
-
+        # The shared-chat guard moved to the top. It used to sit below the
+        # command parse, which was harmless while a relayed line could only
+        # produce a command; an autoshoutout is owed to someone who turned up
+        # in *this* channel, so a line relayed from another one must be
+        # dropped before anything reads it.
         if (
             event_sub.event.source_broadcaster_user_id is not None
             and event_sub.event.source_broadcaster_user_id
             != event_sub.event.broadcaster_user_id
         ):
             return
+
+        # Above the "!" check, not below it: turning up is what earns an
+        # autoshoutout, and most people turn up by saying something ordinary.
+        # Below this line only chatters who type commands would ever get one.
+        await autoshoutout.chatted(event_sub)
+
+        if not event_sub.event.message.text.startswith("!"):
+            return
+        text_without_prefix = event_sub.event.message.text[1:]
+        command_parts = text_without_prefix.split(" ", 1)
+        command = command_parts[0].lower()
+        args = command_parts[1] if len(command_parts) > 1 else ""
 
         await dispatch(event_sub, command, args)
     except Exception as e:  # noqa: BLE001
@@ -187,7 +206,7 @@ async def channel_raid(event_sub: ChannelRaidEventSub) -> None:
             raided = event_sub.event.to_broadcaster_user_login
             if not is_twitch_login(raided):
                 await notify(
-                    f"Said nothing about an outgoing raid to {raided!r}:"
+                    f"Said nothing about an outgoing raid to {quoted(raided)}:"
                     f" that cannot name a Twitch channel, so it cannot be a URL.",
                     key="raid-out-bad-login",
                 )
@@ -199,10 +218,16 @@ async def channel_raid(event_sub: ChannelRaidEventSub) -> None:
                 url=f"https://www.twitch.tv/{raided}",
             )
         elif stream_session.is_main_broadcaster(event_sub.event.to_broadcaster_user_id):
+            # The raid is the appearance that spends their autoshoutout: the
+            # `!so` below already gives them one, so their first chat line
+            # afterwards must not give them a second. Marked here rather than
+            # in the shoutout handler, which a mod's manual `!so` also reaches.
+            autoshoutout.raided(event_sub.event.from_broadcaster_user_id)
+
             raider = event_sub.event.from_broadcaster_user_login
             if not is_twitch_login(raider):
                 await notify(
-                    f"Refused to shout out an incoming raid from {raider!r}:"
+                    f"Refused to shout out an incoming raid from {quoted(raider)}:"
                     f" that cannot name a Twitch channel.",
                     key="raid-bad-login",
                 )

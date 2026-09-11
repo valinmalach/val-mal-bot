@@ -10,9 +10,10 @@ import re
 from collections.abc import Awaitable, Callable
 
 from errors import notify
+from models.twitch_api_responses.user import User
 from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
 from services.config import config, safe_format
-from services.twitch import stream_session
+from services.twitch import autoshoutout, stream_session
 from services.twitch.api import get_channel, get_user_by_username
 from services.twitch.chat import say, say_template
 from services.twitch.helix import HelixError
@@ -126,9 +127,67 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     )
 
 
+async def _listed_target(args: str) -> User | None:
+    """The Twitch user `!aso`/`!unaso` names, or None with nothing said.
+
+    Both commands need the user id, because the list is keyed by it. Neither
+    falls back to the broadcaster the way `!so` does: a bare `!aso` naming
+    nobody should not quietly add the channel to its own list.
+    """
+    target = _target(args)
+    if not is_twitch_login(target):
+        return None
+    return await get_user_by_username(target)
+
+
+async def auto_shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
+    """Add someone to the autoshoutout list, and shout them out now.
+
+    A `!so` that also writes a row, so it calls the shoutout handler rather
+    than posting a second `!so` line for the webhook to bring back.
+    """
+    user = await _listed_target(args)
+    if user is None:
+        await say_template(
+            event_sub.event.broadcaster_user_id, "twitch_shoutout_not_found"
+        )
+        return
+
+    if not await autoshoutout.add(int(user.id), user.login):
+        # Already listed. Nothing changed, so nothing is said - and no shoutout
+        # either, because `!so` is what a mod types when they want one now.
+        return
+
+    await shoutout(event_sub, args)
+    # Spent by the shoutout just given, so turning up later this stream does
+    # not earn a second one. A no-op when nobody is live.
+    autoshoutout.spend(int(user.id))
+
+
+async def un_auto_shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
+    """Take someone off the autoshoutout list.
+
+    Confirms only when a row went, because removal has no other visible
+    effect: without a line a mod cannot tell it worked. Naming nobody on the
+    list is silence, matching `!aso` on somebody already on it. It does not
+    un-spend anyone - they already had this stream's autoshoutout.
+    """
+    user = await _listed_target(args)
+    if user is None or not await autoshoutout.remove(int(user.id)):
+        return
+
+    await say_template(
+        event_sub.event.broadcaster_user_id,
+        "twitch_autoshoutout_removed",
+        name=user.display_name,
+    )
+
+
 HANDLERS: dict[str, Callable[[ChannelChatMessageEventSub, str], Awaitable[None]]] = {
+    "auto_shoutout": auto_shoutout,
     "hug": hug,
     "shoutout": shoutout,
+    "un_auto_shoutout": un_auto_shoutout,
 }
 
 

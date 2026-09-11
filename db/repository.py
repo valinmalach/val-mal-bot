@@ -11,17 +11,20 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col
 
-from db.models import DiscordMessage, DiscordUser, LiveAlert
+from db.models import DiscordMessage, DiscordUser, LiveAlert, TwitchAutoShoutout
 from db.session import session_scope
 
 __all__ = [
+    "add_autoshoutout",
     "delete_live_alert",
     "delete_message",
     "delete_user",
     "get_live_alert",
     "get_message",
     "get_user",
+    "is_autoshoutout",
     "list_live_alerts",
+    "remove_autoshoutout",
     "upsert_live_alert",
     "upsert_message",
     "upsert_user",
@@ -171,3 +174,40 @@ async def delete_live_alert(
         if message_id is not None:
             statement = statement.where(col(LiveAlert.message_id) == message_id)
         await session.execute(statement)
+
+
+async def is_autoshoutout(twitch_user_id: int) -> bool:
+    """Whether this Twitch user is on the autoshoutout list."""
+    async with session_scope() as session:
+        return await session.get(TwitchAutoShoutout, twitch_user_id) is not None
+
+
+async def add_autoshoutout(twitch_user_id: int, login: str) -> bool:
+    """Put a user on the list; False when they were already on it.
+
+    The answer comes from the insert rather than a read before it, so two mods
+    running `!aso` on the same channel at once cannot both be told they added
+    it — only the insert that took the row reports True.
+    """
+    async with session_scope() as session:
+        result = await session.execute(
+            insert(TwitchAutoShoutout)
+            .values(twitch_user_id=twitch_user_id, login=login)
+            .on_conflict_do_nothing(index_elements=["twitch_user_id"])
+            .returning(col(TwitchAutoShoutout.twitch_user_id))
+        )
+        # RETURNING yields nothing when the conflict skipped the insert, which
+        # is the answer itself. Postgres says whether the row was taken; a read
+        # before the write would only say whether it was taken a moment ago.
+        return result.scalar_one_or_none() is not None
+
+
+async def remove_autoshoutout(twitch_user_id: int) -> bool:
+    """Take a user off the list; False when they were not on it."""
+    async with session_scope() as session:
+        result = await session.execute(
+            delete(TwitchAutoShoutout)
+            .where(col(TwitchAutoShoutout.twitch_user_id) == twitch_user_id)
+            .returning(col(TwitchAutoShoutout.twitch_user_id))
+        )
+        return result.scalar_one_or_none() is not None

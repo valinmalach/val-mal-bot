@@ -35,6 +35,13 @@ _stream: Stream | None = None
 
 _ad_break_task: asyncio.Task | None = None
 
+# Twitch user ids this session has already resolved: each is either **spent**,
+# meaning they had their autoshoutout, or was looked up and found not to be on
+# the **autoshoutout list**. One set rather than two because nothing needs the
+# halves apart - what both mean here is "do not ask about this chatter again
+# until the next stream", which is what keeps the list out of the hot path.
+_settled: set[int] = set()
+
 
 def is_main_broadcaster(broadcaster_id: str | int) -> bool:
     return str(broadcaster_id) == config.setting("twitch_broadcaster_id")
@@ -67,6 +74,7 @@ def _start(stream: Stream) -> None:
     _stream = stream
     shoutout_queue.clear()
     cancel_ad_break_warning()
+    _settled.clear()
 
 
 def _end() -> None:
@@ -76,6 +84,23 @@ def _end() -> None:
     _stream = None
     shoutout_queue.clear()
     cancel_ad_break_warning()
+    _settled.clear()
+
+
+def is_settled(twitch_user_id: int) -> bool:
+    """Whether this session has already resolved this Twitch user."""
+    return twitch_user_id in _settled
+
+
+def settle(twitch_user_id: int) -> None:
+    """Record that this session need not ask about this Twitch user again.
+
+    Called for a list member who has had their autoshoutout and for a chatter
+    found not to be on the list, because the session does nothing further for
+    either. Ignored when nobody is live: there is no session to remember it.
+    """
+    if is_live():
+        _settled.add(twitch_user_id)
 
 
 async def began(broadcaster_id: int, stream: Stream) -> None:
