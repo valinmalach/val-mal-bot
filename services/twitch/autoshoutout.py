@@ -22,6 +22,9 @@ from enum import Enum, auto
 from db import repository
 from errors import notify, report
 from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
+from models.twitch_event_subs.channel_points_custom_reward_redemption_add import (
+    ChannelPointsCustomRewardRedemptionAddEventSub,
+)
 from services.config import config
 from services.present import quoted
 from services.twitch import stream_session
@@ -29,7 +32,7 @@ from services.twitch.chat import say
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["add", "chatted", "raided", "remove", "spend"]
+__all__ = ["add", "chatted", "raided", "redeemed", "remove", "spend"]
 
 
 class _Action(Enum):
@@ -59,6 +62,18 @@ def _decide(live: bool, settled: bool, listed: bool | None) -> _Action:
 
 async def _consider(broadcaster_id: str, twitch_user_id: int, login: str) -> None:
     """Give this person their autoshoutout, if this is the stream for it."""
+    # The main broadcaster's channel, not merely some channel that reached
+    # here. `is_live()` answers for the main broadcaster while the line below
+    # is posted to whoever the event named, and the two are otherwise
+    # unconnected: a chat or redemption subscription for a second channel -
+    # most are provisioned by hand, and the app already takes stream.online
+    # for other broadcasters - would put `!so` into that
+    # channel every time the main broadcaster happened to be live, and settle
+    # the person out of the autoshoutout they were actually owed. The same
+    # boundary `channel_raid` and `channel_moderate` already apply.
+    if not stream_session.is_main_broadcaster(broadcaster_id):
+        return
+
     if (
         _decide(
             stream_session.is_live(), stream_session.is_settled(twitch_user_id), None
@@ -146,6 +161,21 @@ def raided(twitch_user_id: str) -> None:
         stream_session.settle(int(twitch_user_id))
     except ValueError:
         logger.warning("Raider id %r is not a number; not settled", twitch_user_id)
+
+
+async def redeemed(event_sub: ChannelPointsCustomRewardRedemptionAddEventSub) -> None:
+    """Consider the redeemer behind one channel-point redemption.
+
+    Any custom reward counts, and one still queued or later refunded counts
+    too: the point is that they turned up, not what they bought. No guard of
+    its own, unlike `chatted` — nothing follows this on the notification, so
+    the handler's own report is the only one it needs.
+    """
+    await _consider(
+        event_sub.event.broadcaster_user_id,
+        int(event_sub.event.user_id),
+        event_sub.event.user_login,
+    )
 
 
 def spend(twitch_user_id: int) -> None:

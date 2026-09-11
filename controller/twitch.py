@@ -22,6 +22,9 @@ from models.twitch_event_subs.channel_ad_break_begin import ChannelAdBreakBeginE
 from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
 from models.twitch_event_subs.channel_follow import ChannelFollowEventSub
 from models.twitch_event_subs.channel_moderate import ChannelModerateEventSub
+from models.twitch_event_subs.channel_points_custom_reward_redemption_add import (
+    ChannelPointsCustomRewardRedemptionAddEventSub,
+)
 from models.twitch_event_subs.channel_raid import ChannelRaidEventSub
 from models.twitch_event_subs.stream_offline import StreamOfflineEventSub
 from models.twitch_event_subs.stream_online import StreamOnlineEventSub
@@ -343,3 +346,8 @@ _route(
 )
 _route("/webhook/twitch/raid", ChannelRaidEventSub, events.channel_raid)
 _route("/webhook/twitch/moderate", ChannelModerateEventSub, events.channel_moderate)
+_route(
+    "/webhook/twitch/redemption",
+    ChannelPointsCustomRewardRedemptionAddEventSub,
+    events.channel_points_custom_reward_redemption_add,
+)
