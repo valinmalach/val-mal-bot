@@ -105,9 +105,10 @@ async def resume() -> None:
     difference is the whole reason this is not a second call to began().
     """
     try:
-        # Inside the guard: a broadcaster id that is missing or not a number
-        # raises here, and the gather(return_exceptions=True) upstream would
-        # swallow it, leaving the session down with nothing said.
+        # Still guarded now that the caller reports a failed startup arm: it
+        # names these three, so a misconfigured broadcaster id is told apart
+        # from a Helix outage instead of arriving as one generic report. An
+        # error this does not name propagates and the caller says so.
         stream = await get_stream(int(config.setting("twitch_broadcaster_id")))
     except (HelixError, TypeError, ValueError) as e:
         await report(e, "Could not check whether the broadcaster is live at startup")
