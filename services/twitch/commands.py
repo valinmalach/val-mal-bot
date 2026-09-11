@@ -7,6 +7,7 @@ stored responses in order, and `composite` runs other commands.
 
 import logging
 import re
+import unicodedata
 from collections.abc import Awaitable, Callable
 
 from errors import notify
@@ -40,6 +41,13 @@ COMPOSITE_HANDLER = "composite"
 # minimum only ever adds false rejections.
 _TWITCH_LOGIN = re.compile(r"\A[a-zA-Z0-9_]{1,25}\Z")
 
+# A target is echoed into chat by `!hug` and by any stored response naming
+# {target}, so it is bounded. Not the login alphabet: a target is a person as
+# the chatter wrote them, and a display name can be Japanese or Korean, so
+# keeping only [A-Za-z0-9_] would erase one. Length because a chat line is
+# 500 characters and all of them could arrive as one word.
+_MAX_TARGET = 50
+
 
 def is_twitch_login(value: str) -> bool:
     """Whether this could name a Twitch channel.
@@ -62,8 +70,16 @@ def _target(args: str) -> str:
     moderator badge, so a mod-only command would run for someone who is not a
     mod. No such template exists today; this is what keeps adding one from
     being a privilege escalation.
+
+    Bounded and stripped of invisible characters for the same reason: whatever
+    comes back is going into a chat line the bot says.
     """
-    return (args.split(" ", 1)[0] if args else "").lstrip("@!")
+    first = (args.split(" ", 1)[0] if args else "").lstrip("@!")
+    # Control and format characters removed: they are invisible, so they can
+    # reorder or hide what the rest of the line says once it reaches chat, and
+    # no name needs one.
+    kept = "".join(c for c in first if unicodedata.category(c) not in {"Cc", "Cf"})
+    return kept[:_MAX_TARGET]
 
 
 def _render(message: str, event_sub: ChannelChatMessageEventSub, args: str) -> str:
