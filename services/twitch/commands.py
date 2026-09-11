@@ -104,7 +104,14 @@ async def hug(event_sub: ChannelChatMessageEventSub, args: str) -> None:
     )
 
 
-async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
+async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> bool:
+    """Shout a channel out; False when there was nothing to shout out.
+
+    The answer exists for `!aso`, which must not record a shoutout it did not
+    manage to give. A lookup that failed and a channel that does not exist are
+    both False: chat is told the same thing either way, and neither is a
+    shoutout.
+    """
     broadcaster_id = event_sub.event.broadcaster_user_id
     target = _target(args) or event_sub.event.broadcaster_user_login
 
@@ -112,7 +119,7 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
         # The same answer a real login nobody owns gets: chat has no use for
         # the difference between "no such channel" and "that is not a name".
         await say_template(broadcaster_id, "twitch_shoutout_not_found")
-        return
+        return False
 
     try:
         user = await get_user_by_username(target)
@@ -129,7 +136,7 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
 
     if not target_channel:
         await say_template(broadcaster_id, "twitch_shoutout_not_found")
-        return
+        return False
 
     if user and stream_session.is_live():
         shoutout_queue.add_to_queue(user.login, str(user.id))
@@ -141,6 +148,7 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
         login=target_channel.broadcaster_login,
         game=target_channel.game_name,
     )
+    return True
 
 
 async def _listed_target(args: str) -> User | None:
@@ -174,10 +182,15 @@ async def auto_shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> Non
         # either, because `!so` is what a mod types when they want one now.
         return
 
-    await shoutout(event_sub, args)
-    # Spent by the shoutout just given, so turning up later this stream does
-    # not earn a second one. A no-op when nobody is live.
-    autoshoutout.spend(int(user.id))
+    # Spent only if a shoutout was actually given. `shoutout` answers "not
+    # found" identically for a channel that is gone and for a lookup that
+    # failed, and spending on either would settle someone who was never
+    # shouted out - they would get nothing when they later turned up, and
+    # re-running `!aso` would do nothing because the row is already there. The
+    # row stays either way: wanting them on the list is what `!aso` records,
+    # and a shoutout Twitch could not complete does not undo that.
+    if await shoutout(event_sub, args):
+        autoshoutout.spend(int(user.id))
 
 
 async def un_auto_shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:
@@ -199,7 +212,9 @@ async def un_auto_shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> 
     )
 
 
-HANDLERS: dict[str, Callable[[ChannelChatMessageEventSub, str], Awaitable[None]]] = {
+# Awaitable[object], not Awaitable[None]: `shoutout` answers whether it
+# shouted, for `!aso`. Nothing dispatched through here reads the answer.
+HANDLERS: dict[str, Callable[[ChannelChatMessageEventSub, str], Awaitable[object]]] = {
     "auto_shoutout": auto_shoutout,
     "hug": hug,
     "shoutout": shoutout,
