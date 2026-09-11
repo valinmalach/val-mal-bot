@@ -58,21 +58,29 @@ def _decide(live: bool, settled: bool, listed: bool | None) -> _Action:
 
 async def _consider(broadcaster_id: str, twitch_user_id: int, login: str) -> None:
     """Give this person their autoshoutout, if this is the stream for it."""
-    action = _decide(
-        stream_session.is_live(), stream_session.is_settled(twitch_user_id), None
-    )
-    if action is _Action.LOOK_UP:
-        listed = await repository.is_autoshoutout(twitch_user_id)
-        action = _decide(live=True, settled=False, listed=listed)
-
-    if action is _Action.IGNORE:
+    if (
+        _decide(
+            stream_session.is_live(), stream_session.is_settled(twitch_user_id), None
+        )
+        is _Action.IGNORE
+    ):
         return
 
-    # Settled before the line is sent, not after: `say` does not raise, so a
-    # refused line would otherwise leave them unsettled and ask the list again
-    # on their very next message.
+    # Claimed before the lookup, not after it. Chat webhooks are dispatched
+    # concurrently, so two lines from one person can both pass the check above
+    # while the first is still awaiting the list - and both then shout, and
+    # both cost a query. Settling with no await since that check is what stops
+    # the second; `controller/twitch._claim` takes a delivery id the same way
+    # and says the same thing about adding an await between a check and a take.
     stream_session.settle(twitch_user_id)
-    if action is not _Action.SHOUT:
+
+    listed = await repository.is_autoshoutout(twitch_user_id)
+
+    # Liveness is read again because the lookup awaited: a stream.offline
+    # handled while it was in flight must not still put a line into a channel
+    # nobody is watching. `settled` is passed False deliberately - this task is
+    # the one that claimed it a moment ago, and would otherwise ignore itself.
+    if _decide(stream_session.is_live(), False, listed) is not _Action.SHOUT:
         return
 
     # Deferred: commands imports this module for `!aso`, so importing it at the
