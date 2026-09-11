@@ -178,14 +178,21 @@ async def redeemed(event_sub: ChannelPointsCustomRewardRedemptionAddEventSub) ->
     )
 
 
-def spend(twitch_user_id: int) -> None:
+def spend(broadcaster_id: str, twitch_user_id: int) -> None:
     """Record that `!aso` has already given this person their autoshoutout.
 
     Only while a stream is running. `!aso` between streams still adds the row
     and still shouts them out, but there is no session for it to spend from,
     so their first appearance next stream earns them a proper one.
+
+    And only from the main broadcaster's channel, for the reason `_consider`
+    gives. Commands are answered wherever the bot has a chat subscription, and
+    a `!so` posted into that channel is a service to it; settling against this
+    session is not, because the session is the main broadcaster's. Taking the
+    broadcaster rather than reading it at the call site so that a second caller
+    cannot omit the check - the state this writes to belongs to one channel.
     """
-    if stream_session.is_live():
+    if stream_session.is_main_broadcaster(broadcaster_id) and stream_session.is_live():
         stream_session.settle(twitch_user_id)
 
 
