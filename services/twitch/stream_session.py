@@ -105,10 +105,13 @@ async def resume() -> None:
     difference is the whole reason this is not a second call to began().
     """
     try:
-        # Still guarded now that the caller reports a failed startup arm: it
-        # names these three, so a misconfigured broadcaster id is told apart
-        # from a Helix outage instead of arriving as one generic report. An
-        # error this does not name propagates and the caller says so.
+        # These three are exhaustive, which is what lets the docstring promise
+        # not to raise: config.setting is a dict lookup with a default, int()
+        # fails only as TypeError or ValueError, and helix raises HelixError
+        # and nothing else by its own stated contract. Named rather than a
+        # bare except so a broadcaster id that is missing or not a number
+        # stays distinguishable from Twitch being unreachable, rather than
+        # reaching the startup reporter as one undifferentiated failure.
         stream = await get_stream(int(config.setting("twitch_broadcaster_id")))
     except (HelixError, TypeError, ValueError) as e:
         await report(e, "Could not check whether the broadcaster is live at startup")
