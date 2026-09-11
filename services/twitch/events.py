@@ -15,6 +15,9 @@ from models.twitch_event_subs.channel_ad_break_begin import ChannelAdBreakBeginE
 from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
 from models.twitch_event_subs.channel_follow import ChannelFollowEventSub
 from models.twitch_event_subs.channel_moderate import ChannelModerateEventSub
+from models.twitch_event_subs.channel_points_custom_reward_redemption_add import (
+    ChannelPointsCustomRewardRedemptionAddEventSub,
+)
 from models.twitch_event_subs.channel_raid import ChannelRaidEventSub
 from models.twitch_event_subs.stream_offline import StreamOfflineEventSub
 from models.twitch_event_subs.stream_online import StreamOnlineEventSub
@@ -191,6 +194,15 @@ async def channel_ad_break_begin(event_sub: ChannelAdBreakBeginEventSub) -> None
         stream_session.schedule_ad_break_warning(broadcaster_id)
     except Exception as e:  # noqa: BLE001
         await report(e, "Error processing Twitch ad break webhook task")
+
+
+async def channel_points_custom_reward_redemption_add(
+    event_sub: ChannelPointsCustomRewardRedemptionAddEventSub,
+) -> None:
+    try:
+        await autoshoutout.redeemed(event_sub)
+    except Exception as e:  # noqa: BLE001
+        await report(e, "Error processing Twitch redemption webhook task")
 
 
 async def channel_raid(event_sub: ChannelRaidEventSub) -> None:

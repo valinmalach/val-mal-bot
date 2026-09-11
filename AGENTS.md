@@ -169,7 +169,7 @@ says so in the admin channel, because past it a redelivery can run twice.
 
 The cost of the freshness check is real and worse than "events are refused". A
 403 is a failed delivery, and enough of them revoke the subscription — of which
-five of the seven cannot be recreated from this repo. That is why the check sits
+six of the eight cannot be recreated from this repo. That is why the check sits
 *below* the verification handshake and applies to notifications alone: a wrong
 clock must not also refuse the resubscribe that repairs it.
 
@@ -182,12 +182,12 @@ Twitch documents no 4xx/5xx distinction anywhere, and revocation counts anything
 that is not a 2xx, so a 400 spends the failure budget exactly as a 500 does. That
 wrong justification was recorded here first; do not restore it.
 
-**Only two of the seven EventSub subscriptions can be created from this repo.**
+**Only two of the eight EventSub subscriptions can be created from this repo.**
 `/subscribe` creates `stream.online` and `stream.offline`. Chat, follow, ad break,
-raid and moderate are provisioned outside it, so a deployment whose public URL
-changes leaves five subscriptions pointing at a dead callback with nothing here
-able to recreate them. The startup check notices an undeliverable subscription;
-it cannot repair these five.
+raid, moderate and channel-point redemption are provisioned outside it, so a
+deployment whose public URL changes leaves six subscriptions pointing at a dead
+callback with nothing here able to recreate them. The startup check notices an
+undeliverable subscription; it cannot repair these six.
 
 **A live alert is closed by its updater, never by a webhook.** `stream.offline`
 carries no stream id, so the handler cannot tell which stream ended; it calls
@@ -207,7 +207,7 @@ an `Action`, which is why the split holds: the loop reads a conclusion rather
 than watching the I/O that reached it.
 
 **An autoshoutout is one per person per stream, and the session remembers who.**
-`services/twitch/autoshoutout.py` owns the list, the rule and the three places
+`services/twitch/autoshoutout.py` owns the list, the rule and the four places
 someone can turn up. The rule is `_decide` and is pure, like
 `live_alert_cycle._decide`; the lookup is *inside* it, as `LOOK_UP`, because
 the cost guarantee — one query per distinct chatter per stream — is the rule
@@ -221,7 +221,10 @@ is — at the price of the wording being `!so`'s. An incoming raid is settled
 rather than shouted, because the raid handler's own `!so` already gave them
 one; that mark lives in `channel_raid` and not in the shoutout handler, which a
 mod's manual `!so` also reaches. `!aso` is the exception that calls `shoutout`
-directly, having a chat event already in hand.
+directly, having a chat event already in hand. A redemption is the third way of
+arriving and takes the ordinary path: any custom reward counts, including one
+still queued for approval or later refunded, because the point is that they
+turned up rather than what they bought.
 
 **The shared-chat guard runs before anything reads a chat line.** It used to sit
 below the command parse, which was harmless while a relayed line could only

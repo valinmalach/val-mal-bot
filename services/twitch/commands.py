@@ -196,7 +196,7 @@ async def auto_shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> Non
     # row stays either way: wanting them on the list is what `!aso` records,
     # and a shoutout Twitch could not complete does not undo that.
     if await shoutout(event_sub, args):
-        autoshoutout.spend(int(user.id))
+        autoshoutout.spend(event_sub.event.broadcaster_user_id, int(user.id))
 
 
 async def un_auto_shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> None:

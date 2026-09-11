@@ -22,6 +22,9 @@ from models.twitch_event_subs.channel_ad_break_begin import ChannelAdBreakBeginE
 from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
 from models.twitch_event_subs.channel_follow import ChannelFollowEventSub
 from models.twitch_event_subs.channel_moderate import ChannelModerateEventSub
+from models.twitch_event_subs.channel_points_custom_reward_redemption_add import (
+    ChannelPointsCustomRewardRedemptionAddEventSub,
+)
 from models.twitch_event_subs.channel_raid import ChannelRaidEventSub
 from models.twitch_event_subs.stream_offline import StreamOfflineEventSub
 from models.twitch_event_subs.stream_online import StreamOnlineEventSub
@@ -214,7 +217,7 @@ async def validate_call(request: Request, endpoint: str) -> dict[str, Any] | Res
     # Freshness applies to notifications alone, and deliberately sits below the
     # handshake. A wrong clock refusing events is recoverable; a wrong clock that
     # also refuses webhook_callback_verification would block the resubscribe that
-    # repairs it, and five of the seven subscriptions cannot be recreated from
+    # repairs it, and six of the eight subscriptions cannot be recreated from
     # this repo at all.
     try:
         sent = parse_rfc3339(headers.get(TWITCH_MESSAGE_TIMESTAMP, ""))
@@ -343,3 +346,8 @@ _route(
 )
 _route("/webhook/twitch/raid", ChannelRaidEventSub, events.channel_raid)
 _route("/webhook/twitch/moderate", ChannelModerateEventSub, events.channel_moderate)
+_route(
+    "/webhook/twitch/redemption",
+    ChannelPointsCustomRewardRedemptionAddEventSub,
+    events.channel_points_custom_reward_redemption_add,
+)
