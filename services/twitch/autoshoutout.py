@@ -135,8 +135,14 @@ def raided(twitch_user_id: str) -> None:
 
 
 def spend(twitch_user_id: int) -> None:
-    """Record that `!aso` has already given this person their autoshoutout."""
-    stream_session.settle(twitch_user_id)
+    """Record that `!aso` has already given this person their autoshoutout.
+
+    Only while a stream is running. `!aso` between streams still adds the row
+    and still shouts them out, but there is no session for it to spend from,
+    so their first appearance next stream earns them a proper one.
+    """
+    if stream_session.is_live():
+        stream_session.settle(twitch_user_id)
 
 
 async def add(twitch_user_id: int, login: str) -> bool:
