@@ -6,7 +6,7 @@ complete raises ``HelixError``. The two are no longer the same answer.
 
 import itertools
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 from config import settings
 from constants import TokenType
@@ -150,12 +150,19 @@ def callback_prefix() -> str:
     """What every EventSub callback for this deployment starts with.
 
     All seven webhook routes live under it, so a callback that does not begin
-    here belongs to another deployment or to this one before it moved. rstrip
-    to match services/twitch/oauth.py: a trailing slash in APP_URL would
+    here belongs to another deployment or to this one before it moved.
+    """
+    return callback_url("/webhook/twitch")
+
+
+def callback_url(path: str) -> str:
+    """The absolute callback this deployment answers one webhook path on.
+
+    rstrip to match services/twitch/oauth.py: a trailing slash in APP_URL would
     otherwise build a //webhook/twitch that Twitch dutifully calls and FastAPI
     does not route.
     """
-    return f"{settings.app_url.rstrip('/')}/webhook/twitch"
+    return f"{settings.app_url.rstrip('/')}{path}"
 
 
 def _callback_url(sub_type: Literal["online", "offline"]) -> str:
@@ -173,25 +180,49 @@ async def _matching_subscriptions(
     ]
 
 
-async def _create_subscription(
-    sub_type: Literal["online", "offline"], user_id: str
+async def create_subscription(
+    sub_type: str, version: str, condition: dict[str, Any], callback: str
 ) -> None:
-    # Repeatable: Twitch rejects a duplicate rather than creating a second, so
-    # the worst a repeat costs is the 409 its caller handles. See docs/adr/0002.
+    """Create one EventSub subscription of any type, at this callback.
+
+    ``version`` is the caller's because it varies by type -- channel.follow and
+    channel.moderate are 2, the rest are 1 -- and a subscription being recreated
+    carries its own, which is the only one that reproduces it.
+
+    Repeatable: Twitch rejects a duplicate rather than creating a second, so the
+    worst a repeat costs is the 409 its caller handles. See docs/adr/0002.
+    """
     await helix.request(
         "POST",
         "/eventsub/subscriptions",
         json={
-            "type": f"stream.{sub_type}",
-            "version": "1",
-            "condition": {"broadcaster_user_id": user_id},
+            "type": sub_type,
+            "version": version,
+            "condition": condition,
             "transport": {
                 "method": "webhook",
-                "callback": _callback_url(sub_type),
+                "callback": callback,
                 "secret": settings.twitch_webhook_secret,
             },
         },
         repeatable=True,
+    )
+
+
+async def delete_subscription(subscription_id: str) -> None:
+    await helix.request(
+        "DELETE", "/eventsub/subscriptions", params={"id": subscription_id}
+    )
+
+
+async def _create_subscription(
+    sub_type: Literal["online", "offline"], user_id: str
+) -> None:
+    await create_subscription(
+        f"stream.{sub_type}",
+        "1",
+        {"broadcaster_user_id": user_id},
+        _callback_url(sub_type),
     )
 
 
@@ -231,17 +262,37 @@ async def _subscribe(sub_type: Literal["online", "offline"], user_id: str) -> No
             f" {subscription.transport.callback}, so it was delivering nothing.",
             key=f"subscription-replaced:{sub_type}:{user_id}",
         )
-        await helix.request(
-            "DELETE", "/eventsub/subscriptions", params={"id": subscription.id}
-        )
+        await delete_subscription(subscription.id)
     await _create_subscription(sub_type, user_id)
+
+
+async def _named_user(username: str) -> User | None:
+    """The user this names, or None -- refusing anything that cannot name one.
+
+    The grammar is asked for here rather than trusted from the caller: these two
+    are public, and a value that cannot name a channel should reach neither a
+    Helix query parameter nor a log line on the strength of having been passed
+    in. Deferred because services.twitch.commands imports this module; it owns
+    the one grammar, and a second copy here is what issue #38 is about.
+
+    %r throughout, as everywhere else that logs a relayed value: a newline in
+    one would otherwise forge a log line.
+    """
+    from services.twitch.commands import is_twitch_login
+
+    if not is_twitch_login(username):
+        logger.warning("Not a Twitch login, no lookup made: %r", username)
+        return None
+    user = await get_user_by_username(username)
+    if not user:
+        logger.warning("User not found: %r", username)
+    return user
 
 
 async def subscribe_to_user(username: str) -> bool:
     """False when Twitch has no such user; a failed call raises."""
-    user = await get_user_by_username(username)
+    user = await _named_user(username)
     if not user:
-        logger.warning(f"User not found: {username}")
         return False
 
     await _subscribe("online", user.id)
@@ -251,9 +302,8 @@ async def subscribe_to_user(username: str) -> bool:
 
 async def unsubscribe_to_user(username: str) -> bool:
     """False when Twitch has no such user; a failed call raises."""
-    user = await get_user_by_username(username)
+    user = await _named_user(username)
     if not user:
-        logger.warning(f"User not found: {username}")
         return False
 
     matching = [
@@ -263,13 +313,11 @@ async def unsubscribe_to_user(username: str) -> bool:
         and subscription.condition.broadcaster_user_id == user.id
     ]
     if not matching:
-        logger.info(f"No online/offline subscriptions found for user: {username}")
+        logger.info("No online/offline subscriptions for user: %r", username)
         return True
 
     for subscription in matching:
-        await helix.request(
-            "DELETE", "/eventsub/subscriptions", params={"id": subscription.id}
-        )
+        await delete_subscription(subscription.id)
     return True
 
 
