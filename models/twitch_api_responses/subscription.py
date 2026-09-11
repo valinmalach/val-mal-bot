@@ -1,9 +1,17 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from .pagination import Pagination
 
 
 class SubscriptionCondition(BaseModel):
+    # Undeclared keys are kept rather than dropped, because a condition is
+    # round-tripped to recreate a subscription at a new callback. The five below
+    # cover the eight subscriptions in use, so declaring them is what lets the
+    # rest of the code read one by name; anything Twitch adds -- a reward_id on a
+    # redemption, say -- would otherwise vanish silently on the way through and
+    # recreate a subscription broader than the one it replaced.
+    model_config = ConfigDict(extra="allow")
+
     broadcaster_user_id: str | None = None
     # A raid is keyed on the two ends rather than one broadcaster, and a
     # moderate subscription carries the moderator as well.
