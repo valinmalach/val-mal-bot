@@ -105,12 +105,13 @@ async def hug(event_sub: ChannelChatMessageEventSub, args: str) -> None:
 
 
 async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> bool:
-    """Shout a channel out; False when there was nothing to shout out.
+    """Shout a channel out; False when nothing reached chat.
 
     The answer exists for `!aso`, which must not record a shoutout it did not
-    manage to give. A lookup that failed and a channel that does not exist are
-    both False: chat is told the same thing either way, and neither is a
-    shoutout.
+    manage to give. False covers all three ways that happens: a name that
+    cannot be a login, a channel Twitch does not know, and a line Twitch
+    refused. The first two tell chat the same thing, and none of them is a
+    shoutout anyone saw.
     """
     broadcaster_id = event_sub.event.broadcaster_user_id
     target = _target(args) or event_sub.event.broadcaster_user_login
@@ -141,14 +142,19 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> bool:
     if user and stream_session.is_live():
         shoutout_queue.add_to_queue(user.login, str(user.id))
 
-    await say_template(
+    # The answer is whether the line landed, not whether a channel was found.
+    # `say_template` reports its own failure and returns False, and a shoutout
+    # nobody saw is not one - so `!aso` leaves them unsettled and their next
+    # message earns another attempt. The Helix shoutout queued above is not
+    # duplicated by that: the queue refuses a target it already holds, and the
+    # same-target cooldown stops a second send inside the hour.
+    return await say_template(
         broadcaster_id,
         "twitch_shoutout",
         name=target_channel.broadcaster_name,
         login=target_channel.broadcaster_login,
         game=target_channel.game_name,
     )
-    return True
 
 
 async def _listed_target(args: str) -> User | None:
