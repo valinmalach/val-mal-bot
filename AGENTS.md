@@ -182,12 +182,48 @@ Twitch documents no 4xx/5xx distinction anywhere, and revocation counts anything
 that is not a 2xx, so a 400 spends the failure budget exactly as a 500 does. That
 wrong justification was recorded here first; do not restore it.
 
-**Only two of the eight EventSub subscriptions can be created from this repo.**
+**Only two of the eight EventSub subscriptions can be created from nothing.**
 `/subscribe` creates `stream.online` and `stream.offline`. Chat, follow, ad break,
-raid, moderate and channel-point redemption are provisioned outside it, so a
-deployment whose public URL changes leaves six subscriptions pointing at a dead
-callback with nothing here able to recreate them. The startup check notices an
-undeliverable subscription; it cannot repair these six.
+raid, moderate and channel-point redemption are provisioned outside this repo, so
+nothing here can bring one back once it is gone. **Repointing an existing one is
+different, and covered:** `/migrate-subscriptions` moves all eight types to the
+current `APP_URL`, which is what a deployment whose public URL changes needs. The
+startup check notices an undeliverable subscription; the command is what repairs it.
+
+**The migration works off the live list, never a fixed one.** There are eight
+*types* but `6 + 2N` *subscriptions* — `stream.online`/`stream.offline` exist once
+per subscribed broadcaster, and nothing here knows what N is, because that list
+lives only in Twitch. `services/twitch/migrate.py` therefore starts from
+`get_subscriptions()`; a migration seeded from a list written in this repo would
+silently leave every promo broadcaster behind. Its rule is `decide`, which is pure,
+like `live_alert_cycle._decide`.
+
+Twitch's uniqueness key is the type and the condition **alone, not the transport**,
+so the same event at a new callback is a 409 and repointing has to be delete-then-
+create. Three consequences the module is built around, none of them optional: the
+complete definition of every subscription goes to the admin channel as a file
+*before* anything is deleted, since after the delete it is the only record one
+existed; a failure is reported per subscription and does not abandon the ones
+behind it; and a dry run is what you get unless you pass `confirm`. A type with no
+route is reported and **left alone** — deleting it would destroy something created
+deliberately elsewhere, and nothing here could recreate it.
+
+`SubscriptionCondition` is the one model here that keeps what it does not declare
+(`extra="allow"`), and that is the migration's doing rather than an oversight. Its
+five keys cover the eight subscriptions in use, so declaring them is what lets the
+rest of the code read one by name; but a condition is now *round-tripped* to
+recreate a subscription, and a key outside those five — a `reward_id`, or anything
+Twitch adds — would otherwise be dropped in silence and recreate a subscription
+**broader than the one it replaced**, with nothing to say so. This is the opposite
+of the rule for EventSub payload models above, and for the opposite reason: those
+are read, this one is written back.
+
+**`WEBHOOK_PATHS` is derived from the `_route` table, not written beside it.**
+`controller/twitch.py` builds it as the routes register, reading each type off the
+`Literal` its model already declares — a ninth list of the eight types is one more
+thing to keep in step by hand. It is passed *into* `migrate`, never imported by it,
+because nothing under `services/` may import `controller/`; `cogs/admin.py` may,
+and is what hands it over.
 
 **A live alert is closed by its updater, never by a webhook.** `stream.offline`
 carries no stream id, so the handler cannot tell which stream ended; it calls
@@ -363,10 +399,15 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 - **Everything the bot says about itself goes through `errors.py`.** `report(exc,
   context)` for an exception, `notify(text)` for anything else worth the admin
   channel, `notify_soon(text)` for the two synchronous renderers that cannot
-  await. None of them raise, all log locally first, and all say so when the
-  channel is out of reach. `notify` returns whether the channel has the news, for
-  the one caller that retries. Nothing else may resolve
+  await, `notify_file(text, filename, content)` for a notice carrying a record
+  too long for a message. None of them raise, all log locally first, and all say
+  so when the channel is out of reach. `notify` returns whether the channel has
+  the news, for the one caller that retries. Nothing else may resolve
   `config.channel("bot_admin")`.
+  `notify_file` is the one that deliberately skips the fifteen-minute repeat
+  window: it carries what somebody needs in order to undo what the bot is about
+  to do, and two inside one window are two different records, so standing the
+  second in for the first would leave a destruction with nothing to reverse it.
 - **A path that degrades or gives up says so in the admin channel.** Catching a
   `HelixError` to carry on without an avatar is fine; catching it into
   `logger.warning` alone is not. The logs are not watched and the Discord server
