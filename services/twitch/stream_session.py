@@ -96,6 +96,16 @@ def _end() -> None:
     _settled.clear()
 
 
+def current_stream_id() -> str | None:
+    """Which stream this session is for, or None when nobody is live.
+
+    For work that awaits and then acts: `is_live()` afterwards only says that
+    *a* stream is running, and comparing this instead says it is still the same
+    one. `live_alert._owns_row` guards its own cycle the same way.
+    """
+    return _stream.id if _stream is not None else None
+
+
 def is_settled(twitch_user_id: int) -> bool:
     """Whether this session has already resolved this Twitch user."""
     return twitch_user_id in _settled

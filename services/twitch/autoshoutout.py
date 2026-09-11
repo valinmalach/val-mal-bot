@@ -74,14 +74,19 @@ async def _consider(broadcaster_id: str, twitch_user_id: int, login: str) -> Non
     # the second; `controller/twitch._claim` takes a delivery id the same way
     # and says the same thing about adding an await between a check and a take.
     stream_session.settle(twitch_user_id)
+    asked_during = stream_session.current_stream_id()
 
     listed = await repository.is_autoshoutout(twitch_user_id)
 
-    # Liveness is read again because the lookup awaited: a stream.offline
-    # handled while it was in flight must not still put a line into a channel
-    # nobody is watching. `settled` is passed False deliberately - this task is
-    # the one that claimed it a moment ago, and would otherwise ignore itself.
-    if _decide(stream_session.is_live(), False, listed) is not _Action.SHOUT:
+    # The same stream, not merely some stream. Reading `is_live()` here would
+    # answer yes for a stream that started after the one this chatter spoke in
+    # ended, and post their line into it - someone the new stream's viewers
+    # never saw, who is no longer settled, because ending cleared that. A
+    # narrow window, and the same one `wake` and `live_alert._owns_row` both
+    # guard rather than argue about. `settled` is passed False deliberately:
+    # this task claimed it a moment ago and would otherwise ignore itself.
+    same_stream = stream_session.current_stream_id() == asked_during
+    if _decide(same_stream, False, listed) is not _Action.SHOUT:
         return
 
     # Deferred: commands imports this module for `!aso`, so importing it at the
