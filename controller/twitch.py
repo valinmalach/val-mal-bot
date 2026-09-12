@@ -354,7 +354,18 @@ def _route[E: BaseModel](
     async def webhook(request: Request) -> Response:
         return await process_webhook(request, path, event_model, task_func)
 
-    WEBHOOK_PATHS[_subscription_type(event_model)] = path
+    # Refused rather than overwritten, because a plain assignment makes the one
+    # kind of drift this map exists to prevent the silent kind: two models
+    # declaring the same type would leave the migration repointing every
+    # subscription of it at whichever route registered last, with the other route
+    # missing from the map and so never migrated at all.
+    subscription_type = _subscription_type(event_model)
+    if subscription_type in WEBHOOK_PATHS:
+        raise ValueError(
+            f"{subscription_type} is already routed to"
+            f" {WEBHOOK_PATHS[subscription_type]}, so {path} would replace it"
+        )
+    WEBHOOK_PATHS[subscription_type] = path
 
     # Applied as a call rather than as a decorator: every route's function is
     # named "webhook", so each needs a name of its own for url_for and the
