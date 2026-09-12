@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -12,15 +13,15 @@ from constants import COGS
 from controller import twitch_oauth_router, twitch_router
 from errors import report
 from init import bot
+from logging_json import JsonFormatter
 from services import http_client
 
-# The level and the logger name are in the line rather than in a handler's
-# columns: these are read in Railway's log viewer, which renders neither.
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)-8s %(name)s %(message)s",
-    datefmt="%H:%M:%S",
-)
+# Railway colors a line by which stream it landed on, not by what Python
+# attached to it -- unless the line is JSON with a "level" key, which the
+# viewer decodes into its own level and searchable fields instead.
+_handler = logging.StreamHandler(sys.stdout)
+_handler.setFormatter(JsonFormatter())
+logging.basicConfig(level=logging.INFO, handlers=[_handler])
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
