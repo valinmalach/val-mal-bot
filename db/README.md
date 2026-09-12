@@ -128,12 +128,8 @@ back in `.env`:
 | `TWITCH_WEBHOOK_SECRET` | Credential |
 | `DATABASE_URL` | Bootstrap — it is how the database is reached in the first place |
 | `APP_URL` | Environment, not configuration: the EventSub callback host differs between the test and production instances, so a shared database cannot hold one right answer |
+| `PORT` | Railway injects this; not a value the bot has an opinion about |
 | `USE_TEST_BOT`, `DB_ECHO` | Switches for one instance, not settings the bot acts on |
-
-`start.sh` also reads `LOCLX_TOKEN`, `LOCLX_SUBDOMAIN` and `PORT` straight from
-the environment. The shell consumes them before Python starts, so they are not
-`Settings` fields and a missing one fails at the tunnel rather than at startup.
-`LOCLX_SUBDOMAIN` must name the same host as `APP_URL`.
 
 Two values move out of `.env` entirely. They are not credentials and not
 environment-specific — they name the Twitch accounts the bot acts *as* and acts
