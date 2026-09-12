@@ -484,12 +484,17 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 
 ## Deployment
 
-Railway, via `Dockerfile` → `start.sh`: bring up the loclx tunnel (the public host
-EventSub calls back on), `alembic upgrade head`, then the app. Migrations run on every
-container start.
+Railway builds with Railpack (`railway.json`), which detects `pyproject.toml` +
+`uv.lock` and installs the pinned interpreter and dependencies itself — there is no
+Dockerfile. `deploy.startCommand` chains `alembic upgrade head` and the app in one
+shell command; Railpack runs `startCommand` through a shell, so `&&` sequences
+without needing a wrapper script. Migrations run on every deploy. `APP_URL` is the
+Railway domain itself now, not a tunnel in front of it — see `/migrate-subscriptions`
+above for what repoints EventSub when that domain changes.
 
 Locally, EventSub cannot reach `localhost`, so stream alerts, follows, raids, ad breaks
-and chat commands never fire without the tunnel. Outbound Helix calls still work.
+and chat commands never fire without a tunnel in front of it. Outbound Helix calls
+still work.
 
 ## Agent skills
 
