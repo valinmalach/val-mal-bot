@@ -74,3 +74,6 @@ rules:
   paths:
     exclude:
     - services/config.py
+    # The pattern is purely syntactic and can't tell logging.Formatter.format(record)
+    # apart from str.format on database text -- logging_json's own self-check calls it.
+    - logging_json.py
