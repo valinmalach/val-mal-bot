@@ -149,8 +149,11 @@ async def send_shoutout(to_broadcaster_id: str) -> None:
 def callback_prefix() -> str:
     """What every EventSub callback for this deployment starts with.
 
-    All seven webhook routes live under it, so a callback that does not begin
-    here belongs to another deployment or to this one before it moved.
+    Every webhook route begins with it, so a callback that does not begin here
+    belongs to another deployment or to this one before it moved. Deliberately
+    not a count: this said "seven" from the commit that added the check until the
+    eighth route landed in controller/twitch.py without touching this file, which
+    is exactly what a number written down in the wrong module does.
     """
     return callback_url("/webhook/twitch")
 
