@@ -259,6 +259,19 @@ Twitch adds — would otherwise be dropped in silence and recreate a subscriptio
 of the rule for EventSub payload models above, and for the opposite reason: those
 are read, this one is written back.
 
+**What the model keeps and what the recreate sends are different sets, and the
+difference is load-bearing.** `condition_of` drops every value that is `""`.
+Twitch answers with `""` for the unset half of a `channel.raid` condition — both
+directions are subscribed, so both arrive that way — and its create endpoint says
+of that pair: *"Set either the from_broadcaster_user_id or to_broadcaster_user_id
+condition parameter but not both. If you pass both parameters, the subscription
+request fails."* A faithful round-trip therefore deletes both raid subscriptions
+and recreates neither, on a type provisioned outside this repo that nothing here
+can rebuild. Dropping `""` is not lossy: it is how Twitch says *not set* on the
+way out and absence is how it requires the same thing on the way in. Compared
+against `""` and not tested for falsity, so a `0` or `False` Twitch chose to send
+in an undeclared key survives. **Do not make this round-trip faithful again.**
+
 **`WEBHOOK_PATHS` is derived from the `_route` table, not written beside it.**
 `controller/twitch.py` builds it as the routes register, reading each type off the
 `Literal` its model already declares — a ninth list of the eight types is one more
