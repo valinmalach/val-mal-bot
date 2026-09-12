@@ -14,6 +14,7 @@ from discord.ext.commands import Bot, Cog
 from discord.utils import escape_markdown
 
 from constants import TokenType
+from controller.twitch import WEBHOOK_PATHS
 from errors import report
 from services.config import config
 from services.present import quoted
@@ -25,6 +26,7 @@ from services.twitch.api import (
     unsubscribe_to_user,
 )
 from services.twitch.helix import HelixError
+from services.twitch.migrate import migrate, summary
 from services.twitch.oauth import create_authorization_start_url
 from views import role_panels
 
@@ -282,6 +284,39 @@ class Admin(Cog):
             if found
             else f"No Twitch user called {escape_markdown(login)}"
         )
+
+    @app_commands.command(
+        name="migrate-subscriptions",
+        description="Repoint every EventSub subscription at this deployment's URL",
+    )
+    @app_commands.commands.default_permissions(administrator=True)
+    @app_commands.describe(
+        confirm="Actually do it. Without this it reports what it would do and stops.",
+    )
+    async def migrate_subscriptions(
+        self, interaction: Interaction, confirm: bool = False
+    ) -> None:
+        if interaction.user.id != config.setting("owner_id"):
+            await interaction.response.send_message(
+                "Only the configured bot owner can migrate Twitch subscriptions.",
+                ephemeral=True,
+            )
+            return
+
+        # Helix is asked once per subscription and then twice more per repoint,
+        # which is well past Discord's three seconds.
+        await interaction.response.defer(ephemeral=True)
+        try:
+            outcome = await migrate(WEBHOOK_PATHS, confirm=confirm)
+        except HelixError as e:
+            await report(e, "Failed to migrate Twitch subscriptions")
+            await interaction.followup.send(
+                "Could not reach Twitch to list the subscriptions, so nothing was"
+                " touched."
+            )
+            return
+
+        await interaction.followup.send(summary(outcome, confirm=confirm))
 
     @app_commands.command(
         description="Unsubscribe from online and offline events for a user"

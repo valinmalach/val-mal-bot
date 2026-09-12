@@ -2,7 +2,7 @@ import logging
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Coroutine
-from typing import Any
+from typing import Any, get_args
 
 import pendulum
 from fastapi import APIRouter, HTTPException, Request, Response
@@ -313,6 +313,31 @@ async def process_webhook[E: BaseModel](
         raise HTTPException(status_code=500) from e
 
 
+# Which webhook path serves each EventSub type. Derived from the routes below
+# rather than listed beside them, so it cannot drift from them: a ninth list of
+# the eight types is one more thing to keep in step by hand. Read by
+# services/twitch/migrate.py, which is handed this rather than importing it,
+# since nothing under services/ may import controller/.
+WEBHOOK_PATHS: dict[str, str] = {}
+
+
+def _subscription_type(event_model: type[BaseModel]) -> str:
+    """The EventSub type a model serves, read off the Literal that asserts it.
+
+    Raises at import, which is the point: a model that stopped declaring exactly
+    one type would otherwise leave its route out of WEBHOOK_PATHS, and a type
+    missing from that map is one the migration declines to touch.
+    """
+    subscription = event_model.model_fields["subscription"].annotation
+    if not isinstance(subscription, type) or not issubclass(subscription, BaseModel):
+        raise TypeError(f"{event_model.__name__}.subscription is not a model")
+
+    declared = get_args(subscription.model_fields["type"].annotation)
+    if len(declared) != 1 or not isinstance(declared[0], str):
+        raise TypeError(f"{subscription.__name__}.type is not a single-value Literal")
+    return declared[0]
+
+
 def _route[E: BaseModel](
     path: str,
     event_model: type[E],
@@ -328,6 +353,19 @@ def _route[E: BaseModel](
 
     async def webhook(request: Request) -> Response:
         return await process_webhook(request, path, event_model, task_func)
+
+    # Refused rather than overwritten, because a plain assignment makes the one
+    # kind of drift this map exists to prevent the silent kind: two models
+    # declaring the same type would leave the migration repointing every
+    # subscription of it at whichever route registered last, with the other route
+    # missing from the map and so never migrated at all.
+    subscription_type = _subscription_type(event_model)
+    if subscription_type in WEBHOOK_PATHS:
+        raise ValueError(
+            f"{subscription_type} is already routed to"
+            f" {WEBHOOK_PATHS[subscription_type]}, so {path} would replace it"
+        )
+    WEBHOOK_PATHS[subscription_type] = path
 
     # Applied as a call rather than as a decorator: every route's function is
     # named "webhook", so each needs a name of its own for url_for and the

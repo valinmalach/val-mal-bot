@@ -182,12 +182,89 @@ Twitch documents no 4xx/5xx distinction anywhere, and revocation counts anything
 that is not a 2xx, so a 400 spends the failure budget exactly as a 500 does. That
 wrong justification was recorded here first; do not restore it.
 
-**Only two of the eight EventSub subscriptions can be created from this repo.**
+**Only two of the eight EventSub subscriptions can be created from nothing.**
 `/subscribe` creates `stream.online` and `stream.offline`. Chat, follow, ad break,
-raid, moderate and channel-point redemption are provisioned outside it, so a
-deployment whose public URL changes leaves six subscriptions pointing at a dead
-callback with nothing here able to recreate them. The startup check notices an
-undeliverable subscription; it cannot repair these six.
+raid, moderate and channel-point redemption are provisioned outside this repo, so
+nothing here can bring one back once it is gone. **Repointing an existing one is
+different, and covered:** `/migrate-subscriptions` moves all eight types to the
+current `APP_URL`, which is what a deployment whose public URL changes needs. The
+startup check notices an undeliverable subscription; the command is what repairs it.
+
+**The migration works off the live list, never a fixed one.** There are eight
+*types* but `6 + 2N` *subscriptions* — `stream.online`/`stream.offline` exist once
+per subscribed broadcaster, and nothing here knows what N is, because that list
+lives only in Twitch. `services/twitch/migrate.py` therefore starts from
+`get_subscriptions()`; a migration seeded from a list written in this repo would
+silently leave every promo broadcaster behind. Its rule is `decide`, which is pure,
+like `live_alert_cycle._decide`.
+
+**`decide` reads the callback and deliberately ignores the status.** It once
+repointed anything not `enabled` even when the callback was already right, on the
+reasoning that a disabled subscription delivers nothing whatever its callback says
+— true, and not this command's problem, because what that bought was a
+delete-then-create on a subscription already pointing where it should.
+`webhook_callback_verification_pending` is a seconds-long transient on the way to
+`enabled`, so catching one mid-verification destroyed something about to arrive by
+itself; `authorization_revoked` and the `*_removed` statuses are not things
+recreating repairs, so the delete turned a subscription still visible in
+`get_subscriptions()` into one that is gone. A correct callback that is not
+delivering is already `undeliverable`, which `recheck_subscriptions` reports hourly
+— that check owns the problem, this one owns the callback. Do not restore the
+status condition.
+
+**A 409 on the recreate is checked against Helix before it is called a loss.**
+`create_subscription` is `repeatable`, so a POST whose reply was lost is re-sent
+and Twitch answers the retry 409 *because the first attempt created it*. A 409
+therefore says the subscription exists at least as often as it says something else
+got there first, and reporting it as destroyed would send somebody to hand-recreate
+a subscription already in place — where, for the six types provisioned outside this
+repo, the attempt 409s too. `_exists_at` answers False when its own lookup fails:
+over-reporting a loss costs a needless check, under-reporting one costs a
+subscription nobody knows is missing.
+
+**A failed delete and a failed create are different outcomes and are reported
+apart.** `stuck` did not move and is still delivering on the old callback, so
+re-running is the whole remedy; `lost` is destroyed, and for six of the eight types
+the dump is the only way back. One list for both made a working subscription and a
+destroyed one read identically in the reply an operator sees first, which is the
+one moment that distinction matters.
+
+**A second confirmed run refuses while one is in flight.** Two would interleave
+deletes and creates over the same subscriptions: the loser of a delete race is
+reported untouched when it was destroyed, and the loser of a create race gets a 409
+that no longer means what the check above assumes. A plain module flag rather than
+an `asyncio.Lock`, because what is wanted is refusal and a lock queues — and a run
+that waits and then finds nothing to do looks exactly like one that was not needed.
+Taken with no await between the check and the set, for the reason
+`controller/twitch.py`'s `_claim` is one step. A dry run is not guarded: it changes
+nothing.
+
+Twitch's uniqueness key is the type and the condition **alone, not the transport**,
+so the same event at a new callback is a 409 and repointing has to be delete-then-
+create. Three consequences the module is built around, none of them optional: the
+complete definition of every subscription goes to the admin channel as a file
+*before* anything is deleted, since after the delete it is the only record one
+existed; a failure is reported per subscription and does not abandon the ones
+behind it; and a dry run is what you get unless you pass `confirm`. A type with no
+route is reported and **left alone** — deleting it would destroy something created
+deliberately elsewhere, and nothing here could recreate it.
+
+`SubscriptionCondition` is the one model here that keeps what it does not declare
+(`extra="allow"`), and that is the migration's doing rather than an oversight. Its
+five keys cover the eight subscriptions in use, so declaring them is what lets the
+rest of the code read one by name; but a condition is now *round-tripped* to
+recreate a subscription, and a key outside those five — a `reward_id`, or anything
+Twitch adds — would otherwise be dropped in silence and recreate a subscription
+**broader than the one it replaced**, with nothing to say so. This is the opposite
+of the rule for EventSub payload models above, and for the opposite reason: those
+are read, this one is written back.
+
+**`WEBHOOK_PATHS` is derived from the `_route` table, not written beside it.**
+`controller/twitch.py` builds it as the routes register, reading each type off the
+`Literal` its model already declares — a ninth list of the eight types is one more
+thing to keep in step by hand. It is passed *into* `migrate`, never imported by it,
+because nothing under `services/` may import `controller/`; `cogs/admin.py` may,
+and is what hands it over.
 
 **A live alert is closed by its updater, never by a webhook.** `stream.offline`
 carries no stream id, so the handler cannot tell which stream ended; it calls
@@ -363,10 +440,15 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 - **Everything the bot says about itself goes through `errors.py`.** `report(exc,
   context)` for an exception, `notify(text)` for anything else worth the admin
   channel, `notify_soon(text)` for the two synchronous renderers that cannot
-  await. None of them raise, all log locally first, and all say so when the
-  channel is out of reach. `notify` returns whether the channel has the news, for
-  the one caller that retries. Nothing else may resolve
+  await, `notify_file(text, filename, content)` for a notice carrying a record
+  too long for a message. None of them raise, all log locally first, and all say
+  so when the channel is out of reach. `notify` returns whether the channel has
+  the news, for the one caller that retries. Nothing else may resolve
   `config.channel("bot_admin")`.
+  `notify_file` is the one that deliberately skips the fifteen-minute repeat
+  window: it carries what somebody needs in order to undo what the bot is about
+  to do, and two inside one window are two different records, so standing the
+  second in for the first would leave a destruction with nothing to reverse it.
 - **A path that degrades or gives up says so in the admin channel.** Catching a
   `HelixError` to carry on without an avatar is fine; catching it into
   `logger.warning` alone is not. The logs are not watched and the Discord server

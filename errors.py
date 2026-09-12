@@ -1,6 +1,6 @@
 """Everything the bot says about itself, in one place.
 
-Neither function raises. Both run inside somebody's ``except`` block, where an
+None of these raise. They run inside somebody's ``except`` block, where an
 escaping exception would replace the one being reported, and a lost report is
 worse than an ugly one.
 
@@ -69,7 +69,7 @@ def _prune(now: float) -> None:
             del _windows[key]
 
 
-async def _send_once(key: str, text: str, trace: str | None) -> bool:
+async def _send_once(key: str, text: str, attachment: tuple[str, str] | None) -> bool:
     """Deliver unless an identical message already did, inside the window."""
     now = time.monotonic()
     _prune(now)
@@ -95,7 +95,7 @@ async def _send_once(key: str, text: str, trace: str | None) -> bool:
 
     sent = False
     try:
-        sent = await _deliver(text, trace)
+        sent = await _deliver(text, attachment)
     finally:
         # In a finally because a _deliver that raises has delivered nothing
         # either, and leaving its window standing would suppress the retry —
@@ -119,7 +119,11 @@ async def report(exc: Exception, context: str, *, key: str | None = None) -> Non
         logger.error("%r\nTraceback:\n%s", summary, trace)
         # Context names the thing that failed; the type keeps two different
         # failures reported from one place from standing in for each other.
-        await _send_once(key or f"{context}\x00{type(exc).__name__}", summary, trace)
+        await _send_once(
+            key or f"{context}\x00{type(exc).__name__}",
+            summary,
+            ("traceback.txt", trace),
+        )
     except Exception:
         # Describing an exception can itself fail: a __str__ that raises, or a
         # services import that never completed.
@@ -141,6 +145,22 @@ async def notify(text: str, *, key: str | None = None) -> bool:
         # that a notice was raised at all.
         logger.info("%r", text)
         return await _send_once(key or text, text, None)
+    except Exception:
+        logger.exception("Notifying failed for: %r", text)
+        return False
+
+
+async def notify_file(text: str, filename: str, content: str) -> bool:
+    """Deliver a notice with a file attached, never held back as a repeat.
+
+    The window is deliberately skipped rather than keyed around. This carries a
+    record somebody needs in order to undo what the bot is about to do, and two
+    of them inside one window are two different records -- suppressing the
+    second would leave the destruction it precedes with nothing to reverse it.
+    """
+    try:
+        logger.info("%r (attached %s, %d characters)", text, filename, len(content))
+        return await _deliver(text, (filename, content))
     except Exception:
         logger.exception("Notifying failed for: %r", text)
         return False
@@ -168,7 +188,7 @@ def notify_soon(text: str, *, key: str | None = None) -> None:
     fire_and_forget(notify(text, key=key), name="notify")
 
 
-async def _deliver(text: str, trace: str | None) -> bool:
+async def _deliver(text: str, attachment: tuple[str, str] | None) -> bool:
     # Deferred: importing services at module scope runs the whole package, and
     # main.py reports cog-load failures before any of it is up.
     from services.config import config
@@ -182,11 +202,10 @@ async def _deliver(text: str, trace: str | None) -> bool:
 
     from services.send import send_message
 
-    file = (
-        discord.File(io.BytesIO(trace.encode("utf-8")), filename="traceback.txt")
-        if trace is not None
-        else None
-    )
+    file = None
+    if attachment is not None:
+        filename, content = attachment
+        file = discord.File(io.BytesIO(content.encode("utf-8")), filename=filename)
     # quiet: send_message announces a channel it cannot resolve, and announcing
     # this one goes through here again.
     if _undelivered:
