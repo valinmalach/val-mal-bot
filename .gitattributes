@@ -1,5 +1,1 @@
-# Shell scripts run in a Linux container; CRLF would break the shebang.
-*.sh text eol=lf
-Dockerfile text eol=lf
-
 *.ico binary

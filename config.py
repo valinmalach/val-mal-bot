@@ -25,7 +25,7 @@ class Settings(BaseSettings):
 
     database_url: NonEmpty
     app_url: NonEmpty
-    # Railway injects PORT; 8000 matches what the tunnel targets locally.
+    # Railway injects PORT; 8000 is just a sane local default.
     port: int = 8000
 
     db_echo: bool = False

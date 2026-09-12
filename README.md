@@ -50,8 +50,8 @@ Twitch EventSub delivers over the public internet, so nothing reaches
 arrive by webhook and will not fire. Outbound Twitch API calls still work, and
 the bot will mint an app token on demand.
 
-To exercise webhooks you need the tunnel, which is what `start.sh` sets up in
-the container.
+To exercise webhooks locally you need a tunnel in front of `localhost` yourself;
+nothing here bundles one anymore.
 
 ## Reauthorizing Twitch accounts
 
