@@ -33,10 +33,33 @@ class JsonFormatter(logging.Formatter):
         }
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
-        payload |= ((k, v) for k, v in record.__dict__.items() if k not in _RESERVED)
-        # default=str: a value this can't serialise must not lose the line to
-        # "--- Logging error ---" on stderr.
-        return json.dumps(payload, default=str)
+        # not in payload: an extra= key named level/message/logger/exception
+        # must not overwrite the field it collides with -- getMessage() and
+        # record.name are always plain strings, so this can only drop an
+        # extra, never the record's own level, text or logger name.
+        payload |= (
+            (k, v)
+            for k, v in record.__dict__.items()
+            if k not in _RESERVED and k not in payload
+        )
+        try:
+            # default=str: a value this can't serialise must not lose the
+            # line to "--- Logging error ---" on stderr.
+            return json.dumps(payload, default=str)
+        except ValueError:
+            # default=str only covers a type json.dumps doesn't recognise; a
+            # circular extra= value is a dict/list it does recognise, and
+            # fails its own cycle check before default ever runs. The three
+            # fields above are always plain strings, so this retry can't fail
+            # the same way.
+            return json.dumps(
+                {
+                    "level": payload["level"],
+                    "message": payload["message"],
+                    "logger": payload["logger"],
+                    "formatter_error": "an extra field was not JSON-serialisable",
+                }
+            )
 
 
 def _demo() -> None:
@@ -94,6 +117,41 @@ def _demo() -> None:
     )
     assert payload["payload"] == "<thing>"
     assert payload["broadcaster_id"] == 123
+
+    # An extra= key must not be able to spoof the level or logger Railway reads.
+    payload = rendered(
+        logger.makeRecord(
+            "x",
+            logging.ERROR,
+            __file__,
+            1,
+            "bad thing happened",
+            (),
+            None,
+            extra={"level": "debug", "logger": "spoofed"},
+        )
+    )
+    assert payload["level"] == "error"
+    assert payload["logger"] == "x"
+
+    # A circular extra= value must not lose the line to a raised ValueError.
+    circular: dict[str, object] = {}
+    circular["self"] = circular
+    payload = rendered(
+        logger.makeRecord(
+            "x",
+            logging.INFO,
+            __file__,
+            1,
+            "arrived",
+            (),
+            None,
+            extra={"loop": circular},
+        )
+    )
+    assert payload["level"] == "info"
+    assert payload["message"] == "arrived"
+    assert "formatter_error" in payload
 
 
 if __name__ == "__main__":
