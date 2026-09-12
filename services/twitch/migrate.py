@@ -109,6 +109,30 @@ _CONDITION_ID_FIELDS = (
 )
 
 
+def _named_ids(subscription: Subscription) -> list[tuple[str, str]]:
+    """Every (label, value) an id field in this condition actually names.
+
+    The one place that reads ``_CONDITION_ID_FIELDS`` off a live condition, so
+    that filtering what counts as "named" only has to be right once. A field
+    Twitch left as ``""`` -- its way of saying "not set" on the unused half of a
+    ``channel.raid`` condition -- is skipped here for the same reason
+    ``condition_of`` drops it from the recreate: a value that names nobody is
+    not a value to look up, print, or resolve to a login.
+
+    Before this existed, three call sites read the raw attribute themselves and
+    only one of them remembered to check for ``""``. The other two put an empty
+    login lookup through Helix every run and printed "to broadcaster " with
+    nothing after it -- correct by the field's own logic, since ``""`` really is
+    what Twitch sent, and wrong by every reader's, since it never named anyone.
+    """
+    return [
+        (label, value)
+        for name, label in _CONDITION_ID_FIELDS
+        if isinstance(value := getattr(subscription.condition, name, None), str)
+        and value != ""
+    ]
+
+
 def condition_of(subscription: Subscription) -> dict[str, Any]:
     """The condition as Twitch sent it, minus the keys it sent empty.
 
@@ -137,16 +161,17 @@ def condition_of(subscription: Subscription) -> dict[str, Any]:
 
 
 def _condition_ids(subscriptions: list[Subscription]) -> list[str]:
-    """Every distinct value these conditions carry in an id field.
+    """Every distinct value these conditions name in an id field.
 
     Not necessarily an id: what a condition holds is Twitch's to decide, and
-    ``_usable`` is what decides whether it can be looked up.
+    ``_usable`` is what decides whether it can be looked up. ``""`` is already
+    excluded by ``_named_ids`` -- it is not a value anybody sent to be resolved,
+    it is Twitch declining to fill in the other half of a raid condition, and a
+    lookup for it produced a false "cannot be a Twitch user id" notice on every
+    run that had one.
     """
     ids = {
-        value
-        for subscription in subscriptions
-        for name, _ in _CONDITION_ID_FIELDS
-        if isinstance(value := getattr(subscription.condition, name, None), str)
+        value for subscription in subscriptions for _, value in _named_ids(subscription)
     }
     return sorted(ids)
 
@@ -265,11 +290,8 @@ def render_dump(
                 "condition": condition_of(subscription),
                 "logins": {
                     value: logins[value]
-                    for name, _ in _CONDITION_ID_FIELDS
-                    if isinstance(
-                        value := getattr(subscription.condition, name, None), str
-                    )
-                    and value in logins
+                    for _, value in _named_ids(subscription)
+                    if value in logins
                 },
                 "callback_now": subscription.transport.callback,
                 "callback_after": (
@@ -302,8 +324,7 @@ def describe(subscription: Subscription, logins: Mapping[str, str]) -> str:
     """
     named = [
         f"{label} {value}" + (f" = {logins[value]}" if value in logins else "")
-        for name, label in _CONDITION_ID_FIELDS
-        if isinstance(value := getattr(subscription.condition, name, None), str)
+        for label, value in _named_ids(subscription)
     ]
     # A condition naming nobody is not one of the eight, but it still has to be
     # reportable: the id is all Twitch gives that is certain to identify it.
