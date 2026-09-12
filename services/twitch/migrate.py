@@ -119,7 +119,11 @@ def condition_of(subscription: Subscription) -> dict[str, Any]:
 
 
 def _condition_ids(subscriptions: list[Subscription]) -> list[str]:
-    """Every distinct Twitch user id named by any of these conditions."""
+    """Every distinct value these conditions carry in an id field.
+
+    Not necessarily an id: what a condition holds is Twitch's to decide, and
+    ``_usable`` is what decides whether it can be looked up.
+    """
     ids = {
         value
         for subscription in subscriptions
@@ -129,21 +133,48 @@ def _condition_ids(subscriptions: list[Subscription]) -> list[str]:
     return sorted(ids)
 
 
+def _usable(value: str) -> bool:
+    """Whether Helix will accept this as a user id.
+
+    A Twitch user id is a run of ASCII digits. ``isascii`` as well as
+    ``isdigit`` because the latter is true of Arabic-Indic digits and of
+    superscripts, neither of which Helix parses as a number.
+    """
+    return value.isascii() and value.isdigit()
+
+
 async def _logins(subscriptions: list[Subscription]) -> dict[str, str]:
     """Twitch id to login for everyone these subscriptions name.
 
     A dump without this is not enough to recover by hand: a subscription stores
     a user id, while ``/subscribe`` takes a login. A lookup that fails costs the
     names and not the dump, which is the part that cannot be reconstructed.
+
+    Anything that cannot be a user id is dropped before the call rather than
+    sent. Helix answers one malformed identifier with a 400 for the whole
+    request -- it ignores ids that merely do not exist, so a 400 is always about
+    the shape of one of them -- and that cost every login in the batch, not just
+    the bad one. Reported rather than dropped quietly: a condition holding
+    something that is not an id is worth a person knowing about.
     """
     ids = _condition_ids(subscriptions)
-    if not ids:
+    usable = [value for value in ids if _usable(value)]
+    if unusable := [value for value in ids if not _usable(value)]:
+        await notify(
+            f"{len(unusable)} subscription condition value(s) cannot be a Twitch"
+            f" user id, so they were left out of the login lookup:"
+            f" {', '.join(repr(value) for value in unusable[:10])}."
+            f" The dump still carries every condition in full.",
+            key="migrate-unusable-ids",
+        )
+
+    if not usable:
         return {}
     try:
-        return {user.id: user.login for user in await get_users(ids)}
+        return {user.id: user.login for user in await get_users(usable)}
     except HelixError as e:
         await notify(
-            f"Could not resolve {len(ids)} Twitch id(s) to logins for the"
+            f"Could not resolve {len(usable)} Twitch id(s) to logins for the"
             f" subscription dump, so it names ids only: {e}",
             key="migrate-dump-logins",
         )
