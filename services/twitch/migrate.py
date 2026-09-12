@@ -242,11 +242,18 @@ def render_dump(
     routes: Mapping[str, str],
     logins: Mapping[str, str],
 ) -> str:
-    """The complete definition of every subscription, as JSON somebody can act on.
+    """Every subscription as JSON somebody can act on, not as Twitch phrased it.
 
-    Everything needed to recreate one by hand is here -- type, version, the full
+    Everything needed to recreate one by hand is here -- type, version,
     condition, and the login behind each id -- because after the delete this is
     the only record that it existed.
+
+    The condition is ``condition_of``'s, so a value Twitch sent as ``""`` is
+    absent here. That is the difference between a transcript and something
+    somebody can act on: pasting the raid condition back as Twitch phrased it is
+    refused, and this file exists to be pasted back. ``callback_now`` and
+    ``callback_after`` are likewise the migration's own reading rather than
+    fields Twitch returns.
     """
     return json.dumps(
         [
