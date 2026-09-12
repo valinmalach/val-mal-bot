@@ -198,6 +198,47 @@ lives only in Twitch. `services/twitch/migrate.py` therefore starts from
 silently leave every promo broadcaster behind. Its rule is `decide`, which is pure,
 like `live_alert_cycle._decide`.
 
+**`decide` reads the callback and deliberately ignores the status.** It once
+repointed anything not `enabled` even when the callback was already right, on the
+reasoning that a disabled subscription delivers nothing whatever its callback says
+— true, and not this command's problem, because what that bought was a
+delete-then-create on a subscription already pointing where it should.
+`webhook_callback_verification_pending` is a seconds-long transient on the way to
+`enabled`, so catching one mid-verification destroyed something about to arrive by
+itself; `authorization_revoked` and the `*_removed` statuses are not things
+recreating repairs, so the delete turned a subscription still visible in
+`get_subscriptions()` into one that is gone. A correct callback that is not
+delivering is already `undeliverable`, which `recheck_subscriptions` reports hourly
+— that check owns the problem, this one owns the callback. Do not restore the
+status condition.
+
+**A 409 on the recreate is checked against Helix before it is called a loss.**
+`create_subscription` is `repeatable`, so a POST whose reply was lost is re-sent
+and Twitch answers the retry 409 *because the first attempt created it*. A 409
+therefore says the subscription exists at least as often as it says something else
+got there first, and reporting it as destroyed would send somebody to hand-recreate
+a subscription already in place — where, for the six types provisioned outside this
+repo, the attempt 409s too. `_exists_at` answers False when its own lookup fails:
+over-reporting a loss costs a needless check, under-reporting one costs a
+subscription nobody knows is missing.
+
+**A failed delete and a failed create are different outcomes and are reported
+apart.** `stuck` did not move and is still delivering on the old callback, so
+re-running is the whole remedy; `lost` is destroyed, and for six of the eight types
+the dump is the only way back. One list for both made a working subscription and a
+destroyed one read identically in the reply an operator sees first, which is the
+one moment that distinction matters.
+
+**A second confirmed run refuses while one is in flight.** Two would interleave
+deletes and creates over the same subscriptions: the loser of a delete race is
+reported untouched when it was destroyed, and the loser of a create race gets a 409
+that no longer means what the check above assumes. A plain module flag rather than
+an `asyncio.Lock`, because what is wanted is refusal and a lock queues — and a run
+that waits and then finds nothing to do looks exactly like one that was not needed.
+Taken with no await between the check and the set, for the reason
+`controller/twitch.py`'s `_claim` is one step. A dry run is not guarded: it changes
+nothing.
+
 Twitch's uniqueness key is the type and the condition **alone, not the transport**,
 so the same event at a new callback is a 409 and repointing has to be delete-then-
 create. Three consequences the module is built around, none of them optional: the
