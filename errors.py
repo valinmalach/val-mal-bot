@@ -27,8 +27,13 @@ logger = logging.getLogger(__name__)
 _ADMIN_CHANNEL = "bot_admin"
 
 # Discord rejects a message over 2000 characters, and a rejected report is a
-# lost one. The traceback goes as a file, so only the summary is at risk.
+# lost one. A notice whose length follows how much went wrong reaches this: 97
+# undeliverable subscriptions is one line each, several times over the limit.
 _MAX_CONTENT = 1900
+
+# What replaces the lines that did not fit. Named so the reader knows the notice
+# was cut rather than that it ended there, which is what a bare slice looked like.
+_OVERFLOW_NOTE = "... the rest is attached."
 
 # How long one delivered message stands in for its own repeats.
 _WINDOW_SECONDS = 15 * 60
@@ -188,6 +193,26 @@ def notify_soon(text: str, *, key: str | None = None) -> None:
     fire_and_forget(notify(text, key=key), name="notify")
 
 
+def _shortened(text: str) -> str:
+    """The whole lines that fit, and a note saying the rest is attached.
+
+    Whole lines because the tail of a notice is where its detail is, and a cut
+    mid-line reads as the notice ending rather than as being truncated -- which
+    is how a list of 97 undeliverable subscriptions appeared to stop at 30 for
+    no reason. A single line longer than the budget yields the note alone, since
+    there is nothing whole to keep.
+    """
+    budget = _MAX_CONTENT - len(_OVERFLOW_NOTE) - 1
+    kept: list[str] = []
+    used = 0
+    for line in text.split("\n"):
+        if used + len(line) > budget:
+            break
+        kept.append(line)
+        used += len(line) + 1
+    return "\n".join([*kept, _OVERFLOW_NOTE])
+
+
 async def _deliver(text: str, attachment: tuple[str, str] | None) -> bool:
     # Deferred: importing services at module scope runs the whole package, and
     # main.py reports cog-load failures before any of it is up.
@@ -202,26 +227,38 @@ async def _deliver(text: str, attachment: tuple[str, str] | None) -> bool:
 
     from services.send import send_message
 
-    file = None
-    if attachment is not None:
-        filename, content = attachment
-        file = discord.File(io.BytesIO(content.encode("utf-8")), filename=filename)
-    # quiet: send_message announces a channel it cannot resolve, and announcing
-    # this one goes through here again.
     if _undelivered:
-        # Leading, because the tail is what gets truncated. Prepended here rather
-        # than at the call site so every path through the admin channel carries
-        # it, and cleared only once something has actually arrived.
+        # Leading, because the tail is what gets cut. Prepended here rather than
+        # at the call site so every path through the admin channel carries it,
+        # and cleared only once something has actually arrived. Before the
+        # overflow check below, so the prefix cannot push the result back over.
         text = (
             f"[{_undelivered} message(s) reached nobody while this channel was"
             f" unreachable]\n{text}"
         )
 
+    if len(text) > _MAX_CONTENT:
+        # The whole notice goes as a file, unless something already claimed the
+        # one attachment a message can carry -- a report's traceback, which is
+        # worth more than its summary's tail. Nothing is discarded silently
+        # either way: losing a report is the one thing this module exists to
+        # prevent, and a slice at 1900 characters was doing exactly that.
+        if attachment is None:
+            attachment = ("notice.txt", text)
+        text = _shortened(text)
+
+    file = None
+    if attachment is not None:
+        filename, content = attachment
+        file = discord.File(io.BytesIO(content.encode("utf-8")), filename=filename)
+
     # Counted before the attempt, not after it: send_message raises on a
     # channel it resolved but could not post to, and that reached nobody too.
+    # quiet: send_message announces a channel it cannot resolve, and announcing
+    # this one goes through here again.
     _undelivered += 1
     sent = await send_message(
-        text[:_MAX_CONTENT],
+        text,
         config.channel(_ADMIN_CHANNEL),
         file=file,
         quiet=True,

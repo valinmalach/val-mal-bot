@@ -1,4 +1,5 @@
 import logging
+from collections import Counter
 from datetime import datetime
 from typing import ClassVar
 
@@ -24,11 +25,24 @@ _ANNOUNCE_GRACE_SECONDS = 24 * 60 * 60
 
 
 def undeliverable_summary(broken: dict[str, str]) -> str:
-    detail = "\n".join(f"- {identity}: {reason}" for identity, reason in broken.items())
+    """Every subscription that will not deliver, counted by reason before listed.
+
+    The counts and the advice come first because they are what survives being
+    cut, and one reason covering every subscription is the whole diagnosis: a
+    public URL that moved makes all of them undeliverable for the same reason,
+    which as a line each was 97 copies of one sentence and five times what a
+    Discord message holds. The per-subscription detail still follows, for the
+    cases where which one matters.
+    """
+    counts = Counter(broken.values())
+    headline = "\n".join(
+        f"- {count} {reason}" for reason, count in counts.most_common()
+    )
+    detail = "\n".join(f"  {identity}: {reason}" for identity, reason in broken.items())
     return (
-        f"{len(broken)} Twitch subscription(s) will not deliver:\n{detail}\n"
+        f"{len(broken)} Twitch subscription(s) will not deliver:\n{headline}\n"
         "/subscribe replaces the stream.online and stream.offline pair; the"
-        " rest are registered outside the bot."
+        f" rest are registered outside the bot.\n{detail}"
     )
 
 

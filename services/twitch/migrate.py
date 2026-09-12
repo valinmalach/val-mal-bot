@@ -134,13 +134,36 @@ def _condition_ids(subscriptions: list[Subscription]) -> list[str]:
 
 
 def _usable(value: str) -> bool:
-    """Whether Helix will accept this as a user id.
+    """Whether this could be a Twitch user id at all.
 
-    A Twitch user id is a run of ASCII digits. ``isascii`` as well as
-    ``isdigit`` because the latter is true of Arabic-Indic digits and of
-    superscripts, neither of which Helix parses as a number.
+    A run of ASCII digits. ``isascii`` as well as ``isdigit`` because the latter
+    is true of Arabic-Indic digits and of superscripts, neither of which Helix
+    parses as a number.
+
+    Necessary and not sufficient, deliberately: what Helix's own validator
+    accepts is not published, so a value that is all digits and still refused
+    would pass here. Bounding the length would be inventing a rule about
+    somebody else's id format, and rejecting a real id is worse than sending one
+    Twitch declines -- which is why the failure below names what it sent.
     """
     return value.isascii() and value.isdigit()
+
+
+# How many values a notice names before it stops and says how many are left. The
+# lists here are as long as the subscription count and the dump carries all of
+# them, so the message only has to be enough to start looking.
+_NAMED_LIMIT = 10
+
+
+def _some(values: list[str]) -> str:
+    """The first few values, saying how many were not named.
+
+    The remainder is stated rather than implied: a count that does not match the
+    list reads as a bug in the report rather than a cap on it.
+    """
+    shown = ", ".join(repr(value) for value in values[:_NAMED_LIMIT])
+    rest = len(values) - _NAMED_LIMIT
+    return f"{shown} and {rest} more" if rest > 0 else shown
 
 
 async def _logins(subscriptions: list[Subscription]) -> dict[str, str]:
@@ -152,10 +175,23 @@ async def _logins(subscriptions: list[Subscription]) -> dict[str, str]:
 
     Anything that cannot be a user id is dropped before the call rather than
     sent. Helix answers one malformed identifier with a 400 for the whole
-    request -- it ignores ids that merely do not exist, so a 400 is always about
-    the shape of one of them -- and that cost every login in the batch, not just
-    the bad one. Reported rather than dropped quietly: a condition holding
-    something that is not an id is worth a person knowing about.
+    request, and it ignores ids that merely do not exist, so a 400 from that
+    endpoint is about the shape of something rather than a deleted account --
+    and it cost every login in the batch, not just the bad one. Both notices
+    name the values involved, because the filter cannot be complete: a value
+    Helix refuses for a reason not visible from here has to leave behind enough
+    for somebody to find it.
+
+    Each key carries the values it is about. Keying on the notice alone held back
+    a *different* set inside the fifteen-minute window, in the one path that
+    exists to make these visible -- and the run that follows a dry run is well
+    inside it.
+
+    ``json.dumps`` rather than joining on a comma, because ``unusable`` is by
+    construction whatever failed the digit test, so a value holding a comma is
+    the shape most likely to be in it -- and joining made ``['a,b']`` and
+    ``['a', 'b']`` the same key, which is the same suppression bug again by a
+    narrower route.
     """
     ids = _condition_ids(subscriptions)
     usable = [value for value in ids if _usable(value)]
@@ -163,9 +199,9 @@ async def _logins(subscriptions: list[Subscription]) -> dict[str, str]:
         await notify(
             f"{len(unusable)} subscription condition value(s) cannot be a Twitch"
             f" user id, so they were left out of the login lookup:"
-            f" {', '.join(repr(value) for value in unusable[:10])}."
+            f" {_some(unusable)}."
             f" The dump still carries every condition in full.",
-            key="migrate-unusable-ids",
+            key=f"migrate-unusable-ids:{json.dumps(unusable)}",
         )
 
     if not usable:
@@ -175,8 +211,10 @@ async def _logins(subscriptions: list[Subscription]) -> dict[str, str]:
     except HelixError as e:
         await notify(
             f"Could not resolve {len(usable)} Twitch id(s) to logins for the"
-            f" subscription dump, so it names ids only: {e}",
-            key="migrate-dump-logins",
+            f" subscription dump, so it names ids only: {e}."
+            f" The ids sent were: {_some(usable)}."
+            f" A 400 here means one of them is a shape Helix will not take.",
+            key=f"migrate-dump-logins:{json.dumps(usable)}",
         )
         return {}
 
