@@ -28,7 +28,6 @@ from services.twitch.api import (
     delete_subscription,
     get_subscriptions,
     get_users,
-    subscription_target,
 )
 from services.twitch.helix import HelixError
 
@@ -99,12 +98,14 @@ class Outcome:
     logins: dict[str, str] = field(default_factory=dict)
 
 
+# Every condition field that carries a Twitch user id, with how to say it. The
+# labels match subscription_target's wording, which names only one of them.
 _CONDITION_ID_FIELDS = (
-    "broadcaster_user_id",
-    "to_broadcaster_user_id",
-    "from_broadcaster_user_id",
-    "moderator_user_id",
-    "user_id",
+    ("broadcaster_user_id", "broadcaster"),
+    ("to_broadcaster_user_id", "to broadcaster"),
+    ("from_broadcaster_user_id", "from broadcaster"),
+    ("moderator_user_id", "moderator"),
+    ("user_id", "user"),
 )
 
 
@@ -122,7 +123,7 @@ def _condition_ids(subscriptions: list[Subscription]) -> list[str]:
     ids = {
         value
         for subscription in subscriptions
-        for name in _CONDITION_ID_FIELDS
+        for name, _ in _CONDITION_ID_FIELDS
         if isinstance(value := getattr(subscription.condition, name, None), str)
     }
     return sorted(ids)
@@ -170,7 +171,7 @@ def render_dump(
                 "condition": condition_of(subscription),
                 "logins": {
                     value: logins[value]
-                    for name in _CONDITION_ID_FIELDS
+                    for name, _ in _CONDITION_ID_FIELDS
                     if isinstance(
                         value := getattr(subscription.condition, name, None), str
                     )
@@ -193,22 +194,27 @@ def render_dump(
 def describe(subscription: Subscription, logins: Mapping[str, str]) -> str:
     """One subscription, named the way a person would look for it.
 
-    Matched on the id subscription_target actually chose, and on the whole of it:
-    a Twitch id is a run of digits, so one is a substring of another often enough
-    that searching the rendered label would confidently name the wrong person.
+    Every id the condition carries, not only the first. Twitch's uniqueness key
+    is the type and the condition, so two subscriptions of one type against one
+    broadcaster are legitimate as long as another id differs -- two
+    channel.moderate for different moderators, or two channel.chat.message for
+    different reading users. Naming the broadcaster alone rendered those
+    identically, and a failure list is exactly where telling them apart matters.
+
+    Hence not ``subscription_target``, which answers with one id by design and is
+    right for the undeliverable summaries it serves. Building on it here meant
+    matching its rendered text to find out which id it had picked, which is a
+    thing to get wrong for no gain.
     """
-    target = subscription_target(subscription)
-    login = next(
-        (
-            logins[value]
-            for name in _CONDITION_ID_FIELDS
-            if isinstance(value := getattr(subscription.condition, name, None), str)
-            and target.endswith(f" {value}")
-            and value in logins
-        ),
-        None,
-    )
-    return f"{subscription.type} ({target}{f' = {login}' if login else ''})"
+    named = [
+        f"{label} {value}" + (f" = {logins[value]}" if value in logins else "")
+        for name, label in _CONDITION_ID_FIELDS
+        if isinstance(value := getattr(subscription.condition, name, None), str)
+    ]
+    # A condition naming nobody is not one of the eight, but it still has to be
+    # reportable: the id is all Twitch gives that is certain to identify it.
+    inside = ", ".join(named) or f"id {subscription.id}"
+    return f"{subscription.type} ({inside})"
 
 
 # Discord refuses a message over 2000 characters. The summary is the one reply
