@@ -10,6 +10,12 @@ class SubscriptionCondition(BaseModel):
     # rest of the code read one by name; anything Twitch adds -- a reward_id on a
     # redemption, say -- would otherwise vanish silently on the way through and
     # recreate a subscription broader than the one it replaced.
+    #
+    # What this model keeps and what the recreate sends are not the same set:
+    # migrate.condition_of drops any value that is "", because Twitch returns ""
+    # for the unset half of a channel.raid condition and refuses a create that
+    # carries both halves. Making that round-trip faithful again would delete
+    # both raid subscriptions and fail to recreate either.
     model_config = ConfigDict(extra="allow")
 
     broadcaster_user_id: str | None = None
