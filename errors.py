@@ -49,8 +49,8 @@ _MAX_TRACKED = 512
 _undelivered = 0
 
 # Every log line below carries text relayed from Twitch, Discord or the
-# database, so all of them use %r: a newline in a relayed message would
-# otherwise forge a log line. The traceback is the exception, and stays %s.
+# database, so all of them use %r: it shows where a value carries whitespace
+# or quoting that a plain %s would hide.
 
 
 @dataclass
@@ -121,7 +121,7 @@ async def report(exc: Exception, context: str, *, key: str | None = None) -> Non
         # asyncio.gather(return_exceptions=True) is not the one being handled,
         # and format_exc would describe nothing.
         trace = "".join(traceback.format_exception(exc))
-        logger.error("%r\nTraceback:\n%s", summary, trace)
+        logger.error("%r", summary, exc_info=exc)
         # Context names the thing that failed; the type keeps two different
         # failures reported from one place from standing in for each other.
         await _send_once(
