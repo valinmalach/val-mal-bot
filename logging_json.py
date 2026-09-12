@@ -46,18 +46,26 @@ class JsonFormatter(logging.Formatter):
             # default=str: a value this can't serialise must not lose the
             # line to "--- Logging error ---" on stderr.
             return json.dumps(payload, default=str)
-        except ValueError:
-            # default=str only covers a type json.dumps doesn't recognise; a
-            # circular extra= value is a dict/list it does recognise, and
-            # fails its own cycle check before default ever runs. The three
-            # fields above are always plain strings, so this retry can't fail
-            # the same way.
+        except (ValueError, TypeError) as exc:
+            # default=str only covers a type json.dumps doesn't recognise.
+            # ValueError is a circular extra= value: a dict/list it does
+            # recognise, so it fails its own cycle check before default ever
+            # runs. TypeError is a dict key inside an extra= value that isn't
+            # str/int/float/bool/None -- an Enum member, a tuple -- which
+            # default never sees either, since it's not the value being
+            # rejected. The three fields above are always plain strings, so
+            # this retry can't fail the same way.
+            #
+            # as exc, used below: ruff format strips the parens from a bare
+            # `except (A, B):`, which then reads exactly like the removed
+            # Python 2 except-binding syntax. Naming the exception makes that
+            # form ambiguous with the old one, so ruff leaves the parens alone.
             return json.dumps(
                 {
                     "level": payload["level"],
                     "message": payload["message"],
                     "logger": payload["logger"],
-                    "formatter_error": "an extra field was not JSON-serialisable",
+                    "formatter_error": f"an extra field was not JSON-serialisable: {exc}",
                 }
             )
 
@@ -147,6 +155,24 @@ def _demo() -> None:
             (),
             None,
             extra={"loop": circular},
+        )
+    )
+    assert payload["level"] == "info"
+    assert payload["message"] == "arrived"
+    assert "formatter_error" in payload
+
+    # A non-primitive dict key in an extra= value raises TypeError, not
+    # ValueError -- must not lose the line either.
+    payload = rendered(
+        logger.makeRecord(
+            "x",
+            logging.INFO,
+            __file__,
+            1,
+            "arrived",
+            (),
+            None,
+            extra={"bad": {("a", "b"): 1}},
         )
     )
     assert payload["level"] == "info"
