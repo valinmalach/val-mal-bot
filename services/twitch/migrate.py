@@ -110,12 +110,30 @@ _CONDITION_ID_FIELDS = (
 
 
 def condition_of(subscription: Subscription) -> dict[str, Any]:
-    """The condition as Twitch sent it, including keys the model does not declare.
+    """The condition as Twitch sent it, minus the keys it sent empty.
 
     ``exclude_none`` rather than a field list: the five declared keys default to
     None and only some are set per type, while extras carry no default at all.
+
+    The empty strings go for a harder reason than tidiness. Twitch answers with
+    ``""`` for the half of a ``channel.raid`` condition that is not set, and of
+    that pair its create endpoint says: "Set either the from_broadcaster_user_id
+    or to_broadcaster_user_id condition parameter but not both. If you pass both
+    parameters, the subscription request fails." Round-tripping the ``""`` back
+    therefore fails every raid recreate -- *after* its delete, which is the one
+    unrecoverable outcome this module has, on one of the six types nothing here
+    can rebuild.
+
+    Dropping it is not lossy: ``""`` is how Twitch says "not set" on the way out
+    and absence is how it requires the same thing on the way in. Compared against
+    ``""`` rather than tested for falsity, because ``0`` and ``False`` in an
+    undeclared key are values Twitch chose to send and are not this to decide.
     """
-    return subscription.condition.model_dump(exclude_none=True)
+    return {
+        key: value
+        for key, value in subscription.condition.model_dump(exclude_none=True).items()
+        if value != ""
+    }
 
 
 def _condition_ids(subscriptions: list[Subscription]) -> list[str]:
