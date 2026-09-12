@@ -478,6 +478,15 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 - **Text from the database is formatted with `safe_format`**, never bare `str.format`
   — a row is not source, and one unmatched brace should not lose the whole message.
   `config.render` additionally resolves `{channel:key}` and `{role:key}`.
+- **Every line either process emits is JSON, through `logging_json.JsonFormatter`.**
+  Railway colors a line by which stream it landed on unless the line itself
+  parses as JSON with a `level` key — `main.py` points the root logger's one
+  handler at stdout through it, and `alembic.ini` does the same for the
+  migration process, which never sees `main.py`'s setup. `extra={...}` on a
+  call becomes a queryable top-level key. Nothing may call
+  `logging.basicConfig` a second time, install a further handler, or `print`/
+  write to stdout or stderr directly — any of those is a line Railway
+  mis-levels by the stream it came in on.
 - **A new cog needs an entry in `constants.COGS`.** Nothing auto-discovers.
 - **Comments record a non-obvious *why*, or do not exist.** Match the density in
   `db/base.py` and `db/config.py`; do not narrate what the code already says.
