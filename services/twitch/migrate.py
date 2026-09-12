@@ -186,6 +186,12 @@ async def _logins(subscriptions: list[Subscription]) -> dict[str, str]:
     a *different* set inside the fifteen-minute window, in the one path that
     exists to make these visible -- and the run that follows a dry run is well
     inside it.
+
+    ``json.dumps`` rather than joining on a comma, because ``unusable`` is by
+    construction whatever failed the digit test, so a value holding a comma is
+    the shape most likely to be in it -- and joining made ``['a,b']`` and
+    ``['a', 'b']`` the same key, which is the same suppression bug again by a
+    narrower route.
     """
     ids = _condition_ids(subscriptions)
     usable = [value for value in ids if _usable(value)]
@@ -195,7 +201,7 @@ async def _logins(subscriptions: list[Subscription]) -> dict[str, str]:
             f" user id, so they were left out of the login lookup:"
             f" {_some(unusable)}."
             f" The dump still carries every condition in full.",
-            key=f"migrate-unusable-ids:{','.join(unusable)}",
+            key=f"migrate-unusable-ids:{json.dumps(unusable)}",
         )
 
     if not usable:
@@ -208,7 +214,7 @@ async def _logins(subscriptions: list[Subscription]) -> dict[str, str]:
             f" subscription dump, so it names ids only: {e}."
             f" The ids sent were: {_some(usable)}."
             f" A 400 here means one of them is a shape Helix will not take.",
-            key=f"migrate-dump-logins:{','.join(usable)}",
+            key=f"migrate-dump-logins:{json.dumps(usable)}",
         )
         return {}
 
