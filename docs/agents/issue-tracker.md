@@ -8,11 +8,12 @@ Issues and PRDs for this repo live as GitHub issues on `valinmalach/val-mal-bot`
 
 ## Conventions
 
-- **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
+- **Create an issue**: `gh issue create --title "..." --body "..." --label "priority-medium"` (choose exactly one of the five `priority-*` labels documented below). Use a heredoc for multi-line bodies.
 - **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
 - **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
 - **Comment on an issue**: `gh issue comment <number> --body "..."`
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
+- **Every issue carries exactly one priority label**, from the moment it is filed — see `docs/agents/triage-labels.md` for the five levels and what each means. `--add-label` does not remove an existing one, so when re-triaging, `--remove-label` the old `priority-*` label in the same command as adding its replacement.
 - **Close**: `gh issue close <number> --comment "..."`
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
