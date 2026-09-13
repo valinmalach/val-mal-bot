@@ -1,7 +1,5 @@
 """Saying something in a Discord channel, and editing what was said."""
 
-import logging
-
 import discord
 from discord import CategoryChannel, Embed, ForumChannel
 from discord.abc import PrivateChannel
@@ -9,7 +7,9 @@ from discord.ui import View
 
 from init import bot
 
-logger = logging.getLogger(__name__)
+# Channel kinds the bot cannot post a message or embed into. Shared with
+# cogs/admin.py so the two do not drift, as they once did.
+UNSENDABLE_CHANNEL_TYPES = (ForumChannel, CategoryChannel, PrivateChannel)
 
 
 async def _sendable(channel_id: int, quiet: bool):
@@ -20,9 +20,7 @@ async def _sendable(channel_id: int, quiet: bool):
     nothing anywhere to say it had.
     """
     channel = bot.get_channel(channel_id)
-    if channel is not None and not isinstance(
-        channel, (ForumChannel, CategoryChannel, PrivateChannel)
-    ):
+    if channel is not None and not isinstance(channel, UNSENDABLE_CHANNEL_TYPES):
         return channel
 
     if not quiet:
@@ -77,13 +75,8 @@ async def edit_embed(
     content: str | None = None,
 ) -> bool:
     """False when the channel cannot be resolved, so callers can tell a no-op from an edit."""
-    channel = bot.get_channel(channel_id)
-    if channel is None or isinstance(
-        channel, (ForumChannel, CategoryChannel, PrivateChannel)
-    ):
-        logger.warning(
-            f"Channel {channel_id} unavailable; skipped editing message {message_id}"
-        )
+    channel = await _sendable(channel_id, quiet=False)
+    if channel is None:
         return False
     message = await channel.fetch_message(message_id)
     if view:

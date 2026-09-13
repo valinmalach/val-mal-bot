@@ -2,14 +2,7 @@ import logging
 import re
 
 import discord
-from discord import (
-    CategoryChannel,
-    DMChannel,
-    ForumChannel,
-    GroupChannel,
-    Interaction,
-    app_commands,
-)
+from discord import Interaction, app_commands
 from discord.ext.commands import Bot, Cog
 from discord.utils import escape_markdown
 
@@ -18,7 +11,7 @@ from controller.twitch import WEBHOOK_PATHS
 from errors import report
 from services.config import config
 from services.present import quoted
-from services.send import send_embed
+from services.send import UNSENDABLE_CHANNEL_TYPES, send_embed
 from services.twitch.api import (
     get_subscriptions,
     get_users,
@@ -68,10 +61,10 @@ class Admin(Cog):
 
     @app_commands.command(description="Deletes all messages in the channel")
     @app_commands.commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
     async def nuke(self, interaction: Interaction) -> None:
         if interaction.channel is None or isinstance(
-            interaction.channel,
-            (ForumChannel, CategoryChannel, DMChannel, GroupChannel),
+            interaction.channel, UNSENDABLE_CHANNEL_TYPES
         ):
             logger.warning(
                 f"Nuke aborted: invalid channel type {type(interaction.channel)}"
@@ -87,6 +80,7 @@ class Admin(Cog):
         description="Deletes the most recent messages in this channel or thread"
     )
     @app_commands.commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.describe(
         count="How many messages to delete (max 500; bulk deletes use batches of up to 100; messages older than 14 days are skipped)",
     )
@@ -96,10 +90,7 @@ class Admin(Cog):
         count: app_commands.Range[int, 1, _PURGE_MESSAGE_LIMIT_MAX],
     ) -> None:
         ch = interaction.channel
-        if ch is None or isinstance(
-            ch,
-            (ForumChannel, CategoryChannel, DMChannel, GroupChannel),
-        ):
+        if ch is None or isinstance(ch, UNSENDABLE_CHANNEL_TYPES):
             logger.warning("Purge aborted: invalid channel type %s", type(ch))
             await interaction.response.send_message(
                 config.template("admin_wrong_channel"),
@@ -135,6 +126,7 @@ class Admin(Cog):
 
     @app_commands.command(description="Sends the rules embed to the rules channel")
     @app_commands.commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
     async def rules(self, interaction: Interaction) -> None:
         for embed, view, channel_id in role_panels("rules"):
             await send_embed(embed, channel_id, view)
@@ -142,6 +134,7 @@ class Admin(Cog):
 
     @app_commands.command(description="Sends the roles embeds to the roles channel")
     @app_commands.commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
     async def roles(self, interaction: Interaction) -> None:
         for embed, view, channel_id in role_panels("roles"):
             await send_embed(embed, channel_id, view)
@@ -152,6 +145,10 @@ class Admin(Cog):
         description="Generate owner-only links for the two Twitch user grants",
     )
     @app_commands.commands.default_permissions(administrator=True)
+    # No has_permissions here: checks are ANDed, and the owner check below
+    # already enforces a runtime identity nothing can reconfigure away. Adding
+    # "administrator" on top would block the owner in any guild where they
+    # are not also an admin, for no gain.
     async def twitch_auth(self, interaction: Interaction) -> None:
         if interaction.user.id != config.setting("owner_id"):
             await interaction.response.send_message(
@@ -194,6 +191,7 @@ class Admin(Cog):
 
     @app_commands.command(description="Gets all subscriptions' users")
     @app_commands.commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
     async def subscriptions(self, interaction: Interaction) -> None:
         try:
             subscriptions = await get_subscriptions()
@@ -261,6 +259,7 @@ class Admin(Cog):
         description="Subscribe to online and offline events for a user"
     )
     @app_commands.commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.describe(
         username="The username of the user to subscribe to",
     )
@@ -290,6 +289,7 @@ class Admin(Cog):
         description="Repoint every EventSub subscription at this deployment's URL",
     )
     @app_commands.commands.default_permissions(administrator=True)
+    # No has_permissions: see the comment on twitch_auth above, same reasoning.
     @app_commands.describe(
         confirm="Actually do it. Without this it reports what it would do and stops.",
     )
@@ -322,6 +322,7 @@ class Admin(Cog):
         description="Unsubscribe from online and offline events for a user"
     )
     @app_commands.commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.describe(
         username="The username of the user to unsubscribe from",
     )

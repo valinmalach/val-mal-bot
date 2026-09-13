@@ -78,33 +78,53 @@ class MyBot(Bot):
 bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 
+async def _answer(
+    interaction: discord.Interaction, template_key: str, command: str, verb: str
+) -> None:
+    from errors import report
+    from services.config import config
+
+    try:
+        # Composing the answer reads configuration, which is its own way to fail.
+        text = config.template(template_key)
+        if interaction.response.is_done():
+            await interaction.followup.send(text, ephemeral=True)
+        else:
+            await interaction.response.send_message(text, ephemeral=True)
+    except Exception as unanswerable:  # noqa: BLE001
+        await report(unanswerable, f"Could not tell anyone that /{command} {verb}")
+
+
 @bot.tree.error
 async def on_app_command_error(
     interaction: discord.Interaction, error: discord.app_commands.AppCommandError
 ) -> None:
     """The floor under every slash command.
 
-    Each command guards its own body, so this only fires when one forgets - which
-    is exactly the case where nobody would otherwise hear about it, and the
-    person who ran it would be left on a spinner.
+    Two different things land here. A command that forgets to guard its own
+    body raises past it - the case where nobody would otherwise hear about it,
+    and the person who ran it would be left on a spinner. A `MissingPermissions`
+    check failure also lands here, deliberately: `has_permissions` raises it by
+    design, so that branch answers the person directly instead of reporting it
+    as a bug.
     """
     from errors import report
-    from services.config import config
 
     command = interaction.command.qualified_name if interaction.command else "unknown"
+
+    if isinstance(error, discord.app_commands.MissingPermissions):
+        # A refusal `has_permissions` raises by design - a server admin has
+        # reconfigured who may run this command - not a bug, so it answers the
+        # person rather than reporting to the admin channel.
+        await _answer(
+            interaction, "command_no_permission", command, "lacked permission"
+        )
+        return
+
     # Reported first: the original failure is the thing that must be recorded,
     # whatever happens when this tries to answer.
     await report(error, f"Unhandled error in /{command}")
-
-    try:
-        # Composing the answer reads configuration, which is its own way to fail.
-        text = config.template("command_failed")
-        if interaction.response.is_done():
-            await interaction.followup.send(text, ephemeral=True)
-        else:
-            await interaction.response.send_message(text, ephemeral=True)
-    except Exception as unanswerable:  # noqa: BLE001
-        await report(unanswerable, f"Could not tell anyone that /{command} failed")
+    await _answer(interaction, "command_failed", command, "failed")
 
 
 @bot.event
