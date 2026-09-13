@@ -490,6 +490,16 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 - **A new cog needs an entry in `constants.COGS`.** Nothing auto-discovers.
 - **Comments record a non-obvious *why*, or do not exist.** Match the density in
   `db/base.py` and `db/config.py`; do not narrate what the code already says.
+- **An admin-only command needs `app_commands.checks.has_permissions`, not just
+  `default_permissions`.** The latter is a Discord UI default a server admin can
+  reconfigure away — discord.py's own docs call it "only a hint" — so it enforces
+  nothing at runtime. `has_permissions` raises `MissingPermissions`, which
+  `bot.tree.error` (`init/bot_init.py`) answers ephemerally without reporting it
+  as a bug, since a refused permission check is the check working. Skip it only
+  where a command already carries a strictly stronger runtime identity check —
+  `twitch_auth` and `migrate_subscriptions` check `owner_id`, and adding
+  `administrator` on top would block the owner in a guild where they hold that
+  identity without also being a guild admin.
 
 ## Deployment
 

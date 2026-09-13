@@ -78,6 +78,23 @@ class MyBot(Bot):
 bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
 
+async def _answer(
+    interaction: discord.Interaction, template_key: str, command: str, verb: str
+) -> None:
+    from errors import report
+    from services.config import config
+
+    try:
+        # Composing the answer reads configuration, which is its own way to fail.
+        text = config.template(template_key)
+        if interaction.response.is_done():
+            await interaction.followup.send(text, ephemeral=True)
+        else:
+            await interaction.response.send_message(text, ephemeral=True)
+    except Exception as unanswerable:  # noqa: BLE001
+        await report(unanswerable, f"Could not tell anyone that /{command} {verb}")
+
+
 @bot.tree.error
 async def on_app_command_error(
     interaction: discord.Interaction, error: discord.app_commands.AppCommandError
@@ -89,22 +106,22 @@ async def on_app_command_error(
     person who ran it would be left on a spinner.
     """
     from errors import report
-    from services.config import config
 
     command = interaction.command.qualified_name if interaction.command else "unknown"
+
+    if isinstance(error, discord.app_commands.MissingPermissions):
+        # A refusal `has_permissions` raises by design - a server admin has
+        # reconfigured who may run this command - not a bug, so it answers the
+        # person rather than reporting to the admin channel.
+        await _answer(
+            interaction, "command_no_permission", command, "lacked permission"
+        )
+        return
+
     # Reported first: the original failure is the thing that must be recorded,
     # whatever happens when this tries to answer.
     await report(error, f"Unhandled error in /{command}")
-
-    try:
-        # Composing the answer reads configuration, which is its own way to fail.
-        text = config.template("command_failed")
-        if interaction.response.is_done():
-            await interaction.followup.send(text, ephemeral=True)
-        else:
-            await interaction.response.send_message(text, ephemeral=True)
-    except Exception as unanswerable:  # noqa: BLE001
-        await report(unanswerable, f"Could not tell anyone that /{command} failed")
+    await _answer(interaction, "command_failed", command, "failed")
 
 
 @bot.event
