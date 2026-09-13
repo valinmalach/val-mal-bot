@@ -81,7 +81,7 @@ class ConfigCache:
     def __init__(self) -> None:
         self._channels: dict[str, int] = {}
         self._roles: dict[str, DiscordRole] = {}
-        self._roles_by_emoji: dict[str, DiscordRole] = {}
+        self._roles_by_custom_id: dict[str, DiscordRole] = {}
         self._settings: dict[str, Any] = {}
         self._templates: dict[str, str] = {}
         self._embeds: dict[str, DiscordEmbed] = {}
@@ -116,7 +116,7 @@ class ConfigCache:
 
         self._channels = {c.key: c.channel_id for c in channels}
         self._roles = {r.key: r for r in roles}
-        self._roles_by_emoji = {r.emoji: r for r in roles if r.emoji}
+        self._roles_by_custom_id = {r.custom_id: r for r in roles if r.custom_id}
         self._settings = {s.key: _coerce(s) for s in settings}
         self._templates = {t.key: t.content for t in templates}
         self._embeds = {e.key: e for e in embeds}
@@ -161,9 +161,8 @@ class ConfigCache:
         except KeyError:
             raise KeyError(f"No discord_role row keyed {key!r}") from None
 
-    def role_name_for_emoji(self, emoji: str) -> str | None:
-        found = self._roles_by_emoji.get(emoji)
-        return found.name if found else None
+    def role_for_custom_id(self, custom_id: str) -> DiscordRole | None:
+        return self._roles_by_custom_id.get(custom_id)
 
     def setting(self, key: str, default: Any = None) -> Any:
         return self._settings.get(key, default)
