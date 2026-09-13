@@ -26,3 +26,30 @@ gh label create ready-for-human --description "Requires human implementation"   
 ```
 
 If `gh label create` reports a label already exists, leave it as it is — do not `--force` over the existing colour or description.
+
+## Priority labels
+
+Orthogonal to the triage roles above: every issue also carries exactly one priority
+label, independent of its category (`bug`/`enhancement`/`question`) and state
+(`needs-triage`/`ready-for-agent`/etc.) roles.
+
+| Label                | Meaning                                                           |
+| -------------------- | ----------------------------------------------------------------- |
+| `priority-very-high` | Address immediately — active breakage, security, or data loss     |
+| `priority-high`      | A real bug with a plausible trigger, or comparable urgency        |
+| `priority-medium`    | Real risk or proven-recurring pattern, not currently causing harm |
+| `priority-low`       | Narrow-impact or already mitigated by an existing floor/handler   |
+| `priority-very-low`  | Cosmetic, purely organizational, or "nothing is wrong today"      |
+
+**Every issue must carry a priority label from the moment it is filed.** Assign one
+when triaging (alongside the category and state roles), not as an afterthought.
+Priorities are not fixed — re-triage and change them as circumstances change or the
+codebase evolves.
+
+```sh
+gh label create priority-very-high --description "Address immediately"           --color 8B0000
+gh label create priority-high      --description "Should be addressed soon"      --color E67E22
+gh label create priority-medium    --description "Normal priority"               --color F1C40F
+gh label create priority-low       --description "Address when convenient"       --color 82C91E
+gh label create priority-very-low  --description "Minimal priority, nice-to-have" --color 2F9E44
+```
