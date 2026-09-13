@@ -2,14 +2,7 @@ import logging
 import re
 
 import discord
-from discord import (
-    CategoryChannel,
-    DMChannel,
-    ForumChannel,
-    GroupChannel,
-    Interaction,
-    app_commands,
-)
+from discord import Interaction, app_commands
 from discord.ext.commands import Bot, Cog
 from discord.utils import escape_markdown
 
@@ -18,7 +11,7 @@ from controller.twitch import WEBHOOK_PATHS
 from errors import report
 from services.config import config
 from services.present import quoted
-from services.send import send_embed
+from services.send import UNSENDABLE_CHANNEL_TYPES, send_embed
 from services.twitch.api import (
     get_subscriptions,
     get_users,
@@ -71,8 +64,7 @@ class Admin(Cog):
     @app_commands.checks.has_permissions(administrator=True)
     async def nuke(self, interaction: Interaction) -> None:
         if interaction.channel is None or isinstance(
-            interaction.channel,
-            (ForumChannel, CategoryChannel, DMChannel, GroupChannel),
+            interaction.channel, UNSENDABLE_CHANNEL_TYPES
         ):
             logger.warning(
                 f"Nuke aborted: invalid channel type {type(interaction.channel)}"
@@ -98,10 +90,7 @@ class Admin(Cog):
         count: app_commands.Range[int, 1, _PURGE_MESSAGE_LIMIT_MAX],
     ) -> None:
         ch = interaction.channel
-        if ch is None or isinstance(
-            ch,
-            (ForumChannel, CategoryChannel, DMChannel, GroupChannel),
-        ):
+        if ch is None or isinstance(ch, UNSENDABLE_CHANNEL_TYPES):
             logger.warning("Purge aborted: invalid channel type %s", type(ch))
             await interaction.response.send_message(
                 config.template("admin_wrong_channel"),
