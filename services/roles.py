@@ -1,15 +1,16 @@
 """Giving and taking a Discord role from the roles panel."""
 
-import discord
-from discord import Interaction, Member, PartialEmoji, Role
+from discord import Interaction, Member, Role
 from discord.ui import Button
 
+from background import fire_and_forget
+from errors import notify
 from init import bot
 from services.config import config
 
 
 def get_member_role(
-    guild_id: int, user_id: int, emoji: PartialEmoji
+    guild_id: int, user_id: int, custom_id: str
 ) -> tuple[Member | None, Role | None]:
     guild = bot.get_guild(guild_id)
     if not guild:
@@ -19,18 +20,33 @@ def get_member_role(
     if not member:
         return None, None
 
-    role_name = config.role_name_for_emoji(emoji.name)
-    if not role_name:
+    stored = config.role_for_custom_id(custom_id)
+    if not stored:
         return None, None
 
-    role = discord.utils.get(guild.roles, name=role_name)
-    return (member, role) if role else (None, None)
+    role = guild.get_role(stored.role_id)
+    if not role:
+        # Configured but gone from the guild -- worth a notice, unlike a member
+        # who simply isn't there, which is silent below. Fired rather than
+        # awaited: this runs before the interaction has been answered, and
+        # Discord's ~3s ACK deadline must not wait on an admin-channel send.
+        fire_and_forget(
+            notify(
+                f"discord_role {stored.key!r} points at role id"
+                f" {stored.role_id}, which no longer exists in the guild.",
+                key=f"discord-role-missing:{stored.key}",
+            ),
+            name="notify",
+        )
+        return None, None
+
+    return member, role
 
 
 async def toggle_role(
-    guild_id: int, user_id: int, emoji: PartialEmoji
+    guild_id: int, user_id: int, custom_id: str
 ) -> tuple[bool, Role] | None:
-    member, role = get_member_role(guild_id, user_id, emoji)
+    member, role = get_member_role(guild_id, user_id, custom_id)
     if not member or not role:
         return None
 
@@ -44,13 +60,13 @@ async def toggle_role(
 
 async def roles_button_pressed(interaction: Interaction, button: Button) -> None:
     guild_id = interaction.guild_id
-    emoji = button.emoji
+    custom_id = button.custom_id
 
-    # A button with no emoji and a toggle that could not resolve the role are
-    # one answer to the presser: the reason is theirs to act on in neither case.
+    # A button with no custom_id and a toggle that could not resolve the role
+    # are one answer to the presser: the reason is theirs to act on in neither case.
     res = (
-        await toggle_role(guild_id, interaction.user.id, emoji)
-        if guild_id and emoji
+        await toggle_role(guild_id, interaction.user.id, custom_id)
+        if guild_id and custom_id
         else None
     )
     if res is None:
