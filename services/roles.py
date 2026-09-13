@@ -3,12 +3,13 @@
 from discord import Interaction, Member, Role
 from discord.ui import Button
 
+from background import fire_and_forget
 from errors import notify
 from init import bot
 from services.config import config
 
 
-async def get_member_role(
+def get_member_role(
     guild_id: int, user_id: int, custom_id: str
 ) -> tuple[Member | None, Role | None]:
     guild = bot.get_guild(guild_id)
@@ -26,11 +27,16 @@ async def get_member_role(
     role = guild.get_role(stored.role_id)
     if not role:
         # Configured but gone from the guild -- worth a notice, unlike a member
-        # who simply isn't there, which is silent below.
-        await notify(
-            f"discord_role {stored.key!r} points at role id {stored.role_id},"
-            f" which no longer exists in the guild.",
-            key=f"discord-role-missing:{stored.key}",
+        # who simply isn't there, which is silent below. Fired rather than
+        # awaited: this runs before the interaction has been answered, and
+        # Discord's ~3s ACK deadline must not wait on an admin-channel send.
+        fire_and_forget(
+            notify(
+                f"discord_role {stored.key!r} points at role id"
+                f" {stored.role_id}, which no longer exists in the guild.",
+                key=f"discord-role-missing:{stored.key}",
+            ),
+            name="notify",
         )
         return None, None
 
@@ -40,7 +46,7 @@ async def get_member_role(
 async def toggle_role(
     guild_id: int, user_id: int, custom_id: str
 ) -> tuple[bool, Role] | None:
-    member, role = await get_member_role(guild_id, user_id, custom_id)
+    member, role = get_member_role(guild_id, user_id, custom_id)
     if not member or not role:
         return None
 
