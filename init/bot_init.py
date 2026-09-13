@@ -101,9 +101,12 @@ async def on_app_command_error(
 ) -> None:
     """The floor under every slash command.
 
-    Each command guards its own body, so this only fires when one forgets - which
-    is exactly the case where nobody would otherwise hear about it, and the
-    person who ran it would be left on a spinner.
+    Two different things land here. A command that forgets to guard its own
+    body raises past it - the case where nobody would otherwise hear about it,
+    and the person who ran it would be left on a spinner. A `MissingPermissions`
+    check failure also lands here, deliberately: `has_permissions` raises it by
+    design, so that branch answers the person directly instead of reporting it
+    as a bug.
     """
     from errors import report
 
