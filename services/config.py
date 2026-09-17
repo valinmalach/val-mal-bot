@@ -53,11 +53,17 @@ def safe_format(text: str, values: dict[str, Any]) -> str:
     A brace naming nothing that was passed is left as written, so a template
     holding literal braces still renders, and text that cannot be formatted at
     all is sent as-is rather than not at all.
+
+    A ``{channel:x}``/``{role:x}`` left behind by render() is always one of
+    those literal braces, never a real field: render() runs first and reserves
+    that shape, so it must not be read as a field named "channel"/"role" just
+    because the caller happens to pass a value under that name too.
     """
     protected = _FORMAT_FIELD.sub(
         lambda match: (
             match.group(0)
             if _field_name(match.group(1)) in values
+            and not _PLACEHOLDER.fullmatch(match.group(0))
             else "{{" + match.group(1) + "}}"
         ),
         text,
