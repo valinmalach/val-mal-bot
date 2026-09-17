@@ -183,12 +183,15 @@ class ConfigCache:
             return ""
         # Placeholders resolve first: str.format reads {channel:promo} as a
         # format spec and raises KeyError on the brace it does not own.
-        rendered = self.render(content)
+        rendered = self.render(content, source=f"message_template:{key}")
         return safe_format(rendered, values) if values else rendered
 
-    def render(self, text: str) -> str:
+    def render(self, text: str, *, source: str) -> str:
         """Turn {channel:key} and {role:key} into Discord mentions.
 
+        ``source`` names the template/embed this text came from, so the
+        admin notice for a stale slug says what to fix -- not just which
+        slug, since two different rows can share one dangling placeholder.
         A slug with no row is left as the literal placeholder, like
         safe_format leaves an unformattable brace, rather than raising.
         """
@@ -197,11 +200,11 @@ class ConfigCache:
             kind, key = match.group(1), match.group(2)
             try:
                 value = self.channel(key) if kind == "channel" else self.role(key)
-            except KeyError as e:
+            except KeyError:
                 notify_soon(
-                    f"Could not resolve {match.group(0)}, so it went out as"
-                    f" written: {e}. Text: {text[:200]}",
-                    key=f"render-missing-{kind}:{key}",
+                    f"{source} references {match.group(0)}, which has no row,"
+                    f" so it went out as written.",
+                    key=f"render-missing-{kind}:{key}:{source}",
                 )
                 return match.group(0)
             return f"<#{value}>" if kind == "channel" else f"<@&{value}>"
