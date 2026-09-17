@@ -174,10 +174,10 @@ async def notify_file(text: str, filename: str, content: str) -> bool:
 def notify_soon(text: str, *, key: str | None = None) -> None:
     """Notify from a caller that is not async, on the running loop if there is one.
 
-    For the two places that render text out of the database and are ordinary
-    functions. Without this they can only log, and a template that is missing or
-    will not format is a message the viewer sees as wrong with nothing anywhere
-    saying why.
+    For the places that render text out of the database and are ordinary
+    functions. Without this they can only log, and a template that is missing,
+    will not format, or names a channel/role with no row is a message the
+    viewer sees as wrong with nothing anywhere saying why.
     """
     logger.warning("%r", text)
     try:
