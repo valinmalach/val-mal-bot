@@ -178,7 +178,11 @@ class ConfigCache:
         return int(value) if value is not None else default
 
     def template(self, key: str, **values: Any) -> str:
-        """Render a message template, resolving channel and role placeholders."""
+        """Render a message template, resolving channel and role placeholders.
+
+        Never raises: a missing row or a stale channel/role slug degrades to
+        an admin notice instead, per notify_soon/render's own docstrings.
+        """
         content = self._templates.get(key)
         if content is None:
             notify_soon(
