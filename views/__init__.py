@@ -55,7 +55,7 @@ def build_embed(key: str) -> Embed:
         embed.add_field(
             name=field.name,
             value=config.render(
-                field.value, source=f"discord_embed_field:{key}:{field.name}"
+                field.value, source=f"discord_embed_field:{key}:{field.position}"
             ),
             inline=field.inline,
         )
