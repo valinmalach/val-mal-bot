@@ -41,9 +41,9 @@ async def say_template(
 ) -> bool:
     """Say a line from the templates table, named by its key in any report.
 
-    Rendering is guarded too: a ``{channel:key}`` naming a slug that is not in
-    the database raises KeyError out of config.render, and callers here are
-    promised a chat line that cannot fail them.
+    config.template() degrades rather than raising for a bad placeholder or a
+    missing row, so the except below only guards against something genuinely
+    unexpected.
     """
     try:
         text = config.template(template_key, **values)

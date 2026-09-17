@@ -187,13 +187,24 @@ class ConfigCache:
         return safe_format(rendered, values) if values else rendered
 
     def render(self, text: str) -> str:
-        """Turn {channel:key} and {role:key} into Discord mentions."""
+        """Turn {channel:key} and {role:key} into Discord mentions.
+
+        A slug with no row is left as the literal placeholder, like
+        safe_format leaves an unformattable brace, rather than raising.
+        """
 
         def replace(match: re.Match[str]) -> str:
             kind, key = match.group(1), match.group(2)
-            if kind == "channel":
-                return f"<#{self.channel(key)}>"
-            return f"<@&{self.role(key)}>"
+            try:
+                value = self.channel(key) if kind == "channel" else self.role(key)
+            except KeyError as e:
+                notify_soon(
+                    f"Could not resolve {match.group(0)}, so it went out as"
+                    f" written: {e}. Text: {text[:200]}",
+                    key=f"render-missing-{kind}:{key}",
+                )
+                return match.group(0)
+            return f"<#{value}>" if kind == "channel" else f"<@&{value}>"
 
         return _PLACEHOLDER.sub(replace, text)
 
