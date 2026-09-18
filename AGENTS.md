@@ -196,8 +196,16 @@ startup check notices an undeliverable subscription; the command is what repairs
 per subscribed broadcaster, and nothing here knows what N is, because that list
 lives only in Twitch. `services/twitch/migrate.py` therefore starts from
 `get_subscriptions()`; a migration seeded from a list written in this repo would
-silently leave every promo broadcaster behind. Its rule is `decide`, which is pure,
-like `live_alert_cycle._decide`.
+silently leave every promo broadcaster behind.
+
+**The rule, the `Outcome` shape and the rendering of either live apart from the
+I/O.** `services/twitch/migrate_plan.py` holds `Action`, `decide`, `Outcome`,
+`condition_of` and everything that renders one (`describe`, `render_dump`,
+`summary`) — nothing in it touches Helix or Discord. `services/twitch/migrate.py`
+keeps `_logins`, `_exists_at`, `_repoint`, `migrate` and `_confirming`, and
+imports the plan, never the other way — the same one-way split as
+`live_alert.py`/`live_alert_cycle.py`: the loop reads a conclusion rather than
+watching the I/O that reached it. `decide` is pure, like `live_alert_cycle._decide`.
 
 **`decide` reads the callback and deliberately ignores the status.** It once
 repointed anything not `enabled` even when the callback was already right, on the
@@ -277,8 +285,8 @@ in an undeclared key survives. **Do not make this round-trip faithful again.**
 `controller/twitch.py` builds it as the routes register, reading each type off the
 `Literal` its model already declares — a ninth list of the eight types is one more
 thing to keep in step by hand. It is passed *into* `migrate`, never imported by it,
-because nothing under `services/` may import `controller/`; `cogs/admin.py` may,
-and is what hands it over.
+because nothing under `services/` may import `controller/`; `cogs/twitch_admin.py`
+may, and is what hands it over.
 
 **A live alert is closed by its updater, never by a webhook.** `stream.offline`
 carries no stream id, so the handler cannot tell which stream ended; it calls

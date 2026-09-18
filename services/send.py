@@ -8,7 +8,7 @@ from discord.ui import View
 from init import bot
 
 # Channel kinds the bot cannot post a message or embed into. Shared with
-# cogs/admin.py so the two do not drift, as they once did.
+# cogs/moderation.py so the two do not drift, as they once did.
 UNSENDABLE_CHANNEL_TYPES = (ForumChannel, CategoryChannel, PrivateChannel)
 
 
