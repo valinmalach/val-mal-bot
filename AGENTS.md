@@ -452,7 +452,7 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   escaped in one place on an entry and not the other.
 - **Everything the bot says about itself goes through `errors.py`.** `report(exc,
   context)` for an exception, `notify(text)` for anything else worth the admin
-  channel, `notify_soon(text)` for the two synchronous renderers that cannot
+  channel, `notify_soon(text)` for synchronous renderers that cannot
   await, `notify_file(text, filename, content)` for a notice carrying a record
   too long for a message. None of them raise, all log locally first, and all say
   so when the channel is out of reach. `notify` returns whether the channel has

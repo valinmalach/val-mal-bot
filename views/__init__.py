@@ -44,13 +44,19 @@ def build_embed(key: str) -> Embed:
 
     embed = Embed(
         title=stored.title,
-        description=config.render(stored.description) if stored.description else None,
+        description=(
+            config.render(stored.description, source=f"discord_embed:{key}")
+            if stored.description
+            else None
+        ),
         color=stored.color if stored.color is not None else DEFAULT_COLOUR,
     )
     for field in config.embed_fields(key):
         embed.add_field(
             name=field.name,
-            value=config.render(field.value),
+            value=config.render(
+                field.value, source=f"discord_embed_field:{key}:{field.position}"
+            ),
             inline=field.inline,
         )
     return embed

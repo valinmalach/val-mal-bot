@@ -53,15 +53,30 @@ def safe_format(text: str, values: dict[str, Any]) -> str:
     A brace naming nothing that was passed is left as written, so a template
     holding literal braces still renders, and text that cannot be formatted at
     all is sent as-is rather than not at all.
+
+    A ``{channel:x}``/``{role:x}`` left behind by render() is always one of
+    those literal braces, never a real field: render() runs first and reserves
+    that shape, so it must not be read as a field named "channel"/"role" just
+    because the caller happens to pass a value under that name too. But a row
+    that doubles its own braces around that shape (``{{role:x}}``) already
+    means it literally, and doubling it again breaks str.format's own escape.
     """
-    protected = _FORMAT_FIELD.sub(
-        lambda match: (
-            match.group(0)
-            if _field_name(match.group(1)) in values
-            else "{{" + match.group(1) + "}}"
-        ),
-        text,
-    )
+
+    def protect(match: re.Match[str]) -> str:
+        field = match.group(1)
+        if _field_name(field) not in values:
+            return "{{" + field + "}}"
+        already_escaped = (
+            match.start() > 0
+            and text[match.start() - 1] == "{"
+            and match.end() < len(text)
+            and text[match.end()] == "}"
+        )
+        if _PLACEHOLDER.fullmatch(match.group(0)) and not already_escaped:
+            return "{{" + field + "}}"
+        return match.group(0)
+
+    protected = _FORMAT_FIELD.sub(protect, text)
     try:
         return protected.format(**values)
     except (IndexError, KeyError, ValueError) as e:
@@ -172,7 +187,14 @@ class ConfigCache:
         return int(value) if value is not None else default
 
     def template(self, key: str, **values: Any) -> str:
-        """Render a message template, resolving channel and role placeholders."""
+        """Render a message template, resolving channel and role placeholders.
+
+        A missing row or a stale channel/role slug degrades to an admin
+        notice instead of raising, per notify_soon/render's own docstrings.
+        A genuinely malformed field (e.g. a compound reference like
+        {mention.foo} against a plain string) can still raise: that's not one
+        of the three str.format failure modes safe_format catches.
+        """
         content = self._templates.get(key)
         if content is None:
             notify_soon(
@@ -183,17 +205,31 @@ class ConfigCache:
             return ""
         # Placeholders resolve first: str.format reads {channel:promo} as a
         # format spec and raises KeyError on the brace it does not own.
-        rendered = self.render(content)
+        rendered = self.render(content, source=f"message_template:{key}")
         return safe_format(rendered, values) if values else rendered
 
-    def render(self, text: str) -> str:
-        """Turn {channel:key} and {role:key} into Discord mentions."""
+    def render(self, text: str, *, source: str) -> str:
+        """Turn {channel:key} and {role:key} into Discord mentions.
+
+        ``source`` names the template/embed this text came from, so the
+        admin notice for a stale slug says what to fix -- not just which
+        slug, since two different rows can share one dangling placeholder.
+        A slug with no row is left as the literal placeholder, like
+        safe_format leaves an unformattable brace, rather than raising.
+        """
 
         def replace(match: re.Match[str]) -> str:
             kind, key = match.group(1), match.group(2)
-            if kind == "channel":
-                return f"<#{self.channel(key)}>"
-            return f"<@&{self.role(key)}>"
+            try:
+                value = self.channel(key) if kind == "channel" else self.role(key)
+            except KeyError:
+                notify_soon(
+                    f"{source} references {match.group(0)}, which has no row,"
+                    f" so it went out as written.",
+                    key=f"render-missing-{kind}:{key}:{source}",
+                )
+                return match.group(0)
+            return f"<#{value}>" if kind == "channel" else f"<@&{value}>"
 
         return _PLACEHOLDER.sub(replace, text)
 
