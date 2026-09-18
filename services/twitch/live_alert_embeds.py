@@ -96,9 +96,10 @@ def _linkable(text: str) -> str:
 # markdown: an unescaped "](" ends the link it sits inside and starts one
 # pointing anywhere. An author name is plain text to Discord and is left alone,
 # the same rule services/audit.py records.
-def announcement_embed(stream: Stream, user_info: User | None) -> discord.Embed:
+def announcement_embed(
+    stream: Stream, user_info: User | None, url: str
+) -> discord.Embed:
     """The alert as first posted, timestamped at the stream's start."""
-    url = twitch_url(stream.user_login)
     raw_thumb_url = stream.thumbnail_url.replace("{width}x{height}", "400x225")
 
     return (

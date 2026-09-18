@@ -178,10 +178,20 @@ async def announce(
     channel_id: int,
 ) -> None:
     """Post the alert for a stream that has just gone live, and start its updater."""
+    try:
+        url = twitch_url(stream.user_login)
+    except ValueError as e:
+        # Same reasoning as the message_id/storage failures below: report and
+        # give up rather than let a Helix oddity take the caller down with it.
+        await report(
+            e, f"Failed to build the live alert URL for broadcaster {broadcaster_id}"
+        )
+        return
+
     message_id = await send_embed(
-        announcement_embed(stream, user_info),
+        announcement_embed(stream, user_info, url),
         channel_id,
-        watch_button(twitch_url(stream.user_login)),
+        watch_button(url),
         content=mention(channel_id),
     )
     if message_id is None:

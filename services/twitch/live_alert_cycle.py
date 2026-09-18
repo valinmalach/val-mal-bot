@@ -121,7 +121,14 @@ async def _refresh(
     started_at_timestamp: str,
     content: str | None,
 ) -> Action:
-    url = twitch_url(stream.user_login)
+    try:
+        url = twitch_url(stream.user_login)
+    except ValueError as e:
+        await report(
+            e, f"Failed to build the live alert URL for broadcaster_id={broadcaster_id}"
+        )
+        return Action.RETRY
+
     embed = live_embed(
         stream, user_info, url, age, started_at_timestamp, pendulum.now()
     )
