@@ -43,7 +43,11 @@ def build_embed(key: str) -> Embed:
         raise KeyError(f"No discord_embed row keyed {key!r}")
 
     embed = Embed(
-        title=stored.title,
+        title=(
+            config.render(stored.title, source=f"discord_embed:{key}")
+            if stored.title
+            else None
+        ),
         description=(
             config.render(stored.description, source=f"discord_embed:{key}")
             if stored.description
@@ -53,7 +57,9 @@ def build_embed(key: str) -> Embed:
     )
     for field in config.embed_fields(key):
         embed.add_field(
-            name=field.name,
+            name=config.render(
+                field.name, source=f"discord_embed_field:{key}:{field.position}"
+            ),
             value=config.render(
                 field.value, source=f"discord_embed_field:{key}:{field.position}"
             ),
