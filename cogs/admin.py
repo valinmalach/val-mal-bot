@@ -50,6 +50,48 @@ async def _refuse_login(interaction: Interaction, value: str) -> None:
     )
 
 
+async def _purge(interaction: Interaction, limit: int | None) -> None:
+    """Shared body for `nuke` (limit=None) and `purge` (limit=count)."""
+    ch = interaction.channel
+    if ch is None or isinstance(ch, UNSENDABLE_CHANNEL_TYPES):
+        logger.warning("Purge aborted: invalid channel type %s", type(ch))
+        await interaction.response.send_message(
+            config.template("admin_wrong_channel"), ephemeral=True
+        )
+        return
+    if not hasattr(ch, "purge"):
+        await interaction.response.send_message(
+            config.template("admin_no_bulk_delete"), ephemeral=True
+        )
+        return
+
+    if limit is None:
+        await interaction.response.send_message(config.template("admin_nuking"))
+        await ch.purge(limit=None)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+    try:
+        deleted = await ch.purge(limit=limit)
+    except discord.Forbidden:
+        await interaction.followup.send(
+            config.template("admin_purge_forbidden"),
+            ephemeral=True,
+        )
+        return
+    except discord.HTTPException as e:
+        logger.exception("Purge failed")
+        await interaction.followup.send(
+            config.template("admin_purge_failed", error=e),
+            ephemeral=True,
+        )
+        return
+    await interaction.followup.send(
+        config.template("admin_purge_done", count=len(deleted)),
+        ephemeral=True,
+    )
+
+
 class Admin(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
@@ -58,18 +100,7 @@ class Admin(Cog):
     @app_commands.commands.default_permissions(administrator=True)
     @app_commands.checks.has_permissions(administrator=True)
     async def nuke(self, interaction: Interaction) -> None:
-        if interaction.channel is None or isinstance(
-            interaction.channel, UNSENDABLE_CHANNEL_TYPES
-        ):
-            logger.warning(
-                f"Nuke aborted: invalid channel type {type(interaction.channel)}"
-            )
-            await interaction.response.send_message(
-                config.template("admin_wrong_channel"), ephemeral=True
-            )
-            return
-        await interaction.response.send_message(config.template("admin_nuking"))
-        await interaction.channel.purge(limit=None)
+        await _purge(interaction, None)
 
     @app_commands.command(
         description="Deletes the most recent messages in this channel or thread"
@@ -84,40 +115,7 @@ class Admin(Cog):
         interaction: Interaction,
         count: app_commands.Range[int, 1, _PURGE_MESSAGE_LIMIT_MAX],
     ) -> None:
-        ch = interaction.channel
-        if ch is None or isinstance(ch, UNSENDABLE_CHANNEL_TYPES):
-            logger.warning("Purge aborted: invalid channel type %s", type(ch))
-            await interaction.response.send_message(
-                config.template("admin_wrong_channel"),
-                ephemeral=True,
-            )
-            return
-        if not hasattr(ch, "purge"):
-            await interaction.response.send_message(
-                config.template("admin_no_bulk_delete"),
-                ephemeral=True,
-            )
-            return
-        await interaction.response.defer(ephemeral=True)
-        try:
-            deleted = await ch.purge(limit=count)
-        except discord.Forbidden:
-            await interaction.followup.send(
-                config.template("admin_purge_forbidden"),
-                ephemeral=True,
-            )
-            return
-        except discord.HTTPException as e:
-            logger.exception("Purge failed")
-            await interaction.followup.send(
-                config.template("admin_purge_failed", error=e),
-                ephemeral=True,
-            )
-            return
-        await interaction.followup.send(
-            config.template("admin_purge_done", count=len(deleted)),
-            ephemeral=True,
-        )
+        await _purge(interaction, count)
 
     @app_commands.command(description="Sends the rules embed to the rules channel")
     @app_commands.commands.default_permissions(administrator=True)
