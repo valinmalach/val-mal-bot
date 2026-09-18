@@ -11,6 +11,7 @@ not in the I/O around it.
 """
 
 import logging
+from collections.abc import Callable
 from enum import Enum, auto
 
 import aiohttp
@@ -20,6 +21,7 @@ import pendulum
 from db import repository
 from db.models import LiveAlert
 from errors import notify, report
+from models.twitch_api_responses.channel import Channel
 from models.twitch_api_responses.stream import Stream
 from models.twitch_api_responses.user import User
 from models.twitch_api_responses.video import Video
@@ -111,6 +113,52 @@ async def _vod(broadcaster_id: int, stream_id: int) -> Video | None:
         return None
 
 
+async def _edit_or_retry(
+    message_id: int,
+    channel_id: int,
+    broadcaster_id: int,
+    embed: discord.Embed,
+    kind: str,
+    on_error: Action,
+    report_context: Callable[[Exception], str],
+    on_success: Action,
+    content: str | None = None,
+    view: discord.ui.View | None = None,
+    forget_on_success: bool = False,
+) -> Action:
+    """Attempt a Discord message edit and interpret the outcome.
+
+    Shared by ``_refresh`` and ``_close``: not-found forgets the row and
+    stops, a transient error retries. Everything else -- the embed, whether a
+    button accompanies it, the report text and what a caller does once a
+    failure is not transient -- is theirs to supply, because the two do not
+    agree on that last outcome (``on_error``) and never did.
+    """
+    try:
+        edited = await edit_embed(message_id, embed, channel_id, view, content=content)
+    except discord.NotFound:
+        logger.warning(
+            f"Message not found when editing {kind} embed for message_id={message_id}; clearing alert"
+        )
+        await _forget_row(broadcaster_id, message_id)
+        return Action.STOP
+    except Exception as e:  # noqa: BLE001
+        if _is_transient_edit_error(e):
+            logger.warning(
+                f"Transient error when editing {kind} embed for message_id={message_id}; will retry next cycle: {e}"
+            )
+            return Action.RETRY
+        await report(e, report_context(e))
+        return on_error
+
+    if not edited:
+        return Action.RETRY
+
+    if forget_on_success:
+        await _forget_row(broadcaster_id, message_id)
+    return on_success
+
+
 async def _refresh(
     broadcaster_id: int,
     channel_id: int,
@@ -133,44 +181,37 @@ async def _refresh(
         stream, user_info, url, age, started_at_timestamp, pendulum.now()
     )
 
-    try:
-        edited = await edit_embed(
-            message_id, embed, channel_id, watch_button(url), content=content
-        )
-    except discord.NotFound:
-        logger.warning(
-            f"Message not found when editing live embed for message_id={message_id}; clearing alert"
-        )
-        await _forget_row(broadcaster_id, message_id)
-        return Action.STOP
-    except Exception as e:  # noqa: BLE001
-        if _is_transient_edit_error(e):
-            logger.warning(
-                f"Transient error when editing live embed for message_id={message_id}; will retry next cycle: {e}"
-            )
-            return Action.RETRY
-        context = (
+    def _report_context(e: Exception) -> str:
+        return (
             f"Discord HTTP error {e.status} when editing live embed for message_id={message_id}"
             if isinstance(e, discord.HTTPException)
             else f"Error editing live embed for message_id={message_id}"
         )
-        await report(e, context)
-        return Action.RETRY
 
-    return Action.REFRESH if edited else Action.RETRY
+    return await _edit_or_retry(
+        message_id,
+        channel_id,
+        broadcaster_id,
+        embed,
+        kind="live",
+        on_error=Action.RETRY,
+        report_context=_report_context,
+        on_success=Action.REFRESH,
+        content=content,
+        view=watch_button(url),
+    )
 
 
-async def _close(
+async def _gather_close_info(
     broadcaster_id: int,
-    channel_id: int,
-    message_id: int,
     stream_id: int,
     stream: Stream | None,
     user_info: User | None,
-    age: str,
-    content: str | None,
-) -> Action:
-    """Swap the live embed for the offline one and retire the alert."""
+) -> tuple[Stream | None, Channel | None, str]:
+    """What ``_close`` needs to build the offline embed: channel info (with
+    its own Helix fallback), which stream still counts as this alert's own,
+    and the login to link to.
+    """
     try:
         channel_info = await get_channel(broadcaster_id)
     except HelixError as e:
@@ -208,6 +249,24 @@ async def _close(
         )
         url = twitch_url("")
 
+    return own_stream, channel_info, url
+
+
+async def _close(
+    broadcaster_id: int,
+    channel_id: int,
+    message_id: int,
+    stream_id: int,
+    stream: Stream | None,
+    user_info: User | None,
+    age: str,
+    content: str | None,
+) -> Action:
+    """Swap the live embed for the offline one and retire the alert."""
+    own_stream, channel_info, url = await _gather_close_info(
+        broadcaster_id, stream_id, stream, user_info
+    )
+
     vod = await _vod(broadcaster_id, stream_id)
     embed = offline_embed(
         own_stream,
@@ -219,30 +278,22 @@ async def _close(
         pendulum.now(),
     )
 
-    try:
-        edited = await edit_embed(message_id, embed, channel_id, content=content)
-    except discord.NotFound:
-        logger.warning(
-            f"Message not found when editing offline embed for message_id={message_id}; clearing alert"
-        )
-        await _forget_row(broadcaster_id, message_id)
-        return Action.STOP
-    except Exception as e:  # noqa: BLE001
-        if _is_transient_edit_error(e):
-            logger.warning(
-                f"Transient network error when editing offline embed for message_id={message_id}: {e}"
-            )
-            return Action.RETRY
-        await report(e, f"Error editing offline embed for message_id={message_id}")
-        return Action.STOP
-
-    if not edited:
-        return Action.RETRY
-
-    # The stream is over: without this the record outlives it and every restart
-    # resurrects an updater for a dead stream.
-    await _forget_row(broadcaster_id, message_id)
-    return Action.STOP
+    # The stream is over: forgetting the row on success is what keeps a
+    # restart from resurrecting an updater for a dead stream.
+    return await _edit_or_retry(
+        message_id,
+        channel_id,
+        broadcaster_id,
+        embed,
+        kind="offline",
+        on_error=Action.STOP,
+        report_context=lambda _: (
+            f"Error editing offline embed for message_id={message_id}"
+        ),
+        on_success=Action.STOP,
+        content=content,
+        forget_on_success=True,
+    )
 
 
 async def cycle(
