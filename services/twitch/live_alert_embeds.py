@@ -15,10 +15,20 @@ from models.twitch_api_responses.stream import Stream
 from models.twitch_api_responses.user import User
 from models.twitch_api_responses.video import Video
 from services.config import config
+from services.twitch.commands import is_twitch_login
 from services.twitch.timestamps import parse_rfc3339
 
 
 def twitch_url(user_login: str) -> str:
+    """A link to the channel, refusing a login that isn't one.
+
+    Helix is trusted, but the result lands in a markdown link's URL slot
+    (announcement_embed/live_embed), where an unescaped ")" would close the
+    link early. Twitch's own login grammar cannot produce one; this is what
+    makes that a guarantee rather than an assumption.
+    """
+    if not is_twitch_login(user_login):
+        raise ValueError(f"Not a Twitch login: {user_login!r}")
     return f"https://www.twitch.tv/{user_login}"
 
 
