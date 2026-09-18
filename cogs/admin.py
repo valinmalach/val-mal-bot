@@ -19,7 +19,8 @@ from services.twitch.api import (
 )
 from services.twitch.commands import is_twitch_login
 from services.twitch.helix import HelixError
-from services.twitch.migrate import migrate, summary
+from services.twitch.migrate import migrate
+from services.twitch.migrate_plan import summary
 from services.twitch.oauth import create_authorization_start_url
 from views import role_panels
 
