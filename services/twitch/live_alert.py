@@ -26,7 +26,7 @@ from services.twitch.live_alert_embeds import (
     twitch_url,
     watch_button,
 )
-from services.twitch.signature import parse_rfc3339
+from services.twitch.timestamps import parse_rfc3339
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,55 @@ _MAX_INCONCLUSIVE_CYCLES = 5
 # broadcaster can briefly have a replaced alert whose updater is still winding up.
 _update_tasks: dict[int, asyncio.Task] = {}
 _wakeups: dict[int, asyncio.Event] = {}
+
+
+async def _cycle_or_retry(
+    broadcaster_id: int,
+    channel_id: int,
+    message_id: int,
+    stream_id: int,
+    started_at: pendulum.DateTime,
+    started_at_timestamp: str,
+    content: str | None,
+) -> Action:
+    """One cycle, turning a raised exception into a retry signal.
+
+    A cycle that raised concluded nothing, and must not take the updater with
+    it; the cap in ``_run`` still stops a hopeless one.
+    """
+    try:
+        return await cycle(
+            broadcaster_id,
+            channel_id,
+            message_id,
+            stream_id,
+            started_at,
+            started_at_timestamp,
+            content,
+        )
+    except Exception as e:  # noqa: BLE001
+        await report(
+            e,
+            f"Error in the live alert update cycle for broadcaster_id={broadcaster_id}",
+        )
+        return Action.RETRY
+
+
+async def _report_given_up(
+    broadcaster_id: int, message_id: int, inconclusive: int
+) -> None:
+    """The one place this loop speaks: it stays quiet while retrying and says
+    so once when it stops, so an outage costs a message rather than one a
+    minute.
+    """
+    await notify(
+        f"Gave up updating the live alert for broadcaster"
+        f" {broadcaster_id} after {inconclusive} cycles that concluded"
+        f" nothing (message_id={message_id}). The message is left as it"
+        f" stands and the record is kept, so a restart or the next"
+        f" stream.offline picks it up again.",
+        key=f"live-alert-gave-up:{broadcaster_id}",
+    )
 
 
 async def _run(
@@ -63,41 +112,21 @@ async def _run(
                 await asyncio.wait_for(wakeup.wait(), timeout=_INTERVAL_SECONDS)
             wakeup.clear()
 
-            try:
-                action = await cycle(
-                    broadcaster_id,
-                    channel_id,
-                    message_id,
-                    stream_id,
-                    started_at,
-                    started_at_timestamp,
-                    content,
-                )
-            except Exception as e:  # noqa: BLE001
-                # A cycle that raised concluded nothing, and must not take the
-                # updater with it; the cap below still stops a hopeless one.
-                await report(
-                    e,
-                    f"Error in the live alert update cycle for broadcaster_id={broadcaster_id}",
-                )
-                action = Action.RETRY
-
+            action = await _cycle_or_retry(
+                broadcaster_id,
+                channel_id,
+                message_id,
+                stream_id,
+                started_at,
+                started_at_timestamp,
+                content,
+            )
             if action is Action.STOP:
                 return
 
             inconclusive = inconclusive + 1 if action is Action.RETRY else 0
             if inconclusive >= _MAX_INCONCLUSIVE_CYCLES:
-                # The one place this loop speaks: it stays quiet while retrying
-                # and says so once when it stops, so an outage costs a message
-                # rather than one a minute.
-                await notify(
-                    f"Gave up updating the live alert for broadcaster"
-                    f" {broadcaster_id} after {inconclusive} cycles that concluded"
-                    f" nothing (message_id={message_id}). The message is left as it"
-                    f" stands and the record is kept, so a restart or the next"
-                    f" stream.offline picks it up again.",
-                    key=f"live-alert-gave-up:{broadcaster_id}",
-                )
+                await _report_given_up(broadcaster_id, message_id, inconclusive)
                 return
 
     except Exception as e:  # noqa: BLE001
@@ -149,10 +178,20 @@ async def announce(
     channel_id: int,
 ) -> None:
     """Post the alert for a stream that has just gone live, and start its updater."""
+    try:
+        url = twitch_url(stream.user_login)
+    except ValueError as e:
+        # Same reasoning as the message_id/storage failures below: report and
+        # give up rather than let a Helix oddity take the caller down with it.
+        await report(
+            e, f"Failed to build the live alert URL for broadcaster {broadcaster_id}"
+        )
+        return
+
     message_id = await send_embed(
-        announcement_embed(stream, user_info),
+        announcement_embed(stream, user_info, url),
         channel_id,
-        watch_button(twitch_url(stream.user_login)),
+        watch_button(url),
         content=mention(channel_id),
     )
     if message_id is None:

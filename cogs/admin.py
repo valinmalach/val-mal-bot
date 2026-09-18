@@ -1,5 +1,4 @@
 import logging
-import re
 
 import discord
 from discord import Interaction, app_commands
@@ -18,6 +17,7 @@ from services.twitch.api import (
     subscribe_to_user,
     unsubscribe_to_user,
 )
+from services.twitch.commands import is_twitch_login
 from services.twitch.helix import HelixError
 from services.twitch.migrate import migrate, summary
 from services.twitch.oauth import create_authorization_start_url
@@ -27,11 +27,6 @@ logger = logging.getLogger(__name__)
 
 _PURGE_MESSAGE_LIMIT_MAX = 500
 
-# A Twitch login is 4-25 characters of ASCII letter, digit and underscore.
-# Anything else cannot name a user, so it is refused here rather than sent to
-# Helix and then echoed back into a channel.
-_TWITCH_LOGIN = re.compile(r"[A-Za-z0-9_]{4,25}")
-
 # What is echoed back when the input was refused, so the person can see their
 # typo. Capped because the value is theirs, not Twitch's.
 
@@ -39,7 +34,7 @@ _TWITCH_LOGIN = re.compile(r"[A-Za-z0-9_]{4,25}")
 def _login(value: str) -> str | None:
     """The Twitch login this names, or None. Leading @ is how people type one."""
     candidate = value.strip().removeprefix("@")
-    return candidate if _TWITCH_LOGIN.fullmatch(candidate) else None
+    return candidate if is_twitch_login(candidate) else None
 
 
 async def _refuse_login(interaction: Interaction, value: str) -> None:
@@ -49,7 +44,7 @@ async def _refuse_login(interaction: Interaction, value: str) -> None:
     # can hold anything at all.
     await interaction.response.send_message(
         f"{quoted(value)} is not a Twitch username:"
-        " 4-25 characters, letters, digits and underscore.",
+        " 1-25 characters, letters, digits and underscore.",
         ephemeral=True,
         allowed_mentions=discord.AllowedMentions.none(),
     )

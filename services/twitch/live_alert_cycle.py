@@ -121,7 +121,14 @@ async def _refresh(
     started_at_timestamp: str,
     content: str | None,
 ) -> Action:
-    url = twitch_url(stream.user_login)
+    try:
+        url = twitch_url(stream.user_login)
+    except ValueError as e:
+        await report(
+            e, f"Failed to build the live alert URL for broadcaster_id={broadcaster_id}"
+        )
+        return Action.RETRY
+
     embed = live_embed(
         stream, user_info, url, age, started_at_timestamp, pendulum.now()
     )
@@ -187,13 +194,27 @@ async def _close(
     else:
         login = ""
 
+    try:
+        url = twitch_url(login)
+    except ValueError as e:
+        # Retrying would not help: a malformed login is a permanent property
+        # of this cycle's Helix data, not a transient failure, and _close's
+        # whole job is to guarantee the alert actually closes. Degrades to
+        # the same generic link an unresolved login already produces.
+        await notify(
+            f"Closing the live alert for broadcaster {broadcaster_id} with an"
+            f" unusable login ({e}); using a generic link instead.",
+            key=f"live-alert-close-login:{broadcaster_id}",
+        )
+        url = twitch_url("")
+
     vod = await _vod(broadcaster_id, stream_id)
     embed = offline_embed(
         own_stream,
         vod,
         channel_info,
         user_info,
-        twitch_url(login),
+        url,
         age,
         pendulum.now(),
     )

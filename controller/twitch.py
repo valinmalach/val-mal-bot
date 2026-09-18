@@ -2,11 +2,12 @@ import logging
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Coroutine
-from typing import Any, get_args
+from typing import Any, NoReturn, get_args
 
 import pendulum
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ValidationError
+from starlette.datastructures import Headers
 
 from background import fire_and_forget
 from config import settings
@@ -29,12 +30,8 @@ from models.twitch_event_subs.channel_raid import ChannelRaidEventSub
 from models.twitch_event_subs.stream_offline import StreamOfflineEventSub
 from models.twitch_event_subs.stream_online import StreamOnlineEventSub
 from services.twitch import events
-from services.twitch.signature import (
-    get_hmac,
-    get_hmac_message,
-    parse_rfc3339,
-    verify_message,
-)
+from services.twitch.signature import get_hmac, get_hmac_message, verify_message
+from services.twitch.timestamps import parse_rfc3339
 
 logger = logging.getLogger(__name__)
 
@@ -142,19 +139,15 @@ async def _bounded_body(request: Request, endpoint: str) -> bytes:
     return body
 
 
-async def validate_call(request: Request, endpoint: str) -> dict[str, Any] | Response:
-    """Either an answer already given, or the body of a notification to dispatch.
+async def _authenticate(request: Request, endpoint: str) -> None:
+    """Verify the request's HMAC signature, or raise 403.
 
-    Returning the body rather than None is what stops the caller parsing it a
-    second time and re-asserting a shape it did not check: this is the function
-    that proved it is an object, so this is the one that can say so.
+    Twitch signs every message type, so the signature is checked before the
+    request is read as anything. Branching first left the handshake echoing
+    attacker text and a revocation putting attacker text, mentions included,
+    into the admin channel -- neither of which needed a signature at all.
     """
     headers = request.headers
-
-    # Twitch signs every message type, so the signature is checked before the
-    # request is read as anything. Branching first left the handshake echoing
-    # attacker text and a revocation putting attacker text, mentions included,
-    # into the admin channel -- neither of which needed a signature at all.
     try:
         body_str = (await _bounded_body(request, endpoint)).decode()
     except UnicodeDecodeError:
@@ -177,23 +170,11 @@ async def validate_call(request: Request, endpoint: str) -> dict[str, Any] | Res
         await notify(f"403: Forbidden request on {endpoint}. Signature does not match.")
         raise HTTPException(status_code=403)
 
-    message_type = headers.get(TWITCH_MESSAGE_TYPE, "").lower()
-    try:
-        parsed = await request.json()
-    except ValueError as e:
-        # The signature already matched, so this is Twitch sending something
-        # unparseable rather than an intruder. 4xx because the retry would carry
-        # the same bytes and fail the same way.
-        logger.warning("400: Body is not JSON on %s", endpoint)
-        await notify(f"400: Bad request on {endpoint}. Body is not JSON.")
-        raise HTTPException(status_code=400) from e
 
-    if not isinstance(parsed, dict):
-        logger.warning("400: Body is not a JSON object on %s", endpoint)
-        await notify(f"400: Bad request on {endpoint}. Body is not a JSON object.")
-        raise HTTPException(status_code=400)
-    body: dict[str, Any] = parsed
-
+async def _answer_non_notification(
+    message_type: str, body: dict[str, Any]
+) -> Response | None:
+    """The handshake and revocation arms, or None for an ordinary notification."""
     if message_type == "webhook_callback_verification":
         challenge = body.get("challenge")
         # text/plain explicitly: the value is echoed straight back, and nothing
@@ -214,11 +195,18 @@ async def validate_call(request: Request, endpoint: str) -> dict[str, Any] | Res
         )
         return Response(status_code=204)
 
-    # Freshness applies to notifications alone, and deliberately sits below the
-    # handshake. A wrong clock refusing events is recoverable; a wrong clock that
-    # also refuses webhook_callback_verification would block the resubscribe that
-    # repairs it, and six of the eight subscriptions cannot be recreated from
-    # this repo at all.
+    return None
+
+
+async def _admit(headers: Headers, endpoint: str) -> None:
+    """Check a notification's freshness, or raise 403.
+
+    Freshness applies to notifications alone, and deliberately sits below the
+    handshake. A wrong clock refusing events is recoverable; a wrong clock that
+    also refuses webhook_callback_verification would block the resubscribe that
+    repairs it, and six of the eight subscriptions cannot be recreated from
+    this repo at all.
+    """
     try:
         sent = parse_rfc3339(headers.get(TWITCH_MESSAGE_TIMESTAMP, ""))
     except ValueError:
@@ -237,7 +225,70 @@ async def validate_call(request: Request, endpoint: str) -> dict[str, Any] | Res
         )
         raise HTTPException(status_code=403)
 
+
+async def validate_call(request: Request, endpoint: str) -> dict[str, Any] | Response:
+    """Either an answer already given, or the body of a notification to dispatch.
+
+    Returning the body rather than None is what stops the caller parsing it a
+    second time and re-asserting a shape it did not check: this is the function
+    that proved it is an object, so this is the one that can say so.
+    """
+    await _authenticate(request, endpoint)
+    headers = request.headers
+
+    message_type = headers.get(TWITCH_MESSAGE_TYPE, "").lower()
+    try:
+        parsed = await request.json()
+    except ValueError as e:
+        # The signature already matched, so this is Twitch sending something
+        # unparseable rather than an intruder. 4xx because the retry would carry
+        # the same bytes and fail the same way.
+        logger.warning("400: Body is not JSON on %s", endpoint)
+        await notify(f"400: Bad request on {endpoint}. Body is not JSON.")
+        raise HTTPException(status_code=400) from e
+
+    if not isinstance(parsed, dict):
+        logger.warning("400: Body is not a JSON object on %s", endpoint)
+        await notify(f"400: Bad request on {endpoint}. Body is not a JSON object.")
+        raise HTTPException(status_code=400)
+    body: dict[str, Any] = parsed
+
+    answer = await _answer_non_notification(message_type, body)
+    if answer is not None:
+        return answer
+
+    await _admit(headers, endpoint)
     return body
+
+
+async def _refuse_payload(
+    e: ValidationError, event_model: type[BaseModel], endpoint: str
+) -> NoReturn:
+    """Log, notify and raise the 400 for a payload that failed to validate.
+
+    4xx rather than 5xx because a payload this end cannot read is not a
+    server fault, and a full exception report for one is noise. Not for the
+    reason first given here: Twitch documents no 4xx/5xx distinction at all,
+    and revocation counts anything that is not a 2xx, so this spends the
+    subscription's failure budget exactly as a 500 would.
+    """
+    # The field, not just the model: what this most often catches is this
+    # end's model falling behind Twitch's payload, and the name of the
+    # field that moved is the whole diagnosis.
+    where = "; ".join(
+        ".".join(str(part) for part in err["loc"]) for err in e.errors()[:3]
+    )
+    logger.warning(
+        "400: %s rejected the payload on %s at %s",
+        event_model.__name__,
+        endpoint,
+        where,
+    )
+    await notify(
+        f"400: Bad request on {endpoint}. Payload did not match"
+        f" {event_model.__name__} at: {where}"
+    )
+    raise HTTPException(status_code=400) from e
 
 
 async def process_webhook[E: BaseModel](
@@ -286,28 +337,7 @@ async def process_webhook[E: BaseModel](
     except HTTPException:
         raise
     except ValidationError as e:
-        # 4xx rather than 5xx because a payload this end cannot read is not a
-        # server fault, and a full exception report for one is noise. Not for the
-        # reason first given here: Twitch documents no 4xx/5xx distinction at all,
-        # and revocation counts anything that is not a 2xx, so this spends the
-        # subscription's failure budget exactly as a 500 would.
-        # The field, not just the model: what this most often catches is this
-        # end's model falling behind Twitch's payload, and the name of the
-        # field that moved is the whole diagnosis.
-        where = "; ".join(
-            ".".join(str(part) for part in err["loc"]) for err in e.errors()[:3]
-        )
-        logger.warning(
-            "400: %s rejected the payload on %s at %s",
-            event_model.__name__,
-            endpoint,
-            where,
-        )
-        await notify(
-            f"400: Bad request on {endpoint}. Payload did not match"
-            f" {event_model.__name__} at: {where}"
-        )
-        raise HTTPException(status_code=400) from e
+        await _refuse_payload(e, event_model, endpoint)
     except Exception as e:
         await report(e, f"500: Internal server error on {endpoint}")
         raise HTTPException(status_code=500) from e
