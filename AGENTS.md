@@ -104,9 +104,10 @@ that reason — the drainer is there, not beside the other background tasks.
 **Two configuration sources, one hard line.** `.env` → `config.settings` answers *how
 this instance authenticates and where it runs*, validated once at import and failing
 with the raw values redacted. Postgres → `ConfigCache` in `services/config.py` answers
-*what the bot does*, snapshotted in `setup_hook()` and reloadable without a restart.
-`db/README.md` records which side each value falls on and why; keep new values on the
-right side of that line.
+*what the bot does*, snapshotted once in `setup_hook()`. `config.load()` has that one
+call site and nothing else calls it again, so a database edit takes effect on the next
+restart, not before. `db/README.md` records which side each value falls on and why;
+keep new values on the right side of that line.
 
 **IDs are addressed by slug, never by value.** Resolve at call time —
 `config.channel("audit_logs")`, `config.role("follower")`,

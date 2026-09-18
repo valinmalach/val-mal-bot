@@ -1,8 +1,10 @@
 """In-memory snapshot of the configuration tables.
 
-Loaded once at startup and refreshable, so an edit made in the database, or
-later through a frontend, takes effect without a restart. Accessors are
-synchronous because the call sites are everywhere and mostly not async.
+Loaded once at startup, in setup_hook(). load() is public and awaitable so a
+future admin command or periodic task can reload it, but nothing calls it
+again today -- an edit made in the database takes effect on the next
+restart, not before it. Accessors are synchronous because the call sites are
+everywhere and mostly not async.
 """
 
 import json
