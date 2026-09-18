@@ -57,17 +57,26 @@ def safe_format(text: str, values: dict[str, Any]) -> str:
     A ``{channel:x}``/``{role:x}`` left behind by render() is always one of
     those literal braces, never a real field: render() runs first and reserves
     that shape, so it must not be read as a field named "channel"/"role" just
-    because the caller happens to pass a value under that name too.
+    because the caller happens to pass a value under that name too. But a row
+    that doubles its own braces around that shape (``{{role:x}}``) already
+    means it literally, and doubling it again breaks str.format's own escape.
     """
-    protected = _FORMAT_FIELD.sub(
-        lambda match: (
-            match.group(0)
-            if _field_name(match.group(1)) in values
-            and not _PLACEHOLDER.fullmatch(match.group(0))
-            else "{{" + match.group(1) + "}}"
-        ),
-        text,
-    )
+
+    def protect(match: re.Match[str]) -> str:
+        field = match.group(1)
+        if _field_name(field) not in values:
+            return "{{" + field + "}}"
+        already_escaped = (
+            match.start() > 0
+            and text[match.start() - 1] == "{"
+            and match.end() < len(text)
+            and text[match.end()] == "}"
+        )
+        if _PLACEHOLDER.fullmatch(match.group(0)) and not already_escaped:
+            return "{{" + field + "}}"
+        return match.group(0)
+
+    protected = _FORMAT_FIELD.sub(protect, text)
     try:
         return protected.format(**values)
     except (IndexError, KeyError, ValueError) as e:
