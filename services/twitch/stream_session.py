@@ -20,7 +20,7 @@ from background import fire_and_forget
 from errors import notify, report
 from models.twitch_api_responses.stream import Stream
 from services.config import config
-from services.twitch.api import get_ad_schedule, get_stream
+from services.twitch.api import get_ad_schedule, get_stream, live_stream
 from services.twitch.chat import say_template
 from services.twitch.helix import HelixError
 from services.twitch.shoutout_queue import shoutout_queue
@@ -164,12 +164,14 @@ async def resume() -> None:
         # bare except so a broadcaster id that is missing or not a number
         # stays distinguishable from Twitch being unreachable, rather than
         # reaching the startup reporter as one undifferentiated failure.
-        stream = await get_stream(int(config.setting("twitch_broadcaster_id")))
+        stream = live_stream(
+            await get_stream(int(config.setting("twitch_broadcaster_id")))
+        )
     except (HelixError, TypeError, ValueError) as e:
         await report(e, "Could not check whether the broadcaster is live at startup")
         return
 
-    if stream and stream.type == "live":
+    if stream is not None:
         _start(stream)
 
 
@@ -189,7 +191,7 @@ async def wake(broadcaster_id: str | int) -> None:
         return
 
     try:
-        stream = await get_stream(int(broadcaster_id))
+        stream = live_stream(await get_stream(int(broadcaster_id)))
     except HelixError as e:
         # helix.request has already retried a GET, so reaching here means Twitch
         # could not be reached at all rather than that it was slow. The session
@@ -202,7 +204,7 @@ async def wake(broadcaster_id: str | int) -> None:
         )
         return
 
-    if stream is not None and stream.type == "live":
+    if stream is not None:
         return
 
     if _stream is None or _stream.id != asked_about.id:

@@ -24,7 +24,7 @@ from models.twitch_event_subs.stream_online import StreamOnlineEventSub
 from services.config import config
 from services.present import quoted
 from services.twitch import autoshoutout, live_alert, stream_session
-from services.twitch.api import get_stream, get_user
+from services.twitch.api import get_stream, get_user, live_stream
 from services.twitch.chat import say, say_template
 from services.twitch.commands import dispatch, is_twitch_login
 from services.twitch.helix import HelixError
@@ -52,13 +52,13 @@ async def _wait_for_stream_info(
 
     while True:
         try:
-            stream_info = await get_stream(broadcaster_id)
+            stream_info = live_stream(await get_stream(broadcaster_id))
         except HelixError as e:
             last_error = e
             logger.warning(f"Stream lookup failed for {broadcaster_id}: {last_error}")
             stream_info = None
 
-        if stream_info:
+        if stream_info is not None:
             return stream_info, None
         # Checked after the attempt, so a slow first lookup still gets its turn.
         if time.monotonic() >= deadline:

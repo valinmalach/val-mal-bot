@@ -27,7 +27,13 @@ from models.twitch_api_responses.user import User
 from models.twitch_api_responses.video import Video
 from services.duration import get_age
 from services.send import edit_embed
-from services.twitch.api import get_channel, get_stream, get_stream_vod, get_user
+from services.twitch.api import (
+    get_channel,
+    get_stream,
+    get_stream_vod,
+    get_user,
+    live_stream,
+)
 from services.twitch.helix import HelixError
 from services.twitch.live_alert_embeds import (
     live_embed,
@@ -76,7 +82,8 @@ def _decide(
         # the row belongs to the newer alert and its delete will not match.
         return Action.CLOSE
 
-    if stream is None or stream.id != str(stream_id):
+    live = live_stream(stream)
+    if live is None or live.id != str(stream_id):
         return Action.CLOSE
 
     return Action.REFRESH
