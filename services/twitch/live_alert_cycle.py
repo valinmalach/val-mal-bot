@@ -296,6 +296,66 @@ async def _close(
     )
 
 
+async def _fetch_profile(broadcaster_id: int) -> User | None:
+    """The broadcaster's profile for the embed, degrading to None rather than losing the alert over it."""
+    try:
+        return await get_user(broadcaster_id)
+    except HelixError as e:
+        # The avatar and display name are decoration; the embed renders without
+        # them, and losing the alert over them would be worse. Still worth
+        # saying: nobody reads the logs, and the admin channel is watched.
+        await notify(
+            f"Updating the live alert for broadcaster {broadcaster_id} without the"
+            f" broadcaster's profile: {e}",
+            key=f"live-alert-profile:{broadcaster_id}",
+        )
+        return None
+
+
+async def _dispatch(
+    action: Action,
+    broadcaster_id: int,
+    channel_id: int,
+    message_id: int,
+    stream_id: int,
+    stream: Stream | None,
+    user_info: User | None,
+    age: str,
+    started_at_timestamp: str,
+    content: str | None,
+) -> Action:
+    """Carry out whatever ``_decide`` concluded, once STOP is already handled."""
+    if action is Action.CLOSE:
+        return await _close(
+            broadcaster_id,
+            channel_id,
+            message_id,
+            stream_id,
+            stream,
+            user_info,
+            age,
+            content,
+        )
+
+    if stream is None:
+        # Unreachable: _decide only answers REFRESH for a live stream. A guard
+        # rather than an assert, because -O strips an assert and would leave
+        # _refresh taking a None it is not typed for; a cycle that concluded
+        # nothing is the honest reading if the rule ever changes underneath.
+        return Action.RETRY
+
+    return await _refresh(
+        broadcaster_id,
+        channel_id,
+        message_id,
+        stream,
+        user_info,
+        age,
+        started_at_timestamp,
+        content,
+    )
+
+
 async def cycle(
     broadcaster_id: int,
     channel_id: int,
@@ -320,44 +380,15 @@ async def cycle(
         )
         return action
 
-    try:
-        user_info = await get_user(broadcaster_id)
-    except HelixError as e:
-        # The avatar and display name are decoration; the embed renders without
-        # them, and losing the alert over them would be worse. Still worth
-        # saying: nobody reads the logs, and the admin channel is watched.
-        await notify(
-            f"Updating the live alert for broadcaster {broadcaster_id} without the"
-            f" broadcaster's profile: {e}",
-            key=f"live-alert-profile:{broadcaster_id}",
-        )
-        user_info = None
-
+    user_info = await _fetch_profile(broadcaster_id)
     age = get_age(started_at, limit_units=2)
 
-    if action is Action.CLOSE:
-        return await _close(
-            broadcaster_id,
-            channel_id,
-            message_id,
-            stream_id,
-            stream,
-            user_info,
-            age,
-            content,
-        )
-
-    if stream is None:
-        # Unreachable: _decide only answers REFRESH for a live stream. A guard
-        # rather than an assert, because -O strips an assert and would leave
-        # _refresh taking a None it is not typed for; a cycle that concluded
-        # nothing is the honest reading if the rule ever changes underneath.
-        return Action.RETRY
-
-    return await _refresh(
+    return await _dispatch(
+        action,
         broadcaster_id,
         channel_id,
         message_id,
+        stream_id,
         stream,
         user_info,
         age,
