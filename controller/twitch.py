@@ -2,7 +2,7 @@ import logging
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Coroutine
-from typing import Any, get_args
+from typing import Any, NoReturn, get_args
 
 import pendulum
 from fastapi import APIRouter, HTTPException, Request, Response
@@ -261,6 +261,36 @@ async def validate_call(request: Request, endpoint: str) -> dict[str, Any] | Res
     return body
 
 
+async def _refuse_payload(
+    e: ValidationError, event_model: type[BaseModel], endpoint: str
+) -> NoReturn:
+    """Log, notify and raise the 400 for a payload that failed to validate.
+
+    4xx rather than 5xx because a payload this end cannot read is not a
+    server fault, and a full exception report for one is noise. Not for the
+    reason first given here: Twitch documents no 4xx/5xx distinction at all,
+    and revocation counts anything that is not a 2xx, so this spends the
+    subscription's failure budget exactly as a 500 would.
+    """
+    # The field, not just the model: what this most often catches is this
+    # end's model falling behind Twitch's payload, and the name of the
+    # field that moved is the whole diagnosis.
+    where = "; ".join(
+        ".".join(str(part) for part in err["loc"]) for err in e.errors()[:3]
+    )
+    logger.warning(
+        "400: %s rejected the payload on %s at %s",
+        event_model.__name__,
+        endpoint,
+        where,
+    )
+    await notify(
+        f"400: Bad request on {endpoint}. Payload did not match"
+        f" {event_model.__name__} at: {where}"
+    )
+    raise HTTPException(status_code=400) from e
+
+
 async def process_webhook[E: BaseModel](
     request: Request,
     endpoint: str,
@@ -307,28 +337,7 @@ async def process_webhook[E: BaseModel](
     except HTTPException:
         raise
     except ValidationError as e:
-        # 4xx rather than 5xx because a payload this end cannot read is not a
-        # server fault, and a full exception report for one is noise. Not for the
-        # reason first given here: Twitch documents no 4xx/5xx distinction at all,
-        # and revocation counts anything that is not a 2xx, so this spends the
-        # subscription's failure budget exactly as a 500 would.
-        # The field, not just the model: what this most often catches is this
-        # end's model falling behind Twitch's payload, and the name of the
-        # field that moved is the whole diagnosis.
-        where = "; ".join(
-            ".".join(str(part) for part in err["loc"]) for err in e.errors()[:3]
-        )
-        logger.warning(
-            "400: %s rejected the payload on %s at %s",
-            event_model.__name__,
-            endpoint,
-            where,
-        )
-        await notify(
-            f"400: Bad request on {endpoint}. Payload did not match"
-            f" {event_model.__name__} at: {where}"
-        )
-        raise HTTPException(status_code=400) from e
+        await _refuse_payload(e, event_model, endpoint)
     except Exception as e:
         await report(e, f"500: Internal server error on {endpoint}")
         raise HTTPException(status_code=500) from e
