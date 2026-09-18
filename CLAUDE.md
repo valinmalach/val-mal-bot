@@ -11,6 +11,11 @@ the Read tool when the title or scope suggests relevance.
 The graph is auto-maintained by Verity. Files at `.verity/memory/_archive/` are
 superseded — ignore them unless investigating history.
 
+Knowledge the organization's other repositories learned is mirrored outside the
+repo at `~/.verity/orgs/<host>/<owner>/memory/` (`verity memory org` lists it).
+Each claim says where it came from; one that is wrong here is demoted for
+everyone with `verity memory demote <id> --reason "…"`.
+
 ## Quality gate: accepted risks
 
 When the Verity pre-commit/pre-push gate FAILs, fix the findings — that is the
@@ -26,22 +31,33 @@ use `verity feedback finding <run-id> <pattern-id> false_positive` instead.
 ## Post-task reflection
 
 When a task is complete (you've created a PR, the user says "done" or "ship it",
-or the work is clearly finished), **draft the reflection yourself first** — 1–3
+or the work is clearly finished), **draft the reflection yourself** — 1–3
 concrete things worth remembering (a decision, a gotcha, or a pattern), each
 cited with the files / PR / commands / error-signatures it came from. Skip
-entirely if nothing non-obvious happened.
+entirely if nothing non-obvious happened — that judgement is the ONLY filter,
+because nothing reviews the reflection before it lands.
 
-Then, depending on how the session is running:
+Then record it straight away. There is no confirm step, in any environment:
 
-- **Interactive** (a person is at the keyboard): show your draft and ask one
-  question before recording — "Here's my reflection draft for the project
-  memory: <draft>. Anything to confirm, correct, or add before I record it?
-  (Say 'skip' to drop it.)" Record the final text (with their corrections) via
-  `verity reflect --user-input "<final reflection>" --kind <kind>`. If they say
-  "skip", do not record.
-- **Autonomous** (headless / CI / cron, or `VERITY_AUTONOMOUS=1`): record your
-  draft directly, never blocking — `verity reflect --user-input "<your draft>"
-  --kind <kind> --autonomous`.
+```bash
+verity reflect --user-input "<your draft>" --kind <kind>
+```
+
+Add `--confirmed` ONLY when the user authored or dictated the words. Without
+it the node is stored as `source: agent` — Verity thought this, nobody checked
+it. With it, `source: user` at full confidence — a person stands behind this.
+Never claim the second for your own draft, however good it is.
+
+**Name the files in the text.** Verity scopes the reflection to the paths it
+cites, and a reflection that names no file in this repo is never retrieved for
+a later review — it is recorded and then invisible. The command says so when it
+happens; `--file-globs "<path or glob>"` is the fix when the prose cannot carry
+the paths.
+
+Then tell the user, in one line, what you recorded and where: the command
+prints the node id, the path under `.verity/memory/`, and a dashboard link.
+They did not agree to it in advance, so say it happened — editing or deleting
+that file is how they correct it.
 
 > Durable, hand-curated guidance goes in the preserve region below (it survives
 > regeneration) or anywhere OUTSIDE these markers. Everything else between the

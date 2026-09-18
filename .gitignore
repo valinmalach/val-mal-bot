@@ -176,7 +176,7 @@ cython_debug/
 # Verity installs itself into three harnesses, not one: Claude Code (.claude/),
 # the AGENTS.md convention (.agents/) and Codex (.codex/). The skills and hook
 # wiring are the same files in each.
-.verity/
+.verity/*
 .codacy/
 .claude/skills/verity-*/
 .claude/settings.json
@@ -184,3 +184,11 @@ cython_debug/
 .agents/skills/verity-*/
 .codex/hooks.json
 .codex/config.toml
+
+# Verity — machine-local state. Everything in .verity/ is ignored except the
+# shared standard, which is meant to be committed. The knowledge graph under
+# .verity/memory/ is machine-local too: the service rebuilds it, and committing
+# it puts generated notes in every diff and pull request.
+.verity/*
+!.verity/standard.yaml
+.claude/settings.local.json
