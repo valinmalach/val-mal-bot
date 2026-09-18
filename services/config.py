@@ -66,22 +66,22 @@ def safe_format(text: str, values: dict[str, Any]) -> str:
 
     def protect(match: re.Match[str]) -> str:
         field = match.group(1)
-        if _field_name(field) not in values:
-            return "{{" + field + "}}"
         already_escaped = (
             match.start() > 0
             and text[match.start() - 1] == "{"
             and match.end() < len(text)
             and text[match.end()] == "}"
         )
-        if _PLACEHOLDER.fullmatch(match.group(0)) and not already_escaped:
+        if already_escaped:
+            return match.group(0)
+        if _field_name(field) not in values or _PLACEHOLDER.fullmatch(match.group(0)):
             return "{{" + field + "}}"
         return match.group(0)
 
     protected = _FORMAT_FIELD.sub(protect, text)
     try:
         return protected.format(**values)
-    except (IndexError, KeyError, ValueError) as e:
+    except (IndexError, KeyError, ValueError, AttributeError, TypeError) as e:
         notify_soon(
             f"Could not format template text, so it went out with its braces"
             f" as written: {e}. Text: {text[:200]}",
@@ -191,11 +191,10 @@ class ConfigCache:
     def template(self, key: str, **values: Any) -> str:
         """Render a message template, resolving channel and role placeholders.
 
-        A missing row or a stale channel/role slug degrades to an admin
-        notice instead of raising, per notify_soon/render's own docstrings.
-        A genuinely malformed field (e.g. a compound reference like
-        {mention.foo} against a plain string) can still raise: that's not one
-        of the three str.format failure modes safe_format catches.
+        A missing row, a stale channel/role slug, or a malformed field (e.g.
+        a compound reference like {mention.foo} against a plain string) all
+        degrade to an admin notice instead of raising, per notify_soon's own
+        docstring.
         """
         content = self._templates.get(key)
         if content is None:
@@ -218,9 +217,23 @@ class ConfigCache:
         slug, since two different rows can share one dangling placeholder.
         A slug with no row is left as the literal placeholder, like
         safe_format leaves an unformattable brace, rather than raising.
+
+        A doubled ``{{channel:key}}``/``{{role:key}}`` is left untouched
+        rather than resolved, mirroring str.format's own ``{{``/``}}``
+        escape: a caller that goes on to safe_format (template()) gets it
+        unescaped there; a caller that doesn't (build_embed calls this
+        directly) sees the doubled braces as written.
         """
 
         def replace(match: re.Match[str]) -> str:
+            already_escaped = (
+                match.start() > 0
+                and text[match.start() - 1] == "{"
+                and match.end() < len(text)
+                and text[match.end()] == "}"
+            )
+            if already_escaped:
+                return match.group(0)
             kind, key = match.group(1), match.group(2)
             try:
                 value = self.channel(key) if kind == "channel" else self.role(key)
