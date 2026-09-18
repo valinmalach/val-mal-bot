@@ -1,5 +1,3 @@
-import logging
-
 import discord
 from discord import Interaction, app_commands
 from discord.ext.commands import Bot, Cog
@@ -10,7 +8,6 @@ from controller.twitch import WEBHOOK_PATHS
 from errors import report
 from services.config import config
 from services.present import quoted
-from services.send import UNSENDABLE_CHANNEL_TYPES, send_embed
 from services.twitch.api import (
     get_subscriptions,
     get_users,
@@ -22,14 +19,6 @@ from services.twitch.helix import HelixError
 from services.twitch.migrate import migrate
 from services.twitch.migrate_plan import summary
 from services.twitch.oauth import create_authorization_start_url
-from views import role_panels
-
-logger = logging.getLogger(__name__)
-
-_PURGE_MESSAGE_LIMIT_MAX = 500
-
-# What is echoed back when the input was refused, so the person can see their
-# typo. Capped because the value is theirs, not Twitch's.
 
 
 def _login(value: str) -> str | None:
@@ -51,88 +40,9 @@ async def _refuse_login(interaction: Interaction, value: str) -> None:
     )
 
 
-async def _purge(interaction: Interaction, limit: int | None) -> None:
-    """Shared body for `nuke` (limit=None) and `purge` (limit=count)."""
-    ch = interaction.channel
-    if ch is None or isinstance(ch, UNSENDABLE_CHANNEL_TYPES):
-        logger.warning("Purge aborted: invalid channel type %s", type(ch))
-        await interaction.response.send_message(
-            config.template("admin_wrong_channel"), ephemeral=True
-        )
-        return
-    if not hasattr(ch, "purge"):
-        await interaction.response.send_message(
-            config.template("admin_no_bulk_delete"), ephemeral=True
-        )
-        return
-
-    if limit is None:
-        await interaction.response.send_message(config.template("admin_nuking"))
-        await ch.purge(limit=None)
-        return
-
-    await interaction.response.defer(ephemeral=True)
-    try:
-        deleted = await ch.purge(limit=limit)
-    except discord.Forbidden:
-        await interaction.followup.send(
-            config.template("admin_purge_forbidden"),
-            ephemeral=True,
-        )
-        return
-    except discord.HTTPException as e:
-        logger.exception("Purge failed")
-        await interaction.followup.send(
-            config.template("admin_purge_failed", error=e),
-            ephemeral=True,
-        )
-        return
-    await interaction.followup.send(
-        config.template("admin_purge_done", count=len(deleted)),
-        ephemeral=True,
-    )
-
-
-class Admin(Cog):
+class TwitchAdmin(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
-
-    @app_commands.command(description="Deletes all messages in the channel")
-    @app_commands.commands.default_permissions(administrator=True)
-    @app_commands.checks.has_permissions(administrator=True)
-    async def nuke(self, interaction: Interaction) -> None:
-        await _purge(interaction, None)
-
-    @app_commands.command(
-        description="Deletes the most recent messages in this channel or thread"
-    )
-    @app_commands.commands.default_permissions(administrator=True)
-    @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.describe(
-        count="How many messages to delete (max 500; bulk deletes use batches of up to 100; messages older than 14 days are skipped)",
-    )
-    async def purge(
-        self,
-        interaction: Interaction,
-        count: app_commands.Range[int, 1, _PURGE_MESSAGE_LIMIT_MAX],
-    ) -> None:
-        await _purge(interaction, count)
-
-    @app_commands.command(description="Sends the rules embed to the rules channel")
-    @app_commands.commands.default_permissions(administrator=True)
-    @app_commands.checks.has_permissions(administrator=True)
-    async def rules(self, interaction: Interaction) -> None:
-        for embed, view, channel_id in role_panels("rules"):
-            await send_embed(embed, channel_id, view)
-        await interaction.response.send_message(config.template("admin_rules_sent"))
-
-    @app_commands.command(description="Sends the roles embeds to the roles channel")
-    @app_commands.commands.default_permissions(administrator=True)
-    @app_commands.checks.has_permissions(administrator=True)
-    async def roles(self, interaction: Interaction) -> None:
-        for embed, view, channel_id in role_panels("roles"):
-            await send_embed(embed, channel_id, view)
-        await interaction.response.send_message(config.template("admin_roles_sent"))
 
     @app_commands.command(
         name="twitch-auth",
@@ -343,4 +253,4 @@ class Admin(Cog):
 
 
 async def setup(bot: Bot) -> None:
-    await bot.add_cog(Admin(bot))
+    await bot.add_cog(TwitchAdmin(bot))

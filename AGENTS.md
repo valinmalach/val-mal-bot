@@ -285,8 +285,8 @@ in an undeclared key survives. **Do not make this round-trip faithful again.**
 `controller/twitch.py` builds it as the routes register, reading each type off the
 `Literal` its model already declares — a ninth list of the eight types is one more
 thing to keep in step by hand. It is passed *into* `migrate`, never imported by it,
-because nothing under `services/` may import `controller/`; `cogs/admin.py` may,
-and is what hands it over.
+because nothing under `services/` may import `controller/`; `cogs/twitch_admin.py`
+may, and is what hands it over.
 
 **A live alert is closed by its updater, never by a webhook.** `stream.offline`
 carries no stream id, so the handler cannot tell which stream ended; it calls

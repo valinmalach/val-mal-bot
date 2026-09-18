@@ -8,7 +8,14 @@ TWITCH_MESSAGE_SIGNATURE = "Twitch-Eventsub-Message-Signature"
 HMAC_PREFIX = "sha256="
 
 
-COGS = ["cogs.admin", "cogs.birthday", "cogs.events", "cogs.tasks"]
+COGS = [
+    "cogs.moderation",
+    "cogs.role_panels",
+    "cogs.twitch_admin",
+    "cogs.birthday",
+    "cogs.events",
+    "cogs.tasks",
+]
 
 UNKNOWN_USER = "Unknown User"
 DEFAULT_MISSING_CONTENT = "`Message content not found in cache`"
