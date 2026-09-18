@@ -26,7 +26,7 @@ from services.twitch.live_alert_embeds import (
     twitch_url,
     watch_button,
 )
-from services.twitch.signature import parse_rfc3339
+from services.twitch.timestamps import parse_rfc3339
 
 logger = logging.getLogger(__name__)
 

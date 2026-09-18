@@ -15,7 +15,7 @@ from models.twitch_api_responses.stream import Stream
 from models.twitch_api_responses.user import User
 from models.twitch_api_responses.video import Video
 from services.config import config
-from services.twitch.signature import parse_rfc3339
+from services.twitch.timestamps import parse_rfc3339
 
 
 def twitch_url(user_login: str) -> str:

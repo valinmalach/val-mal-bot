@@ -29,12 +29,8 @@ from models.twitch_event_subs.channel_raid import ChannelRaidEventSub
 from models.twitch_event_subs.stream_offline import StreamOfflineEventSub
 from models.twitch_event_subs.stream_online import StreamOnlineEventSub
 from services.twitch import events
-from services.twitch.signature import (
-    get_hmac,
-    get_hmac_message,
-    parse_rfc3339,
-    verify_message,
-)
+from services.twitch.signature import get_hmac, get_hmac_message, verify_message
+from services.twitch.timestamps import parse_rfc3339
 
 logger = logging.getLogger(__name__)
 
