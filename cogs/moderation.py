@@ -16,7 +16,13 @@ async def _purge(interaction: Interaction, limit: int | None) -> None:
     """Shared body for `nuke` (limit=None) and `purge` (limit=count)."""
     ch = interaction.channel
     if ch is None or isinstance(ch, UNSENDABLE_CHANNEL_TYPES):
-        logger.warning("Purge aborted: invalid channel type %s", type(ch))
+        # Distinct per caller, as it was before the two shared this body: an
+        # operator grepping logs for one command's abort should still find it.
+        logger.warning(
+            "%s aborted: invalid channel type %s",
+            "Nuke" if limit is None else "Purge",
+            type(ch),
+        )
         await interaction.response.send_message(
             config.template("admin_wrong_channel"), ephemeral=True
         )
