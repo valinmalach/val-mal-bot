@@ -43,3 +43,79 @@ reportUnusedFunction = "warning"
 reportUnusedExpression = "warning"
 reportUnreachable = "warning"
 reportDeprecated = "warning"
+
+[tool.ruff]
+# Stated rather than inferred from requires-python: a Ruff that does not read this
+# file (Codacy's generated config, for one) lints as an older Python and reports F821
+# on a class annotating itself, which PEP 649 makes correct.
+target-version = "py314"
+
+[tool.ruff.lint]
+# select REPLACES Ruff's defaults, so the default F/E4/E7/E9 are listed. F, B, S and
+# ANN are the families Verity's Standard names; BLE is what every `# noqa: BLE001` in
+# the code already assumes; I, SIM, UP, RUF and C90 the code already satisfies.
+select = [
+    "F", "E4", "E7", "E9",
+    "B", "BLE", "RUF", "I", "SIM", "S", "C90", "ANN", "UP",
+]
+ignore = [
+    # Any is deliberate where the value is generic: the config accessors, format
+    # kwargs and the Alembic hooks.
+    "ANN401",
+    # A StrEnum formats and str()s as its value; these (str, Enum) classes do not.
+    "UP042",
+]
+
+[tool.ruff.lint.mccabe]
+# Verity's Standard: complexity <= 15.
+max-complexity = 15
+
+[tool.ruff.lint.per-file-ignores]
+# _demo is a runnable self-check, and its asserts are the point.
+"logging_json.py" = ["S101"]
+
+[tool.pylint.main]
+py-version = "3.14"
+
+[tool.pylint.messages_control]
+# The bug detectors tuned on Codacy Cloud (PyLintPython3_*), so a local pylint and Cloud
+# agree, minus not-callable: SQLAlchemy's generated func.now() trips it once the .venv is
+# importable, which is exactly when an editor runs it. Docstring, naming and design-size
+# messages stay off by convention (AGENTS.md).
+disable = ["all"]
+enable = [
+    "abstract-class-instantiated", "access-member-before-definition",
+    "arguments-differ", "assert-on-tuple", "assignment-from-no-return",
+    "bad-except-order", "bad-format-character", "bad-format-string",
+    "bad-format-string-key", "bad-super-call", "bare-except", "binary-op-exception",
+    "catching-non-exception", "dangerous-default-value", "duplicate-argument-name",
+    "duplicate-bases", "duplicate-except", "duplicate-key", "eval-used",
+    "exec-used", "expression-not-assigned", "format-combined-specification",
+    "format-needs-mapping", "function-redefined", "global-variable-undefined",
+    "inconsistent-mro", "inherit-non-class", "init-is-generator",
+    "invalid-all-object", "invalid-format-index", "invalid-sequence-index",
+    "invalid-slice-index", "invalid-slots", "invalid-slots-object",
+    "invalid-star-assignment-target", "logging-format-truncated",
+    "logging-too-few-args", "logging-too-many-args", "logging-unsupported-format",
+    "lost-exception", "method-hidden", "misplaced-bare-raise", "misplaced-future",
+    "missing-format-argument-key", "missing-format-attribute",
+    "missing-format-string-key", "missing-kwoa", "mixed-format-string",
+    "no-method-argument", "no-value-for-parameter", "non-iterator-returned",
+    "non-parent-init-called", "nonexistent-operator", "nonlocal-and-global",
+    "nonlocal-without-binding", "not-in-loop", "notimplemented-raised",
+    "raising-bad-type", "raising-non-exception", "redefined-builtin",
+    "redundant-keyword-arg", "repeated-keyword", "return-arg-in-generator",
+    "return-in-init", "return-outside-function", "signature-differs",
+    "star-needs-assignment-target", "too-few-format-args", "too-many-format-args",
+    "too-many-function-args", "too-many-star-expressions",
+    "truncated-format-string", "undefined-all-variable", "unexpected-keyword-arg",
+    "unexpected-special-method-signature", "unreachable",
+    "unused-format-string-key", "used-before-assignment", "yield-outside-function"
+]
+
+[tool.bandit]
+exclude_dirs = [".venv"]
+
+[tool.bandit.assert_used]
+# logging_json._demo is a runnable self-check; its asserts are the point.
+skips = ["*/logging_json.py"]
