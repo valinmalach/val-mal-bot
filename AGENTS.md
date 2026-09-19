@@ -90,14 +90,39 @@ uv run alembic current
 
 On Windows `--sql` needs `PYTHONIOENCODING=utf-8`: some seeded text is emoji.
 
-**The test suite is a start, not a net.** `tests/` holds pytest tests of the pure
-rules only — `services/birthday.py` and `services/twitch/migrate_plan.py` — and none
-touches Discord, Twitch or Postgres, so coverage is about 14% and most of the code is
-I/O nobody has tested. `tests/conftest.py` fills the environment `config.settings`
-validates at import, so it must run before a test module imports anything that reaches
-`config`. `.github/workflows/coverage.yml` runs `pytest --cov` on every push and
-uploads `coverage.xml` to Codacy when the `CODACY_PROJECT_TOKEN` secret is set. Do not
-describe a change as tested unless a test exercises it.
+**The suite covers everything that does not need a live service.** About 2,300 tests
+cover 99% of the code outside `migrations/`, branches counted; what is left is `__main__`
+guards, a demo, and lines that cannot be reached. Nothing runs against Discord, Twitch
+or Postgres, so a real database round trip and a real gateway session are untested:
+Helix and OAuth go through `httpx.MockTransport`, the FastAPI apps through
+`httpx.ASGITransport`, repository statements are compiled with the Postgres dialect and
+asserted, and `tests/test_migrations.py` renders every revision offline in a subprocess
+to check the chain, the rules in `db/README.md`, the schema against the models, and that
+every configuration key the code reads is seeded. Do not describe a change as tested
+unless a test exercises it, and a bug a test finds is fixed with a regression test that
+fails without the fix.
+
+`tests/` has a directory per area with its own `conftest.py` for fixtures and
+`support.py` for fakes, imported as `tests.<area>.support` — which is why Sourcery's
+`dont-import-test-modules` is disabled by id in `.sourcery.yaml`. Keep a test file under
+about 470 lines: a Verity review drops the middle of a longer one and says the file is
+unchecked. `tests/conftest.py` fills the environment `config.settings` validates at
+import, so it must run before a test module imports anything that reaches `config`.
+Async tests carry `pytestmark = pytest.mark.anyio`, and `error::RuntimeWarning` in
+`[tool.pytest.ini_options]` turns an unawaited coroutine into a failure.
+
+Three habits that each cost a debugging session. Patch with `monkeypatch`, never by
+assigning onto a module, or the fake leaks into the next test. Replace a module's own
+`time` or `asyncio` name with a namespace holding the fake, never the global
+`time.monotonic` or `asyncio.sleep`, which the event loop itself reads. And write a
+non-ASCII or control character in a test as `chr(...)`: the editing tools turn an
+escape sequence typed into a source file (a backslash then `u` and four digits, or a
+backslash then `n`) into the literal character, which leaves an invisible one behind.
+
+`.github/workflows/coverage.yml` runs `pytest --cov` on every push and uploads
+`coverage.xml` to Codacy when the `CODACY_PROJECT_TOKEN` secret is set. Verity's
+`test_coverage` threshold is 95 and `test_quality` judges whether a test can fail;
+`.verity/standard.yaml` has both, and `verity standard push` uploads a change to them.
 
 **A full review on every push is requested by `.github/workflows/request-reviews.yml`,
 because neither reviewer does one itself.** Sourcery re-reviews each commit on its own,
