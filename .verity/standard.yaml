@@ -60,7 +60,7 @@ quality_dimensions:
       - metric: test_coverage
         threshold: 0
         unit: percent
-        rationale: "This repo has no test suite by current policy (AGENTS.md): no pytest, no test files, no CI workflow. Verification is ruff + ruff format + pyright plus running the bot. Raise this to 80/90 if a suite is ever introduced"
+        rationale: "tests/ holds pytest tests of the pure rules only (AGENTS.md), about 14% coverage, so a threshold would only fail on I/O nobody has tested yet. Raise it as the suite grows; CI uploads the real number to Codacy"
       - metric: test_quality
         tool: ai
         rationale: "Kept active so any test that does arrive is judged, and so a change is never described as tested when it is not"

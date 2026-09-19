@@ -1,0 +1,32 @@
+name: Coverage
+
+# Every push, not just master: Codacy needs coverage for a PR's head commit and for
+# the commit it branched from, and a `pull_request` run reports a merge commit that
+# neither of those is.
+on: push
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    env:
+      # Only whether the secret exists, never the secret: a fork or a Dependabot run
+      # gets none, and skips the upload rather than failing the tests that just
+      # passed. The token itself is handed to the upload step alone, so `uv sync` and
+      # the tests, which run this repo's code, never see it.
+      HAS_CODACY_TOKEN: ${{ secrets.CODACY_PROJECT_TOKEN != '' }}
+    steps:
+      # Every action is pinned to a commit, since a tag can be moved.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # setup-uv also publishes no floating major tag.
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - run: uv sync --locked
+      - run: uv run pytest --cov --cov-report=xml
+      - name: Upload coverage to Codacy
+        if: ${{ env.HAS_CODACY_TOKEN == 'true' }}
+        uses: codacy/codacy-coverage-reporter-action@89d6c85cfafaec52c72b6c5e8b2878d33104c699 # v1.3.0
+        with:
+          project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+          coverage-reports: coverage.xml

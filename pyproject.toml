@@ -73,6 +73,8 @@ max-complexity = 15
 [tool.ruff.lint.per-file-ignores]
 # _demo is a runnable self-check, and its asserts are the point.
 "logging_json.py" = ["S101"]
+# A test is an assert.
+"tests/*" = ["S101"]
 
 [tool.pylint.main]
 py-version = "3.14"
@@ -118,4 +120,28 @@ exclude_dirs = [".venv"]
 
 [tool.bandit.assert_used]
 # logging_json._demo is a runnable self-check; its asserts are the point.
-skips = ["*/logging_json.py"]
+skips = ["*/logging_json.py", "*/tests/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The modules live at the repo root, and nothing is installed as a package.
+pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["."]
+branch = true
+# Migrations are seeded configuration and run against a database; the tests
+# themselves would only measure themselves.
+omit = [".venv/*", "tests/*", "migrations/*"]
+
+[tool.coverage.report]
+# cogs/ and services/twitch/ have no __init__.py, and without this an untested file
+# in them is left out of the total instead of counting as 0%.
+include_namespace_packages = true
+show_missing = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+]
