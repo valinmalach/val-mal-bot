@@ -89,3 +89,25 @@ def test_an_unparseable_value_chains_the_underlying_error() -> None:
         parse_rfc3339("2025-13-45T99:99:99Z")
 
     assert caught.value.__cause__ is not None
+
+
+@pytest.mark.parametrize(
+    "parsed", [pendulum.date(2026, 6, 15), pendulum.duration(days=1)]
+)
+def test_a_parse_that_is_not_a_datetime_is_refused_as_the_same_error(
+    parsed: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pendulum can return other types; the shape check alone cannot rule them out."""
+    monkeypatch.setattr(pendulum, "parse", lambda text: parsed)
+
+    with pytest.raises(ValueError, match="Not an RFC3339 timestamp"):
+        parse_rfc3339("2026-06-15T11:00:00Z")
+
+
+def test_a_naive_parse_is_refused_because_it_would_be_read_as_local_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pendulum, "parse", lambda text: pendulum.naive(2026, 6, 15))
+
+    with pytest.raises(ValueError, match="Not an RFC3339 timestamp"):
+        parse_rfc3339("2026-06-15T11:00:00Z")

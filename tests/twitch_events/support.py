@@ -28,6 +28,7 @@ class EventWorld:
         self.announce_error: Exception | None = None
         self.wake_error: Exception | None = None
         self.redeem_error: Exception | None = None
+        self.template_error: Exception | None = None
 
     async def notify(self, text: str, *, key: str | None = None) -> bool:
         self.notified.append((text, key))
@@ -56,6 +57,8 @@ class EventWorld:
     async def say_template(
         self, broadcaster_id: str | int, key: str, **values: Any
     ) -> bool:
+        if self.template_error is not None:
+            raise self.template_error
         self.templates.append((broadcaster_id, key, values))
         return True
 
