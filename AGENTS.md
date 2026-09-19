@@ -105,13 +105,15 @@ but only re-checks its existing comments and re-runs its security scans: the inl
 comments are not regenerated, and after five re-reviews it stops. `@sourcery-ai review`
 runs a full one, and Sourcery ignores comments from other bots, so the workflow posts it
 with `SOURCERY_TRIGGER_TOKEN`, a fine-grained personal access token set to no expiry.
-Sourcery reviews a PR when it opens, so that job runs on `synchronize` only. Codacy's
+Sourcery reviews a PR when it opens, so that job skips `opened`. Codacy's
 AI Reviewer posts a review only when it is triggered: with *Run reviewer* on
 "Automatically (first review only)" the summary says the first review was requested and
 nothing appears (seen on #79), and the setting has no every-push mode either. So that
 job runs on `opened` as well, calling the `ai-reviewer/trigger` endpoint with
 `CODACY_API_TOKEN`, an account token; `CODACY_PROJECT_TOKEN`, which uploads coverage,
-does not authorise that call. Each secret is handed to the one step that uses it. A run
+does not authorise that call. Both also run on `ready_for_review`, because a draft is
+skipped when it opens and would otherwise get no review until its next push. Each
+secret is handed to the one step that uses it. A run
 with no secret (a fork, Dependabot, or one never configured) skips that step rather
 than failing, while a token that exists but is rejected still fails it, which is how a
 revoked one gets noticed. Two quick pushes can cost two reviews, since nothing here

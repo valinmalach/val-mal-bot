@@ -2,10 +2,11 @@ name: Request reviews
 
 # Sourcery reviews a PR when it opens and only re-reviews in part after. Codacy says
 # it requested a first review on open and posts nothing until it is triggered, so it
-# is asked on open too.
+# is asked on open too. A draft is skipped when it opens, so `ready_for_review` asks
+# again for one that has just been marked ready.
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, ready_for_review]
 
 # The tokens below do the work, so GITHUB_TOKEN gets nothing.
 permissions: {}
@@ -13,7 +14,7 @@ permissions: {}
 jobs:
   sourcery:
     # Sourcery does its own full review on open, and skips drafts.
-    if: ${{ github.event.action == 'synchronize' && !github.event.pull_request.draft }}
+    if: ${{ github.event.action != 'opened' && !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     env:
       # Only whether the secret exists, never the secret. A fork or a Dependabot run
