@@ -75,5 +75,7 @@ rules:
     exclude:
     - services/config.py
     # The pattern is purely syntactic and can't tell logging.Formatter.format(record)
-    # apart from str.format on database text -- logging_json's own self-check calls it.
+    # apart from str.format on database text -- logging_json's own self-check calls it,
+    # and so do its tests.
     - logging_json.py
+    - tests/test_logging_json.py
