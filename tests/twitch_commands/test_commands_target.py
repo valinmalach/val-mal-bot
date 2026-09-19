@@ -25,7 +25,11 @@ class TestPlainInput:
         [
             ("bob", "bob"),
             ("bob and some more words", "bob"),
-            ("  bob", ""),
+            ("  bob", "bob"),
+            ("   ", ""),
+            (" \t  bob  extra", "bob"),
+            ("bob\tevil", "bob"),
+            ("bob\nevil", "bob"),
             ("", ""),
             ("@bob", "bob"),
             ("!bob", "bob"),
@@ -67,8 +71,8 @@ class TestInvisibleCharacters:
             (f"bo{JOINER}b", "bob"),
             (f"{RLO}bob", "bob"),
             (f"bo{NUL}b", "bob"),
-            ("bo\tb", "bob"),
-            ("bo\nb", "bob"),
+            ("bo\tb", "bo"),
+            ("bo\nb", "bo"),
             (f"{ZERO_WIDTH}{ZERO_WIDTH}", ""),
         ],
     )
