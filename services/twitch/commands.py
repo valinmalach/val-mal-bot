@@ -74,7 +74,11 @@ def _target(args: str) -> str:
     Bounded and stripped of invisible characters for the same reason: whatever
     comes back is going into a chat line the bot says.
     """
-    first = args.split(" ", 1)[0] if args else ""
+    # Any run of whitespace ends the word, and leading whitespace is skipped.
+    # Splitting on a single space read `!so  bob` (two spaces, an ordinary typo)
+    # as an empty first word, so a shoutout went to the broadcaster's own channel
+    # and a hug went to everyone, instead of to bob.
+    first = next(iter(args.split()), "")
     # Control and format characters removed: they are invisible, so they can
     # reorder or hide what the rest of the line says once it reaches chat, and
     # no name needs one. Before the strip below, not after it: stripped first,
