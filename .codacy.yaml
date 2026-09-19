@@ -3,6 +3,8 @@ engines:
   bandit:
     exclude_paths:
       - "logging_json.py"
+      # A test is an assert (B101); pyproject.toml skips it for a local bandit.
+      - "tests/**"
   lizard:
     exclude_paths:
       - "migrations/versions/20260828_0022_0002_seed_config.py"
