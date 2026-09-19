@@ -165,7 +165,12 @@ class ConfigCache:
         for field in sorted(fields, key=lambda f: f.position):
             self._embed_fields.setdefault(field.embed_key, []).append(field)
 
-        self._auto_responses = [a for a in autos if a.enabled]
+        # By id: the first row that matches wins, and Postgres promises no order
+        # without an ORDER BY -- an UPDATE can move a row -- so which of two
+        # overlapping replies fired would change when an admin edited one.
+        self._auto_responses = [
+            a for a in sorted(autos, key=lambda a: a.id or 0) if a.enabled
+        ]
         self._commands = {c.name: c for c in commands if c.enabled}
 
         self._command_responses = {}
@@ -300,7 +305,12 @@ class ConfigCache:
         )
 
     def embed_keys(self) -> list[str]:
-        return [e.key for e in sorted(self._embeds.values(), key=lambda e: e.position)]
+        # Key breaks a tie: positions are not unique, and a tie left to the order
+        # the database returned rows in is an order that changes on an UPDATE.
+        return [
+            e.key
+            for e in sorted(self._embeds.values(), key=lambda e: (e.position, e.key))
+        ]
 
     def embed_keys_for_channel(self, channel_key: str) -> list[str]:
         """Keys of the embeds destined for one channel, in stored order.
@@ -316,7 +326,7 @@ class ConfigCache:
     def roles_for_embed(self, key: str) -> list[DiscordRole]:
         return sorted(
             (r for r in self._roles.values() if r.embed_key == key),
-            key=lambda r: r.position,
+            key=lambda r: (r.position, r.key),
         )
 
     def auto_response(self, content: str) -> str | None:
