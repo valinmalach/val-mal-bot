@@ -473,6 +473,18 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   passes them in. The welcome and goodbye embeds are deliberately not entries —
   they go to `welcome`, and they are announcements to members rather than a record
   for staff.
+- **An audit entry's sentences are `message_template` rows; what fills them is
+  code.** The sentences of the description, and a caption author that names the
+  event, are `audit_*` templates, so they change by migration like the rest of the
+  configuration. Everything else stays in `services/audit.py`: field labels,
+  footers, a description that is only values (a mention and a name) and so has no
+  sentence in it, and the values a template is filled with — names, mentions,
+  times, a guild's name as a caption, and the marker for a value that is absent
+  (`UNKNOWN_USER`, `Never`). A sentence that flips on a condition — ban or unban,
+  pinned or unpinned, one role or several, a deleter named or not — is one row per
+  variant, not one row with a fragment passed in, because a fragment hides English
+  in code and the rule is that none is left there. A new entry adds its rows in a
+  migration.
 - **No audit entry can build a value Discord will reject.** Capping happens in
   `_cap`, reached from `_embed` (description, 4096), `_field` (field value, 1024
   and non-empty) and both author helpers (256), so a call site cannot produce one
@@ -516,7 +528,21 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   `_wait_for_stream_info` are the shape to copy.
 - **Text from the database is formatted with `safe_format`**, never bare `str.format`
   — a row is not source, and one unmatched brace should not lose the whole message.
-  `config.render` additionally resolves `{channel:key}` and `{role:key}`.
+- **The accessors that hand text to Discord resolve `{channel:key}` and `{role:key}`
+  themselves.** `config.template()`, `config.embed()` and `config.auto_response()`
+  return it already rendered, and `embed()` returns a `RenderedEmbed`, not the table
+  rows, so a caller cannot send an unresolved placeholder by forgetting a step — it
+  has no raw text to send. Nothing outside `services/config.py` calls `render`; a
+  new accessor over stored text must render before it returns, as these do. An
+  auto-response goes out with `AllowedMentions.none()`, because anyone can trigger
+  one and a rendered `{role:key}` in a message would otherwise ping the role.
+- **Twitch chat never carries those two placeholders, on purpose.** It cannot show
+  a Discord mention, so no Twitch row may hold `{channel:key}` or `{role:key}`; the
+  values a chat line does fill are `{chatter}`, `{target}` and `{broadcaster}`. A
+  `twitch_command_response` skips `render` and would go out with the placeholder
+  written literally. `say_template` goes through `config.template`, which renders,
+  so a placeholder in one of its rows would go out as a raw `<#id>`. Neither is
+  guarded; nothing seeded does it.
 - **Every line either process emits is JSON, through `logging_json.JsonFormatter`.**
   Railway colors a line by which stream it landed on unless the line itself
   parses as JSON with a `level` key — `main.py` points the root logger's one

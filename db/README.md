@@ -162,8 +162,9 @@ placeholders resolved at render time against the other tables:
 * `{channel:promo}` → `<#1378917167336001606>` (looked up by `discord_channel.key`)
 * `{role:follower}` → `<@&1291769015190032435>` (looked up by `discord_role.key`)
 
-Twitch command responses additionally use `{chatter}`, `{target}` and
-`{broadcaster}`, filled in from the chat event.
+Twitch command responses use `{chatter}`, `{target}` and `{broadcaster}`, filled
+in from the chat event, and never the two above: Twitch chat cannot show a Discord
+mention, so a response is not rendered against the channel and role tables.
 
 **Handlers.** `twitch_command.handler` names a callable in the command registry
 rather than an enum value, so adding a command that needs real logic does not
