@@ -59,9 +59,7 @@ def role_panels(channel_key: str) -> list[tuple[Embed, RolePickerView, int]]:
     # into a failed command.
     return [
         (build_embed(key), RolePickerView(key), config.channel(channel_key))
-        for key in config.embed_keys()
-        if (stored := config.embed(key)) is not None
-        and stored.channel_key == channel_key
+        for key in config.embed_keys_for_channel(channel_key)
     ]
 
 

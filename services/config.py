@@ -302,6 +302,17 @@ class ConfigCache:
     def embed_keys(self) -> list[str]:
         return [e.key for e in sorted(self._embeds.values(), key=lambda e: e.position)]
 
+    def embed_keys_for_channel(self, channel_key: str) -> list[str]:
+        """Keys of the embeds destined for one channel, in stored order.
+
+        Read off the stored rows: embed() would render every embed to answer it,
+        and a stale slug in one bound for another channel is not this caller's
+        to hear about.
+        """
+        return [
+            k for k in self.embed_keys() if self._embeds[k].channel_key == channel_key
+        ]
+
     def roles_for_embed(self, key: str) -> list[DiscordRole]:
         return sorted(
             (r for r in self._roles.values() if r.embed_key == key),
