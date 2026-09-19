@@ -48,9 +48,9 @@ Semgrep and there is no win32 Opengrep, `--install-dependencies` aborts the whol
 executes, exit 0, 0 issues), so with the overwritten file the gate was probably analysing
 nothing.
 
-So the file is a **merge** of the Cloud repo config and Verity's config, and it must carry
-`metadata.source: "remote"` (which stops the activation rewrite) and be read-only (which
-turns the file-creation rewrite into an `EPERM` in the extension's log):
+So the file is a **merge** of the Cloud repo config and Verity's config. The script forces
+`metadata.source` to `"remote"` (which stops the activation rewrite), and the file is then
+made read-only (which turns the file-creation rewrite into an `EPERM` in the extension's log):
 
 ```sh
 codacy-analysis init --remote gh valinmalach val-mal-bot --config-file .codacy/cloud.json
@@ -73,7 +73,8 @@ import sys
 UNRUNNABLE = {"Semgrep"}
 # See the F821 section below.
 DROP = {"Ruff_F821_undefined-name"}
-# A tool has patterns or a local config file, never both.
+# A tool has patterns or a local config file, never both. Verity's list replaces the
+# Cloud entry, flag off, for these even when Cloud sets nothing.
 VERITY_WINS = {"Ruff"}
 
 
@@ -86,8 +87,10 @@ cloud, verity = load(sys.argv[1]), load(sys.argv[2])
 tools = {t["toolId"]: t for t in cloud["tools"] if t["toolId"] not in UNRUNNABLE}
 for theirs in verity["tools"]:
     mine = tools.get(theirs["toolId"])
-    if theirs["toolId"] in VERITY_WINS:
-        # Unset, the CLI (0.23.1) uses pyproject.toml and ignores every pattern.
+    uses_local_file = mine is not None and mine.get("useLocalConfigurationFile")
+    if theirs["toolId"] in VERITY_WINS or uses_local_file:
+        # With a local config file every pattern is ignored, and for Ruff the CLI
+        # (0.23.1) finds pyproject.toml even when the flag is unset.
         tools[theirs["toolId"]] = {**theirs, "useLocalConfigurationFile": False}
     elif mine is None:
         tools[theirs["toolId"]] = theirs
@@ -99,10 +102,11 @@ for theirs in verity["tools"]:
 for tool in tools.values():
     tool["patterns"] = [p for p in tool["patterns"] if p["patternId"] not in DROP]
 excludes = set(cloud.get("exclude", [])) | set(verity.get("exclude", []))
+# Anything but "remote" and the VS Code extension regenerates the file on activation.
 json.dump(
     {
         "version": cloud["version"],
-        "metadata": cloud["metadata"],
+        "metadata": {**cloud["metadata"], "source": "remote"},
         "tools": list(tools.values()),
         "exclude": sorted(excludes),
     },
@@ -113,7 +117,8 @@ json.dump(
 
 Two things the merge cannot keep at once. **Ruff:** Cloud's entry says "use `pyproject.toml`",
 whose `[tool.ruff]` carries the same families and more (see AGENTS.md); Verity's is a
-19-pattern list including `ANN001`/`ANN201`. Verity's wins in the merged file, and a tool has
+19-pattern list including `ANN001`/`ANN201`. Verity's wins in the merged file (as does Verity's list for any merged tool whose Cloud entry
+uses a local config file, which would otherwise ignore every pattern), and a tool has
 patterns or a local config file, never both, so the gate's Ruff does not read `pyproject.toml`:
 its `E4`/`E7`/`E9` rules and the per-file `S101` ignore for `logging_json.py` do not apply
 there. `S105` and `S104` are silenced inline (`# noqa: S105  # nosec B105`), which every mode
