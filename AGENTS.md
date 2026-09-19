@@ -20,7 +20,7 @@ uv run alembic upgrade head                        # schema and the configuratio
 uv run main.py                                     # run the bot (uvicorn on PORT, default 8000)
 ```
 
-Checks, all four clean before committing, and **in this order**:
+Checks, all clean before committing, and **in this order**:
 
 ```sh
 sourcery review --fix .                            # apply what it can fix mechanically
@@ -28,6 +28,7 @@ sourcery review --check .                          # what is left needs a person
 uvx ruff format . --exclude .venv
 uvx ruff check . --exclude .venv
 uvx pyright                                        # the [tool.pyright] settings Pylance also reads
+uv run pytest --cov                                # the tests; CI runs the same and reports to Codacy
 ```
 
 `sourcery` is a global `uv tool` (`uv tool install sourcery`), kept current with
@@ -89,10 +90,16 @@ uv run alembic current
 
 On Windows `--sql` needs `PYTHONIOENCODING=utf-8`: some seeded text is emoji.
 
-**There is no test suite** — no pytest, no test files, no CI workflow. Verification
-is the four checks above plus running the bot, so do not describe a change as tested.
+**The test suite is a start, not a net.** `tests/` holds pytest tests of the pure
+rules only — `services/birthday.py` and `services/twitch/migrate_plan.py` — and none
+touches Discord, Twitch or Postgres, so coverage is about 14% and most of the code is
+I/O nobody has tested. `tests/conftest.py` fills the environment `config.settings`
+validates at import, so it must run before a test module imports anything that reaches
+`config`. `.github/workflows/coverage.yml` runs `pytest --cov` on every push and
+uploads `coverage.xml` to Codacy when the `CODACY_PROJECT_TOKEN` secret is set. Do not
+describe a change as tested unless a test exercises it.
 
-A fifth gate runs at commit time. `git commit` is intercepted by Verity, which
+One more gate runs at commit time. `git commit` is intercepted by Verity, which
 analyses the staged diff and can block the commit. It is a Claude Code hook, not a
 git hook — there is nothing in `.git/hooks`, and it does not fire for other tools.
 Its rules, and the narrow circumstances in which a finding may be waived, live in
