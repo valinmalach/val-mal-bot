@@ -56,9 +56,15 @@ made read-only (which turns the file-creation rewrite into an `EPERM` in the ext
 codacy-analysis init --remote gh valinmalach val-mal-bot --config-file .codacy/cloud.json
 verity config get | python -c "import json,sys; print(json.dumps(json.load(sys.stdin)['content'], indent=2))" > .codacy/verity.json
 attrib -R .codacy/codacy.config.json || true   # read-only from the last merge
-python .codacy/merge-config.py .codacy/cloud.json .codacy/verity.json > .codacy/codacy.config.json
+python .codacy/merge-config.py .codacy/cloud.json .codacy/verity.json > .codacy/merged.json &&
+  mv -f .codacy/merged.json .codacy/codacy.config.json
 attrib +R .codacy/codacy.config.json
 ```
+
+The merge is written aside and moved into place only if the script succeeds. `>` straight onto
+the config truncates it before Python runs, so a crash (a tool with no `patterns` key raises
+`KeyError`) would leave the gate a 0-byte file. The analyzer then exits 0 with 0 issues from
+0 tools run, which Verity records as `no_tools_ran`.
 
 The Cloud dump is `.codacy/cloud.json`, never the default path: **never run `codacy-analysis
 init` or `/configure-codacy` without `--config-file`**, or it *is* the gate's config. To change
