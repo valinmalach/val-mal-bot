@@ -1,7 +1,7 @@
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pendulum
@@ -11,6 +11,7 @@ from cogs import events
 from cogs.events import Events
 from services import audit
 from services.config import config
+from tests.audit.support import message
 
 NOW = pendulum.datetime(2026, 6, 15, 12)
 
@@ -154,3 +155,14 @@ def guild_with_log(world: EventsWorld, guild_id: int = 5) -> None:
     guild = MagicMock(spec=discord.Guild)
     guild.audit_logs = world.entries
     world.guilds[guild_id] = guild
+
+
+def sent(**kwargs: Any) -> Any:
+    """A message as the gateway hands it over, with a channel it can answer in."""
+    made = message(**kwargs)
+    made.id = 9
+    made.guild = SimpleNamespace(id=5)
+    made.attachments = []
+    made.channel.id = 55
+    made.channel.send = AsyncMock()
+    return made
