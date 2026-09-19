@@ -29,9 +29,13 @@ rule_settings:
   # into a ternary with an await in the else branch -- which gpsg's own
   # no-complex-if-expressions would then flag. Disabled by id so --fix, now part
   # of the documented check order, does not silently reapply it unattended.
+  # The tests share fakes through a support.py beside them (tests/config_cache,
+  # tests/error_reporting), and this rule reads any import under tests/ as one test
+  # module importing another. Nothing here imports a test_*.py file.
   disable:
   - assign-if-exp
   - reintroduce-else
+  - dont-import-test-modules
   rule_types:
   - refactoring
   - suggestion
