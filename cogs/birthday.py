@@ -87,9 +87,11 @@ class Birthday(GroupCog):
     async def timezone_autocomplete(
         self, _: Interaction, current_input: str
     ) -> list[Choice[str]]:
+        # timezones() is a set, so its order changes from one process to the
+        # next and the 25 kept from a broad match were an arbitrary 25.
         choices = [
             Choice(name=tz, value=tz)
-            for tz in pendulum.timezones()
+            for tz in sorted(pendulum.timezones())
             if current_input.lower() in tz.lower()
         ]
         return choices[:25]
