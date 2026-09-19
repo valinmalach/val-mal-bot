@@ -143,6 +143,27 @@ class TestFollow:
             ("111", "twitch_follow_thanks", {"user": "Fan Person"})
         ]
 
+    async def test_a_failure_is_reported_not_raised(self, world: EventWorld) -> None:
+        world.template_error = RuntimeError("boom")
+        event = ChannelFollowEventSub.model_validate(
+            {
+                "subscription": {"type": "channel.follow"},
+                "event": {
+                    "user_id": "4",
+                    "user_login": "fan",
+                    "user_name": "Fan",
+                    "broadcaster_user_id": "111",
+                    "broadcaster_user_login": "bob",
+                    "broadcaster_user_name": "Bob",
+                    "followed_at": "2026-06-15T11:59:00Z",
+                },
+            }
+        )
+
+        await events.channel_follow(event)
+
+        assert world.reported == ["Error processing Twitch follow webhook task"]
+
 
 class TestAdBreak:
     def event(self, seconds: int) -> ChannelAdBreakBeginEventSub:
@@ -315,3 +336,10 @@ class TestModerate:
         await events.channel_moderate(self.event("raid", broadcaster_id="222"))
 
         assert world.templates == []
+
+    async def test_a_failure_is_reported_not_raised(self, world: EventWorld) -> None:
+        world.template_error = RuntimeError("boom")
+
+        await events.channel_moderate(self.event("raid"))
+
+        assert world.reported == ["Error processing Twitch moderate webhook task"]
