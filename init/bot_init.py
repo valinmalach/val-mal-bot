@@ -10,7 +10,13 @@ from errors import notify, report
 
 logger = logging.getLogger(__name__)
 
-_startup_announced = False
+# Before this there were four different answers to "run once per process"
+# scattered across bot_init.py and cogs/tasks.py. What's left is one guard per
+# question on_ready actually has to answer: has the Helix/DB-heavy startup
+# work run yet (_started, decided once), and has the startup announcement
+# been delivered yet (_announced, retried on reconnect until it has).
+_started = False
+_announced = False
 
 
 async def run_background_tasks() -> None:
@@ -146,17 +152,27 @@ async def on_error(event_method: str, /, *args: object, **kwargs: object) -> Non
 
 @bot.event
 async def on_ready() -> None:
-    global _startup_announced
+    """The only per-connection entry point left, answering two different
+    questions rather than blurring them into one.
+
+    on_ready fires again every time the gateway session cannot be resumed -
+    a reconnect, not a restart. Whether `run_background_tasks` has run is
+    decided once, by `_started`: the guard is what stops its Helix/DB-heavy
+    work from running again on every reconnect, rather than relying on
+    `live_alert._start` and `stream_session._start` to no-op it away. Whether
+    the startup announcement has been *delivered* is a separate question with
+    its own state, `_announced` - a send that fails is worth retrying on the
+    next reconnect, so it is not folded into the same guard.
+    """
+    global _started, _announced
     from services.config import config
 
-    fire_and_forget(run_background_tasks(), name="startup-tasks")
+    if not _started:
+        _started = True
+        fire_and_forget(run_background_tasks(), name="startup-tasks")
 
-    if _startup_announced:
-        # on_ready fires again every time the gateway session cannot be resumed,
-        # which is a reconnect, not a startup.
+    if _announced:
         logger.info("Reconnected to Discord")
         return
 
-    # Only a delivered announcement counts as announced: one that could not be
-    # sent is tried again on the next reconnect.
-    _startup_announced = await notify(config.template("discord_startup"))
+    _announced = await notify(config.template("discord_startup"))

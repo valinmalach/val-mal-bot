@@ -50,12 +50,13 @@ class Tasks(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
 
-    @Cog.listener()
-    async def on_ready(self) -> None:
-        if not self.check_birthdays.is_running():
-            self.check_birthdays.start()
-        if not self.recheck_subscriptions.is_running():
-            self.recheck_subscriptions.start()
+    async def cog_load(self) -> None:
+        # cog_load runs once per process, before the bot logs in - each loop's
+        # own before_loop waits for the gateway instead, so this cannot start
+        # a second copy on a reconnect the way the old on_ready + is_running()
+        # check needed to guard against.
+        self.check_birthdays.start()
+        self.recheck_subscriptions.start()
 
     # What was undeliverable last time this looked. A broken subscription stays
     # broken until somebody fixes it, so a loop that reported every pass would
@@ -91,6 +92,10 @@ class Tasks(Cog):
                 + "\n".join(f"- {identity}" for identity in recovered)
             )
 
+    @recheck_subscriptions.before_loop
+    async def _before_recheck_subscriptions(self) -> None:
+        await self.bot.wait_until_ready()
+
     _quarter_hours: ClassVar[list[pendulum.Time]] = [
         pendulum.Time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
     ]
@@ -103,6 +108,10 @@ class Tasks(Cog):
             await self._process_birthday_records(due)
         except Exception as e:  # noqa: BLE001
             await report(e, "Fatal error during birthday check task")
+
+    @check_birthdays.before_loop
+    async def _before_check_birthdays(self) -> None:
+        await self.bot.wait_until_ready()
 
     async def _process_birthday_records(self, due: list[DiscordUser]) -> None:
         now = pendulum.now("UTC")

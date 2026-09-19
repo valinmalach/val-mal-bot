@@ -96,10 +96,19 @@ Stop the web server and the bot goes with it.
 **Startup order is spread across three files.** lifespan (`main.py`) → cog loading →
 `MyBot.setup_hook()` (`init/bot_init.py`: `config.load()`, `token_manager.load()`,
 the shoutout drainer, command prefix, guild command-tree sync, persistent view
-registration) → `on_ready` (background tasks; the startup announcement is guarded
-by a module flag because `on_ready` fires again every time a gateway session
-cannot be resumed). Anything wanted once per process belongs in `setup_hook` for
-that reason — the drainer is there, not beside the other background tasks.
+registration) → `on_ready`, the one gateway-connection handler left. Cog loading
+also runs `Tasks.cog_load()`, which starts `check_birthdays` and
+`recheck_subscriptions` behind their own `before_loop` wait for
+`bot.wait_until_ready()` — once per process, at load time, like the drainer.
+`on_ready` fires again every time a gateway session cannot be resumed, and it
+now answers two different questions with two separate flags instead of
+blurring them: `_started` decides once whether the Helix/DB-heavy work in
+`run_background_tasks` has run, so a reconnect can't repeat it and
+`live_alert._start`/`stream_session._start` no longer have to defend against
+that themselves; `_announced` tracks whether the startup notice has been
+*delivered*, which a failed send is still worth retrying on the next
+reconnect for. Anything wanted once per process belongs in `setup_hook` or a
+cog's `cog_load` for that reason.
 
 **A gateway listener has one floor.** `MyBot.on_error` (`init/bot_init.py`) is what
 discord.py calls when a dispatched listener — cog listeners included — raises past
