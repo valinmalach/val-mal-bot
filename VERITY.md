@@ -2,7 +2,7 @@
 
 > This project uses [Verity](https://verity.md) to enforce quality and security standards on AI-generated code.
 
-**URL:** https://ofcamwrjwrkazqvdchko.supabase.co
+**URL:** <https://ofcamwrjwrkazqvdchko.supabase.co>
 **Project:** valinmalach/val-mal-bot
 **Standard:** v1 — held on the service; `.verity/standard.yaml` is the local source
 
@@ -129,12 +129,14 @@ applies them for you, and without the second one the gate runs no static analysi
 all while still reporting success.
 
 ## Quality Dimensions
+
 - Comprehensibility (file length ≤ 400, complexity ≤ 15, function length ≤ 50, naming)
 - Modularity (separation of concerns, shallow abstractions)
 - Type Safety (ruff ANN001/ANN201; pyright `standard` is the project's authority)
 - Test Adequacy (coverage threshold 0 — there is no test suite; see AGENTS.md)
 
 ## Security Patterns
+
 - No hardcoded secrets (CWE-798)
 - Input sanitization (CWE-20)
 - Parameterized queries (CWE-89)
@@ -144,7 +146,9 @@ all while still reporting success.
 - Config file integrity (CWE-15)
 
 ## Project Patterns
+
 These come from `AGENTS.md` and `db/README.md`, and are enforced by the AI reviewer:
+
 - IDs are addressed by slug through `config.channel/role/setting/template`, never a literal snowflake
 - Background work goes through `background.fire_and_forget`, never a bare `asyncio.create_task`
 - Database text is rendered with `safe_format` / `config.render`, never bare `str.format`
@@ -152,13 +156,16 @@ These come from `AGENTS.md` and `db/README.md`, and are enforced by the AI revie
 - Configuration changes ship as an Alembic revision, under the rules in `db/README.md`
 
 ## How It Works
+
 The gate runs at **commit time**. When the agent runs `git commit`, the Verity hook:
+
 1. Runs static analysis over the staged diff via `@codacy/analysis-cli`
 2. Sends results + code to the Verity service
 3. An independent reviewer assesses the change against the Standard
 4. Returns PASS / WARN / FAIL — a FAIL blocks the commit, capped at 2 self-healing cycles
 
 ## Analysis Tools
+
 Thirteen tools, from the merge in "One config file, two owners": Verity's `Ruff`, `Trivy`,
 `shellcheck` and `Hadolint`, plus the Cloud repo config's Bandit, Checkov, Pylint,
 Prospector, Lizard, markdownlint, Agentlinter, Spectral and Jackson Linter (Semgrep left

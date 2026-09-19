@@ -1,0 +1,9 @@
+{
+  "default": true,
+  // The docs wrap at about 90 columns, and links, tables and inline code run past it.
+  "MD013": false,
+  // CLAUDE.md opens with the `@AGENTS.md` import, which has to be its first line.
+  "MD041": false,
+  // The Verity-managed block in CLAUDE.md is rewritten in place, blank lines and all.
+  "MD012": false
+}

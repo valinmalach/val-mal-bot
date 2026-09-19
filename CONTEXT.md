@@ -223,7 +223,7 @@ newer alert's row.
 standing a **stream session** down are different decisions about different
 scopes, and they are still one code path — which is how a session outlives its
 stream whenever no alert row exists to close. Resolved in language ahead of the
-code: the **alert updater** remains the only closer *of an alert*, per ADR 0001;
+code: the **alert updater** remains the only closer _of an alert_, per ADR 0001;
 the **stream session** ends itself, woken by `stream.offline` and confirmed
 against Helix. A
 `stream.offline` payload names no stream, which is fatal to the alert question
