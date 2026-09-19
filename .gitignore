@@ -192,3 +192,7 @@ cython_debug/
 .verity/*
 !.verity/standard.yaml
 .claude/settings.local.json
+
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md
