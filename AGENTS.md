@@ -112,12 +112,12 @@ nothing appears (seen on #79), and the setting has no every-push mode either. So
 job runs on `opened` as well, calling the `ai-reviewer/trigger` endpoint with
 `CODACY_API_TOKEN`, an account token; `CODACY_PROJECT_TOKEN`, which uploads coverage,
 does not authorise that call. Both also run on `ready_for_review`, because a draft is
-skipped when it opens and would otherwise get no review until its next push. Each
-secret is handed to the one step that uses it. A run
-with no secret (a fork, Dependabot, or one never configured) skips that step rather
-than failing, while a token that exists but is rejected still fails it, which is how a
-revoked one gets noticed. Two quick pushes can cost two reviews, since nothing here
-withdraws a request already accepted. The Codacy call is not retried, because a trigger
+skipped when it opens and would otherwise get no review until its next push, and on
+`reopened`, so a PR brought back from closed is reviewed too. Each secret is handed to
+the one step that uses it. A run with no secret (a fork, Dependabot, or one never
+configured) skips that step rather than failing, while a token that exists but is
+rejected still fails it, which is how a revoked one gets noticed. Two quick pushes can
+cost two reviews, since nothing here withdraws a request already accepted. The Codacy call is not retried, because a trigger
 Codacy accepted whose reply was lost would be sent twice; the first run answered 2xx
 within a second, before Codacy had started analysing that commit, so nothing needed it.
 

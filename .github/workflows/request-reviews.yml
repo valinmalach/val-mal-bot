@@ -3,10 +3,11 @@ name: Request reviews
 # Sourcery reviews a PR when it opens and only re-reviews in part after. Codacy says
 # it requested a first review on open and posts nothing until it is triggered, so it
 # is asked on open too. A draft is skipped when it opens, so `ready_for_review` asks
-# again for one that has just been marked ready.
+# again for one that has just been marked ready, and `reopened` does the same for a PR
+# brought back from closed.
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review]
+    types: [opened, synchronize, ready_for_review, reopened]
 
 # The tokens below do the work, so GITHUB_TOKEN gets nothing.
 permissions: {}
