@@ -111,13 +111,14 @@ json.dump(
 )
 ```
 
-Two things the merge cannot keep at once. **Ruff:** Cloud's entry says "use `pyproject.toml`"
-(which has no `[tool.ruff]`, so Ruff's defaults); Verity's is a 19-pattern list including
-`ANN001`/`ANN201`. Verity's wins, so Ruff's default `E4`/`E7`/`E9` rules are not in the gate
-(`uvx ruff check` covers them). Its `S101` fires 19 times in `logging_json.py`'s `_demo`
-self-check, `S105` three times on `token_type != "bearer"`, and `S104` on `main.py`'s bind
-address, so expect those whenever those files are touched. **Semgrep:** Cloud analyses with it
-(649 patterns) and the merged file cannot.
+Two things the merge cannot keep at once. **Ruff:** Cloud's entry says "use `pyproject.toml`",
+whose `[tool.ruff]` carries the same families and more (see AGENTS.md); Verity's is a
+19-pattern list including `ANN001`/`ANN201`. Verity's wins in the merged file, and a tool has
+patterns or a local config file, never both, so the gate's Ruff does not read `pyproject.toml`:
+its `E4`/`E7`/`E9` rules and the per-file `S101` ignore for `logging_json.py` do not apply
+there. `S105` and `S104` are silenced inline (`# noqa: S105  # nosec B105`), which every mode
+honours; `S101` still fires 19 times in `logging_json.py` when that file is touched.
+**Semgrep:** Cloud analyses with it (649 patterns) and the merged file cannot.
 
 The gate enforces the Standard version uploaded to the service, so it runs without a
 local copy; `.verity/standard.yaml` is only the source you edit and push from, and
@@ -240,7 +241,9 @@ evaluates the name. The modules import and `__annotations__` resolves.
 `ruff check --target-version py314` passes; py313 and below report it. The
 repo's `requires-python = ">=3.14.7"` makes the project's own Ruff infer py314,
 which is why `uvx ruff check` is clean and Verity's was not, and
-`.codacy/codacy.config.json` exposes no target-version to fix it with. F821 was
+`.codacy/codacy.config.json` exposes no target-version to fix it with (`pyproject.toml` now
+states `target-version = "py314"`, so a Ruff that reads it has no such problem; only the
+gate's pattern mode does). F821 was
 therefore removed from the list rather than suppressed: the project's own Ruff
 and pyright both enforce it correctly, so nothing is lost, and the recurring
 false positive no longer invites another suppression.

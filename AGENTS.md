@@ -34,6 +34,17 @@ uvx pyright                                        # the [tool.pyright] settings
 `uv tool upgrade --all` along with the Ruff and analyzers `VERITY.md` describes. The
 `uvx` commands above are a separate, cached copy of Ruff and pyright.
 
+The linters read their rules from the repo, so the editor, the commands above and Codacy
+agree: `[tool.ruff]`, `[tool.pylint]` and `[tool.bandit]` in `pyproject.toml`,
+`.markdownlint.jsonc` and `.prospector.yaml`. Ruff selects the families Verity's Standard
+names (F, B, S, ANN) plus BLE, I, SIM, UP, RUF and C90. `ANN401` and `UP042` are ignored
+on purpose: `Any` is deliberate in the generic config accessors, and a `StrEnum` would
+change `str()` of the `(str, Enum)` classes. A suppression says why in a comment above the
+line and marks Ruff and Bandit together, `# noqa: S105  # nosec B105`; Bandit reads
+everything after `nosec` as test ids, so no prose follows it. Ruff's formatter wraps a
+line that gets long, which moves a trailing `noqa` off the line Ruff reports on, so keep
+the markers short.
+
 **Sourcery runs first because its fixes are not guaranteed to satisfy the other
 three.** `use-named-expression` rewrote an `if matched:` into a walrus whose
 variable nothing then read — a ruff `F841` *and* a format violation, from a tool
