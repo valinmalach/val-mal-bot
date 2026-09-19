@@ -73,8 +73,8 @@ max-complexity = 15
 [tool.ruff.lint.per-file-ignores]
 # _demo is a runnable self-check, and its asserts are the point.
 "logging_json.py" = ["S101"]
-# A test is an assert.
-"tests/*" = ["S101"]
+# A test is an assert, and its credentials are made up.
+"tests/*" = ["S101", "S105", "S106"]
 
 [tool.pylint.main]
 py-version = "3.14"
@@ -116,7 +116,7 @@ enable = [
 ]
 
 [tool.bandit]
-exclude_dirs = [".venv"]
+exclude_dirs = [".venv", "tests"]
 
 [tool.bandit.assert_used]
 # logging_json._demo is a runnable self-check; its asserts are the point.
