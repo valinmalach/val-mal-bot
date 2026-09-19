@@ -127,8 +127,10 @@ whose `[tool.ruff]` carries the same families and more (see AGENTS.md); Verity's
 uses a local config file, which would otherwise ignore every pattern), and a tool has
 patterns or a local config file, never both, so the gate's Ruff does not read `pyproject.toml`:
 its `E4`/`E7`/`E9` rules and the per-file `S101` ignore for `logging_json.py` do not apply
-there. `S105` and `S104` are silenced inline (`# noqa: S105  # nosec B105`), which every mode
-honours; `S101` still fires 19 times in `logging_json.py` when that file is touched.
+there. `S104` on `main.py`'s bind address is silenced inline (`# noqa: S104  # nosec B104`),
+which every mode honours, and `S105` no longer fires on the token-type comparison, which
+lower-cases the token type first. `S101` still fires 19 times in `logging_json.py` when that
+file is touched.
 **Semgrep:** Cloud analyses with it (649 patterns) and the merged file cannot.
 
 The gate enforces the Standard version uploaded to the service, so it runs without a
