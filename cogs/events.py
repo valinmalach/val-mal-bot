@@ -74,103 +74,88 @@ class Events(Cog):
 
     @Cog.listener()
     async def on_message(self, message: Message) -> None:
-        try:
-            if self._is_bot_message(message):
-                return
+        if self._is_bot_message(message):
+            return
 
-            await self._store_message(message)
+        await self._store_message(message)
 
-            reply = config.auto_response(message.content)
-            if reply is not None:
-                await message.channel.send(reply)
-        except Exception as e:  # noqa: BLE001
-            await report(e, "Fatal error with on_message event")
+        reply = config.auto_response(message.content)
+        if reply is not None:
+            await message.channel.send(reply)
 
     @Cog.listener()
     async def on_member_join(self, member: Member) -> None:
-        try:
-            url = get_pfp(member)
-            embed = Embed(
-                description=config.template("discord_welcome", mention=member.mention),
-                color=config.color("embed_color_welcome"),
-                timestamp=pendulum.now(),
-            ).set_author(name=f"{member.name}{get_discriminator(member)}", icon_url=url)
-            embed = embed.set_image(url=url)
-            # None for a guild the gateway sent without one, which no ordinal
-            # can be made of; the footer is decoration, so it is left off.
-            if member.guild.member_count is not None:
-                embed = embed.set_footer(
-                    text=f"{get_ordinal_suffix(member.guild.member_count)} member"
-                )
-            await send_embed(
-                embed,
-                config.channel("welcome"),
+        url = get_pfp(member)
+        embed = Embed(
+            description=config.template("discord_welcome", mention=member.mention),
+            color=config.color("embed_color_welcome"),
+            timestamp=pendulum.now(),
+        ).set_author(name=f"{member.name}{get_discriminator(member)}", icon_url=url)
+        embed = embed.set_image(url=url)
+        # None for a guild the gateway sent without one, which no ordinal
+        # can be made of; the footer is decoration, so it is left off.
+        if member.guild.member_count is not None:
+            embed = embed.set_footer(
+                text=f"{get_ordinal_suffix(member.guild.member_count)} member"
             )
+        await send_embed(
+            embed,
+            config.channel("welcome"),
+        )
 
-            await audit.member_joined(member)
+        await audit.member_joined(member)
 
-            await self._safe_db_operation(
-                f"insert user {member.name} ({member.id})",
-                repository.upsert_username(member.id, member.name),
-            )
-        except Exception as e:  # noqa: BLE001
-            await report(e, "Fatal error with on_member_join event")
+        await self._safe_db_operation(
+            f"insert user {member.name} ({member.id})",
+            repository.upsert_username(member.id, member.name),
+        )
 
     @Cog.listener()
     async def on_raw_member_remove(self, payload: RawMemberRemoveEvent) -> None:
-        try:
-            member = payload.user
-            url = get_pfp(member)
-            embed = Embed(
-                description=config.template("discord_goodbye", mention=member.mention),
-                color=config.color("embed_color_goodbye"),
-                timestamp=pendulum.now(),
-            ).set_author(name=f"{member.name}{get_discriminator(member)}", icon_url=url)
-            embed = embed.set_image(url=url)
-            await send_embed(
-                embed,
-                config.channel("welcome"),
-            )
+        member = payload.user
+        url = get_pfp(member)
+        embed = Embed(
+            description=config.template("discord_goodbye", mention=member.mention),
+            color=config.color("embed_color_goodbye"),
+            timestamp=pendulum.now(),
+        ).set_author(name=f"{member.name}{get_discriminator(member)}", icon_url=url)
+        embed = embed.set_image(url=url)
+        await send_embed(
+            embed,
+            config.channel("welcome"),
+        )
 
-            await audit.member_left(member)
+        await audit.member_left(member)
 
-            await self._safe_db_operation(
-                f"remove user {member.name} ({member.id})",
-                repository.delete_user(member.id),
-            )
-        except Exception as e:  # noqa: BLE001
-            await report(e, "Fatal error with on_raw_member_remove event")
+        await self._safe_db_operation(
+            f"remove user {member.name} ({member.id})",
+            repository.delete_user(member.id),
+        )
 
     @Cog.listener()
     async def on_command_error(self, ctx: Context, error: CommandError) -> None:
-        try:
-            await audit.command_failed(ctx, error)
-        except Exception as e:  # noqa: BLE001
-            await report(e, "Fatal error with on_command_error event")
+        await audit.command_failed(ctx, error)
 
     @Cog.listener()
     async def on_member_update(self, before: Member, after: Member) -> None:
-        try:
-            if get_pfp(before) != get_pfp(after):
-                await audit.pfp_changed(after)
+        if get_pfp(before) != get_pfp(after):
+            await audit.pfp_changed(after)
 
-            added = [role for role in after.roles if role not in before.roles]
-            removed = [role for role in before.roles if role not in after.roles]
-            if added:
-                await audit.role_added(after, added)
-            if removed:
-                await audit.role_removed(after, removed)
+        added = [role for role in after.roles if role not in before.roles]
+        removed = [role for role in before.roles if role not in after.roles]
+        if added:
+            await audit.role_added(after, added)
+        if removed:
+            await audit.role_removed(after, removed)
 
-            if before.nick != after.nick:
-                await audit.nickname_changed(
-                    after,
-                    before.name if before.nick is None else before.nick,
-                    after.name if after.nick is None else after.nick,
-                )
+        if before.nick != after.nick:
+            await audit.nickname_changed(
+                after,
+                before.name if before.nick is None else before.nick,
+                after.name if after.nick is None else after.nick,
+            )
 
-            await self._handle_timeout_changes(before, after)
-        except Exception as e:  # noqa: BLE001
-            await report(e, "Fatal error with on_member_update event")
+        await self._handle_timeout_changes(before, after)
 
     async def _handle_timeout_changes(self, before: Member, after: Member) -> None:
         """A timeout that has already expired is not one, so both ends are compared."""
@@ -206,117 +191,95 @@ class Events(Cog):
 
     @Cog.listener()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent) -> None:
-        try:
-            if self._is_bot_message(payload.message, payload.cached_message):
-                return
+        if self._is_bot_message(payload.message, payload.cached_message):
+            return
 
-            before = payload.cached_message
-            after = payload.message
+        before = payload.cached_message
+        after = payload.message
 
-            if before and before.pinned != after.pinned:
-                await audit.pin_changed(after)
+        if before and before.pinned != after.pinned:
+            await audit.pin_changed(after)
 
-            # Message.content is a slot set in __init__, so reading it cannot
-            # raise; a payload without it fails inside discord.py before dispatch.
-            before_content = (
-                before.content if before else await self._get_message_content(after.id)
-            )
+        # Message.content is a slot set in __init__, so reading it cannot
+        # raise; a payload without it fails inside discord.py before dispatch.
+        before_content = (
+            before.content if before else await self._get_message_content(after.id)
+        )
 
-            if before_content == after.content:
-                return
+        if before_content == after.content:
+            return
 
-            await audit.message_edited(after, before_content)
-            await self._store_message(after)
-
-        except Exception as e:  # noqa: BLE001
-            await report(e, "Fatal error with on_raw_message_edit event")
+        await audit.message_edited(after, before_content)
+        await self._store_message(after)
 
     @Cog.listener()
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent) -> None:
-        try:
-            if self._is_bot_message(payload.cached_message):
-                return
+        if self._is_bot_message(payload.cached_message):
+            return
 
-            user_who_deleted = await self._get_audit_user(
-                payload.guild_id, discord.AuditLogAction.message_delete
+        user_who_deleted = await self._get_audit_user(
+            payload.guild_id, discord.AuditLogAction.message_delete
+        )
+        channel = self.bot.get_channel(payload.channel_id)
+        message = payload.cached_message
+
+        if message is None:
+            await audit.message_deleted_uncached(
+                content=await self._get_message_content(payload.message_id),
+                message_id=payload.message_id,
+                deleted_by=user_who_deleted,
+                channel=channel,
             )
-            channel = self.bot.get_channel(payload.channel_id)
-            message = payload.cached_message
-
-            if message is None:
-                await audit.message_deleted_uncached(
-                    content=await self._get_message_content(payload.message_id),
-                    message_id=payload.message_id,
-                    deleted_by=user_who_deleted,
-                    channel=channel,
-                )
-            else:
-                await audit.message_deleted(
-                    content=message.content,
-                    attachments=message.attachments,
-                    message_id=payload.message_id,
-                    author=message.author,
-                    deleted_by=user_who_deleted,
-                    channel=channel,
-                )
-
-            await self._safe_db_operation(
-                f"delete message {payload.message_id}",
-                repository.delete_message(payload.message_id),
+        else:
+            await audit.message_deleted(
+                content=message.content,
+                attachments=message.attachments,
+                message_id=payload.message_id,
+                author=message.author,
+                deleted_by=user_who_deleted,
+                channel=channel,
             )
-        except Exception as e:  # noqa: BLE001
-            await report(e, "Fatal error with on_raw_message_delete event")
+
+        await self._safe_db_operation(
+            f"delete message {payload.message_id}",
+            repository.delete_message(payload.message_id),
+        )
 
     @Cog.listener()
     async def on_raw_bulk_message_delete(
         self, payload: RawBulkMessageDeleteEvent
     ) -> None:
-        try:
-            user_who_deleted = await self._get_audit_user(
-                payload.guild_id, discord.AuditLogAction.message_bulk_delete
-            )
+        user_who_deleted = await self._get_audit_user(
+            payload.guild_id, discord.AuditLogAction.message_bulk_delete
+        )
 
-            await audit.bulk_deleted(
-                count=len(payload.message_ids),
-                deleted_by=user_who_deleted,
-                channel=self.bot.get_channel(payload.channel_id),
-            )
+        await audit.bulk_deleted(
+            count=len(payload.message_ids),
+            deleted_by=user_who_deleted,
+            channel=self.bot.get_channel(payload.channel_id),
+        )
 
-            for message_id in payload.message_ids:
-                await self._safe_db_operation(
-                    f"delete message {message_id}",
-                    repository.delete_message(message_id),
-                )
-        except Exception as e:  # noqa: BLE001
-            await report(e, "Fatal error with on_raw_bulk_message_delete event")
+        for message_id in payload.message_ids:
+            await self._safe_db_operation(
+                f"delete message {message_id}",
+                repository.delete_message(message_id),
+            )
 
     @Cog.listener()
     async def on_member_ban(self, guild: Guild, user: User | Member) -> None:
-        try:
-            await audit.banned(user)
-        except Exception as e:  # noqa: BLE001
-            await report(e, "Fatal error with on_member_ban event")
+        await audit.banned(user)
 
     @Cog.listener()
     async def on_member_unban(self, guild: Guild, user: User | Member) -> None:
-        try:
-            await audit.unbanned(user)
-        except Exception as e:  # noqa: BLE001
-            await report(e, "Fatal error with on_member_unban event")
+        await audit.unbanned(user)
 
     @Cog.listener()
     async def on_invite_create(self, invite: Invite) -> None:
-        try:
-            await audit.invite_created(invite)
-        except Exception as e:  # noqa: BLE001
-            await report(e, "Fatal error with on_invite_create event")
+        await audit.invite_created(invite)
 
     @Cog.listener()
     async def on_invite_delete(self, invite: Invite) -> None:
-        try:
-            await audit.invite_deleted(invite)
-        except Exception as e:  # noqa: BLE001
-            await report(e, "Fatal error with on_invite_delete event")
+        await audit.invite_deleted(invite)
 
     async def _get_message_content(self, message_id: int) -> str | None:
         """None when there is no row, which is not the same as a row storing "".

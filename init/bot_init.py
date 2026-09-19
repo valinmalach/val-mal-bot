@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 
 import discord
 from discord.ext.commands import Bot
@@ -125,6 +126,22 @@ async def on_app_command_error(
     # whatever happens when this tries to answer.
     await report(error, f"Unhandled error in /{command}")
     await _answer(interaction, "command_failed", command, "failed")
+
+
+@bot.event
+async def on_error(event_method: str, /, *args: object, **kwargs: object) -> None:
+    """The floor under every gateway listener, cog listeners included.
+
+    discord.py wraps each dispatched listener's call in its own try/except and
+    calls this from inside it on failure, handing over which `on_*` method it
+    was - the one thing that varied across the 13 near-identical
+    ``except Exception: await report(...)`` blocks this replaces in
+    `cogs/events.py`. `sys.exc_info()` still resolves the exception here,
+    since this runs from inside that except block's dynamic scope.
+    """
+    exc = sys.exc_info()[1]
+    if isinstance(exc, Exception):
+        await report(exc, f"Fatal error with {event_method} event")
 
 
 @bot.event

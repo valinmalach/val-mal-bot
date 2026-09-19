@@ -101,6 +101,17 @@ by a module flag because `on_ready` fires again every time a gateway session
 cannot be resumed). Anything wanted once per process belongs in `setup_hook` for
 that reason — the drainer is there, not beside the other background tasks.
 
+**A gateway listener has one floor.** `MyBot.on_error` (`init/bot_init.py`) is what
+discord.py calls when a dispatched listener — cog listeners included — raises past
+it, handing over the event name it was dispatched as. Every listener in
+`cogs/events.py` used to wrap its own body in `except Exception: await report(e,
+"Fatal error with on_X event")` for exactly that; `on_error` does it once, from
+`sys.exc_info()`, and a new listener needs no boilerplate to be covered. A listener
+that needs to report more than its own name keeps its own `try`/`except` and says
+why — none currently do. `_safe_db_operation`'s `try`/`except` is not this: it
+guards one write inside a listener so that failure doesn't abort the rest of the
+listener's body, and names the write, not the event.
+
 **Two configuration sources, one hard line.** `.env` → `config.settings` answers *how
 this instance authenticates and where it runs*, validated once at import and failing
 with the raw values redacted. Postgres → `ConfigCache` in `services/config.py` answers
