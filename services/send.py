@@ -2,7 +2,7 @@
 
 import discord
 from discord import CategoryChannel, Embed, ForumChannel
-from discord.abc import PrivateChannel
+from discord.abc import Messageable, PrivateChannel
 from discord.ui import View
 
 from init import bot
@@ -12,7 +12,7 @@ from init import bot
 UNSENDABLE_CHANNEL_TYPES = (ForumChannel, CategoryChannel, PrivateChannel)
 
 
-async def _sendable(channel_id: int, quiet: bool):
+async def _sendable(channel_id: int, quiet: bool) -> Messageable | None:
     """The channel, or None once it has been said that there isn't one.
 
     Most callers here are audit logging, which discards what it gets back: a

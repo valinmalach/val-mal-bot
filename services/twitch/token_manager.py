@@ -179,7 +179,8 @@ class TwitchTokenManager:
             return False
 
         auth_response = AuthResponse.model_validate(response.json())
-        if auth_response.token_type != "bearer":
+        # The OAuth scheme name, not a credential.
+        if auth_response.token_type != "bearer":  # noqa: S105  # nosec B105
             logger.error(f"Unexpected token type received: {auth_response.token_type}")
             await notify(
                 f"Unexpected token type: {auth_response.token_type}",
@@ -256,7 +257,8 @@ class TwitchTokenManager:
             return False
 
         auth_response = RefreshResponse.model_validate(response.json())
-        if auth_response.token_type != "bearer":
+        # The OAuth scheme name, not a credential.
+        if auth_response.token_type != "bearer":  # noqa: S105  # nosec B105
             logger.error(f"Unexpected token type received: {auth_response.token_type}")
             await notify(
                 f"Unexpected token type: {auth_response.token_type}",

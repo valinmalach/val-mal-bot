@@ -44,7 +44,9 @@ async def main() -> None:
             *(bot.load_extension(ext) for ext in COGS), return_exceptions=True
         )
         failures = [
-            (ext, res) for ext, res in zip(COGS, results) if isinstance(res, Exception)
+            (ext, res)
+            for ext, res in zip(COGS, results, strict=True)
+            if isinstance(res, Exception)
         ]
         for ext, exc in failures:
             logger.error("Failed to load extension %s", ext, exc_info=exc)
@@ -82,7 +84,9 @@ if __name__ == "__main__":
 
     uvicorn.run(
         app,
-        host="0.0.0.0",
+        # Railway reaches the container on its external interface, so binding all of
+        # them is the point.
+        host="0.0.0.0",  # noqa: S104  # nosec B104
         port=settings.port,
         log_level="info",
         access_log=True,

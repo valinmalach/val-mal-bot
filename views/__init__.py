@@ -27,7 +27,9 @@ class RolePickerView(View):
             self.add_item(button)
 
 
-def _toggle(button: Button[View]):
+# Unannotated on purpose: Callable[[Interaction], ...] drops the parameter's name,
+# which Button.callback's signature requires.
+def _toggle(button: Button[View]):  # noqa: ANN202
     async def callback(interaction: Interaction) -> None:
         from services.roles import roles_button_pressed
 
