@@ -31,8 +31,21 @@ class TestShortened:
 
             assert len(errors._shortened(text)) <= errors._MAX_CONTENT, width
 
-    def test_a_single_line_longer_than_the_budget_is_only_the_note(self) -> None:
-        assert errors._shortened("z" * 5000) == errors._OVERFLOW_NOTE
+    def test_a_single_line_longer_than_the_budget_keeps_its_head_and_the_note(
+        self,
+    ) -> None:
+        budget = errors._MAX_CONTENT - len(errors._OVERFLOW_NOTE) - 1
+
+        result = errors._shortened("z" * 5000)
+
+        assert result == "z" * budget + "\n" + errors._OVERFLOW_NOTE
+        assert len(result) == errors._MAX_CONTENT
+
+    def test_a_line_that_fits_exactly_is_kept_whole(self) -> None:
+        budget = errors._MAX_CONTENT - len(errors._OVERFLOW_NOTE) - 1
+        line = "w" * budget
+
+        assert errors._shortened(line) == line + "\n" + errors._OVERFLOW_NOTE
 
     def test_keeps_as_many_lines_as_fit_and_no_more(self) -> None:
         budget = errors._MAX_CONTENT - len(errors._OVERFLOW_NOTE) - 1

@@ -431,3 +431,31 @@ class TestEndToEnd:
         (call,) = admin.calls
         assert call["content"].startswith("reading the thing - Type: KeyError")
         assert call["file"].filename == "traceback.txt"
+
+
+class TestAnEnormousSingleLine:
+    """A report's summary is one line, and the attachment is the traceback, which
+    does not carry the context. If that one line is over the limit and the
+    truncation keeps nothing of it, the admin channel gets a note and no idea what
+    was being attempted."""
+
+    async def test_a_report_still_says_what_failed(self, admin: Channel) -> None:
+        await errors.report(RuntimeError("x" * 5000), "reading the thing")
+
+        (call,) = admin.calls
+        assert call["content"].startswith("reading the thing - Type: RuntimeError")
+        assert call["content"].endswith(errors._OVERFLOW_NOTE)
+        assert len(call["content"]) <= errors._MAX_CONTENT
+        assert call["file"].filename == "traceback.txt"
+
+    async def test_a_notice_keeps_its_opening_and_attaches_the_whole(
+        self, admin: Channel
+    ) -> None:
+        text = "Subscription outage: " + "y" * 5000
+
+        await errors.notify(text)
+
+        (call,) = admin.calls
+        assert call["content"].startswith("Subscription outage: yyy")
+        assert len(call["content"]) <= errors._MAX_CONTENT
+        assert call["file"].fp.read().decode() == text
