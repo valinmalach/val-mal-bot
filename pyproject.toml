@@ -126,6 +126,15 @@ skips = ["*/logging_json.py", "*/tests/*"]
 testpaths = ["tests"]
 # The modules live at the repo root, and nothing is installed as a package.
 pythonpath = ["."]
+# A misspelt marker is a test that silently runs unmarked.
+addopts = "--strict-markers"
+filterwarnings = [
+    # A coroutine nobody awaited is a call that silently did nothing, which is
+    # the failure most likely to hide in code that fires tasks and forgets them.
+    "error::RuntimeWarning",
+    # discord.py's own use of a function Python 3.16 removes; nothing here can fix it.
+    "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning:discord",
+]
 
 [tool.coverage.run]
 source = ["."]

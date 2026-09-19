@@ -16,3 +16,12 @@ os.environ |= {
     "APP_URL": "https://bot.example",
     "USE_TEST_BOT": "",
 }
+
+import pytest
+
+
+@pytest.fixture(scope="session")
+def anyio_backend() -> str:
+    """anyio's default runs every async test on every backend it knows, and trio
+    is not installed; the bot runs on asyncio alone."""
+    return "asyncio"
