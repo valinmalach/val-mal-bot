@@ -528,7 +528,21 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   `_wait_for_stream_info` are the shape to copy.
 - **Text from the database is formatted with `safe_format`**, never bare `str.format`
   — a row is not source, and one unmatched brace should not lose the whole message.
-  `config.render` additionally resolves `{channel:key}` and `{role:key}`.
+- **The accessors that hand text to Discord resolve `{channel:key}` and `{role:key}`
+  themselves.** `config.template()`, `config.embed()` and `config.auto_response()`
+  return it already rendered, and `embed()` returns a `RenderedEmbed`, not the table
+  rows, so a caller cannot send an unresolved placeholder by forgetting a step — it
+  has no raw text to send. Nothing outside `services/config.py` calls `render`; a
+  new accessor over stored text must render before it returns, as these do. An
+  auto-response goes out with `AllowedMentions.none()`, because anyone can trigger
+  one and a rendered `{role:key}` in a message would otherwise ping the role.
+- **Twitch chat never carries those two placeholders, on purpose.** It cannot show
+  a Discord mention, so no Twitch row may hold `{channel:key}` or `{role:key}`; the
+  values a chat line does fill are `{chatter}`, `{target}` and `{broadcaster}`. A
+  `twitch_command_response` skips `render` and would go out with the placeholder
+  written literally. `say_template` goes through `config.template`, which renders,
+  so a placeholder in one of its rows would go out as a raw `<#id>`. Neither is
+  guarded; nothing seeded does it.
 - **Every line either process emits is JSON, through `logging_json.JsonFormatter`.**
   Railway colors a line by which stream it landed on unless the line itself
   parses as JSON with a `level` key — `main.py` points the root logger's one

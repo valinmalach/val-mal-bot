@@ -81,7 +81,10 @@ class Events(Cog):
 
         reply = config.auto_response(message.content)
         if reply is not None:
-            await message.channel.send(reply)
+            # No mentions: anyone can trigger a reply, and it may hold a role mention.
+            await message.channel.send(
+                reply, allowed_mentions=discord.AllowedMentions.none()
+            )
 
     @Cog.listener()
     async def on_member_join(self, member: Member) -> None:

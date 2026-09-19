@@ -11,6 +11,7 @@ import json
 import logging
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any, TypeVar
 
 from sqlalchemy import select
@@ -41,6 +42,28 @@ _FORMAT_FIELD = re.compile(r"\{([^{}]*)\}")
 # a key that exists answers with its own row. It deliberately matches the
 # seeded embed_color_info, so a caller that names nothing looks like the rest.
 _FALLBACK_COLOR = 0x337FD5
+
+
+@dataclass(frozen=True)
+class RenderedField:
+    name: str
+    value: str
+    inline: bool
+
+
+@dataclass(frozen=True)
+class RenderedEmbed:
+    """A stored embed with its placeholders already resolved.
+
+    Not the table rows: handing those out left every caller to remember the
+    render() call, and one that forgot sent a literal ``{channel:key}``.
+    """
+
+    title: str | None
+    description: str | None
+    color: int | None
+    channel_key: str | None
+    fields: tuple[RenderedField, ...]
 
 
 def _field_name(field: str) -> str:
@@ -221,8 +244,8 @@ class ConfigCache:
         A doubled ``{{channel:key}}``/``{{role:key}}`` is left untouched
         rather than resolved, mirroring str.format's own ``{{``/``}}``
         escape: a caller that goes on to safe_format (template()) gets it
-        unescaped there; a caller that doesn't (build_embed calls this
-        directly) sees the doubled braces as written.
+        unescaped there; embed() and auto_response() do not, and leave the
+        doubled braces as written.
         """
 
         def replace(match: re.Match[str]) -> str:
@@ -248,11 +271,33 @@ class ConfigCache:
 
         return _PLACEHOLDER.sub(replace, text)
 
-    def embed(self, key: str) -> DiscordEmbed | None:
-        return self._embeds.get(key)
-
-    def embed_fields(self, key: str) -> list[DiscordEmbedField]:
-        return self._embed_fields.get(key, [])
+    def embed(self, key: str) -> RenderedEmbed | None:
+        """A stored embed with channel and role placeholders resolved, or None."""
+        stored = self._embeds.get(key)
+        if stored is None:
+            return None
+        source = f"discord_embed:{key}"
+        fields: list[RenderedField] = []
+        for field in self._embed_fields.get(key, []):
+            field_source = f"discord_embed_field:{key}:{field.position}"
+            fields.append(
+                RenderedField(
+                    name=self.render(field.name, source=field_source),
+                    value=self.render(field.value, source=field_source),
+                    inline=field.inline,
+                )
+            )
+        return RenderedEmbed(
+            title=self.render(stored.title, source=source) if stored.title else None,
+            description=(
+                self.render(stored.description, source=source)
+                if stored.description
+                else None
+            ),
+            color=stored.color,
+            channel_key=stored.channel_key,
+            fields=tuple(fields),
+        )
 
     def embed_keys(self) -> list[str]:
         return [e.key for e in sorted(self._embeds.values(), key=lambda e: e.position)]
@@ -264,7 +309,7 @@ class ConfigCache:
         )
 
     def auto_response(self, content: str) -> str | None:
-        """The canned reply for a message, or None if nothing matches."""
+        """The canned reply for a message, placeholders resolved, or None."""
         for row in self._auto_responses:
             subject = content if row.case_sensitive else content.lower()
             trigger = row.trigger if row.case_sensitive else row.trigger.lower()
@@ -276,7 +321,9 @@ class ConfigCache:
                 )
                 or (row.match_type is AutoResponseMatch.CONTAINS and trigger in subject)
             ):
-                return row.response
+                return self.render(
+                    row.response, source=f"discord_auto_response:{row.trigger}"
+                )
         return None
 
     def command(self, name: str) -> TwitchCommand | None:

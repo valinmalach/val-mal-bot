@@ -37,34 +37,18 @@ def _toggle(button: Button[View]):
 
 
 def build_embed(key: str) -> Embed:
-    """Render one stored embed, resolving channel and role placeholders."""
+    """One stored embed as a Discord object; config has already resolved its text."""
     stored = config.embed(key)
     if stored is None:
         raise KeyError(f"No discord_embed row keyed {key!r}")
 
     embed = Embed(
-        title=(
-            config.render(stored.title, source=f"discord_embed:{key}")
-            if stored.title
-            else None
-        ),
-        description=(
-            config.render(stored.description, source=f"discord_embed:{key}")
-            if stored.description
-            else None
-        ),
+        title=stored.title,
+        description=stored.description,
         color=stored.color if stored.color is not None else DEFAULT_COLOUR,
     )
-    for field in config.embed_fields(key):
-        embed.add_field(
-            name=config.render(
-                field.name, source=f"discord_embed_field:{key}:{field.position}"
-            ),
-            value=config.render(
-                field.value, source=f"discord_embed_field:{key}:{field.position}"
-            ),
-            inline=field.inline,
-        )
+    for field in stored.fields:
+        embed.add_field(name=field.name, value=field.value, inline=field.inline)
     return embed
 
 
