@@ -7,7 +7,7 @@ looks is a change to one file.
 """
 
 from collections.abc import Sequence
-from typing import Literal
+from typing import Any
 
 import pendulum
 from discord import (
@@ -96,6 +96,10 @@ def _embed(description: str, color: str) -> Embed:
     )
 
 
+def _templated(key: str, color: str, **values: Any) -> Embed:
+    return _embed(config.template(key, **values), color)
+
+
 def _by(embed: Embed, user: User | Member | None) -> None:
     """Author line naming a person. None is a deleter the audit log did not name.
 
@@ -125,10 +129,7 @@ async def _send(embed: Embed) -> None:
 
 async def member_joined(member: Member) -> None:
     url = get_pfp(member)
-    embed = _embed(
-        f"{member.mention} {_named(member)}",
-        "embed_color_join",
-    )
+    embed = _embed(f"{member.mention} {_named(member)}", "embed_color_join")
     _captioned(embed, config.template("audit_member_joined"), url)
     embed.set_thumbnail(url=url).add_field(
         name="**Account Age**",
@@ -144,10 +145,7 @@ async def member_left(user: User | Member) -> None:
     # The blank lines stand in for the roles field when there is none, so the
     # embed keeps its height either way.
     padding = "" if roles else "\n\n\n"
-    embed = _embed(
-        f"{user.mention} {_named(user)}{padding}",
-        "embed_color_danger",
-    )
+    embed = _embed(f"{user.mention} {_named(user)}{padding}", "embed_color_danger")
     _captioned(embed, config.template("audit_member_left"), url)
     embed.set_thumbnail(url=url).set_footer(text=f"ID: {user.id}")
     if roles:
@@ -159,23 +157,20 @@ async def member_left(user: User | Member) -> None:
     await _send(embed)
 
 
-async def _ban_state(user: User | Member, action: Literal["ban", "unban"]) -> None:
+async def _ban_state(user: User | Member, key: str, color: str) -> None:
     url = get_pfp(user)
-    embed = _embed(
-        f"{user.mention} {_named(user)}",
-        "embed_color_danger" if action == "ban" else "embed_color_info",
-    )
-    _captioned(embed, f"User {action.capitalize()}ed", url)
+    embed = _embed(f"{user.mention} {_named(user)}", color)
+    _captioned(embed, config.template(key), url)
     embed.set_thumbnail(url=url).set_footer(text=f"ID: {user.id}")
     await _send(embed)
 
 
 async def banned(user: User | Member) -> None:
-    await _ban_state(user, "ban")
+    await _ban_state(user, "audit_user_banned", "embed_color_danger")
 
 
 async def unbanned(user: User | Member) -> None:
-    await _ban_state(user, "unban")
+    await _ban_state(user, "audit_user_unbanned", "embed_color_info")
 
 
 def _guild_of(invite: Invite) -> tuple[str, str | None]:
@@ -191,15 +186,18 @@ def _guild_of(invite: Invite) -> tuple[str, str | None]:
 
 async def invite_created(invite: Invite) -> None:
     guild_name, guild_icon = _guild_of(invite)
-    channel_mention = get_channel_mention(invite.channel)
-    inviter_mention = f" by {invite.inviter.mention}" if invite.inviter else ""
+    inviter = invite.inviter.mention if invite.inviter else ""
     expiry = (
         f"<t:{int(invite.expires_at.timestamp())}:R>" if invite.expires_at else "Never"
     )
-    embed = _embed(
-        f"**Invite [{invite.code}]({invite.url}) to {channel_mention}"
-        f" created{inviter_mention}**\nExpires: {expiry}",
+    embed = _templated(
+        "audit_invite_created_by" if inviter else "audit_invite_created",
         "embed_color_info",
+        code=invite.code,
+        url=invite.url,
+        channel=get_channel_mention(invite.channel),
+        inviter=inviter,
+        expiry=expiry,
     )
     _captioned(embed, guild_name, guild_icon)
     await _send(embed)
@@ -207,19 +205,21 @@ async def invite_created(invite: Invite) -> None:
 
 async def invite_deleted(invite: Invite) -> None:
     guild_name, guild_icon = _guild_of(invite)
-    embed = _embed(
-        f"**Invite [{invite.code}]({invite.url}) deleted**", "embed_color_danger"
+    embed = _templated(
+        "audit_invite_deleted", "embed_color_danger", code=invite.code, url=invite.url
     )
     _captioned(embed, guild_name, guild_icon)
     await _send(embed)
 
 
-async def _role_change(member: Member, roles: list[Role], added: bool) -> None:
-    roles_str = " ".join([role.mention for role in roles])
-    embed = _embed(
-        f"**{member.mention} was {'given' if added else 'removed from'}"
-        f" the role{'' if len(roles) == 1 else 's'} {roles_str}**",
+async def _role_change(
+    member: Member, roles: list[Role], one: str, several: str
+) -> None:
+    embed = _templated(
+        one if len(roles) == 1 else several,
         "embed_color_info",
+        mention=member.mention,
+        roles=" ".join([role.mention for role in roles]),
     )
     _by(embed, member)
     embed.set_footer(text=f"ID: {member.id}")
@@ -227,17 +227,16 @@ async def _role_change(member: Member, roles: list[Role], added: bool) -> None:
 
 
 async def role_added(member: Member, roles: list[Role]) -> None:
-    await _role_change(member, roles, added=True)
+    await _role_change(member, roles, "audit_role_added", "audit_roles_added")
 
 
 async def role_removed(member: Member, roles: list[Role]) -> None:
-    await _role_change(member, roles, added=False)
+    await _role_change(member, roles, "audit_role_removed", "audit_roles_removed")
 
 
 async def nickname_changed(member: Member, before: str, after: str) -> None:
-    embed = _embed(
-        config.template("audit_nickname_changed", mention=member.mention),
-        "embed_color_info",
+    embed = _templated(
+        "audit_nickname_changed", "embed_color_info", mention=member.mention
     )
     _by(embed, member)
     embed.set_footer(text=f"ID: {member.id}").add_field(
@@ -247,23 +246,18 @@ async def nickname_changed(member: Member, before: str, after: str) -> None:
 
 
 async def pfp_changed(member: Member) -> None:
-    embed = _embed(
-        config.template("audit_pfp_changed", mention=member.mention),
-        "embed_color_info",
-    )
+    embed = _templated("audit_pfp_changed", "embed_color_info", mention=member.mention)
     _by(embed, member)
     embed.set_thumbnail(url=get_pfp(member)).set_footer(text=f"ID: {member.id}")
     await _send(embed)
 
 
 async def timed_out(member: Member, until: DateTime) -> None:
-    embed = _embed(
-        config.template(
-            "audit_timed_out",
-            mention=member.mention,
-            expiry=f"<t:{int(until.timestamp())}:R>",
-        ),
+    embed = _templated(
+        "audit_timed_out",
         "embed_color_info",
+        mention=member.mention,
+        expiry=f"<t:{int(until.timestamp())}:R>",
     )
     _by(embed, member)
     embed.set_footer(text=f"ID: {member.id}")
@@ -271,9 +265,8 @@ async def timed_out(member: Member, until: DateTime) -> None:
 
 
 async def timeout_lifted(member: Member) -> None:
-    embed = _embed(
-        config.template("audit_timeout_removed", mention=member.mention),
-        "embed_color_info",
+    embed = _templated(
+        "audit_timeout_removed", "embed_color_info", mention=member.mention
     )
     _by(embed, member)
     embed.set_footer(text=f"ID: {member.id}")
@@ -281,10 +274,11 @@ async def timeout_lifted(member: Member) -> None:
 
 
 async def message_edited(after: Message, before_content: str | None) -> None:
-    embed = _embed(
-        f"**Message edited in {get_channel_mention(after.channel)}**"
-        f" [Jump to Message]({after.jump_url})",
+    embed = _templated(
+        "audit_message_edited",
         "embed_color_info",
+        channel=get_channel_mention(after.channel),
+        url=after.jump_url,
     )
     _by(embed, after.author)
     embed.set_footer(text=f"ID: {after.author.id}").add_field(
@@ -294,11 +288,11 @@ async def message_edited(after: Message, before_content: str | None) -> None:
 
 
 async def pin_changed(message: Message) -> None:
-    embed = _embed(
-        f"**Message {'pinned' if message.pinned else 'unpinned'} in"
-        f" {get_channel_mention(message.channel)}**"
-        f" [Jump to Message]({message.jump_url})",
+    embed = _templated(
+        "audit_message_pinned" if message.pinned else "audit_message_unpinned",
         "embed_color_info",
+        channel=get_channel_mention(message.channel),
+        url=message.jump_url,
     )
     _by(embed, message.author)
     embed.set_footer(text=f"ID: {message.author.id}")
@@ -316,12 +310,15 @@ async def message_deleted(
 ) -> None:
     """One embed for the message, then one more for each attachment it carried."""
     channel_mention = get_channel_mention(channel)
-    deleter = "" if deleted_by is None else f" by {deleted_by.mention}"
+    deleter = "" if deleted_by is None else deleted_by.mention
     footer = f"Author: {author.id} | Message ID: {message_id}"
 
-    embed = _embed(
-        f"**Message sent by {author.mention} deleted{deleter} in {channel_mention}**",
+    embed = _templated(
+        "audit_message_deleted_by" if deleter else "audit_message_deleted",
         "embed_color_danger",
+        mention=author.mention,
+        deleter=deleter,
+        channel=channel_mention,
     )
     _by(embed, author)
     embed.set_footer(text=footer)
@@ -330,13 +327,11 @@ async def message_deleted(
     await _send(embed)
 
     for attachment in attachments:
-        embed = _embed(
-            config.template(
-                "audit_attachment_deleted",
-                mention=author.mention,
-                channel=channel_mention,
-            ),
+        embed = _templated(
+            "audit_attachment_deleted",
             "embed_color_danger",
+            mention=author.mention,
+            channel=channel_mention,
         )
         _by(embed, author)
         embed.set_footer(text=footer).set_image(url=attachment.url)
@@ -353,9 +348,11 @@ async def message_deleted_uncached(
     """A deletion the bot has no copy of the message for, only the stored text."""
     mention = UNKNOWN_USER if deleted_by is None else deleted_by.mention
     deleter_id = "Unknown ID" if deleted_by is None else deleted_by.id
-    embed = _embed(
-        f"**Message deleted by {mention} in {get_channel_mention(channel)}**",
+    embed = _templated(
+        "audit_message_deleted_uncached",
         "embed_color_danger",
+        mention=mention,
+        channel=get_channel_mention(channel),
     )
     _by(embed, deleted_by)
     embed.add_field(
@@ -367,9 +364,11 @@ async def message_deleted_uncached(
 async def bulk_deleted(
     *, count: int, deleted_by: User | Member | None, channel: MentionableChannel
 ) -> None:
-    embed = _embed(
-        f"**Bulk Delete in {get_channel_mention(channel)}, {count} messages deleted**",
+    embed = _templated(
+        "audit_bulk_deleted",
         "embed_color_info",
+        channel=get_channel_mention(channel),
+        count=count,
     )
     _by(embed, deleted_by)
     await _send(embed)
@@ -381,15 +380,14 @@ async def command_failed(ctx: Context, error: CommandError) -> None:
     Both values carry what the user typed, so both are escaped - a log entry
     must not be able to forge formatting in the channel that records it.
     """
-    embed = _embed(
-        f"**Command error in {get_channel_mention(ctx.channel)}**"
-        f" [Jump to Message]({ctx.message.jump_url})",
+    embed = _templated(
+        "audit_command_failed",
         "embed_color_info",
+        channel=get_channel_mention(ctx.channel),
+        url=ctx.message.jump_url,
     )
     _by(embed, ctx.author)
     embed.set_footer(text=f"ID: {ctx.author.id}").add_field(
-        name="**Command**",
-        value=_said(ctx.message.content),
-        inline=False,
+        name="**Command**", value=_said(ctx.message.content), inline=False
     ).add_field(name="**Error**", value=_said(str(error)), inline=False)
     await _send(embed)
