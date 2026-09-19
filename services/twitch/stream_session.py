@@ -60,11 +60,13 @@ def _start(stream: Stream) -> None:
     standing, and this is what stops that outliving the gap between two streams.
 
     Taking up the stream already held does nothing, because resetting is only
-    right for a stream that is over. `resume()` runs on every gateway
-    reconnect, not just at startup, so without this a reconnect halfway
-    through a stream would empty the queue of shoutouts already promised in
-    chat and cancel the pending ad-break warning. `live_alert._start` guards
-    the same reconnect for the same reason.
+    right for a stream that is over. `began()` can be reached again by a
+    redelivered or duplicate `stream.online`, and `resume()` can still run
+    more than once per process if a failed attempt gets retried by a later
+    reconnect - either way this must not empty the queue of shoutouts already
+    promised in chat or cancel the pending ad-break warning for a stream
+    that's still running. `live_alert._start` guards its own repeat callers
+    for the same reason.
     """
     global _stream
 

@@ -150,8 +150,10 @@ def _start(
 ) -> None:
     """Start the updater for one alert, unless it already has one.
 
-    on_ready fires again on every gateway resume, which would otherwise stack a
-    second updater per alert on each reconnect.
+    Reached from three independent places, any of which can name an alert
+    this already started: creating a new alert, `wake()`'s per-alert repair
+    (called on demand, far more often than a reconnect), and `restore_all()`
+    at startup or on a later reconnect that retries a failed one.
     """
     existing = _update_tasks.get(message_id)
     if existing is not None and not existing.done():

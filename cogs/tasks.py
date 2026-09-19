@@ -50,13 +50,11 @@ class Tasks(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
 
-    async def cog_load(self) -> None:
-        # cog_load runs once per process, before the bot logs in - each loop's
-        # own before_loop waits for the gateway instead, so this cannot start
-        # a second copy on a reconnect the way the old on_ready + is_running()
-        # check needed to guard against.
-        self.check_birthdays.start()
-        self.recheck_subscriptions.start()
+    # check_birthdays and recheck_subscriptions are started from
+    # MyBot.setup_hook() (init/bot_init.py), not from cog_load() here:
+    # cog_load runs before bot.start() calls login(), too early for
+    # Client._ready to exist yet, which is what each loop's before_loop
+    # awaits via bot.wait_until_ready().
 
     # What was undeliverable last time this looked. A broken subscription stays
     # broken until somebody fixes it, so a loop that reported every pass would

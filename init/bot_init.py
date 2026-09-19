@@ -13,8 +13,9 @@ logger = logging.getLogger(__name__)
 # Before this there were four different answers to "run once per process"
 # scattered across bot_init.py and cogs/tasks.py. What's left is one guard per
 # question on_ready actually has to answer: has the Helix/DB-heavy startup
-# work run yet (_started, decided once), and has the startup announcement
-# been delivered yet (_announced, retried on reconnect until it has).
+# work *succeeded* yet (_started, cleared by run_background_tasks on failure
+# so a reconnect retries), and has the startup announcement been delivered
+# yet (_announced, likewise retried on reconnect until it has).
 _started = False
 _announced = False
 
@@ -31,6 +32,12 @@ async def run_background_tasks() -> None:
 
     Each arm is named for what was lost rather than for the function that lost
     it, because that is what the admin channel needs to act on.
+
+    A failed arm resets `_started` so the next reconnect retries: `_started` is
+    set before this runs so an overlapping reconnect can't fire a second
+    concurrent attempt, but a Twitch outage or a cold-start database hiccup at
+    boot must not permanently strand a live alert or the stream session for
+    the rest of the process the way an unconditional one-shot would.
     """
     # Deferred: both reach services.send, which imports this package for `bot`.
     from services.twitch import live_alert, stream_session
@@ -40,9 +47,15 @@ async def run_background_tasks() -> None:
         ("resume the stream session", stream_session.resume()),
     )
     results = await asyncio.gather(*(arm for _, arm in arms), return_exceptions=True)
+    failed = False
     for (lost, _), result in zip(arms, results, strict=True):
         if isinstance(result, Exception):
+            failed = True
             await report(result, f"Startup could not {lost}")
+
+    if failed:
+        global _started
+        _started = False
 
 
 class MyBot(Bot):
@@ -51,6 +64,7 @@ class MyBot(Bot):
         self.case_insensitive = True
 
     async def setup_hook(self) -> None:
+        from cogs.tasks import Tasks
         from services.config import config
         from services.twitch.shoutout_queue import shoutout_queue
         from services.twitch.token_manager import token_manager
@@ -62,6 +76,20 @@ class MyBot(Bot):
         # reconnect: one drainer is wanted for the life of the process, and it
         # idles until a session puts something in the queue.
         fire_and_forget(shoutout_queue.drain(), name="shoutout-queue")
+
+        # Also here, not in Tasks.cog_load(): cog_load runs during cog
+        # loading, before bot.start() even calls login(), and Client._ready
+        # does not exist yet at that point -- each loop's before_loop awaiting
+        # bot.wait_until_ready() would raise RuntimeError immediately and the
+        # loop would die silently, never to run again. setup_hook runs inside
+        # login(), after the internal setup that creates _ready, so
+        # wait_until_ready() here correctly awaits the gateway's READY instead
+        # of finding nothing to wait on -- and, like the drainer, it only
+        # needs to happen once, since setup_hook itself never re-runs.
+        tasks_cog = self.get_cog("Tasks")
+        if isinstance(tasks_cog, Tasks):
+            tasks_cog.check_birthdays.start()
+            tasks_cog.recheck_subscriptions.start()
 
         self.command_prefix = config.setting("command_prefix", "$")
         guild = discord.Object(id=config.setting("guild_id"))
@@ -140,10 +168,13 @@ async def on_error(event_method: str, /, *args: object, **kwargs: object) -> Non
 
     discord.py wraps each dispatched listener's call in its own try/except and
     calls this from inside it on failure, handing over which `on_*` method it
-    was - the one thing that varied across the 13 near-identical
+    was - the one thing that varied across the near-identical
     ``except Exception: await report(...)`` blocks this replaces in
     `cogs/events.py`. `sys.exc_info()` still resolves the exception here,
-    since this runs from inside that except block's dynamic scope.
+    since this runs from inside that except block's dynamic scope. This is a
+    function on the `bot` instance via `@bot.event`, matching `on_ready`
+    below, not a method on `MyBot` - View/button callbacks have their own,
+    separate `on_error` and are not covered by this one.
     """
     exc = sys.exc_info()[1]
     if isinstance(exc, Exception):
@@ -156,13 +187,16 @@ async def on_ready() -> None:
     questions rather than blurring them into one.
 
     on_ready fires again every time the gateway session cannot be resumed -
-    a reconnect, not a restart. Whether `run_background_tasks` has run is
-    decided once, by `_started`: the guard is what stops its Helix/DB-heavy
-    work from running again on every reconnect, rather than relying on
-    `live_alert._start` and `stream_session._start` to no-op it away. Whether
-    the startup announcement has been *delivered* is a separate question with
-    its own state, `_announced` - a send that fails is worth retrying on the
-    next reconnect, so it is not folded into the same guard.
+    a reconnect, not a restart. Whether `run_background_tasks` has *succeeded*
+    is decided by `_started`: it stops a successful run's Helix/DB-heavy work
+    from repeating on every reconnect, rather than relying on
+    `live_alert._start` and `stream_session._start` to no-op it away, but
+    `run_background_tasks` itself clears the flag on failure so a later
+    reconnect still retries rather than stranding a live alert or the stream
+    session for the life of the process. Whether the startup announcement has
+    been *delivered* is a separate question with its own state, `_announced` -
+    a send that fails is worth retrying on the next reconnect too, so it is
+    not folded into the same guard.
     """
     global _started, _announced
     from services.config import config

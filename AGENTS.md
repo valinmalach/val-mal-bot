@@ -96,30 +96,40 @@ Stop the web server and the bot goes with it.
 **Startup order is spread across three files.** lifespan (`main.py`) → cog loading →
 `MyBot.setup_hook()` (`init/bot_init.py`: `config.load()`, `token_manager.load()`,
 the shoutout drainer, command prefix, guild command-tree sync, persistent view
-registration) → `on_ready`, the one gateway-connection handler left. Cog loading
-also runs `Tasks.cog_load()`, which starts `check_birthdays` and
-`recheck_subscriptions` behind their own `before_loop` wait for
-`bot.wait_until_ready()` — once per process, at load time, like the drainer.
+registration, `check_birthdays`/`recheck_subscriptions` started on the `Tasks`
+cog behind their own `before_loop` wait for `bot.wait_until_ready()`) →
+`on_ready`, the one gateway-connection handler left. The two loops start from
+`setup_hook`, not from `Tasks.cog_load()`: `cog_load` runs before `bot.start()`
+calls `login()`, too early for `Client._ready` to exist, so
+`wait_until_ready()` there raises immediately and the loop dies silently,
+never to run again — `setup_hook` runs inside `login()`, after the internal
+setup that creates `_ready`, and like the drainer only needs to happen once.
 `on_ready` fires again every time a gateway session cannot be resumed, and it
-now answers two different questions with two separate flags instead of
-blurring them: `_started` decides once whether the Helix/DB-heavy work in
-`run_background_tasks` has run, so a reconnect can't repeat it and
-`live_alert._start`/`stream_session._start` no longer have to defend against
-that themselves; `_announced` tracks whether the startup notice has been
-*delivered*, which a failed send is still worth retrying on the next
-reconnect for. Anything wanted once per process belongs in `setup_hook` or a
-cog's `cog_load` for that reason.
+answers two different questions with two separate flags instead of blurring
+them: `_started` tracks whether the Helix/DB-heavy work in
+`run_background_tasks` has *succeeded*, so a reconnect can't repeat a
+successful run and `live_alert._start`/`stream_session._start` no longer have
+to defend against that case themselves — but `run_background_tasks` clears
+`_started` on failure, so a later reconnect still retries rather than
+stranding a live alert or the stream session for good; `_announced` tracks
+whether the startup notice has been *delivered*, which a failed send is
+likewise worth retrying on the next reconnect. Anything wanted once per
+process belongs in `setup_hook` for that reason.
 
-**A gateway listener has one floor.** `MyBot.on_error` (`init/bot_init.py`) is what
-discord.py calls when a dispatched listener — cog listeners included — raises past
-it, handing over the event name it was dispatched as. Every listener in
+**A gateway listener has one floor.** `on_error` (`init/bot_init.py`, a function on
+the `bot` instance via `@bot.event`, matching `on_ready` — not a method on `MyBot`)
+is what discord.py calls when a dispatched listener — cog listeners included —
+raises past it, handing over the event name it was dispatched as. Every listener in
 `cogs/events.py` used to wrap its own body in `except Exception: await report(e,
 "Fatal error with on_X event")` for exactly that; `on_error` does it once, from
 `sys.exc_info()`, and a new listener needs no boilerplate to be covered. A listener
 that needs to report more than its own name keeps its own `try`/`except` and says
 why — none currently do. `_safe_db_operation`'s `try`/`except` is not this: it
 guards one write inside a listener so that failure doesn't abort the rest of the
-listener's body, and names the write, not the event.
+listener's body, and names the write, not the event. This floor is dispatch-only:
+a `discord.ui.View`/button callback that raises reaches `View.on_error` instead,
+which is unrelated and still just logs — not covered here, and not something
+issue #24 touched.
 
 **Two configuration sources, one hard line.** `.env` → `config.settings` answers *how
 this instance authenticates and where it runs*, validated once at import and failing
