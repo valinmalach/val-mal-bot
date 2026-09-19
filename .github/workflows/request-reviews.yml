@@ -8,29 +8,40 @@ on:
 # The tokens below do the work, so GITHUB_TOKEN gets nothing.
 permissions: {}
 
-# Two quick pushes should not queue two reviews.
+# A newer push cancels a run still retrying, so a stale retry does not fire after
+# the next push has already asked. A request that was accepted stays queued: nothing
+# here withdraws one, so two quick pushes can still cost two reviews.
 concurrency:
   group: review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   sourcery:
-    # Sourcery skips drafts, and Dependabot runs get no Actions secrets.
-    if: ${{ !github.event.pull_request.draft && github.actor != 'dependabot[bot]' }}
+    # Sourcery skips drafts.
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
+    env:
+      # Only whether the secret exists, never the secret. A fork or a Dependabot run
+      # gets no secrets and skips the step; a token that exists but has expired still
+      # fails it, which is how an expiry gets noticed.
+      HAS_SOURCERY_TOKEN: ${{ secrets.SOURCERY_TRIGGER_TOKEN != '' }}
     steps:
-      - run: gh pr comment "$PR" --repo "$REPO" --body "@sourcery-ai review"
+      - if: ${{ env.HAS_SOURCERY_TOKEN == 'true' }}
+        run: gh pr comment "$PR" --repo "$REPO" --body "@sourcery-ai review"
         env:
           GH_TOKEN: ${{ secrets.SOURCERY_TRIGGER_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
 
   codacy:
-    if: ${{ !github.event.pull_request.draft && github.actor != 'dependabot[bot]' }}
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
+    env:
+      HAS_CODACY_TOKEN: ${{ secrets.CODACY_API_TOKEN != '' }}
     steps:
       # Codacy may still be analysing the new commit when this fires, so retry.
-      - run: >
+      - if: ${{ env.HAS_CODACY_TOKEN == 'true' }}
+        run: >
           curl -fsS --retry 6 --retry-delay 30 --retry-all-errors -X POST
           -H "api-token: $CODACY_API_TOKEN"
           "https://api.codacy.com/api/v3/analysis/organizations/gh/$OWNER/repositories/$NAME/pull-requests/$PR/ai-reviewer/trigger"

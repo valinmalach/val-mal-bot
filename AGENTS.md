@@ -110,8 +110,12 @@ first review (its *Run reviewer* setting has no every-push mode), so the workflo
 the `ai-reviewer/trigger` endpoint with `CODACY_API_TOKEN`, an account token;
 `CODACY_PROJECT_TOKEN`, which uploads coverage, does not authorise that call. Both run on
 `synchronize` only, since both already review a PR when it opens, and each secret is
-handed to the one step that uses it. The `--retry` on the Codacy call assumes the trigger
-can land before the commit has been analysed; nothing has confirmed that.
+handed to the one step that uses it. A run with no secret (a fork, Dependabot, or one
+never configured) skips that step rather than failing, while a token that exists but
+has expired still fails it, which is how an expiry gets noticed. A newer push cancels a
+run still retrying but cannot withdraw a request already accepted, so two quick pushes
+can still cost two reviews. The `--retry` on the Codacy call assumes the trigger can
+land before the commit has been analysed; nothing has confirmed that.
 
 One more gate runs at commit time. `git commit` is intercepted by Verity, which
 analyses the staged diff and can block the commit. It is a Claude Code hook, not a
