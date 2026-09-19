@@ -13,7 +13,7 @@ from constants import TokenType
 from errors import notify
 from models.twitch_api_responses.ad_schedule import AdSchedule, AdScheduleResponse
 from models.twitch_api_responses.channel import Channel, ChannelResponse
-from models.twitch_api_responses.stream import Stream, StreamResponse
+from models.twitch_api_responses.stream import Stream, StreamResponse, StreamType
 from models.twitch_api_responses.subscription import Subscription, SubscriptionResponse
 from models.twitch_api_responses.user import User, UserResponse
 from models.twitch_api_responses.video import Video, VideoResponse
@@ -64,6 +64,15 @@ async def get_stream(broadcaster_id: int) -> Stream | None:
         StreamResponse, "GET", "/streams", params={"user_id": broadcaster_id}
     )
     return payload.data[0] if payload.data else None
+
+
+def live_stream(stream: Stream | None) -> Stream | None:
+    """The stream Helix says is running, or None -- the one answer every caller
+    that asks "is this live" has to agree on. ``StreamType`` has exactly two
+    members, ``live`` and ``error``; an error-typed stream is refused here
+    once rather than by each caller re-deriving the same check.
+    """
+    return stream if stream is not None and stream.type == StreamType.live else None
 
 
 async def get_stream_vod(user_id: int, stream_id: int) -> Video | None:
