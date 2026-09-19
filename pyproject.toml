@@ -119,3 +119,9 @@ exclude_dirs = [".venv"]
 [tool.bandit.assert_used]
 # logging_json._demo is a runnable self-check; its asserts are the point.
 skips = ["*/logging_json.py"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+]
