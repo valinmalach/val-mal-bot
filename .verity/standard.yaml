@@ -197,8 +197,8 @@ process_constraints:
 tool_configuration:
   ruff:
     enabled: true
-    config_file: null
-    note: "No [tool.ruff] section in pyproject.toml — the project runs `uvx ruff check .` on defaults. The gate's rule set is the Ruff patterns in .codacy/codacy.config.json, independent of that."
+    config_file: "pyproject.toml"
+    note: "[tool.ruff] in pyproject.toml carries the project's rules (see AGENTS.md), which `uvx ruff check .`, the editor and Codacy Cloud read. The gate's rule set is the Ruff pattern list in .codacy/codacy.config.json, which is Verity's own and does not read pyproject.toml."
   trivy:
     enabled: true
   shellcheck:

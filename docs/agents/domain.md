@@ -13,7 +13,7 @@ If either doesn't exist, **proceed silently**. Don't flag their absence; don't s
 
 ## File structure
 
-```
+```text
 /
 ├── CONTEXT.md
 ├── docs/adr/

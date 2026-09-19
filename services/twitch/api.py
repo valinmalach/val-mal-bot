@@ -40,7 +40,7 @@ async def get_user_by_username(username: str) -> User | None:
 async def get_users(ids: list[str]) -> list[User]:
     """Every user named, fetched in the batches of 100 Helix allows."""
     users: list[User] = []
-    for batch in itertools.batched(ids, 100):
+    for batch in itertools.batched(ids, 100, strict=False):
         payload = await helix.fetch(
             UserResponse, "GET", "/users", params={"id": list(batch)}
         )

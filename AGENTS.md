@@ -30,6 +30,21 @@ uvx ruff check . --exclude .venv
 uvx pyright                                        # the [tool.pyright] settings Pylance also reads
 ```
 
+`sourcery` is a global `uv tool` (`uv tool install sourcery`), kept current with
+`uv tool upgrade --all` along with the Ruff and analyzers `VERITY.md` describes. The
+`uvx` commands above are a separate, cached copy of Ruff and pyright.
+
+The linters read their rules from the repo, so the editor, the commands above and Codacy
+agree: `[tool.ruff]`, `[tool.pylint]` and `[tool.bandit]` in `pyproject.toml`,
+`.markdownlint.jsonc` and `.prospector.yaml`. Ruff selects the families Verity's Standard
+names (F, B, S, ANN) plus BLE, I, SIM, UP, RUF and C90. `ANN401` and `UP042` are ignored
+on purpose: `Any` is deliberate in the generic config accessors, and a `StrEnum` would
+change `str()` of the `(str, Enum)` classes. A suppression says why in a comment above the
+line and marks Ruff and Bandit together, `# noqa: S104  # nosec B104`; Bandit reads
+everything after `nosec` as test ids, so no prose follows it. Ruff's formatter wraps a
+line that gets long, which moves a trailing `noqa` off the line Ruff reports on, so keep
+the markers short.
+
 **Sourcery runs first because its fixes are not guaranteed to satisfy the other
 three.** `use-named-expression` rewrote an `if matched:` into a walrus whose
 variable nothing then read — a ruff `F841` *and* a format violation, from a tool
@@ -52,9 +67,10 @@ set (`sourcery review --enable gpsg .`) is deliberately not enabled: 232 of its
 It is worth running by hand occasionally for the dozen findings that are not.
 
 **A PEP 695 parameter list blinds Sourcery to the whole file, silently.** Sourcery
-1.45 returns no pattern-rule findings at all for a file containing `def f[T]`,
-`class C[T]` or `type X = ...` — no parse error, no warning, and a clean report
-that reads exactly like a clean file. Worse, it is partial: structural rules such
+1.45 and 1.46 (both checked, with a planted `create_task` and `print` in a file with
+and without a `def f[T]`) return no pattern-rule findings at all for a file containing
+`def f[T]`, `class C[T]` or `type X = ...` — no parse error, no warning, and a clean
+report that reads exactly like a clean file. Worse, on 1.45 it is partial: structural rules such
 as `no-long-functions` still fire, so the output looks normal while every custom
 rule above has stopped guarding that file. `controller/twitch.py` is in this state
 today because `_route[E: BaseModel]` is worth more than the coverage; nothing else

@@ -1,0 +1,44 @@
+# The merged Codacy config runs Prospector for pyflakes, mccabe and dodgy only; the rest
+# of what it can drive is a separate tool here (pylint, bandit, ruff) or a convention
+# this repo rejects (pydocstyle, pycodestyle line length).
+strictness: none
+doc-warnings: false
+test-warnings: false
+member-warnings: false
+autodetect: false
+
+ignore-paths:
+  - .venv
+
+pyflakes:
+  run: true
+
+mccabe:
+  run: true
+  options:
+    max-complexity: 15
+
+dodgy:
+  run: true
+
+profile-validator:
+  run: true
+
+pylint:
+  run: false
+bandit:
+  run: false
+pycodestyle:
+  run: false
+pydocstyle:
+  run: false
+mypy:
+  run: false
+pyright:
+  run: false
+pyroma:
+  run: false
+vulture:
+  run: false
+ruff:
+  run: false

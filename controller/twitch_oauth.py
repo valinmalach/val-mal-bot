@@ -125,7 +125,8 @@ async def _oauth_callback_common(
         raise HTTPException(status_code=500)
 
     auth_response = RefreshResponse.model_validate(response.json())
-    if auth_response.token_type != "bearer":
+    # RFC 6749: the token type is case insensitive.
+    if auth_response.token_type.lower() != "bearer":
         logger.error(
             f"Token exchange failed: unexpected token type {auth_response.token_type}"
         )

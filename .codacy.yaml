@@ -1,0 +1,13 @@
+---
+engines:
+  bandit:
+    exclude_paths:
+      - "logging_json.py"
+  lizard:
+    exclude_paths:
+      - "migrations/versions/20260828_0022_0002_seed_config.py"
+  markdownlint:
+    exclude_paths:
+      # Every Verity reconcile adds a blank line after its preserve marker (MD012), and
+      # Codacy's markdownlint does not read .markdownlint.jsonc, where MD012 is off.
+      - "CLAUDE.md"
