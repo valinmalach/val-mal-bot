@@ -292,6 +292,16 @@ class TestSubscriptions:
         assert admin.sent[0][1]["embed"].fields == []
         assert admin.asked == [["2"]]
 
+    async def test_a_lookup_that_returns_only_empty_entries_adds_no_field(
+        self, admin: Admin
+    ) -> None:
+        admin.listing = listing(("a.type", "1", "enabled"))
+        admin.users["1"] = [None]
+
+        await run(TwitchAdmin.subscriptions, admin.interaction())
+
+        assert admin.sent[0][1]["embed"].fields == []
+
 
 class TestSubscribeAndUnsubscribe:
     @pytest.mark.parametrize(
