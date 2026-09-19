@@ -5,21 +5,10 @@ from unittest.mock import AsyncMock
 import discord
 import pytest
 
-from tests.audit.support import attachment, channel, message, person
-from tests.cogs.events_world import EventsWorld, cog, guild_with_log
+from tests.audit.support import attachment, channel, person
+from tests.cogs.events_world import EventsWorld, cog, guild_with_log, sent
 
 pytestmark = pytest.mark.anyio
-
-
-def sent(**kwargs: Any) -> Any:
-    """A message as the gateway hands it over, with a channel it can answer in."""
-    made = message(**kwargs)
-    made.id = 9
-    made.guild = SimpleNamespace(id=5)
-    made.attachments = []
-    made.channel.id = 55
-    made.channel.send = AsyncMock()
-    return made
 
 
 class TestOnMessage:
@@ -373,44 +362,3 @@ class TestOnRawBulkMessageDelete:
         await cog(ev).on_raw_bulk_message_delete(self.payload(set()))
 
         assert ev.calls("bulk_deleted")[0][1]["count"] == 0
-
-
-class TestHelpers:
-    async def test_a_stored_empty_string_is_a_row_not_a_miss(
-        self, ev: EventsWorld
-    ) -> None:
-        ev.rows[9] = SimpleNamespace(contents="")
-
-        assert await cog(ev)._get_message_content(9) == ""
-        assert await cog(ev)._get_message_content(10) is None
-
-    async def test_a_stored_message_with_no_text_is_none_from_its_column(
-        self, ev: EventsWorld
-    ) -> None:
-        ev.rows[9] = SimpleNamespace(contents=None)
-
-        assert await cog(ev)._get_message_content(9) is None
-
-    async def test_is_bot_message_looks_at_every_message_given_and_skips_none(
-        self, ev: EventsWorld
-    ) -> None:
-        instance = cog(ev)
-        mine, theirs = sent(author=ev.bot_user), sent()
-
-        assert instance._is_bot_message(theirs, mine) is True
-        assert instance._is_bot_message(None, theirs) is False
-        assert instance._is_bot_message(None, None) is False
-        assert instance._is_bot_message() is False
-
-    async def test_a_failed_write_is_reported_under_its_own_name_and_never_raised(
-        self, ev: EventsWorld
-    ) -> None:
-        async def boom() -> None:
-            raise RuntimeError("x")
-
-        await cog(ev)._safe_db_operation("do the thing", boom())
-
-        assert ev.reported == ["Failed to do the thing"]
-
-    async def test_no_guild_id_means_no_audit_lookup(self, ev: EventsWorld) -> None:
-        assert await cog(ev)._get_audit_user(None, discord.AuditLogAction.kick) is None

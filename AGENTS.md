@@ -105,8 +105,8 @@ fails without the fix.
 `tests/` has a directory per area with its own `conftest.py` for fixtures and
 `support.py` for fakes, imported as `tests.<area>.support` — which is why Sourcery's
 `dont-import-test-modules` is disabled by id in `.sourcery.yaml`. Keep a test file under
-about 470 lines: a Verity review drops the middle of a longer one and says the file is
-unchecked. `tests/conftest.py` fills the environment `config.settings` validates at
+400 lines, which is Verity's `file_length` signal; past about 470 a review also drops the
+middle of a file and says it is unchecked. `tests/conftest.py` fills the environment `config.settings` validates at
 import, so it must run before a test module imports anything that reaches `config`.
 Async tests carry `pytestmark = pytest.mark.anyio`, and `error::RuntimeWarning` in
 `[tool.pytest.ini_options]` turns an unawaited coroutine into a failure.
