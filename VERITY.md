@@ -252,6 +252,17 @@ false positive no longer invites another suppression.
 0.16.8 with the pattern on: `shoutout_queue.py:28` and `token_manager.py:29`, both this
 case, nothing else.
 
+It returns it because `verity init` pushes the analysis config to the service as part of
+its own run ("Analysis config pushed"), and the removal was made on the service by a
+`verity config push` on 2026-09-10. On 2026-09-18 `verity init` ran (13:59:10Z, per
+`verity doctor`) and the service copy's `updated_at` is one second later: F821 was back
+and `S104` added. So expect `verity config get` to regress after any `verity init`, and
+restore from the merge, never from `verity config get` alone. The gate runs from the
+local file, and the only readers of the service copy found are `verity config get` and
+`verity doctor`, so it is left as is rather than pushed over again, which the next `init`
+would undo. If the service turns out to use its copy for the review, push a Verity-only,
+F821-free file with `verity config push --file`, never the merged one.
+
 ### Two Windows workarounds this setup depends on
 
 Both are upstream bugs in the current releases (`@codacy/verity-cli` 0.31.1,
