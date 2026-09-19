@@ -99,6 +99,20 @@ validates at import, so it must run before a test module imports anything that r
 uploads `coverage.xml` to Codacy when the `CODACY_PROJECT_TOKEN` secret is set. Do not
 describe a change as tested unless a test exercises it.
 
+**A full review on every push is requested by `.github/workflows/request-reviews.yml`,
+because neither reviewer does one itself.** Sourcery re-reviews each commit on its own,
+but only re-checks its existing comments and re-runs its security scans: the inline
+comments are not regenerated, and after five re-reviews it stops. `@sourcery-ai review`
+runs a full one, and Sourcery ignores comments from other bots, so the workflow posts it
+with `SOURCERY_TRIGGER_TOKEN`, a fine-grained personal access token that expires, after
+which the trigger stops silently. Codacy's AI Reviewer runs by itself only for the
+first review (its *Run reviewer* setting has no every-push mode), so the workflow calls
+the `ai-reviewer/trigger` endpoint with `CODACY_API_TOKEN`, an account token;
+`CODACY_PROJECT_TOKEN`, which uploads coverage, does not authorise that call. Both run on
+`synchronize` only, since both already review a PR when it opens, and each secret is
+handed to the one step that uses it. The `--retry` on the Codacy call assumes the trigger
+can land before the commit has been analysed; nothing has confirmed that.
+
 One more gate runs at commit time. `git commit` is intercepted by Verity, which
 analyses the staged diff and can block the commit. It is a Claude Code hook, not a
 git hook — there is nothing in `.git/hooks`, and it does not fire for other tools.

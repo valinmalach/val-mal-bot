@@ -1,0 +1,41 @@
+name: Request reviews
+
+# Sourcery and Codacy both review a PR when it opens; this covers every push after.
+on:
+  pull_request:
+    types: [synchronize]
+
+# The tokens below do the work, so GITHUB_TOKEN gets nothing.
+permissions: {}
+
+# Two quick pushes should not queue two reviews.
+concurrency:
+  group: review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  sourcery:
+    # Sourcery skips drafts, and Dependabot runs get no Actions secrets.
+    if: ${{ !github.event.pull_request.draft && github.actor != 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh pr comment "$PR" --repo "$REPO" --body "@sourcery-ai review"
+        env:
+          GH_TOKEN: ${{ secrets.SOURCERY_TRIGGER_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+
+  codacy:
+    if: ${{ !github.event.pull_request.draft && github.actor != 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      # Codacy may still be analysing the new commit when this fires, so retry.
+      - run: >
+          curl -fsS --retry 6 --retry-delay 30 --retry-all-errors -X POST
+          -H "api-token: $CODACY_API_TOKEN"
+          "https://api.codacy.com/api/v3/analysis/organizations/gh/$OWNER/repositories/$NAME/pull-requests/$PR/ai-reviewer/trigger"
+        env:
+          CODACY_API_TOKEN: ${{ secrets.CODACY_API_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          NAME: ${{ github.event.repository.name }}
+          PR: ${{ github.event.pull_request.number }}
