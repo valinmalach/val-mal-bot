@@ -26,15 +26,15 @@ rule_settings:
   # unstructured stdout beside the logger everything else uses.
   - no-debug
   # Both fire on the same guard in token_manager._guarded and turn a guard clause
-  # into a ternary with an await in the else branch -- which gpsg's own
-  # no-complex-if-expressions would then flag. Disabled by id so --fix, now part
-  # of the documented check order, does not silently reapply it unattended.
-  # The tests share fakes through a support.py beside them (tests/config_cache,
-  # tests/error_reporting), and this rule reads any import under tests/ as one test
-  # module importing another. Nothing here imports a test_*.py file.
+  # into a ternary with an await in the else branch, which gpsg's own
+  # no-complex-if-expressions would then flag. Disabled by id so --fix does not
+  # reapply them unattended.
   disable:
   - assign-if-exp
   - reintroduce-else
+  # Reads any import under tests/ as one test module importing another, but the
+  # tests share fakes through a support.py beside them (tests/core/config,
+  # tests/core/errors) and nothing imports a test_*.py file.
   - dont-import-test-modules
   rule_types:
   - refactoring
