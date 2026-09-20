@@ -14,8 +14,7 @@ import logging
 _LEVELS = {"WARNING": "warn", "CRITICAL": "error"}
 
 # Every attribute a LogRecord carries regardless of call site. Read off a real
-# instance rather than listed by hand, so a stdlib version that adds one (as
-# 3.12 did with taskName) does not silently turn into a spurious extra field.
+# instance, so one a new stdlib adds (taskName in 3.12) is not taken for an extra.
 _RESERVED = frozenset(logging.LogRecord("", 0, "", 0, "", (), None).__dict__) | {
     "message",
     "asctime",
@@ -34,37 +33,29 @@ class JsonFormatter(logging.Formatter):
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
         # not in payload: an extra= key named level/message/logger/exception
-        # must not overwrite the field it collides with -- getMessage() and
-        # record.name are always plain strings, so this can only drop an
-        # extra, never the record's own level, text or logger name.
+        # is dropped rather than overwriting the record's own field.
         payload |= (
             (k, v)
             for k, v in record.__dict__.items()
             if k not in _RESERVED and k not in payload
         )
         try:
-            # default=str: a value this can't serialise must not lose the
-            # line to "--- Logging error ---" on stderr.
+            # default=str: an unserialisable value must not lose the line to
+            # "--- Logging error ---" on stderr.
             return json.dumps(payload, default=str)
         except Exception as exc:  # noqa: BLE001
-            # default=str only covers a type json.dumps doesn't recognise.
-            # A circular extra= value raises ValueError, and a non-primitive
-            # dict key (an Enum member, a tuple) raises TypeError -- neither
-            # reaches default, since it's not the value being rejected. Naming
-            # only those two stopped being enough the moment default=str calls
-            # an extra= value's own __str__: that call can raise anything, so
-            # this has to be Exception, not an enumerable list of types. The
-            # three fields above are always plain strings, so this retry can't
-            # fail the same way.
+            # default=str only covers a type json.dumps does not recognise. A
+            # circular value (ValueError) or a non-primitive dict key
+            # (TypeError) never reaches it, and default=str calls the value's
+            # own __str__, which can raise anything. The three fields below
+            # are plain strings, so this retry cannot fail the same way.
             return json.dumps(
                 {
                     "level": payload["level"],
                     "message": payload["message"],
                     "logger": payload["logger"],
-                    # type(exc).__name__, not str(exc): a class attribute
-                    # lookup can't call a broken __str__ the way interpolating
-                    # exc itself could -- including on exc's own class, if
-                    # that's what a hostile extra= value chose to raise.
+                    # type(exc).__name__, not str(exc), which a broken __str__
+                    # on exc's own class could make raise again.
                     "formatter_error": f"an extra field was not JSON-serialisable ({type(exc).__name__})",
                 }
             )

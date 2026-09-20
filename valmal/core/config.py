@@ -1,10 +1,7 @@
 """In-memory snapshot of the configuration tables.
 
-Loaded once at startup, in setup_hook(). load() is public and awaitable so a
-future admin command or periodic task can reload it, but nothing calls it
-again today -- an edit made in the database takes effect on the next
-restart, not before it. Accessors are synchronous because the call sites are
-everywhere and mostly not async.
+Loaded once, in setup_hook(), so an edit made in the database takes effect on
+the next restart. Accessors are synchronous because most call sites are not async.
 """
 
 import json
@@ -37,9 +34,8 @@ from valmal.db.session import session_scope
 logger = logging.getLogger(__name__)
 
 
-# Only reached when a colour key is missing from the settings table entirely;
-# a key that exists answers with its own row. It deliberately matches the
-# seeded embed_color_info, so a caller that names nothing looks like the rest.
+# For a colour key missing from the settings table; matches the seeded
+# embed_color_info.
 _FALLBACK_COLOR = 0x337FD5
 
 
@@ -113,9 +109,8 @@ class ConfigCache:
         for field in sorted(fields, key=lambda f: f.position):
             self._embed_fields.setdefault(field.embed_key, []).append(field)
 
-        # By id: the first row that matches wins, and Postgres promises no order
-        # without an ORDER BY -- an UPDATE can move a row -- so which of two
-        # overlapping replies fired would change when an admin edited one.
+        # By id: the first match wins, and without an ORDER BY an UPDATE can move a
+        # row, changing which of two overlapping replies fires.
         self._auto_responses = [
             a for a in sorted(autos, key=lambda a: a.id or 0) if a.enabled
         ]
@@ -168,9 +163,8 @@ class ConfigCache:
         """Render a message template, resolving channel and role placeholders.
 
         A missing row, a stale channel/role slug, or a malformed field (e.g.
-        a compound reference like {mention.foo} against a plain string) all
-        degrade to an admin notice instead of raising, per notify_soon's own
-        docstring.
+        {mention.foo} against a plain string) degrades to an admin notice
+        instead of raising.
         """
         content = self._templates.get(key)
         if content is None:
@@ -188,17 +182,13 @@ class ConfigCache:
     def render(self, text: str, *, source: str) -> str:
         """Turn {channel:key} and {role:key} into Discord mentions.
 
-        ``source`` names the template/embed this text came from, so the
-        admin notice for a stale slug says what to fix -- not just which
-        slug, since two different rows can share one dangling placeholder.
-        A slug with no row is left as the literal placeholder, like
-        safe_format leaves an unformattable brace, rather than raising.
+        ``source`` names the template/embed this text came from, so a stale-slug
+        notice says which row to fix. A slug with no row is left as the literal
+        placeholder rather than raising.
 
-        A doubled ``{{channel:key}}``/``{{role:key}}`` is left untouched
-        rather than resolved, mirroring str.format's own ``{{``/``}}``
-        escape: a caller that goes on to safe_format (template()) gets it
-        unescaped there; embed() and auto_response() do not, and leave the
-        doubled braces as written.
+        A doubled ``{{channel:key}}``/``{{role:key}}`` is left untouched, like
+        str.format's ``{{``/``}}`` escape: template() unescapes it through
+        safe_format; embed() and auto_response() leave the doubled braces.
         """
 
         def replace(match: re.Match[str]) -> str:
@@ -253,8 +243,7 @@ class ConfigCache:
         )
 
     def embed_keys(self) -> list[str]:
-        # Key breaks a tie: positions are not unique, and a tie left to the order
-        # the database returned rows in is an order that changes on an UPDATE.
+        # Key breaks a tie: positions are not unique, and row order changes on an UPDATE.
         return [
             e.key
             for e in sorted(self._embeds.values(), key=lambda e: (e.position, e.key))
@@ -263,9 +252,8 @@ class ConfigCache:
     def embed_keys_for_channel(self, channel_key: str) -> list[str]:
         """Keys of the embeds destined for one channel, in stored order.
 
-        Read off the stored rows: embed() would render every embed to answer it,
-        and a stale slug in one bound for another channel is not this caller's
-        to hear about.
+        Read off the stored rows: embed() would render every embed, and a stale
+        slug in one bound for another channel is not this caller's to hear about.
         """
         return [
             k for k in self.embed_keys() if self._embeds[k].channel_key == channel_key
@@ -319,9 +307,8 @@ def _coerce(setting: AppSetting) -> Any:
 
 config = ConfigCache()
 
-# Not a PEP 695 parameter list: Sourcery 1.45 silently analyses nothing in a
-# file that has one, so the custom rules stop guarding it and say so by
-# reporting clean.
+# Not a PEP 695 parameter list: Sourcery silently skips its custom rules in a
+# file that has one (see AGENTS.md).
 _CheckT = TypeVar("_CheckT")
 
 
@@ -340,10 +327,9 @@ def has_configured_role(key: str) -> Callable[[_CheckT], _CheckT]:
         try:
             role_id = config.role(key)
         except KeyError as missing:
-            # discord.py hands only an AppCommandError to the tree's error handler,
-            # so the KeyError for a role row that is gone would leave the person on
-            # a spinner and tell nobody. Not a CheckFailure either: that reads as
-            # a refusal, and this is a configuration fault to report.
+            # The tree's error handler only gets an AppCommandError, so a KeyError
+            # would leave the person on a spinner. Not a CheckFailure: that reads
+            # as a refusal, and this is a configuration fault to report.
             raise app_commands.AppCommandError(str(missing)) from missing
         return any(role.id == role_id for role in member.roles)
 
