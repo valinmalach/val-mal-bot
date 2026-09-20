@@ -5,6 +5,7 @@ import pytest
 
 import valmal.twitch.eventsub.router as ctl
 from tests.webhook.support import Hooks, delivery, iso, sign, stream_online_payload
+from valmal.twitch.eventsub import replay
 
 pytestmark = pytest.mark.anyio
 
@@ -375,4 +376,4 @@ class TestFreshness:
         ]
 
     async def test_the_window_is_ten_minutes(self) -> None:
-        assert ctl._MESSAGE_WINDOW_SECONDS == 600
+        assert replay.MESSAGE_WINDOW_SECONDS == 600

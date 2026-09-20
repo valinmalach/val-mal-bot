@@ -3,8 +3,8 @@ from typing import Any
 import httpx
 import pytest
 
-import valmal.twitch.eventsub.router as ctl
 from tests.webhook.support import Hooks, delivery, stream_online_payload
+from valmal.twitch.eventsub import replay
 from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
 pytestmark = pytest.mark.anyio
@@ -90,7 +90,7 @@ class TestDuplicates:
     ) -> None:
         await post(client, message_id="a")
 
-        hooks.clock += ctl._HANDLED_TTL_SECONDS + 1
+        hooks.clock += replay._HANDLED_TTL_SECONDS + 1
         await post(client, message_id="a")
 
         assert len(hooks.dispatched) == 2
@@ -100,7 +100,7 @@ class TestDuplicates:
     ) -> None:
         await post(client, message_id="a")
 
-        hooks.clock += ctl._HANDLED_TTL_SECONDS - 1
+        hooks.clock += replay._HANDLED_TTL_SECONDS - 1
         await post(client, message_id="a")
 
         assert len(hooks.dispatched) == 1
@@ -109,7 +109,7 @@ class TestDuplicates:
         """A host clock behind Twitch's would otherwise leave a gap where a delivery is
         still fresh but no longer remembered; a clock more than one window out refuses
         everything as stale anyway."""
-        assert ctl._HANDLED_TTL_SECONDS == 2 * ctl._MESSAGE_WINDOW_SECONDS
+        assert replay._HANDLED_TTL_SECONDS == 2 * replay.MESSAGE_WINDOW_SECONDS
 
 
 class TestClaimsAreGivenBackWhenThisEndFails:
@@ -148,11 +148,11 @@ class TestClaimsAreGivenBackWhenThisEndFails:
         then failed."""
         hooks.handler_error = RuntimeError("handler blew up")
         await post(client, message_id="done")
-        assert "done" in ctl._handled
+        assert "done" in replay._handled
 
         with pytest.raises(RuntimeError, match="handler blew up"):
             await hooks.run_dispatched()
-        assert "done" in ctl._handled
+        assert "done" in replay._handled
 
         retry = await post(client, message_id="done")
 
@@ -238,50 +238,50 @@ class TestUnexpectedFailures:
         with pytest.raises(Stop):
             await post(client, message_id="x")
 
-        assert "x" not in ctl._handled
+        assert "x" not in replay._handled
 
 
 class TestClaim:
     def test_the_first_claim_wins_and_the_second_is_refused(self, hooks: Hooks) -> None:
-        assert ctl._claim("a") is True
-        assert ctl._claim("a") is False
+        assert replay.claim("a") is True
+        assert replay.claim("a") is False
 
     def test_a_released_claim_can_be_taken_again(self, hooks: Hooks) -> None:
-        ctl._claim("a")
+        replay.claim("a")
 
-        ctl._release("a")
+        replay.release("a")
 
-        assert ctl._claim("a") is True
+        assert replay.claim("a") is True
 
     def test_releasing_what_was_never_claimed_is_harmless(self, hooks: Hooks) -> None:
-        ctl._release("never")
+        replay.release("never")
 
     def test_an_expired_claim_is_forgotten_on_the_next_claim(
         self, hooks: Hooks
     ) -> None:
-        ctl._claim("old")
+        replay.claim("old")
 
-        hooks.clock += ctl._HANDLED_TTL_SECONDS + 1
-        ctl._claim("new")
+        hooks.clock += replay._HANDLED_TTL_SECONDS + 1
+        replay.claim("new")
 
-        assert list(ctl._handled) == ["new"]
+        assert list(replay._handled) == ["new"]
 
     def test_the_cap_drops_the_oldest_and_counts_it(
         self, hooks: Hooks, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(ctl, "_HANDLED_LIMIT", 3)
+        monkeypatch.setattr(replay, "_HANDLED_LIMIT", 3)
 
         for i in range(5):
             hooks.clock += 1
-            ctl._claim(f"id{i}")
+            replay.claim(f"id{i}")
 
-        assert list(ctl._handled) == ["id2", "id3", "id4"]
-        assert ctl._forgotten_early == 2
+        assert list(replay._handled) == ["id2", "id3", "id4"]
+        assert replay._forgotten_early == 2
 
     def test_the_cap_holds_twenty_thousand_which_a_busy_chat_would_not_reach_in_a_window(
         self,
     ) -> None:
-        assert ctl._HANDLED_LIMIT == 20_000
+        assert replay._HANDLED_LIMIT == 20_000
 
 
 class TestReplayCacheFull:
@@ -290,7 +290,7 @@ class TestReplayCacheFull:
     ) -> None:
         """Past the cap a redelivery can run twice, so it is said out loud rather than
         silently dropping the oldest."""
-        monkeypatch.setattr(ctl, "_HANDLED_LIMIT", 1)
+        monkeypatch.setattr(replay, "_HANDLED_LIMIT", 1)
         await post(client, message_id="a")
         await post(client, message_id="b")
 
@@ -298,7 +298,7 @@ class TestReplayCacheFull:
 
         ((text, _),) = [n for n in hooks.notified if n[1] == "replay-cache-full"]
         assert "Replay cache full on /t: 1 delivery id(s) forgotten" in text
-        assert ctl._forgotten_early == 1
+        assert replay._forgotten_early == 1
 
     async def test_nothing_is_said_while_the_cap_has_not_bitten(
         self, client: httpx.AsyncClient, hooks: Hooks
@@ -309,9 +309,9 @@ class TestReplayCacheFull:
         assert hooks.notified == []
 
     async def test_the_count_resets_once_it_has_been_said(self, hooks: Hooks) -> None:
-        ctl._forgotten_early = 4
+        replay._forgotten_early = 4
 
-        await ctl._report_forgotten("/t")
+        await replay.report_forgotten("/t")
 
-        assert ctl._forgotten_early == 0
+        assert replay._forgotten_early == 0
         assert len(hooks.notified) == 1

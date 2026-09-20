@@ -14,6 +14,7 @@ from fastapi import FastAPI, Request, Response
 
 import valmal.twitch.eventsub.router as ctl
 from tests.webhook.support import NOW, Hooks
+from valmal.twitch.eventsub import replay
 from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
 
@@ -38,12 +39,13 @@ def hooks(monkeypatch: pytest.MonkeyPatch) -> Hooks:
         return asyncio.get_running_loop().create_future()
 
     monkeypatch.setattr(ctl, "notify", notify)
+    monkeypatch.setattr(replay, "notify", notify)
     monkeypatch.setattr(ctl, "report", report)
     monkeypatch.setattr(ctl, "fire_and_forget", fire_and_forget)
-    monkeypatch.setattr(ctl, "time", SimpleNamespace(monotonic=lambda: hooks.clock))
+    monkeypatch.setattr(replay, "time", SimpleNamespace(monotonic=lambda: hooks.clock))
     monkeypatch.setattr(pendulum, "now", lambda tz=None: NOW)
-    monkeypatch.setattr(ctl, "_handled", OrderedDict())
-    monkeypatch.setattr(ctl, "_forgotten_early", 0)
+    monkeypatch.setattr(replay, "_handled", OrderedDict())
+    monkeypatch.setattr(replay, "_forgotten_early", 0)
     return hooks
 
 

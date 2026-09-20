@@ -1,10 +1,7 @@
 import logging
-import time
-from collections import OrderedDict
 from collections.abc import Callable, Coroutine
 from typing import Any, NoReturn, get_args
 
-import pendulum
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ValidationError
 from starlette.datastructures import Headers
@@ -19,7 +16,7 @@ from constants import (
 from valmal.core.background import fire_and_forget
 from valmal.core.errors import notify, report
 from valmal.core.settings import settings
-from valmal.twitch.eventsub import events
+from valmal.twitch.eventsub import events, replay
 from valmal.twitch.eventsub.signature import get_hmac, get_hmac_message, verify_message
 from valmal.twitch.models.eventsub.channel_ad_break_begin import (
     ChannelAdBreakBeginEventSub,
@@ -46,75 +43,6 @@ twitch_router = APIRouter()
 # compute the signature over it, so it is counted as it arrives and abandoned
 # past this.
 _MAX_BODY_BYTES = 256 * 1024
-
-
-# Twitch's own guidance for replay: a delivery whose timestamp is far from now
-# is not one Twitch is sending, it is one somebody kept. Applied in both
-# directions, since a clock ahead is as wrong as a clock behind.
-_MESSAGE_WINDOW_SECONDS = 600
-
-# Ids of deliveries that reached a handler. Only those, so a delivery Twitch
-# retries because this end failed still gets through, while a retry of one that
-# worked does not run it twice. Process-local is enough and not a compromise:
-# the Discord gateway connection lives in this process, so a second replica
-# would double every bot action.
-#
-# Twice the freshness window, and that is provably enough rather than a guess:
-# freshness is measured on the wall clock and this on the monotonic one, so a
-# host clock behind Twitch's would leave a gap where a delivery is still fresh
-# but no longer remembered - except that a clock more than one window out
-# refuses everything as stale anyway, so the usable skew cannot exceed a window.
-_HANDLED_TTL_SECONDS = _MESSAGE_WINDOW_SECONDS * 2
-
-# A safety valve, not the eviction policy; the TTL is. The chat route claims one
-# id per chat line, so the old 1024 was reached at under two lines a second and
-# then forgot ids inside their own window, which is precisely a redelivery being
-# handled twice. Reaching even this says the traffic broke the assumption, so it
-# is counted and said out loud rather than silently dropping the oldest.
-_HANDLED_LIMIT = 20_000
-_handled: OrderedDict[str, float] = OrderedDict()
-_forgotten_early = 0
-
-
-def _is_stale(sent: pendulum.DateTime) -> bool:
-    return abs((pendulum.now("UTC") - sent).total_seconds()) > _MESSAGE_WINDOW_SECONDS
-
-
-def _claim(message_id: str) -> bool:
-    """Take this delivery, or say that something already has it.
-
-    Checking and taking are one step so that adding an await between them later
-    cannot let two copies of one delivery both past a check that only looked.
-    """
-    global _forgotten_early
-    cutoff = time.monotonic() - _HANDLED_TTL_SECONDS
-    while _handled and next(iter(_handled.values())) < cutoff:
-        _handled.popitem(last=False)
-    if message_id in _handled:
-        return False
-    _handled[message_id] = time.monotonic()
-    while len(_handled) > _HANDLED_LIMIT:
-        _handled.popitem(last=False)
-        _forgotten_early += 1
-    return True
-
-
-async def _report_forgotten(endpoint: str) -> None:
-    """Say so when the cap bit, because then a redelivery can be handled twice."""
-    global _forgotten_early
-    if not _forgotten_early:
-        return
-    dropped, _forgotten_early = _forgotten_early, 0
-    await notify(
-        f"Replay cache full on {endpoint}: {dropped} delivery id(s) forgotten"
-        f" inside their window, so a redelivery of one could run twice.",
-        key="replay-cache-full",
-    )
-
-
-def _release(message_id: str) -> None:
-    """Give a claim back, so a delivery this end failed can still be retried."""
-    _handled.pop(message_id, None)
 
 
 async def _bounded_body(request: Request, endpoint: str) -> bytes:
@@ -218,11 +146,11 @@ async def _admit(headers: Headers, endpoint: str) -> None:
         await notify(f"403: Forbidden request on {endpoint}. Unreadable timestamp.")
         raise HTTPException(status_code=403) from None
 
-    if _is_stale(sent):
+    if replay.is_stale(sent):
         logger.warning("403: Stale delivery on %s, sent %s", endpoint, sent)
         await notify(
             f"403: Forbidden request on {endpoint}. Timestamp outside the"
-            f" {_MESSAGE_WINDOW_SECONDS}s window, which is also what a wrong"
+            f" {replay.MESSAGE_WINDOW_SECONDS}s window, which is also what a wrong"
             f" clock on this host looks like. Twitch counts this as a failed"
             f" delivery, and enough of them revoke the subscription.",
             key=f"stale-delivery:{endpoint}",
@@ -324,8 +252,8 @@ async def process_webhook[E: BaseModel](
             await notify(f"400: Bad request on {endpoint}. No message id.")
             raise HTTPException(status_code=400)
 
-        await _report_forgotten(endpoint)
-        if not _claim(message_id):
+        await replay.report_forgotten(endpoint)
+        if not replay.claim(message_id):
             logger.info(
                 "Duplicate %s on %s, not dispatched again", message_id, endpoint
             )
@@ -335,7 +263,7 @@ async def process_webhook[E: BaseModel](
             event_sub = event_model.model_validate(validated)
             fire_and_forget(task_func(event_sub), name=endpoint)
         except BaseException:
-            _release(message_id)
+            replay.release(message_id)
             raise
         return Response(status_code=202)
     except HTTPException:
