@@ -16,7 +16,7 @@ quality_dimensions:
       - metric: file_length
         threshold: 400
         unit: lines
-        rationale: "Raised from 300: the repo averages ~165 lines/file, and 300 would nag the healthy 300-400 line modules. The three files this threshold was written for -- cogs/events.py, services/twitch/live_alert.py and controller/twitch.py -- have since been split and are 335, 226 and 347; nothing now exceeds 400, services/audit.py being closest at 395"
+        rationale: "Raised from 300: the repo averages ~165 lines/file, and 300 would nag the healthy 300-400 line modules. The three files this threshold was written for -- cogs/events.py, services/twitch/live_alert.py and controller/twitch.py -- were split once and have since grown past 400 again on their own (299, 280 and 421 lines); services/twitch/live_alert_cycle.py and services/config.py are the other two over it, at 404 and 402. A file drifting over is a signal to look at splitting it again, not a threshold to keep artificially true by editing this rationale"
       - metric: cyclomatic_complexity
         threshold: 15
         unit: per_function

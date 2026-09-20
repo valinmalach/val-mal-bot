@@ -243,7 +243,9 @@ flows. Both request `twitch_app_scopes`; the callbacks validate the returned
 Twitch user ID, client ID and scopes before upserting `oauth_token`. The `app`
 row is separate, uses client credentials and has no refresh token.
 
-**Three files, three jobs, none of them over the threshold.**
+**Three files, three jobs.** `controller/twitch.py` is over Verity's 400-line
+`file_length` signal (421) and has been since before this was written; splitting it
+again is worth doing but is a separate change from whatever else brought you here.
 `controller/twitch.py` receives a signed notification, verifies it, parses it and
 hands it on. `services/twitch/events.py` says what each event makes the bot do —
 it lives under `services/` because it names no HTTP type at all, and nothing
