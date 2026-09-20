@@ -154,7 +154,9 @@ class TestARefusedCheck:
     async def test_a_check_failure_that_is_no_refusal_is_still_reported(
         self, fault: discord.app_commands.AppCommandError, errors: Errors
     ) -> None:
-        """The bot lacking a permission is a fault, and a cooldown is not one."""
+        """The bot lacking a permission is a fault. A cooldown is no refusal of the
+        person, so it must not be answered as one; no command has a cooldown yet, and
+        the general report is what will tell somebody the first time one does."""
         asked = interaction("purge")
 
         await bot_init.on_app_command_error(asked, fault)
@@ -198,3 +200,23 @@ class TestARefusedCheck:
         command: Any = Birthday.set_birthday
 
         assert await command._check_can_run(asked) is True
+
+    async def test_a_role_row_that_is_gone_is_reported_and_the_person_told_it_failed(
+        self, errors: Errors, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The check cannot resolve the role, which is a fault and not a refusal."""
+        member = MagicMock(spec=discord.Member)
+        member.roles = []
+        monkeypatch.setattr(config, "_roles", {})
+        asked = interaction("birthday set")
+        asked.user = member
+        command: Any = Birthday.set_birthday
+
+        with pytest.raises(discord.app_commands.AppCommandError) as fault:
+            await command._check_can_run(asked)
+        await bot_init.on_app_command_error(asked, fault.value)
+
+        assert [context for _, context in errors.reported] == [
+            "Unhandled error in /birthday set"
+        ]
+        assert asked.sent == [("response", "it failed", True)]
