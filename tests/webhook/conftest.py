@@ -14,25 +14,7 @@ from fastapi import FastAPI, Request, Response
 
 import controller.twitch as ctl
 from models.twitch_event_subs.stream_online import StreamOnlineEventSub
-from tests.webhook.support import NOW
-
-
-class Hooks:
-    """What the controller announced, and what it dispatched."""
-
-    def __init__(self) -> None:
-        self.notified: list[tuple[str, str | None]] = []
-        self.reported: list[str] = []
-        self.dispatched: list[tuple[str | None, Coroutine[Any, Any, None]]] = []
-        self.events: list[StreamOnlineEventSub] = []
-        self.clock = 1000.0
-        self.fail_dispatch: Exception | None = None
-        self.handler_error: Exception | None = None
-
-    async def run_dispatched(self) -> None:
-        for _, coro in self.dispatched:
-            await coro
-        self.dispatched.clear()
+from tests.webhook.support import NOW, Hooks
 
 
 @pytest.fixture

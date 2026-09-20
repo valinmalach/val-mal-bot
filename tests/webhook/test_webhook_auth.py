@@ -4,8 +4,7 @@ import httpx
 import pytest
 
 import controller.twitch as ctl
-from tests.webhook.conftest import Hooks
-from tests.webhook.support import delivery, iso, sign, stream_online_payload
+from tests.webhook.support import Hooks, delivery, iso, sign, stream_online_payload
 
 pytestmark = pytest.mark.anyio
 
