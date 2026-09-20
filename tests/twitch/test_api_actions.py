@@ -193,10 +193,17 @@ class TestSubscribeToUser:
     async def test_a_failure_other_than_a_conflict_propagates(
         self, helix_http: HttpFactory
     ) -> None:
-        helix_http(reply(200, {"data": [user_json("42")]}), reply(400, text="bad"))
+        script = helix_http(
+            reply(200, {"data": [user_json("42")]}), reply(400, text="bad")
+        )
 
         with pytest.raises(api.HelixError, match="400"):
             await api.subscribe_to_user("alice")
+
+        assert steps(script) == [
+            ("GET", "/helix/users"),
+            ("POST", "/helix/eventsub/subscriptions"),
+        ], "only a 409 is worth asking Twitch what is already there"
 
 
 class TestConflictOnSubscribe:
@@ -246,11 +253,21 @@ class TestConflictOnSubscribe:
 
         assert await api.subscribe_to_user("alice") is True
 
-        assert steps(script)[3:5] == [
+        assert steps(script) == [
+            ("GET", "/helix/users"),
+            ("POST", "/helix/eventsub/subscriptions"),  # online: conflict
+            ("GET", "/helix/eventsub/subscriptions"),  # what is there
             ("DELETE", "/helix/eventsub/subscriptions"),
-            ("POST", "/helix/eventsub/subscriptions"),
+            ("POST", "/helix/eventsub/subscriptions"),  # online again
+            ("POST", "/helix/eventsub/subscriptions"),  # offline
         ]
         assert script.requests[3].url.query == b"id=old"
+        recreated = body(script.requests[4])
+        assert (recreated["type"], recreated["transport"]["callback"]) == (
+            "stream.online",
+            ONLINE,
+        )
+        assert recreated["condition"] == {"broadcaster_user_id": "42"}
         assert len(notices) == 1
         assert "Replacing the stream.online subscription" in notices[0]
         assert "https://old.example/webhook/twitch" in notices[0]
