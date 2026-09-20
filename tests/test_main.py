@@ -176,17 +176,19 @@ class TestMain:
 
 
 class TestLifespan:
-    async def test_starts_the_bot_in_the_background_and_closes_the_client_on_shutdown(
-        self,
-        entry: ModuleType,
-        process: Process,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
+    @pytest.fixture(autouse=True)
+    def _fake_main(self, entry: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+        """main() replaced: the lifespan starts it as a background task, and the
+        real one would try to log in."""
+
         async def fake_main() -> None:
             return None
 
         monkeypatch.setattr(entry, "main", fake_main)
 
+    async def test_starts_the_bot_in_the_background_and_closes_the_client_on_shutdown(
+        self, entry: ModuleType, process: Process
+    ) -> None:
         async with entry.lifespan(entry.app):
             assert [name for name, _ in process.fired] == ["bot"]
             assert process.closed == 0
@@ -194,16 +196,8 @@ class TestLifespan:
         assert process.closed == 1
 
     async def test_the_client_is_closed_only_after_the_app_stops(
-        self,
-        entry: ModuleType,
-        process: Process,
-        monkeypatch: pytest.MonkeyPatch,
+        self, entry: ModuleType, process: Process
     ) -> None:
-        async def fake_main() -> None:
-            return None
-
-        monkeypatch.setattr(entry, "main", fake_main)
-
         async with entry.lifespan(entry.app):
             during = process.closed
 
