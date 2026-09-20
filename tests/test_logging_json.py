@@ -99,18 +99,18 @@ def test_an_extra_cannot_overwrite_a_field_the_formatter_owns(reserved: str) -> 
         raise ValueError("bad")
     except ValueError as exc:
         info = (type(exc), exc, exc.__traceback__)
-    payload = _format(
-        logging.ERROR,
-        "real",
-        exc_info=info,
-        extra={reserved: "spoofed"},
-        name="real.logger",
-    )
+        payload = _format(
+            logging.ERROR,
+            "real",
+            exc_info=info,
+            extra={reserved: "spoofed"},
+            name="real.logger",
+        )
 
-    assert payload["level"] == "error"
-    assert payload["message"] == "real"
-    assert payload["logger"] == "real.logger"
-    assert "ValueError" in str(payload["exception"])
+        assert payload["level"] == "error"
+        assert payload["message"] == "real"
+        assert payload["logger"] == "real.logger"
+        assert "ValueError" in str(payload["exception"])
 
 
 def test_an_exception_is_added_with_its_traceback() -> None:
@@ -121,9 +121,9 @@ def test_an_exception_is_added_with_its_traceback() -> None:
             logging.ERROR, "failed", exc_info=(type(exc), exc, exc.__traceback__)
         )
 
-    assert isinstance(payload["exception"], str)
-    assert "Traceback" in payload["exception"]
-    assert "KeyError" in payload["exception"]
+        assert isinstance(payload["exception"], str)
+        assert "Traceback" in payload["exception"]
+        assert "KeyError" in payload["exception"]
 
 
 def test_no_exception_key_without_an_exception() -> None:
