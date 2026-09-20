@@ -4,7 +4,7 @@
 
 **URL:** <https://ofcamwrjwrkazqvdchko.supabase.co>
 **Project:** valinmalach/val-mal-bot
-**Standard:** v3 — held on the service; `.verity/standard.yaml` is the local source
+**Standard:** v4 — held on the service; `.verity/standard.yaml` is the local source
 
 ## Restoring on a new machine
 
