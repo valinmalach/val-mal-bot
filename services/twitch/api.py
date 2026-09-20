@@ -251,9 +251,9 @@ async def _subscribe(sub_type: Literal["online", "offline"], user_id: str) -> No
     the condition alone -- not the transport. So a 409 says just as readily that
     a subscription exists pointing at a callback this deployment no longer
     answers on, or one Twitch disabled after too many failed deliveries, as that
-    a working one is already in place. Only the last of those is the goal
-    already met; reporting the other two as subscribed would promise an alert
-    that can never fire.
+    a working one -- enabled, or still mid-verification -- is already in place.
+    Only the last of those is the goal already met; reporting the other two as
+    subscribed would promise an alert that can never fire.
     """
     try:
         await _create_subscription(sub_type, user_id)
