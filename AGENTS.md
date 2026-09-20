@@ -139,18 +139,22 @@ backslash then `n`) into the literal character, which leaves an invisible one be
 **CI is three jobs on every push, and a red one stops a merge.** `coverage`, in
 `.github/workflows/coverage.yml`, runs `pytest --cov` and uploads `coverage.xml` to Codacy
 when the `CODACY_PROJECT_TOKEN` secret is set. `.github/workflows/checks.yml` adds `lint`
-(ruff format, ruff check and pyright) and `migrations`, which applies every revision to a
-real Postgres 17, checks the result against the models with `alembic check`, downgrades
-to base and upgrades again: the one thing the suite, which only renders SQL, cannot do.
+(ruff format, ruff check and pyright) and `migrations`, which applies every revision to
+a real Postgres, the major version production runs (18), checks the result against the
+models with `alembic check`, downgrades to base and upgrades again: the one thing the suite,
+which only renders SQL, cannot do. The database is `compose.yaml`'s, pinned there by digest,
+so local development and CI cannot disagree about the version; taking a newer 18.x is a new
+digest in that one file.
 Verity's `test_coverage` threshold is 95 and `test_quality` judges whether a test can fail;
 `.verity/standard.yaml` has both, and `verity standard push` uploads a change to them.
 
 **Merging to `master` is guarded by a ruleset**, which lives in the repository's settings
 and nowhere in the tree, so this is its record. A pull request is required, with no
-approval count because a sole maintainer cannot approve their own; review threads must be
-resolved; the branch must be up to date with `master`, so what CI tested is what merges;
-and `coverage`, `lint`, `migrations`, `Codacy Diff Coverage` and `Codacy Coverage
-Variation` must pass. Nobody bypasses it, force-pushes or deletes the branch.
+approval count because a sole maintainer cannot approve their own. Every review thread,
+including one a bot opened, must be resolved. The branch must be up to date with `master`,
+so what CI tested is what merges. And `coverage`, `lint`, `migrations`, `Codacy Diff
+Coverage` and `Codacy Coverage Variation` must pass. Nobody bypasses it, force-pushes or
+deletes the branch.
 
 What is deliberately *not* required, and why. `Codacy Static Code Analysis` was red on
 the last five PRs before this, every finding in test code (the fake credentials in

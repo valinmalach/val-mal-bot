@@ -27,29 +27,13 @@ jobs:
 
   # The suite has no Postgres, so it can only render the migrations as SQL. This applies
   # them to a real one: forwards, checked against the models, back to nothing, and
-  # forwards again. The image is the one compose.yaml runs locally.
+  # forwards again. The database is the one compose.yaml runs locally, so which Postgres
+  # this tests is decided in one place, and it is the major version production runs.
   migrations:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    services:
-      postgres:
-        # Pinned by digest for the reason the actions are pinned to commits: a tag can
-        # be moved. The tag is kept so a reader can see what it is; to move to a newer
-        # 17, pull it and take the digest of `docker buildx imagetools inspect`.
-        image: postgres:17-alpine@sha256:f02121de6f74d30d8a94cd1d9584125e2178d7e6c377d8130112d4e52d867995
-        env:
-          POSTGRES_USER: valmal
-          POSTGRES_PASSWORD: valmal
-          POSTGRES_DB: valmal
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U valmal -d valmal"
-          --health-interval 2s
-          --health-timeout 3s
-          --health-retries 30
     env:
-      DATABASE_URL: postgresql://valmal:valmal@localhost:5432/valmal
+      DATABASE_URL: postgresql://valmal:valmal@127.0.0.1:5432/valmal
       # The settings are validated when they are imported, and Alembic imports them, so
       # each needs a value. Nothing here talks to Discord or Twitch.
       DISCORD_TOKEN: unused
@@ -61,6 +45,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
       - run: uv sync --locked
+      # --wait returns once the healthcheck in compose.yaml passes.
+      - name: Start Postgres
+        run: docker compose up -d --wait postgres
       - name: Upgrade to head
         run: uv run alembic upgrade head
       # Fails when the models declare something no revision creates, or a revision
