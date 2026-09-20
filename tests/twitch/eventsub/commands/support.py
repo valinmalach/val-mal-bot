@@ -4,10 +4,14 @@ from typing import Any
 
 import pytest
 
+from tests.twitch.support import chat_event
 from valmal.core.config import config
 from valmal.db.models import TwitchCommand
 from valmal.twitch.models.api.channel import Channel
 from valmal.twitch.models.api.user import User
+from valmal.twitch.models.eventsub.channel_chat_message import (
+    ChannelChatMessageEventSub,
+)
 
 
 class ChatWorld:
@@ -34,3 +38,13 @@ class ChatWorld:
         monkeypatch.setattr(config, "_commands", {row.name: row for row in rows})
         monkeypatch.setattr(config, "_command_responses", responses or {})
         monkeypatch.setattr(config, "_command_components", components or {})
+
+
+def event(text: str = "!x", **kwargs: Any) -> ChannelChatMessageEventSub:
+    return ChannelChatMessageEventSub.model_validate(chat_event(text, **kwargs))
+
+
+def command(
+    name: str, handler: str = "static", mod_only: bool = False
+) -> TwitchCommand:
+    return TwitchCommand(name=name, handler=handler, mod_only=mod_only)
