@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 import pendulum
 import pytest
 
-from cogs import tasks
-from cogs.tasks import Tasks
+from valmal.bot.cogs import tasks
+from valmal.bot.cogs.tasks import Tasks
 from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio

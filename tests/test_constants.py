@@ -58,8 +58,8 @@ def test_the_twitch_header_names_are_the_ones_twitch_sends() -> None:
 def test_every_cog_module_is_registered() -> None:
     """Nothing auto-discovers a cog: one missing from COGS is never loaded."""
     modules = {
-        f"cogs.{path.stem}"
-        for path in (ROOT / "cogs").glob("*.py")
+        f"valmal.bot.cogs.{path.stem}"
+        for path in (ROOT / "valmal" / "bot" / "cogs").glob("*.py")
         if path.stem != "__init__"
     }
 

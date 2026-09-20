@@ -1,13 +1,13 @@
 import discord
 import pytest
 
-from cogs import twitch_admin
-from cogs.twitch_admin import TwitchAdmin, _login, _refuse_login
 from constants import TokenType
 from controller.twitch import WEBHOOK_PATHS
 from services.twitch.helix import HelixError
 from tests.cogs.twitch_admin_world import Admin, run
 from tests.twitch_migrate.support import sub
+from valmal.bot.cogs import twitch_admin
+from valmal.bot.cogs.twitch_admin import TwitchAdmin, _login, _refuse_login
 
 pytestmark = pytest.mark.anyio
 

@@ -8,10 +8,10 @@ from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
 from discord.utils import escape_markdown
 
-from services.birthday import next_birthday
-from services.send import send_message
 from services.twitch.api import broken_subscriptions
 from services.twitch.helix import HelixError
+from valmal.bot.birthday import next_birthday
+from valmal.bot.send import send_message
 from valmal.core.config import config
 from valmal.core.errors import notify, report
 from valmal.db import repository

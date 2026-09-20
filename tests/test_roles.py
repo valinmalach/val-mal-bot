@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
-from services import roles
+from valmal.bot import roles
 from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio

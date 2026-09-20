@@ -3,10 +3,10 @@ from typing import Any
 import discord
 import pytest
 
-from cogs.twitch_admin import TwitchAdmin
 from services.twitch.helix import HelixError
 from tests.cogs.twitch_admin_world import Admin, listing, run, user
 from tests.twitch_migrate.support import sub
+from valmal.bot.cogs.twitch_admin import TwitchAdmin
 
 pytestmark = pytest.mark.anyio
 
@@ -46,6 +46,40 @@ class TestSubscriptions:
         assert (field.name, field.value) == ("stream.online", "* Amy\n* Zed")
         assert field.inline is False
         assert admin.asked == [["1", "2"]]
+
+    async def test_markup_in_a_display_name_is_escaped_where_it_is_listed(
+        self, admin: Admin
+    ) -> None:
+        """A name is whatever its owner typed: an underscore alone would italicise the list."""
+        admin.listing = listing(("stream.online", "1", "enabled"))
+        admin.users["1"] = [user("a_b*c"), user("[x](http://evil.example)")]
+
+        await run(TwitchAdmin.subscriptions, admin.interaction())
+
+        ((field,),) = [admin.sent[0][1]["embed"].fields]
+        assert field.value == (
+            f"* {BACKSLASH}[x](http://evil.example)\n* a{BACKSLASH}_b{BACKSLASH}*c"
+        )
+
+    async def test_a_list_too_long_for_one_field_is_split_across_fields(
+        self, admin: Admin
+    ) -> None:
+        """Discord refuses the whole message over 1024 characters in one field's value."""
+        names = [f"Streamer{number:03d}" for number in range(200)]
+        admin.listing = listing(("stream.online", "1", "enabled"))
+        admin.users["1"] = [user(name) for name in reversed(names)]
+
+        await run(TwitchAdmin.subscriptions, admin.interaction())
+
+        fields = admin.sent[0][1]["embed"].fields
+        assert len(fields) > 1
+        assert all(len(field.value) <= 1024 for field in fields)
+        assert [field.name for field in fields] == [
+            "stream.online",
+            *["stream.online (continued)"] * (len(fields) - 1),
+        ]
+        listed = "\n".join(field.value for field in fields).split("\n")
+        assert listed == [f"* {name}" for name in names]
 
     async def test_a_subscription_that_is_not_enabled_is_labelled_with_its_status(
         self, admin: Admin

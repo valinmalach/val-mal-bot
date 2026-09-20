@@ -7,9 +7,9 @@ import httpx
 import pendulum
 
 from models.twitch_api_responses.user import User
-from services.present import quoted
 from services.twitch.api import get_user, send_shoutout
 from services.twitch.helix import HelixError
+from valmal.bot.present import quoted
 from valmal.core.background import fire_and_forget
 from valmal.core.errors import notify, report
 

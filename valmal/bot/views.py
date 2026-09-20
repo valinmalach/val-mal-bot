@@ -31,7 +31,7 @@ class RolePickerView(View):
 # which Button.callback's signature requires.
 def _toggle(button: Button[View]):  # noqa: ANN202
     async def callback(interaction: Interaction) -> None:
-        from services.roles import roles_button_pressed
+        from valmal.bot.roles import roles_button_pressed
 
         await roles_button_pressed(interaction, button)
 

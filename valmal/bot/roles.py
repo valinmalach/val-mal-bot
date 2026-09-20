@@ -3,7 +3,7 @@
 from discord import Interaction, Member, Role
 from discord.ui import Button
 
-from init import bot
+from valmal.bot.client import bot
 from valmal.core.background import fire_and_forget
 from valmal.core.config import config
 from valmal.core.errors import notify

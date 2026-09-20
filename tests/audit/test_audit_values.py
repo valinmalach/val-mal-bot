@@ -8,7 +8,6 @@ from constants import (
     UNKNOWN_USER,
     UNNAMED_EVENT,
 )
-from services import audit
 from tests.audit.support import (
     AVATAR,
     COLORS,
@@ -17,6 +16,7 @@ from tests.audit.support import (
     invite,
     person,
 )
+from valmal.bot import audit
 from valmal.core.config import config
 
 BACKSLASH = chr(92)

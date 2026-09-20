@@ -54,8 +54,8 @@ class TestTheCogList:
     def test_names_every_cog_module_and_nothing_else(self) -> None:
         """Nothing auto-discovers, so a cog missing here is never loaded."""
         on_disk = {
-            f"cogs.{path.stem}"
-            for path in (ROOT / "cogs").glob("*.py")
+            f"valmal.bot.cogs.{path.stem}"
+            for path in (ROOT / "valmal" / "bot" / "cogs").glob("*.py")
             if path.stem != "__init__"
         }
 

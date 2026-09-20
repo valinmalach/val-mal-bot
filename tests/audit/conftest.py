@@ -1,13 +1,13 @@
 import discord
 import pytest
 
-from services import audit
 from tests.audit.support import (
     AUDIT_CHANNEL,
     COLORS,
     TEMPLATES,
     Audit,
 )
+from valmal.bot import audit
 from valmal.core.config import config
 
 

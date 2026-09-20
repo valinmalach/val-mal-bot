@@ -4,12 +4,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cogs import twitch_admin
-from cogs.twitch_admin import TwitchAdmin
 from models.twitch_api_responses.subscription import Subscription
 from services.twitch.helix import HelixError
 from services.twitch.migrate_plan import Outcome
 from tests.twitch_migrate.support import sub
+from valmal.bot.cogs import twitch_admin
+from valmal.bot.cogs.twitch_admin import TwitchAdmin
 from valmal.core.config import config
 
 BACKSLASH = chr(92)

@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 import discord
 import pytest
 
-from cogs import moderation
-from cogs.moderation import Moderation
+from valmal.bot.cogs import moderation
+from valmal.bot.cogs.moderation import Moderation
 from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio

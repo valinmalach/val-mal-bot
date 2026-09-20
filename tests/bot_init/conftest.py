@@ -1,7 +1,7 @@
 import pytest
 
-from init import bot_init
 from tests.bot_init.support import Errors
+from valmal.bot import client as bot_init
 from valmal.core.config import config
 
 

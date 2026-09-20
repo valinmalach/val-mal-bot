@@ -5,7 +5,6 @@ from discord.utils import escape_markdown
 
 from constants import TokenType
 from controller.twitch import WEBHOOK_PATHS
-from services.present import quoted
 from services.twitch.api import (
     get_subscriptions,
     get_users,
@@ -17,6 +16,7 @@ from services.twitch.helix import HelixError
 from services.twitch.migrate import migrate
 from services.twitch.migrate_plan import summary
 from services.twitch.oauth import create_authorization_start_url
+from valmal.bot.present import quoted
 from valmal.core.config import config
 from valmal.core.errors import report
 
@@ -25,6 +25,31 @@ def _login(value: str) -> str | None:
     """The Twitch login this names, or None. Leading @ is how people type one."""
     candidate = value.strip().removeprefix("@")
     return candidate if is_twitch_login(candidate) else None
+
+
+# Discord refuses a whole message when one field's value goes past this, so a long
+# list is split across fields instead of being cut off.
+_FIELD_VALUE_LIMIT = 1024
+
+
+def _bulleted(names: list[str]) -> list[str]:
+    """The names as bullet lines, escaped and packed into as few field values as fit.
+
+    A display name is chosen by the person it belongs to, and an underscore in
+    one is enough to italicise the rest of the list, so each is escaped here.
+    """
+    values: list[str] = []
+    current = ""
+    for name in names:
+        line = f"* {escape_markdown(name)}"[:_FIELD_VALUE_LIMIT]
+        if current and len(current) + 1 + len(line) > _FIELD_VALUE_LIMIT:
+            values.append(current)
+            current = line
+        else:
+            current = f"{current}\n{line}" if current else line
+    if current:
+        values.append(current)
+    return values
 
 
 async def _refuse_login(interaction: Interaction, value: str) -> None:
@@ -152,11 +177,12 @@ class TwitchAdmin(Cog):
             if not user_names:
                 continue
             user_names.sort()
-            embed.add_field(
-                name=sub_type,
-                value=f"* {'\n* '.join(user_names)}",
-                inline=False,
-            )
+            for number, value in enumerate(_bulleted(user_names)):
+                embed.add_field(
+                    name=sub_type if number == 0 else f"{sub_type} (continued)",
+                    value=value,
+                    inline=False,
+                )
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(

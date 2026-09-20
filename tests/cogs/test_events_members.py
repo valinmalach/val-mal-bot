@@ -4,9 +4,9 @@ from typing import Any
 
 import pytest
 
-from services import audit
 from tests.audit.support import AVATAR, person, role
 from tests.cogs.events_world import NOW, EventsWorld, cog
+from valmal.bot import audit
 
 pytestmark = pytest.mark.anyio
 

@@ -238,7 +238,7 @@ async def _deliver(text: str, attachment: tuple[str, str] | None) -> bool:
         logger.warning("Undelivered, no configuration loaded: %r", text)
         return False
 
-    from services.send import send_message
+    from valmal.bot.send import send_message
 
     # Leading, because the tail is what gets cut. Prepended here rather than at the
     # call site so every path through the admin channel carries it, and cleared

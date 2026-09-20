@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import discord
 import pytest
 
-from services.present import get_channel_mention, get_discriminator, get_pfp, quoted
+from valmal.bot.present import get_channel_mention, get_discriminator, get_pfp, quoted
 
 
 def _user(

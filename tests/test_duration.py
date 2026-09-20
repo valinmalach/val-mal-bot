@@ -1,7 +1,7 @@
 import pendulum
 import pytest
 
-from services.duration import get_age, get_ordinal_suffix
+from valmal.bot.duration import get_age, get_ordinal_suffix
 
 NOW = pendulum.datetime(2026, 6, 15, 12)
 

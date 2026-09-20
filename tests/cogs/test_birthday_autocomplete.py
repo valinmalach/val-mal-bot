@@ -3,7 +3,7 @@ from typing import Any
 import pendulum
 import pytest
 
-from cogs.birthday import Birthday
+from valmal.bot.cogs.birthday import Birthday
 
 pytestmark = pytest.mark.anyio
 

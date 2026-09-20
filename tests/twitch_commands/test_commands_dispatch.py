@@ -119,6 +119,22 @@ class TestUnknownAndStatic:
 
         assert chatworld.said == [] and chatworld.templates == []
 
+    @pytest.mark.parametrize(
+        "name",
+        [f"{chr(0x200B)}discord", f"disc{chr(0x200B)}ord", f"discord{chr(0xFEFF)}"],
+    )
+    async def test_a_name_with_an_invisible_character_is_not_the_command_it_imitates(
+        self, name: str, chatworld: ChatWorld, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The name is looked up exactly as typed, so a hidden character in it matches nothing."""
+        chatworld.install(
+            monkeypatch, command("discord"), responses={"discord": ["hello"]}
+        )
+
+        await dispatch(event(), name, "")
+
+        assert chatworld.said == [] and chatworld.templates == []
+
     async def test_a_static_command_says_each_stored_response_in_order(
         self, chatworld: ChatWorld, monkeypatch: pytest.MonkeyPatch
     ) -> None:

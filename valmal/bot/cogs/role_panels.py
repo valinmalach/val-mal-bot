@@ -1,9 +1,9 @@
 from discord import Interaction, app_commands
 from discord.ext.commands import Bot, Cog
 
-from services.send import send_embed
+from valmal.bot.send import send_embed
+from valmal.bot.views import role_panels
 from valmal.core.config import config
-from views import role_panels
 
 
 class RolePanels(Cog):

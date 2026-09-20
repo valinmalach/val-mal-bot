@@ -1,7 +1,7 @@
 import pendulum
 
 from constants import Months
-from services.birthday import is_leap_day, next_birthday, next_birthday_on
+from valmal.bot.birthday import is_leap_day, next_birthday, next_birthday_on
 
 
 def test_leap_day_is_only_29_february() -> None:

@@ -42,10 +42,10 @@ def delivered(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, Any]]:
 @pytest.fixture
 def admin(monkeypatch: pytest.MonkeyPatch) -> Channel:
     """A loaded configuration whose admin channel is 4242, and a fake send."""
-    import services.send
+    from valmal.bot import send
 
     channel = Channel()
     monkeypatch.setattr(config, "_loaded", True)
     monkeypatch.setattr(config, "_channels", {"bot_admin": 4242})
-    monkeypatch.setattr(services.send, "send_message", channel.send_message)
+    monkeypatch.setattr(send, "send_message", channel.send_message)
     return channel

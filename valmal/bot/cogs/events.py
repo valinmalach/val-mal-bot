@@ -17,10 +17,10 @@ from discord import (
 from discord.ext.commands import Bot, Cog, CommandError, Context
 from pendulum import DateTime
 
-from services import audit
-from services.duration import get_ordinal_suffix
-from services.present import get_discriminator, get_pfp
-from services.send import send_embed
+from valmal.bot import audit
+from valmal.bot.duration import get_ordinal_suffix
+from valmal.bot.present import get_discriminator, get_pfp
+from valmal.bot.send import send_embed
 from valmal.core.config import config
 from valmal.core.errors import report
 from valmal.db import repository

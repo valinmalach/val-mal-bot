@@ -5,7 +5,7 @@ from discord import CategoryChannel, Embed, ForumChannel
 from discord.abc import Messageable, PrivateChannel
 from discord.ui import View
 
-from init import bot
+from valmal.bot.client import bot
 
 # Channel kinds the bot cannot post a message or embed into. Shared with
 # cogs/moderation.py so the two do not drift, as they once did.

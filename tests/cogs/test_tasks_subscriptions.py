@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pendulum
 import pytest
 
-from cogs import tasks
-from cogs.tasks import Tasks, undeliverable_summary
 from services.twitch.helix import HelixError
+from valmal.bot.cogs import tasks
+from valmal.bot.cogs.tasks import Tasks, undeliverable_summary
 
 pytestmark = pytest.mark.anyio
 

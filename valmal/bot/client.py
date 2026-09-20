@@ -64,9 +64,9 @@ class MyBot(Bot):
         self.case_insensitive = True
 
     async def setup_hook(self) -> None:
-        from cogs.tasks import Tasks
         from services.twitch.shoutout_queue import shoutout_queue
         from services.twitch.token_manager import token_manager
+        from valmal.bot.cogs.tasks import Tasks
         from valmal.core.config import config
 
         await config.load()
@@ -97,7 +97,7 @@ class MyBot(Bot):
         self.tree.copy_global_to(guild=guild)
         await self.tree.sync(guild=guild)
 
-        from views import persistent_views
+        from valmal.bot.views import persistent_views
 
         # register all persistent Views so buttons still work after a restart
         for view in persistent_views():

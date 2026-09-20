@@ -22,8 +22,6 @@ from models.twitch_api_responses.channel import Channel
 from models.twitch_api_responses.stream import Stream
 from models.twitch_api_responses.user import User
 from models.twitch_api_responses.video import Video
-from services.duration import get_age
-from services.send import edit_embed
 from services.twitch.api import (
     get_channel,
     get_stream,
@@ -38,6 +36,8 @@ from services.twitch.live_alert_embeds import (
     twitch_url,
     watch_button,
 )
+from valmal.bot.duration import get_age
+from valmal.bot.send import edit_embed
 from valmal.core.errors import notify, report
 from valmal.db import repository
 from valmal.db.models import LiveAlert

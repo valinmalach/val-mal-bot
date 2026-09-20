@@ -9,12 +9,12 @@ HMAC_PREFIX = "sha256="
 
 
 COGS = [
-    "cogs.moderation",
-    "cogs.role_panels",
-    "cogs.twitch_admin",
-    "cogs.birthday",
-    "cogs.events",
-    "cogs.tasks",
+    "valmal.bot.cogs.moderation",
+    "valmal.bot.cogs.role_panels",
+    "valmal.bot.cogs.twitch_admin",
+    "valmal.bot.cogs.birthday",
+    "valmal.bot.cogs.events",
+    "valmal.bot.cogs.tasks",
 ]
 
 UNKNOWN_USER = "Unknown User"

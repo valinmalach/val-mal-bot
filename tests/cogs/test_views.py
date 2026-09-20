@@ -4,9 +4,9 @@ from typing import Any
 import discord
 import pytest
 
-import views
+from valmal.bot import views
+from valmal.bot.views import RolePickerView, build_embed, persistent_views, role_panels
 from valmal.core.config import RenderedEmbed, RenderedField, config
-from views import RolePickerView, build_embed, persistent_views, role_panels
 
 pytestmark = pytest.mark.anyio
 
@@ -109,7 +109,7 @@ class TestRolePickerView:
         async def pressed(interaction: object, button: discord.ui.Button) -> None:
             seen.append(button.custom_id)
 
-        monkeypatch.setattr("services.roles.roles_button_pressed", pressed)
+        monkeypatch.setattr("valmal.bot.roles.roles_button_pressed", pressed)
         view = RolePickerView("pronouns")
 
         for index in range(len(view.children)):
@@ -125,7 +125,7 @@ class TestRolePickerView:
         async def pressed(interaction: object, button: object) -> None:
             got.append(interaction)
 
-        monkeypatch.setattr("services.roles.roles_button_pressed", pressed)
+        monkeypatch.setattr("valmal.bot.roles.roles_button_pressed", pressed)
         marker = object()
 
         await button_of(RolePickerView("pronouns"), 0).callback(marker)
@@ -138,7 +138,7 @@ class TestRolePickerView:
         async def pressed(interaction: object, button: object) -> None:
             raise RuntimeError("boom")
 
-        monkeypatch.setattr("services.roles.roles_button_pressed", pressed)
+        monkeypatch.setattr("valmal.bot.roles.roles_button_pressed", pressed)
 
         with pytest.raises(RuntimeError):
             await button_of(RolePickerView("pronouns"), 0).callback(object())

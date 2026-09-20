@@ -7,10 +7,10 @@ import discord
 import pendulum
 import pytest
 
-from cogs import events
-from cogs.events import Events
-from services import audit
 from tests.audit.support import message
+from valmal.bot import audit
+from valmal.bot.cogs import events
+from valmal.bot.cogs.events import Events
 from valmal.core.config import config
 
 NOW = pendulum.datetime(2026, 6, 15, 12)

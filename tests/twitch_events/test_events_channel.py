@@ -82,7 +82,18 @@ class TestChatMessage:
 
         assert world.dispatched == [(command, args)]
 
-    @pytest.mark.parametrize("text", ["hello !hug", " !hug", "¡hug", "hug!"])
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "hello !hug",
+            " !hug",
+            "¡hug",
+            "hug!",
+            # An invisible character in front is not a bang at the start. Stripping
+            # it before this check would turn each of these into a live command.
+            *(f"{chr(code)}!hug" for code in (0x200B, 0xFEFF, 0x202E)),
+        ],
+    )
     async def test_only_a_line_beginning_with_a_bang_is_a_command(
         self, text: str, world: EventWorld
     ) -> None:

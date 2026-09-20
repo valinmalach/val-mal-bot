@@ -4,9 +4,9 @@ from unittest.mock import MagicMock
 import discord
 import pytest
 
-from cogs.birthday import Birthday
-from init import bot_init
 from tests.bot_init.support import Errors, interaction
+from valmal.bot import client as bot_init
+from valmal.bot.cogs.birthday import Birthday
 from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio

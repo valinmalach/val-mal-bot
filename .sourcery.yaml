@@ -55,12 +55,12 @@ rules:
     - valmal/core/background.py
 
 - id: audit-channel-is-audit-pys
-  description: Only services/audit.py may resolve the audit_logs channel. One entry point per thing worth recording.
+  description: Only valmal/bot/audit.py may resolve the audit_logs channel. One entry point per thing worth recording.
   pattern: config.channel("audit_logs")
   language: python
   paths:
     exclude:
-    - services/audit.py
+    - valmal/bot/audit.py
 
 - id: chat-sends-go-through-chat-py
   description: Call services.twitch.chat.say or say_template. api.send_chat_message raises; three rounds of guarding call sites each missed one, so the guard lives in chat.py.

@@ -9,7 +9,7 @@ from fastapi.responses import PlainTextResponse
 
 from constants import COGS
 from controller import twitch_oauth_router, twitch_router
-from init import bot
+from valmal.bot.client import bot
 from valmal.core import http_client
 from valmal.core.background import fire_and_forget
 from valmal.core.errors import report

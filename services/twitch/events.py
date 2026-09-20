@@ -20,12 +20,12 @@ from models.twitch_event_subs.channel_points_custom_reward_redemption_add import
 from models.twitch_event_subs.channel_raid import ChannelRaidEventSub
 from models.twitch_event_subs.stream_offline import StreamOfflineEventSub
 from models.twitch_event_subs.stream_online import StreamOnlineEventSub
-from services.present import quoted
 from services.twitch import autoshoutout, live_alert, stream_session
 from services.twitch.api import get_stream, get_user, live_stream
 from services.twitch.chat import say, say_template
 from services.twitch.commands import dispatch, is_twitch_login
 from services.twitch.helix import HelixError
+from valmal.bot.present import quoted
 from valmal.core.config import config
 from valmal.core.errors import notify, report
 

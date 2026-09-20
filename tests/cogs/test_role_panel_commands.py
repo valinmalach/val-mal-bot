@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cogs import role_panels
-from cogs.role_panels import RolePanels
+from valmal.bot.cogs import role_panels
+from valmal.bot.cogs.role_panels import RolePanels
 from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio

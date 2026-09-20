@@ -7,11 +7,11 @@ import discord
 import pytest
 from discord.ext import commands
 
-import views
-from cogs.tasks import Tasks
-from init import bot_init
 from services.twitch.shoutout_queue import shoutout_queue
 from services.twitch.token_manager import token_manager
+from valmal.bot import client as bot_init
+from valmal.bot import views
+from valmal.bot.cogs.tasks import Tasks
 from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio

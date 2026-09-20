@@ -5,7 +5,7 @@ import pytest
 from pendulum import DateTime
 
 from constants import Months
-from services.birthday import (
+from valmal.bot.birthday import (
     _next_leap_year,
     is_leap_day,
     next_birthday,

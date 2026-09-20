@@ -23,9 +23,9 @@ from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEven
 from models.twitch_event_subs.channel_points_custom_reward_redemption_add import (
     ChannelPointsCustomRewardRedemptionAddEventSub,
 )
-from services.present import quoted
 from services.twitch import stream_session
 from services.twitch.chat import say
+from valmal.bot.present import quoted
 from valmal.core.config import config
 from valmal.core.errors import notify, report
 from valmal.db import repository
