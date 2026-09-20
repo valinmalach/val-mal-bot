@@ -12,7 +12,9 @@ import pendulum
 from discord.ui import View
 from discord.utils import escape_markdown
 
+from valmal.bot.present import quoted
 from valmal.core.config import config
+from valmal.core.errors import notify_soon
 from valmal.twitch.eventsub.commands import is_twitch_login
 from valmal.twitch.models.api.channel import Channel
 from valmal.twitch.models.api.stream import Stream
@@ -232,7 +234,14 @@ def offline_embed(
             # Same "degrade rather than lose the embed" reasoning as _title,
             # _display_name and _game above: an id Twitch didn't actually
             # send as numeric means no VOD field, not a broken offline embed.
+            # Said aloud, though: the field is the alert's way back to the
+            # recording, and leaving it out is a decision somebody should see.
             link = None
+            notify_soon(
+                f"A live alert closed without its VOD link: the id Twitch sent,"
+                f" {quoted(vod.id)}, is not numeric.",
+                key="live-alert-bad-vod-id",
+            )
         if link:
             embed = embed.add_field(
                 name=config.template("stream_field_vod"),

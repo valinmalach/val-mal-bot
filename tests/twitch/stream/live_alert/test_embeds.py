@@ -282,11 +282,23 @@ class TestOfflineEmbed:
         assert embed.fields[1].value == "[Watch](https://www.twitch.tv/videos/555)"
 
     def test_a_vod_with_a_non_numeric_id_means_no_field_not_a_broken_embed(
-        self,
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        notices: list[tuple[str, str | None]] = []
+        monkeypatch.setattr(
+            embeds, "notify_soon", lambda text, *, key=None: notices.append((text, key))
+        )
+
         embed = self.build(vod=video(id="abc](evil)"))
 
         assert [f.name for f in embed.fields] == ["Game"]
+        assert notices == [
+            (
+                "A live alert closed without its VOD link: the id Twitch sent,"
+                " `abc](evil)`, is not numeric.",
+                "live-alert-bad-vod-id",
+            )
+        ]
 
     def test_a_title_is_escaped_in_bold(self) -> None:
         assert self.build(stream=stream(title="**x**")).description == r"**\*\*x\*\***"
