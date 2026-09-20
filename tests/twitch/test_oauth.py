@@ -8,6 +8,7 @@ from config import settings
 from constants import TokenType
 from services.config import config
 from services.twitch import oauth
+from tests.credentials import CLIENT_ID
 
 SCOPES = ["chat:read", "moderator:manage:shoutouts"]
 
@@ -192,7 +193,7 @@ class TestAuthorizationUrl:
         )
         assert query == {
             "response_type": ["code"],
-            "client_id": ["test"],
+            "client_id": [CLIENT_ID],
             "redirect_uri": ["https://bot.example/twitch/oauth/callback"],
             "scope": [" ".join(SCOPES)],
             "state": [state],

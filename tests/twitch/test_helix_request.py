@@ -5,6 +5,7 @@ import pytest
 
 from constants import TokenType
 from services.twitch.helix import HelixError, request
+from tests.credentials import CLIENT_ID
 from tests.twitch.support import FakeTokens, Script, reply
 
 pytestmark = pytest.mark.anyio
@@ -33,7 +34,7 @@ class TestRequest:
         await request("GET", "/users")
 
         headers = script.requests[0].headers
-        assert headers["Client-ID"] == "test"
+        assert headers["Client-ID"] == CLIENT_ID
         assert headers["Authorization"] == "Bearer app-token"
 
     @pytest.mark.parametrize(
