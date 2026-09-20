@@ -389,7 +389,14 @@ def has_configured_role(key: str) -> Callable[[_CheckT], _CheckT]:
         member = interaction.user
         if not isinstance(member, Member):
             return False
-        role_id = config.role(key)
+        try:
+            role_id = config.role(key)
+        except KeyError as missing:
+            # discord.py hands only an AppCommandError to the tree's error handler,
+            # so the KeyError for a role row that is gone would leave the person on
+            # a spinner and tell nobody. Not a CheckFailure either: that reads as
+            # a refusal, and this is a configuration fault to report.
+            raise app_commands.AppCommandError(str(missing)) from missing
         return any(role.id == role_id for role in member.roles)
 
     return app_commands.check(predicate)

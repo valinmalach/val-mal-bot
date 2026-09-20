@@ -156,5 +156,20 @@ class TestHasConfiguredRole:
     ) -> None:
         monkeypatch.setattr(service_config.config, "_roles", {})
 
-        with pytest.raises(KeyError):
+        with pytest.raises(discord.app_commands.AppCommandError) as raised:
             self.check()(SimpleNamespace(user=self.member(500)))
+
+        assert "No discord_role row keyed 'mods'" in str(raised.value)
+        assert isinstance(raised.value.__cause__, KeyError)
+
+    def test_that_fault_is_an_app_command_error_but_not_a_refusal(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """discord.py routes only an AppCommandError to the tree's handler, and a
+        CheckFailure would be answered as 'not allowed' instead of reported."""
+        monkeypatch.setattr(service_config.config, "_roles", {})
+
+        with pytest.raises(discord.app_commands.AppCommandError) as raised:
+            self.check()(SimpleNamespace(user=self.member(500)))
+
+        assert not isinstance(raised.value, discord.app_commands.CheckFailure)
