@@ -1,9 +1,7 @@
 import importlib.util
-from pathlib import Path
 
+from tests.support import ROOT
 from valmal.bot.cogs import COGS
-
-ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_every_cog_module_is_registered() -> None:

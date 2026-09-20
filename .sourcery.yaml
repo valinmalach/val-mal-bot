@@ -82,4 +82,4 @@ rules:
     # apart from str.format on database text -- logging_json's own self-check calls it,
     # and so do its tests.
     - valmal/core/logging_json.py
-    - tests/test_logging_json.py
+    - tests/core/test_logging_json.py
