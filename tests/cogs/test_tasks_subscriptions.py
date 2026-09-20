@@ -25,9 +25,10 @@ def watch(monkeypatch: pytest.MonkeyPatch) -> Watch:
 
     async def broken_subscriptions() -> dict[str, str]:
         watch.calls += 1
-        if isinstance(watch.broken, HelixError):
-            raise watch.broken
-        return dict(watch.broken)
+        broken = watch.broken
+        if isinstance(broken, HelixError):
+            raise broken
+        return dict(broken)
 
     async def notify(text: str, *, key: str | None = None) -> bool:
         watch.notified.append(text)
