@@ -1,11 +1,17 @@
 """Fakes for the Twitch layer: a token manager, and a scripted HTTP transport."""
 
+import json
 from types import SimpleNamespace
 from typing import Any
 
 import httpx
 
 from constants import TokenType
+
+# The two callbacks a subscribe/unsubscribe test cares about, shared so the
+# online and conflict-replacement tests agree on what this deployment answers on.
+ONLINE = "https://bot.example/webhook/twitch"
+OFFLINE = "https://bot.example/webhook/twitch/offline"
 
 
 class FakeTokens:
@@ -68,6 +74,15 @@ class Script:
 
     def client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(transport=httpx.MockTransport(self))
+
+
+def steps(script: Script) -> list[tuple[str, str]]:
+    """Every request a Script saw, as (method, path) in order."""
+    return [(r.method, r.url.path) for r in script.requests]
+
+
+def body(request: httpx.Request) -> dict[str, Any]:
+    return json.loads(request.content)
 
 
 def user_json(id: str = "1", login: str = "bob", **overrides: Any) -> dict[str, Any]:
