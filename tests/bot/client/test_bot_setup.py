@@ -7,7 +7,7 @@ import discord
 import pytest
 from discord.ext import commands
 
-from valmal.bot import client as bot_init
+from valmal.bot import client as bot_client
 from valmal.bot import views
 from valmal.bot.cogs.tasks import Tasks
 from valmal.core.config import config
@@ -59,7 +59,7 @@ def startup(monkeypatch: pytest.MonkeyPatch) -> Iterator[Startup]:
     monkeypatch.setattr(token_manager, "load", load_tokens)
     monkeypatch.setattr(shoutout_queue, "drain", drain)
     monkeypatch.setattr(config, "setting", setting)
-    monkeypatch.setattr(bot_init, "fire_and_forget", fire_and_forget)
+    monkeypatch.setattr(bot_client, "fire_and_forget", fire_and_forget)
     monkeypatch.setattr(
         views, "persistent_views", lambda: [SimpleNamespace(key=k) for k in "ab"]
     )
@@ -69,9 +69,9 @@ def startup(monkeypatch: pytest.MonkeyPatch) -> Iterator[Startup]:
 
 
 @pytest.fixture
-def instance(startup: Startup, monkeypatch: pytest.MonkeyPatch) -> bot_init.MyBot:
+def instance(startup: Startup, monkeypatch: pytest.MonkeyPatch) -> bot_client.MyBot:
     """A bot of the same class that has never met Discord, so nothing is sent."""
-    bot = bot_init.MyBot(command_prefix="$", intents=discord.Intents.none())
+    bot = bot_client.MyBot(command_prefix="$", intents=discord.Intents.none())
 
     async def sync(*, guild: discord.abc.Snowflake | None = None) -> list[object]:
         startup.order.append("sync")
@@ -95,29 +95,29 @@ def instance(startup: Startup, monkeypatch: pytest.MonkeyPatch) -> bot_init.MyBo
 
 class TestInit:
     def test_commands_are_case_insensitive(self) -> None:
-        bot = bot_init.MyBot(command_prefix="$", intents=discord.Intents.none())
+        bot = bot_client.MyBot(command_prefix="$", intents=discord.Intents.none())
 
         assert bot.case_insensitive is True
 
     def test_starts_with_the_prefix_it_was_given(self) -> None:
-        bot = bot_init.MyBot(command_prefix="?", intents=discord.Intents.none())
+        bot = bot_client.MyBot(command_prefix="?", intents=discord.Intents.none())
 
         assert bot.command_prefix == "?"
 
     def test_the_process_wide_bot_is_one_of_these(self) -> None:
-        assert isinstance(bot_init.bot, bot_init.MyBot)
+        assert isinstance(bot_client.bot, bot_client.MyBot)
 
 
 class TestSetupHook:
     async def test_loads_the_configuration_before_anything_reads_it(
-        self, instance: bot_init.MyBot, startup: Startup
+        self, instance: bot_client.MyBot, startup: Startup
     ) -> None:
         await instance.setup_hook()
 
         assert startup.order[:2] == ["config", "tokens"]
 
     async def test_starts_one_named_drainer_for_the_life_of_the_process(
-        self, instance: bot_init.MyBot, startup: Startup
+        self, instance: bot_client.MyBot, startup: Startup
     ) -> None:
         await instance.setup_hook()
 
@@ -127,7 +127,7 @@ class TestSetupHook:
         assert startup.order.count("drain") == 1
 
     async def test_starts_both_task_loops_once_the_gateway_setup_they_wait_on_exists(
-        self, instance: bot_init.MyBot, startup: Startup
+        self, instance: bot_client.MyBot, startup: Startup
     ) -> None:
         """From here rather than cog_load, where wait_until_ready() raises at once."""
         await instance.setup_hook()
@@ -137,7 +137,7 @@ class TestSetupHook:
 
     async def test_a_missing_tasks_cog_starts_nothing_and_does_not_fail(
         self,
-        instance: bot_init.MyBot,
+        instance: bot_client.MyBot,
         startup: Startup,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -149,7 +149,7 @@ class TestSetupHook:
 
     async def test_a_cog_that_is_not_the_tasks_cog_is_not_started_as_one(
         self,
-        instance: bot_init.MyBot,
+        instance: bot_client.MyBot,
         startup: Startup,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -161,14 +161,14 @@ class TestSetupHook:
         assert not hasattr(impostor, "check_birthdays")
 
     async def test_the_prefix_comes_from_the_configuration(
-        self, instance: bot_init.MyBot, startup: Startup
+        self, instance: bot_client.MyBot, startup: Startup
     ) -> None:
         await instance.setup_hook()
 
         assert instance.command_prefix == "!"
 
     async def test_a_missing_prefix_row_falls_back_to_dollar(
-        self, instance: bot_init.MyBot, startup: Startup
+        self, instance: bot_client.MyBot, startup: Startup
     ) -> None:
         del startup.settings["command_prefix"]
 
@@ -177,7 +177,7 @@ class TestSetupHook:
         assert instance.command_prefix == "$"
 
     async def test_copies_the_global_commands_to_the_guild_then_syncs_that_guild(
-        self, instance: bot_init.MyBot, startup: Startup
+        self, instance: bot_client.MyBot, startup: Startup
     ) -> None:
         """Guild sync is instant; a global one takes up to an hour to appear."""
         await instance.setup_hook()
@@ -187,14 +187,14 @@ class TestSetupHook:
         assert startup.order.index("copy") < startup.order.index("sync")
 
     async def test_registers_every_persistent_view_so_buttons_survive_a_restart(
-        self, instance: bot_init.MyBot, startup: Startup
+        self, instance: bot_client.MyBot, startup: Startup
     ) -> None:
         await instance.setup_hook()
 
         assert [v.key for v in startup.views] == ["a", "b"]  # pyright: ignore[reportAttributeAccessIssue]
 
     async def test_views_are_registered_after_the_sync_so_a_failed_sync_leaves_none_half_done(
-        self, instance: bot_init.MyBot, startup: Startup
+        self, instance: bot_client.MyBot, startup: Startup
     ) -> None:
         await instance.setup_hook()
 
@@ -202,7 +202,7 @@ class TestSetupHook:
 
     async def test_a_failed_sync_propagates_so_the_bot_does_not_start_half_configured(
         self,
-        instance: bot_init.MyBot,
+        instance: bot_client.MyBot,
         startup: Startup,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -218,7 +218,7 @@ class TestSetupHook:
 
     async def test_a_configuration_that_will_not_load_stops_before_anything_starts(
         self,
-        instance: bot_init.MyBot,
+        instance: bot_client.MyBot,
         startup: Startup,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -247,7 +247,7 @@ class TestClose:
 
         monkeypatch.setattr(commands.Bot, "close", close)
         monkeypatch.setattr("valmal.db.session.dispose_engine", dispose)
-        bot = bot_init.MyBot(command_prefix="$", intents=discord.Intents.none())
+        bot = bot_client.MyBot(command_prefix="$", intents=discord.Intents.none())
 
         await bot.close()
 

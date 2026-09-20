@@ -5,7 +5,7 @@ import discord
 import pytest
 
 from tests.bot.client.support import Errors, interaction
-from valmal.bot import client as bot_init
+from valmal.bot import client as bot_client
 from valmal.bot.cogs.birthday import Birthday
 from valmal.core.config import config
 
@@ -14,7 +14,7 @@ pytestmark = pytest.mark.anyio
 
 class TestSlashCommandFloor:
     async def test_is_registered_on_the_tree(self) -> None:
-        assert bot_init.bot.tree.on_error is bot_init.on_app_command_error
+        assert bot_client.bot.tree.on_error is bot_client.on_app_command_error
 
     async def test_a_command_that_raised_is_reported_then_the_person_is_told(
         self, errors: Errors
@@ -22,7 +22,7 @@ class TestSlashCommandFloor:
         asked = interaction()
         boom = discord.app_commands.CommandInvokeError(MagicMock(), ValueError("x"))
 
-        await bot_init.on_app_command_error(asked, boom)
+        await bot_client.on_app_command_error(asked, boom)
 
         assert errors.reported == [(boom, "Unhandled error in /birthday set")]
         assert asked.sent == [("response", "it failed", True)]
@@ -36,7 +36,7 @@ class TestSlashCommandFloor:
 
         asked.response.send_message = slow
 
-        await bot_init.on_app_command_error(
+        await bot_client.on_app_command_error(
             asked, discord.app_commands.AppCommandError()
         )
 
@@ -47,7 +47,7 @@ class TestSlashCommandFloor:
     ) -> None:
         asked = interaction("purge")
 
-        await bot_init.on_app_command_error(
+        await bot_client.on_app_command_error(
             asked, discord.app_commands.MissingPermissions(["administrator"])
         )
 
@@ -57,7 +57,7 @@ class TestSlashCommandFloor:
     async def test_a_command_the_tree_could_not_name_is_reported_as_unknown(
         self, errors: Errors
     ) -> None:
-        await bot_init.on_app_command_error(
+        await bot_client.on_app_command_error(
             interaction(None), discord.app_commands.AppCommandError()
         )
 
@@ -68,7 +68,7 @@ class TestSlashCommandFloor:
     ) -> None:
         asked = interaction(done=True)
 
-        await bot_init.on_app_command_error(
+        await bot_client.on_app_command_error(
             asked, discord.app_commands.AppCommandError()
         )
 
@@ -84,7 +84,7 @@ class TestSlashCommandFloor:
 
         asked.response.send_message = refuse
 
-        await bot_init.on_app_command_error(
+        await bot_client.on_app_command_error(
             asked, discord.app_commands.AppCommandError()
         )
 
@@ -98,7 +98,7 @@ class TestSlashCommandFloor:
     ) -> None:
         del errors.templates["command_failed"]
 
-        await bot_init.on_app_command_error(
+        await bot_client.on_app_command_error(
             interaction(), discord.app_commands.AppCommandError()
         )
 
@@ -111,7 +111,7 @@ class TestSlashCommandFloor:
     ) -> None:
         del errors.templates["command_no_permission"]
 
-        await bot_init.on_app_command_error(
+        await bot_client.on_app_command_error(
             interaction("purge"), discord.app_commands.MissingPermissions(["x"])
         )
 
@@ -136,7 +136,7 @@ class TestARefusedCheck:
     ) -> None:
         asked = interaction("birthday set")
 
-        await bot_init.on_app_command_error(asked, refusal)
+        await bot_client.on_app_command_error(asked, refusal)
 
         assert errors.reported == []
         assert asked.sent == [("response", "not allowed", True)]
@@ -159,7 +159,7 @@ class TestARefusedCheck:
         the general report is what will tell somebody the first time one does."""
         asked = interaction("purge")
 
-        await bot_init.on_app_command_error(asked, fault)
+        await bot_client.on_app_command_error(asked, fault)
 
         assert errors.reported == [(fault, "Unhandled error in /purge")]
         assert asked.sent == [("response", "it failed", True)]
@@ -184,7 +184,7 @@ class TestARefusedCheck:
         refused = discord.app_commands.CheckFailure(
             "The check functions for command 'set' failed."
         )
-        await bot_init.on_app_command_error(asked, refused)
+        await bot_client.on_app_command_error(asked, refused)
 
         assert errors.reported == []
         assert asked.sent == [("response", "not allowed", True)]
@@ -214,7 +214,7 @@ class TestARefusedCheck:
 
         with pytest.raises(discord.app_commands.AppCommandError) as fault:
             await command._check_can_run(asked)
-        await bot_init.on_app_command_error(asked, fault.value)
+        await bot_client.on_app_command_error(asked, fault.value)
 
         assert [context for _, context in errors.reported] == [
             "Unhandled error in /birthday set"

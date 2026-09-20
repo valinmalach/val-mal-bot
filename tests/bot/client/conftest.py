@@ -1,7 +1,7 @@
 import pytest
 
 from tests.bot.client.support import Errors
-from valmal.bot import client as bot_init
+from valmal.bot import client as bot_client
 from valmal.core.config import config
 
 
@@ -20,10 +20,10 @@ def errors(monkeypatch: pytest.MonkeyPatch) -> Errors:
     def template(key: str, **_: object) -> str:
         return errors.templates[key]
 
-    monkeypatch.setattr(bot_init, "report", report)
+    monkeypatch.setattr(bot_client, "report", report)
     monkeypatch.setattr("valmal.core.errors.report", report)
-    monkeypatch.setattr(bot_init, "notify", notify)
+    monkeypatch.setattr(bot_client, "notify", notify)
     monkeypatch.setattr(config, "template", template)
-    monkeypatch.setattr(bot_init, "_started", False)
-    monkeypatch.setattr(bot_init, "_announced", False)
+    monkeypatch.setattr(bot_client, "_started", False)
+    monkeypatch.setattr(bot_client, "_announced", False)
     return errors
