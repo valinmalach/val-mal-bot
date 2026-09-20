@@ -199,22 +199,24 @@ def _shortened(text: str) -> str:
     Whole lines because the tail of a notice is where its detail is, and a cut
     mid-line reads as the notice ending rather than as being truncated -- which
     is how a list of 97 undeliverable subscriptions appeared to stop at 30 for
-    no reason. A single line longer than the budget has nothing whole to keep, so
-    its head is kept: a report's summary is one line that leads with what was
-    being attempted, and the attachment beside it is a traceback that does not
-    say, so the note alone left the admin channel with no idea what had failed.
-    The note that follows is what tells the reader the line was cut.
+    no reason. A line longer than the whole budget can never fit, so it keeps its
+    head in whatever room is left, wherever it sits: a report's summary is one
+    line that leads with what was being attempted, and the attachment beside it
+    is a traceback that does not say, so dropping it left the admin channel with
+    no idea what had failed -- including behind the one-line "reached nobody"
+    prefix a delivery adds after an outage. The note that follows is what tells
+    the reader the line was cut.
     """
     budget = _MAX_CONTENT - len(_OVERFLOW_NOTE) - 1
     kept: list[str] = []
     used = 0
     for line in text.split("\n"):
         if used + len(line) > budget:
+            if len(line) > budget and used < budget:
+                kept.append(line[: budget - used])
             break
         kept.append(line)
         used += len(line) + 1
-    if not kept:
-        kept = [text[:budget]]
     return "\n".join([*kept, _OVERFLOW_NOTE])
 
 
