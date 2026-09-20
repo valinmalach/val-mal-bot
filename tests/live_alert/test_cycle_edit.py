@@ -10,6 +10,7 @@ from services.twitch.helix import HelixError
 from services.twitch.live_alert_cycle import Action
 from tests.live_alert.support import (
     CycleWorld,
+    http_error,
     stream,
     user,
     video,
@@ -18,10 +19,6 @@ from tests.live_alert.support import (
 pytestmark = pytest.mark.anyio
 
 STARTED = pendulum.datetime(2026, 6, 15, 11)
-
-
-def http_error(status: int) -> discord.HTTPException:
-    return discord.HTTPException(SimpleNamespace(status=status, reason="x"), "text")  # pyright: ignore[reportArgumentType]
 
 
 def not_found() -> discord.NotFound:

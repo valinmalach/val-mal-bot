@@ -10,11 +10,7 @@ from services.twitch.live_alert_cycle import (
     _is_transient_edit_error,
     _owns_row,
 )
-from tests.live_alert.support import alert, stream
-
-
-def http_error(status: int) -> discord.HTTPException:
-    return discord.HTTPException(SimpleNamespace(status=status, reason="x"), "text")  # pyright: ignore[reportArgumentType]
+from tests.live_alert.support import alert, http_error, stream
 
 
 class TestOwnsRow:

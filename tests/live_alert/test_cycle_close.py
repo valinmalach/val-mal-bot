@@ -1,6 +1,3 @@
-from types import SimpleNamespace
-
-import discord
 import pendulum
 import pytest
 
@@ -14,6 +11,7 @@ from tests.live_alert.support import (
     CycleWorld,
     alert,
     channel,
+    http_error,
     stream,
     user,
     video,
@@ -22,14 +20,6 @@ from tests.live_alert.support import (
 pytestmark = pytest.mark.anyio
 
 STARTED = pendulum.datetime(2026, 6, 15, 11)
-
-
-def http_error(status: int) -> discord.HTTPException:
-    return discord.HTTPException(SimpleNamespace(status=status, reason="x"), "text")  # pyright: ignore[reportArgumentType]
-
-
-def not_found() -> discord.NotFound:
-    return discord.NotFound(SimpleNamespace(status=404, reason="Not Found"), "gone")  # pyright: ignore[reportArgumentType]
 
 
 class TestGatherCloseInfo:

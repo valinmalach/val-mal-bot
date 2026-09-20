@@ -1,8 +1,10 @@
 """Shared by the live alert tests."""
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 
+import discord
 import pendulum
 
 from db.models import LiveAlert
@@ -13,6 +15,11 @@ from models.twitch_api_responses.video import Video
 from tests.twitch.support import channel_json, stream_json, user_json, video_json
 
 NOW = pendulum.datetime(2026, 6, 15, 12)
+
+
+def http_error(status: int) -> discord.HTTPException:
+    return discord.HTTPException(SimpleNamespace(status=status, reason="x"), "text")  # pyright: ignore[reportArgumentType]
+
 
 TEMPLATES = {
     "stream_watch_button": "Watch",
