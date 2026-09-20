@@ -14,9 +14,6 @@ from valmal.db.models import (
 pytestmark = pytest.mark.anyio
 
 
-# --- render ---------------------------------------------------------------------
-
-
 class TestRender:
     @pytest.fixture
     async def cache(self, load: Any) -> ConfigCache:
@@ -91,9 +88,6 @@ class TestRender:
         assert cache.render("{channel:promo}", source="s") == "<#111>"
 
 
-# --- template -------------------------------------------------------------------
-
-
 class TestTemplate:
     async def test_a_missing_row_is_an_empty_string_and_a_notice_not_an_exception(
         self, load: Any, notices: list
@@ -162,9 +156,6 @@ class TestTemplate:
         cache = await load(MessageTemplate(key="t", content="hello {name}"))
 
         assert cache.template("t", name="{channel:x} <@1>") == "hello {channel:x} <@1>"
-
-
-# --- embed ----------------------------------------------------------------------
 
 
 class TestEmbed:

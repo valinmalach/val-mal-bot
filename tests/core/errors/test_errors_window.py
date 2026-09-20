@@ -10,9 +10,6 @@ from valmal.core.background import fire_and_forget
 pytestmark = pytest.mark.anyio
 
 
-# --- _shortened -----------------------------------------------------------------
-
-
 class TestShortened:
     def test_keeps_whole_lines_and_ends_with_the_note(self) -> None:
         text = "\n".join(f"line {i:03d} " + "x" * 40 for i in range(100))
@@ -100,9 +97,6 @@ class TestShortened:
         assert len(errors._shortened(text)) <= errors._MAX_CONTENT
 
 
-# --- _prune ---------------------------------------------------------------------
-
-
 class TestPrune:
     def test_drops_windows_that_expired_more_than_a_window_ago(self) -> None:
         errors._windows["old"] = errors._Window(until=0.0, suppressed=0)
@@ -139,9 +133,6 @@ class TestPrune:
         errors._prune(now=0.0)
 
         assert len(errors._windows) == 10
-
-
-# --- _send_once -----------------------------------------------------------------
 
 
 class TestSendOnce:

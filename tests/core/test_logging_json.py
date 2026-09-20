@@ -35,7 +35,7 @@ def _format(
 
 
 def test_the_modules_own_self_check_still_passes() -> None:
-    """logging_json._demo is a runnable check that used to be run by hand."""
+    """logging_json._demo is a runnable self-check."""
     logging_json._demo()
 
 

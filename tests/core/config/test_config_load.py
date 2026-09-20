@@ -20,9 +20,6 @@ from valmal.db.models import (
 pytestmark = pytest.mark.anyio
 
 
-# --- load -----------------------------------------------------------------------
-
-
 class TestLoad:
     async def test_a_new_cache_is_not_loaded_until_load_runs(self, load: Any) -> None:
         assert ConfigCache().loaded is False
@@ -189,9 +186,6 @@ class TestLoad:
         )
 
 
-# --- _coerce --------------------------------------------------------------------
-
-
 class TestCoerce:
     @pytest.mark.parametrize(
         ("value", "kind", "expected"),
@@ -229,9 +223,6 @@ class TestCoerce:
             _coerce(setting("k", "twelve", SettingValueType.INTEGER))
         with pytest.raises(ValueError):
             _coerce(setting("k", "{not json", SettingValueType.JSON))
-
-
-# --- accessors ------------------------------------------------------------------
 
 
 class TestAccessors:

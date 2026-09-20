@@ -143,7 +143,7 @@ class TestClaimsAreGivenBackWhenThisEndFails:
         self, client: httpx.AsyncClient, hooks: Hooks
     ) -> None:
         """A retry of one that worked must not run it twice; what the handler does
-        afterwards is its own report's business -- _release is only ever called
+        afterwards is its own report's business -- replay.release is only ever called
         when dispatch itself could not start, never for a handler that ran and
         then failed."""
         hooks.handler_error = RuntimeError("handler blew up")

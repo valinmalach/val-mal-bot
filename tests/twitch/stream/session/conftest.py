@@ -1,5 +1,4 @@
-"""Fixtures for the stream session tests, split across files so each is short enough
-to be reviewed whole."""
+"""Fixtures for the stream session tests."""
 
 import asyncio
 from types import SimpleNamespace

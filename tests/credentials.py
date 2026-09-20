@@ -1,8 +1,8 @@
 """The four credentials, each with a value of its own.
 
-They were all "test", so a mutation that signed with the client secret instead of the
-webhook secret, or sent the client id where the secret goes, still passed. Every
-test that checks which credential went where reads it from here.
+Distinct, so a mutation that signed with the client secret instead of the webhook
+secret, or sent the client id where the secret goes, fails. Every test that
+checks which credential went where reads it from here.
 """
 
 DISCORD_TOKEN = "discord-token-value"

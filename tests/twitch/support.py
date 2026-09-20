@@ -210,8 +210,7 @@ class Scope:
         return None
 
 
-# Shared by the token manager's refresh and concurrency tests, which otherwise
-# each defined their own identical copies.
+# Shared by the token manager's refresh and concurrency tests.
 NOW = pendulum.datetime(2026, 6, 15, 12)
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 Http = Callable[..., Script]
