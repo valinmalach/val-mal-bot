@@ -185,8 +185,11 @@ async def channel_ad_break_begin(event_sub: ChannelAdBreakBeginEventSub) -> None
 
         # Each step stands alone: a dropped "ads starting" used to take the
         # "ads over" message and the next break's warning down with it.
+        # Real minutes, not `// 60`: Twitch's breaks are multiples of thirty
+        # seconds, so truncating said "0 minute" for the shortest and "1 minute"
+        # for a minute and a half. `g` drops the trailing zero of a whole number.
         await say_template(
-            broadcaster_id, "twitch_ad_break_start", minutes=ad_duration // 60
+            broadcaster_id, "twitch_ad_break_start", minutes=f"{ad_duration / 60:g}"
         )
         await asyncio.sleep(ad_duration)
         await say_template(broadcaster_id, "twitch_ad_break_end")

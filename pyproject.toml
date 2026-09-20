@@ -134,6 +134,8 @@ filterwarnings = [
     "error::RuntimeWarning",
     # discord.py's own use of a function Python 3.16 removes; nothing here can fix it.
     "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning:discord",
+    # discord.utils passes re.sub's count positionally, which Python 3.13 deprecates.
+    "ignore:'count' is passed as positional argument:DeprecationWarning:discord",
 ]
 
 [tool.coverage.run]
