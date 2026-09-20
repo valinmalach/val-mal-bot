@@ -322,6 +322,14 @@ async def cycle(
         logger.info(
             f"No live alert record left for broadcaster_id={broadcaster_id}; stopping updates for message_id={message_id}"
         )
+        # Said aloud because this updater deletes its own row only on its way out, so
+        # finding none here means something else did, and the one thing that closes
+        # an alert has stopped: the message can go on reading live.
+        await notify(
+            f"The live alert for broadcaster {broadcaster_id} lost its database row,"
+            f" so its updater stopped and message {message_id} may still read live.",
+            key=f"live-alert-row-gone:{broadcaster_id}",
+        )
         return action
 
     user_info = await _fetch_profile(broadcaster_id)

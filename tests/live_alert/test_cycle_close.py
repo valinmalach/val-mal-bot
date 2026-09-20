@@ -186,6 +186,19 @@ class TestCycle:
         assert cycle_world.streams_asked == 0
         assert cycle_world.edits == []
 
+    async def test_a_row_that_vanished_is_reported_because_the_message_may_still_read_live(
+        self, cycle_world: CycleWorld
+    ) -> None:
+        """This updater deletes its own row only on the way out, so finding none at the
+        top of a cycle means something else did, and nothing is left to close the alert."""
+        cycle_world.alert = None
+
+        await self.cycle(cycle_world)
+
+        ((text, key),) = cycle_world.notified
+        assert key == "live-alert-row-gone:111"
+        assert "111" in text and "900" in text
+
     async def test_a_live_stream_refreshes_the_embed(
         self, cycle_world: CycleWorld
     ) -> None:
