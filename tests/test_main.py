@@ -286,11 +286,23 @@ print(json.dumps({
 """
 
 
-@pytest.fixture(scope="module")
-def logging_of_a_fresh_process() -> dict[str, Any]:
+# uvicorn.run replaced, so running main as a script only records how it would have
+# started the server.
+SERVE = """
+import json, runpy
+import uvicorn
+captured = {}
+uvicorn.run = lambda app, **kwargs: captured.update(kwargs, app=type(app).__name__)
+runpy.run_path("main.py", run_name="__main__")
+print(json.dumps(captured))
+"""
+
+
+def run_in_a_fresh_process(script: str) -> dict[str, Any]:
+    """The last line the script prints, as JSON, from a process of its own."""
     # The interpreter running the tests and a fixed script; nothing here is input.
     done = subprocess.run(  # noqa: S603
-        [sys.executable, "-c", DESCRIBE],
+        [sys.executable, "-c", script],
         cwd=ROOT,
         env=os.environ | {"PYTHONIOENCODING": "utf-8"},
         capture_output=True,
@@ -301,6 +313,16 @@ def logging_of_a_fresh_process() -> dict[str, Any]:
     )
     assert done.returncode == 0, done.stderr[-2000:]
     return json.loads(done.stdout.strip().splitlines()[-1])
+
+
+@pytest.fixture(scope="module")
+def logging_of_a_fresh_process() -> dict[str, Any]:
+    return run_in_a_fresh_process(DESCRIBE)
+
+
+@pytest.fixture(scope="module")
+def how_the_server_starts() -> dict[str, Any]:
+    return run_in_a_fresh_process(SERVE)
 
 
 class TestLogging:
@@ -324,3 +346,26 @@ class TestLogging:
 
     def test_the_formatter_is_the_shared_one(self, entry: ModuleType) -> None:
         assert isinstance(entry._handler.formatter, JsonFormatter)
+
+
+class TestRunningItAsAScript:
+    def test_serves_the_app_on_every_interface_at_the_configured_port(
+        self, how_the_server_starts: dict[str, Any]
+    ) -> None:
+        """Railway reaches the container on its external interface."""
+        assert how_the_server_starts["app"] == "FastAPI"
+        # Asserted, not bound: the point is that main binds every interface.
+        assert how_the_server_starts["host"] == "0.0.0.0"  # noqa: S104
+        assert how_the_server_starts["port"] == settings.port
+
+    def test_leaves_logging_to_the_json_formatter_by_giving_uvicorn_no_config(
+        self, how_the_server_starts: dict[str, Any]
+    ) -> None:
+        """Without this uvicorn installs its own handlers, which are not JSON, and
+        Railway then colours a line by the stream it arrived on."""
+        assert how_the_server_starts["log_config"] is None
+        assert "log_config" in how_the_server_starts
+
+    def test_logs_requests_at_info(self, how_the_server_starts: dict[str, Any]) -> None:
+        assert how_the_server_starts["log_level"] == "info"
+        assert how_the_server_starts["access_log"] is True
