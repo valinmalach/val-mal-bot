@@ -1,6 +1,6 @@
 import pytest
 
-from valmal.core.config import _field_name, safe_format
+from valmal.core.safe_format import _field_name, safe_format
 
 
 class TestFieldName:

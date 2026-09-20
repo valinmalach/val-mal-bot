@@ -77,7 +77,7 @@ rules:
   language: python
   paths:
     exclude:
-    - valmal/core/config.py
+    - valmal/core/safe_format.py
     # The pattern is purely syntactic and can't tell logging.Formatter.format(record)
     # apart from str.format on database text -- logging_json's own self-check calls it,
     # and so do its tests.

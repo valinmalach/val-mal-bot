@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 import valmal.core.config as service_config
+import valmal.core.safe_format as safe_format_module
 from tests.config_cache.support import FakeSession
 from valmal.core.config import ConfigCache
 
@@ -20,6 +21,7 @@ def notices(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str | None]]:
         seen.append((text, key))
 
     monkeypatch.setattr(service_config, "notify_soon", notify_soon)
+    monkeypatch.setattr(safe_format_module, "notify_soon", notify_soon)
     return seen
 
 

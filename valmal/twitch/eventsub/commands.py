@@ -10,8 +10,9 @@ import re
 import unicodedata
 from collections.abc import Awaitable, Callable
 
-from valmal.core.config import config, safe_format
+from valmal.core.config import config
 from valmal.core.errors import notify
+from valmal.core.safe_format import safe_format
 from valmal.twitch.client.api import get_channel, get_user_by_username
 from valmal.twitch.client.chat import say, say_template
 from valmal.twitch.client.helix import HelixError
