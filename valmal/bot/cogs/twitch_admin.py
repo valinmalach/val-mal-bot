@@ -39,16 +39,12 @@ def _bulleted(names: list[str]) -> list[str]:
     one is enough to italicise the rest of the list, so each is escaped here.
     """
     values: list[str] = []
-    current = ""
     for name in names:
         line = f"* {escape_markdown(name)}"[:_FIELD_VALUE_LIMIT]
-        if current and len(current) + 1 + len(line) > _FIELD_VALUE_LIMIT:
-            values.append(current)
-            current = line
+        if values and len(values[-1]) + 1 + len(line) <= _FIELD_VALUE_LIMIT:
+            values[-1] = f"{values[-1]}\n{line}"
         else:
-            current = f"{current}\n{line}" if current else line
-    if current:
-        values.append(current)
+            values.append(line)
     return values
 
 
