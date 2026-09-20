@@ -6,6 +6,7 @@ import httpx
 from constants import TokenType
 from models.auth.auth_response import RefreshResponse
 from services.twitch import oauth
+from tests.credentials import CLIENT_ID
 
 SCOPES = ["chat:read", "moderator:manage:shoutouts"]
 BOT_ID = "999"
@@ -30,7 +31,7 @@ def token_body(**overrides: Any) -> dict[str, Any]:
 
 def validation_body(user_id: str = BOT_ID, **overrides: Any) -> dict[str, Any]:
     return {
-        "client_id": "test",
+        "client_id": CLIENT_ID,
         "login": "somebody",
         "scopes": list(SCOPES),
         "user_id": user_id,

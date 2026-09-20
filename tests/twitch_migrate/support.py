@@ -100,3 +100,11 @@ class MigrateWorld:
     @property
     def creates(self) -> list[tuple[Any, ...]]:
         return [c[1:] for c in self.calls if c[0] == "create"]
+
+
+def two_online_and_a_raid() -> list[Subscription]:
+    return [
+        sub(id="a", broadcaster_user_id="1"),
+        sub(id="b", broadcaster_user_id="2", callback=CURRENT),
+        sub(id="c", type="channel.follow"),
+    ]

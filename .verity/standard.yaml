@@ -7,7 +7,7 @@ knowledge_spec:
   frameworks: [fastapi, discord.py, sqlmodel, alembic, pydantic, uvicorn, httpx]
   architecture: monolith
   build_system: uv
-  test_framework: none
+  test_framework: pytest
 
 quality_dimensions:
   - id: comprehensibility
@@ -16,7 +16,7 @@ quality_dimensions:
       - metric: file_length
         threshold: 400
         unit: lines
-        rationale: "Raised from 300: the repo averages ~165 lines/file, and 300 would nag the healthy 300-400 line modules. The three files this threshold was written for -- cogs/events.py, services/twitch/live_alert.py and controller/twitch.py -- have since been split and are 335, 226 and 347; nothing now exceeds 400, services/audit.py being closest at 395"
+        rationale: "Raised from 300: the repo averages ~165 lines/file, and 300 would nag the healthy 300-400 line modules. The three files this threshold was written for -- cogs/events.py, services/twitch/live_alert.py and controller/twitch.py -- were split once and have since grown past 400 again on their own (299, 280 and 421 lines); services/twitch/live_alert_cycle.py and services/config.py are the other two over it, at 404 and 402. A file drifting over is a signal to look at splitting it again, not a threshold to keep artificially true by editing this rationale"
       - metric: cyclomatic_complexity
         threshold: 15
         unit: per_function
@@ -58,12 +58,12 @@ quality_dimensions:
     description: "Tests define expected behavior for agents"
     signals:
       - metric: test_coverage
-        threshold: 0
+        threshold: 95
         unit: percent
-        rationale: "tests/ holds pytest tests of the pure rules only (AGENTS.md), about 14% coverage, so a threshold would only fail on I/O nobody has tested yet. Raise it as the suite grows; CI uploads the real number to Codacy"
+        rationale: "tests/ covers every module outside migrations/ at 99% (branches included). The rest is a __main__ guard, a demo, a defensive raise after a retry loop and one unreachable match arm, none of which a test can reach. 95 leaves room for a new file's first commit without letting a whole module go untested; raise it, never lower it. Nothing here runs against a real Postgres: the SQL is compiled and asserted, and migrations are rendered offline (tests/test_migrations.py). CI uploads the real number to Codacy"
       - metric: test_quality
         tool: ai
-        rationale: "Kept active so any test that does arrive is judged, and so a change is never described as tested when it is not"
+        rationale: "Coverage says a line ran, not that anything was checked. A test here has to fail when the behaviour it names breaks: assert what came out or was sent, not that a mock was called, and pin the reason a rule exists (AGENTS.md records most of them). A bug a test finds is fixed in the same branch with a regression test that fails without the fix. A change is still never described as tested when no test exercises it"
 
 security_patterns:
   - id: no-hardcoded-secrets

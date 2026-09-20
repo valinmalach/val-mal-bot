@@ -1,11 +1,25 @@
 """Fakes for the Twitch layer: a token manager, and a scripted HTTP transport."""
 
+import json
+from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any
 
 import httpx
+import pendulum
 
 from constants import TokenType
+from services.twitch.token_manager import TwitchTokenManager
+
+# The two callbacks a subscribe/unsubscribe test cares about, shared so the
+# online and conflict-replacement tests agree on what this deployment answers on.
+ONLINE = "https://bot.example/webhook/twitch"
+OFFLINE = "https://bot.example/webhook/twitch/offline"
+
+# Shared by the actions and subscribe-conflict tests, each of which patches this
+# into config._settings themselves rather than through the directory's autouse
+# `scopes` fixture -- neither wants the app scopes that one seeds.
+BOT_SETTINGS = {"twitch_bot_user_id": "999", "twitch_broadcaster_id": "111"}
 
 
 class FakeTokens:
@@ -68,6 +82,15 @@ class Script:
 
     def client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(transport=httpx.MockTransport(self))
+
+
+def steps(script: Script) -> list[tuple[str, str]]:
+    """Every request a Script saw, as (method, path) in order."""
+    return [(r.method, r.url.path) for r in script.requests]
+
+
+def body(request: httpx.Request) -> dict[str, Any]:
+    return json.loads(request.content)
 
 
 def user_json(id: str = "1", login: str = "bob", **overrides: Any) -> dict[str, Any]:
@@ -185,6 +208,31 @@ class Scope:
 
     async def __aexit__(self, *exc: object) -> None:
         return None
+
+
+# Shared by the token manager's refresh and concurrency tests, which otherwise
+# each defined their own identical copies.
+NOW = pendulum.datetime(2026, 6, 15, 12)
+TOKEN_URL = "https://id.twitch.tv/oauth2/token"
+Http = Callable[..., Script]
+Notices = list[tuple[str, str | None]]
+
+APP_OK = {"access_token": "new-app", "expires_in": 3600, "token_type": "bearer"}
+USER_OK = {
+    "access_token": "new-access",
+    "refresh_token": "new-refresh",
+    "expires_in": 14000,
+    "scope": ["chat:read"],
+    "token_type": "bearer",
+}
+
+
+def stale_refresh_tokens(manager: TwitchTokenManager) -> None:
+    """Old, already-refreshable tokens for the User and Broadcaster identities."""
+    manager._access[TokenType.User] = "old-access"
+    manager._refresh[TokenType.User] = "old-refresh"
+    manager._access[TokenType.Broadcaster] = "old-bc-access"
+    manager._refresh[TokenType.Broadcaster] = "old-bc-refresh"
 
 
 def chat_event(

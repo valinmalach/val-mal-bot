@@ -5,6 +5,7 @@ import pytest
 
 from constants import TokenType
 from services.twitch import oauth
+from tests.credentials import CLIENT_ID
 from tests.oauth_controller.support import SCOPES, new_state
 
 pytestmark = pytest.mark.anyio
@@ -26,7 +27,7 @@ class TestStart:
         query = {k: v[0] for k, v in parse_qs(target.query).items()}
         assert query == {
             "response_type": "code",
-            "client_id": "test",
+            "client_id": CLIENT_ID,
             "redirect_uri": "https://bot.example/twitch/oauth/callback",
             "scope": " ".join(SCOPES),
             "state": state,

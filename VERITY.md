@@ -4,7 +4,7 @@
 
 **URL:** <https://ofcamwrjwrkazqvdchko.supabase.co>
 **Project:** valinmalach/val-mal-bot
-**Standard:** v1 — held on the service; `.verity/standard.yaml` is the local source
+**Standard:** v4 — held on the service; `.verity/standard.yaml` is the local source
 
 ## Restoring on a new machine
 
@@ -147,7 +147,7 @@ all while still reporting success.
 - Comprehensibility (file length ≤ 400, complexity ≤ 15, function length ≤ 50, naming)
 - Modularity (separation of concerns, shallow abstractions)
 - Type Safety (ruff ANN001/ANN201; pyright `standard` is the project's authority)
-- Test Adequacy (coverage threshold 0 — the suite in `tests/` is a start, about 14%; see AGENTS.md)
+- Test Adequacy (coverage threshold 95 — `tests/` covers 99% of everything outside `migrations/`; tests are judged for whether they can fail; see AGENTS.md)
 
 ## Security Patterns
 

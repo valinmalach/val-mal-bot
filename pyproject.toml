@@ -128,10 +128,18 @@ testpaths = ["tests"]
 pythonpath = ["."]
 # A misspelt marker is a test that silently runs unmarked.
 addopts = "--strict-markers"
+# Fails a test that hangs instead of stopping the run: an awaited event nobody sets,
+# or, on Windows about one full run in twelve, an event loop that blocks creating its
+# self-pipe. Not tighter than 60s -- that flakes on the Windows case above.
+timeout = 60
 filterwarnings = [
     # A coroutine nobody awaited is a call that silently did nothing, which is
     # the failure most likely to hide in code that fires tasks and forgets them.
+    # The warning is raised while the coroutine is being collected, so pytest
+    # reports it as an unraisable exception rather than as a RuntimeWarning, and
+    # only the second line turns it into a failure.
     "error::RuntimeWarning",
+    "error::pytest.PytestUnraisableExceptionWarning",
     # discord.py's own use of a function Python 3.16 removes; nothing here can fix it.
     "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning:discord",
     # discord.utils passes re.sub's count positionally, which Python 3.13 deprecates.
@@ -143,8 +151,17 @@ source = ["."]
 branch = true
 # Migrations are seeded configuration and run against a database; the tests
 # themselves would only measure themselves. .verity holds generated copies of the
-# tests, which counted twice and were never run; .codacy is tooling, not the bot.
-omit = [".venv/*", "tests/*", "migrations/*", ".verity/*", ".codacy/*"]
+# tests, which counted twice and were never run; .codacy is tooling, not the bot;
+# .claude holds agent worktrees, each a whole copy of the repo with its own .venv.
+omit = [
+    ".venv/*",
+    "**/.venv/**",
+    "tests/*",
+    "migrations/*",
+    ".verity/*",
+    ".codacy/*",
+    ".claude/**",
+]
 
 [tool.coverage.report]
 # cogs/ and services/twitch/ have no __init__.py, and without this an untested file
@@ -156,4 +173,5 @@ show_missing = true
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
+    "pytest-timeout>=2.4.0",
 ]

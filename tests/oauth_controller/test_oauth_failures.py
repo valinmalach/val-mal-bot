@@ -5,6 +5,7 @@ import httpx
 import pytest
 
 from constants import TokenType
+from tests.credentials import CLIENT_ID
 from tests.oauth_controller.support import (
     BOT_ID,
     BROADCASTER_CALLBACK,
@@ -284,7 +285,7 @@ class TestTheTokenIsValidatedBeforeItIsKept:
     async def test_a_validation_reply_that_is_not_a_validation_is_a_reported_500(
         self, http: httpx.AsyncClient, twitch: Twitch, said: Said, stored: Stored
     ) -> None:
-        twitch(reply(200, token_body()), reply(200, {"client_id": "test"}))
+        twitch(reply(200, token_body()), reply(200, {"client_id": CLIENT_ID}))
 
         response = await authorize(http)
 

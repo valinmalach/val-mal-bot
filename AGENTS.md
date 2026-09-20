@@ -73,9 +73,10 @@ and without a `def f[T]`) return no pattern-rule findings at all for a file cont
 `def f[T]`, `class C[T]` or `type X = ...` — no parse error, no warning, and a clean
 report that reads exactly like a clean file. Worse, on 1.45 it is partial: structural rules such
 as `no-long-functions` still fire, so the output looks normal while every custom
-rule above has stopped guarding that file. `controller/twitch.py` is in this state
-today because `_route[E: BaseModel]` is worth more than the coverage; nothing else
-should join it without knowing the trade. `has_configured_role` uses a module-level
+rule above has stopped guarding that file. `controller/twitch.py` and
+`services/twitch/helix.py` are in this state today, because `_route[E: BaseModel]` and
+`fetch[T: BaseModel]` are worth more than the coverage; nothing else should join them
+without knowing the trade. `has_configured_role` uses a module-level
 `TypeVar` for exactly this reason — it needs the annotation and the coverage both.
 
 Migrations — see `db/README.md` for the rules:
@@ -90,14 +91,51 @@ uv run alembic current
 
 On Windows `--sql` needs `PYTHONIOENCODING=utf-8`: some seeded text is emoji.
 
-**The test suite is a start, not a net.** `tests/` holds pytest tests of the pure
-rules only — `services/birthday.py` and `services/twitch/migrate_plan.py` — and none
-touches Discord, Twitch or Postgres, so coverage is about 14% and most of the code is
-I/O nobody has tested. `tests/conftest.py` fills the environment `config.settings`
-validates at import, so it must run before a test module imports anything that reaches
-`config`. `.github/workflows/coverage.yml` runs `pytest --cov` on every push and
-uploads `coverage.xml` to Codacy when the `CODACY_PROJECT_TOKEN` secret is set. Do not
-describe a change as tested unless a test exercises it.
+**The suite covers everything that does not need a live service.** About 2,300 tests
+cover 99% of the code outside `migrations/`, branches counted; what is left is `__main__`
+guards, a demo, and lines that cannot be reached. Nothing runs against Discord, Twitch
+or Postgres, so a real database round trip and a real gateway session are untested:
+Helix and OAuth go through `httpx.MockTransport`, the FastAPI apps through
+`httpx.ASGITransport`, repository statements are compiled with the Postgres dialect and
+asserted, and `tests/test_migrations.py` renders every revision offline in a subprocess
+to check the chain, the rules in `db/README.md`, the schema against the models, and that
+every configuration key the code reads is seeded. Do not describe a change as tested
+unless a test exercises it, and a bug a test finds is fixed with a regression test that
+fails without the fix.
+
+`tests/` has a directory per area with its own `conftest.py` for fixtures and
+`support.py` for fakes, imported as `tests.<area>.support` — which is why Sourcery's
+`dont-import-test-modules` is disabled by id in `.sourcery.yaml`. Keep a test file under
+400 lines, which is Verity's `file_length` signal; past about 470 a review also drops the
+middle of a file and says it is unchecked. `tests/conftest.py` fills the environment
+`config.settings` validates at import, so it must run before a test module imports
+anything that reaches `config`. Anything that walks the repo (the seeded-key scan, the
+coverage `omit` list) skips `.claude/`, where agent worktrees hold whole copies of it.
+Async tests carry `pytestmark = pytest.mark.anyio` and share one event loop for the
+whole session, held open by the `_one_event_loop` fixture in `tests/conftest.py`; a loop
+per test cost a socket pair each on Windows, and about one full run in twelve blocked
+for good creating one. A test that leaves a task behind is therefore cleaned up by the
+next one, not by its own loop, and a task that must not outlive the test is the test's
+to cancel. `[tool.pytest.ini_options]` turns an unawaited coroutine into a failure with
+two filters, not one: the warning is raised while the coroutine is collected, so pytest
+reports it as an unraisable exception, and `error::RuntimeWarning` alone lets it
+through. A 60 second `timeout` (pytest-timeout) names a test that hangs: on Linux it
+fails that test, on Windows it can only dump the stacks and end the run.
+
+Three habits that each cost a debugging session. Patch with `monkeypatch`, never by
+assigning onto a module, or the fake leaks into the next test; assigning is only safe
+where a fixture the test uses has already `monkeypatch.setattr`ed that name, which is
+what restores it. Replace a module's own
+`time` or `asyncio` name with a namespace holding the fake, never the global
+`time.monotonic` or `asyncio.sleep`, which the event loop itself reads. And write a
+non-ASCII or control character in a test as `chr(...)`: the editing tools turn an
+escape sequence typed into a source file (a backslash then `u` and four digits, or a
+backslash then `n`) into the literal character, which leaves an invisible one behind.
+
+`.github/workflows/coverage.yml` runs `pytest --cov` on every push and uploads
+`coverage.xml` to Codacy when the `CODACY_PROJECT_TOKEN` secret is set. Verity's
+`test_coverage` threshold is 95 and `test_quality` judges whether a test can fail;
+`.verity/standard.yaml` has both, and `verity standard push` uploads a change to them.
 
 **A full review on every push is requested by `.github/workflows/request-reviews.yml`,
 because neither reviewer does one itself.** Sourcery re-reviews each commit on its own,
@@ -205,7 +243,9 @@ flows. Both request `twitch_app_scopes`; the callbacks validate the returned
 Twitch user ID, client ID and scopes before upserting `oauth_token`. The `app`
 row is separate, uses client credentials and has no refresh token.
 
-**Three files, three jobs, none of them over the threshold.**
+**Three files, three jobs.** `controller/twitch.py` is over Verity's 400-line
+`file_length` signal (421) and has been since before this was written; splitting it
+again is worth doing but is a separate change from whatever else brought you here.
 `controller/twitch.py` receives a signed notification, verifies it, parses it and
 hands it on. `services/twitch/events.py` says what each event makes the bot do —
 it lives under `services/` because it names no HTTP type at all, and nothing
@@ -603,9 +643,11 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 - **An admin-only command needs `app_commands.checks.has_permissions`, not just
   `default_permissions`.** The latter is a Discord UI default a server admin can
   reconfigure away — discord.py's own docs call it "only a hint" — so it enforces
-  nothing at runtime. `has_permissions` raises `MissingPermissions`, which
-  `bot.tree.error` (`init/bot_init.py`) answers ephemerally without reporting it
-  as a bug, since a refused permission check is the check working. Skip it only
+  nothing at runtime. `has_permissions` raises `MissingPermissions` (and
+  `has_configured_role` a plain `CheckFailure`), which `bot.tree.error`
+  (`init/bot_init.py`) answers ephemerally without reporting it as a bug, since a
+  refused check is the check working; `BotMissingPermissions` and a cooldown are
+  the two `CheckFailure`s it does report. Skip it only
   where a command already carries a strictly stronger runtime identity check —
   `twitch_auth` and `migrate_subscriptions` check `owner_id`, and adding
   `administrator` on top would block the owner in a guild where they hold that

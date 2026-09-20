@@ -148,6 +148,19 @@ def test_variables_that_are_not_declared_are_ignored(env: pytest.MonkeyPatch) ->
     config._load()
 
 
+def test_a_dotenv_file_holding_variables_that_are_not_declared_still_loads(
+    env: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """extra applies to a .env file, not to the process environment, so the test
+    above cannot tell extra="ignore" from extra="forbid"."""
+    (tmp_path / ".env").write_text(
+        f"RAILWAY_ENVIRONMENT=production{chr(10)}SOMETHING_ELSE=x{chr(10)}",
+        encoding="utf-8",
+    )
+
+    assert config._load().app_url == "https://bot.example"
+
+
 def test_variable_names_are_case_insensitive(env: pytest.MonkeyPatch) -> None:
     env.delenv("APP_URL")
     env.setenv("app_url", "https://lower.example")

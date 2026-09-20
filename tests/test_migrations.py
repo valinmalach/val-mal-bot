@@ -7,10 +7,7 @@ seeds every configuration key the code reads.
 """
 
 import ast
-import os
 import re
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -18,17 +15,36 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 
 from db.models import metadata
+from tests.support import ROOT, run_python
 
-ROOT = Path(__file__).resolve().parents[1]
 REVISIONS = sorted((ROOT / "migrations" / "versions").glob("*.py"))
-# The code under test; docs and vendored trees are not what reads configuration.
-NOT_SOURCE = {".venv", "tests", "migrations", ".verity", ".codacy", "docs"}
+# The code under test; docs, vendored trees and the agent worktrees under .claude,
+# each a whole copy of the repo, are not what reads configuration.
+NOT_SOURCE = {".venv", "tests", "migrations", ".verity", ".codacy", ".claude", "docs"}
 # Keys are these shapes; a literal of another shape is not a configuration row.
 KEY_SHAPE = re.compile(r"^(audit|admin|birthday|discord|stream|twitch|embed)_[a-z_]+$")
 # Table and column names have the same shape and are seeded by nothing.
 SCHEMA_NAMES = set(metadata.tables) | {
     column.name for table in metadata.tables.values() for column in table.columns
 }
+
+
+def keys_read_by(root: Path) -> dict[str, set[str]]:
+    """Every configuration-key-shaped string literal in the source under root."""
+    read: dict[str, set[str]] = {}
+    for path in root.rglob("*.py"):
+        if set(path.relative_to(root).parts) & NOT_SOURCE:
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and KEY_SHAPE.match(node.value)
+                and node.value not in SCHEMA_NAMES
+                and not node.value.endswith("_router")
+            ):
+                read.setdefault(node.value, set()).add(path.name)
+    return read
 
 
 @pytest.fixture(scope="module")
@@ -38,18 +54,7 @@ def script() -> ScriptDirectory:
 
 def offline(*arguments: str) -> str:
     """The SQL Alembic prints for these arguments, log lines removed."""
-    # Fixed arguments and the interpreter running the tests; nothing here is input.
-    done = subprocess.run(  # noqa: S603
-        [sys.executable, "-m", "alembic", *arguments, "--sql"],
-        cwd=ROOT,
-        env=os.environ | {"PYTHONIOENCODING": "utf-8"},
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=120,
-        check=False,
-    )
-    assert done.returncode == 0, done.stderr[-2000:]
+    done = run_python("-m", "alembic", *arguments, "--sql")
     return "\n".join(
         line for line in done.stdout.splitlines() if not line.startswith('{"level"')
     )
@@ -185,19 +190,7 @@ class TestTheSqlTheyRender:
         self, upgrade_sql: str
     ) -> None:
         """A feature that adds a template and forgets the revision fails here."""
-        read: dict[str, set[str]] = {}
-        for path in ROOT.rglob("*.py"):
-            if set(path.relative_to(ROOT).parts) & NOT_SOURCE:
-                continue
-            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-                if (
-                    isinstance(node, ast.Constant)
-                    and isinstance(node.value, str)
-                    and KEY_SHAPE.match(node.value)
-                    and node.value not in SCHEMA_NAMES
-                    and not node.value.endswith("_router")
-                ):
-                    read.setdefault(node.value, set()).add(path.name)
+        read = keys_read_by(ROOT)
 
         unseeded = {k: v for k, v in read.items() if f"'{k}'" not in upgrade_sql}
         assert not unseeded
@@ -220,3 +213,28 @@ class TestDowngrade:
         dropped = set(re.findall(r"^DROP TABLE (\w+);", downgrade_sql, re.MULTILINE))
 
         assert created - {"alembic_version"} == dropped - {"alembic_version"}
+
+
+class TestTheKeyScan:
+    def test_finds_a_key_in_ordinary_source(self, tmp_path: Path) -> None:
+        (tmp_path / "feature.py").write_text("KEY = 'twitch_new_template'")
+
+        assert keys_read_by(tmp_path) == {"twitch_new_template": {"feature.py"}}
+
+    @pytest.mark.parametrize("skipped", [".claude", ".venv", "tests", "docs"])
+    def test_leaves_a_copy_of_the_repo_alone(
+        self, skipped: str, tmp_path: Path
+    ) -> None:
+        """An agent worktree is a whole copy, and a sibling's new key must not fail this one."""
+        nested = tmp_path / skipped / "worktrees" / "copy"
+        nested.mkdir(parents=True)
+        (nested / "feature.py").write_text("KEY = 'twitch_new_template'")
+
+        assert keys_read_by(tmp_path) == {}
+
+    def test_ignores_a_table_or_column_name_of_the_same_shape(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "db.py").write_text("TABLE = 'discord_channel'")
+
+        assert keys_read_by(tmp_path) == {}
