@@ -17,13 +17,13 @@ from discord import (
 from discord.ext.commands import Bot, Cog, CommandError, Context
 from pendulum import DateTime
 
-from db import repository
 from errors import report
 from services import audit
 from services.config import config
 from services.duration import get_ordinal_suffix
 from services.present import get_discriminator, get_pfp
 from services.send import send_embed
+from valmal.db import repository
 
 
 class Events(Cog):

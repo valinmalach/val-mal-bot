@@ -104,7 +104,7 @@ class MyBot(Bot):
             self.add_view(view)
 
     async def close(self) -> None:
-        from db.session import dispose_engine
+        from valmal.db.session import dispose_engine
 
         await super().close()
         await dispose_engine()

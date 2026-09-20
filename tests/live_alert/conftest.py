@@ -7,11 +7,11 @@ from types import SimpleNamespace
 import pendulum
 import pytest
 
-from db.models import DiscordRole
 from services.config import config
 from services.twitch import live_alert
 from services.twitch import live_alert_cycle as cycle_module
 from tests.live_alert.support import NOW, TEMPLATES, AlertWorld, CycleWorld
+from valmal.db.models import DiscordRole
 
 
 @pytest.fixture

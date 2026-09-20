@@ -2,14 +2,14 @@ from typing import Any
 
 import pytest
 
-from db.models import (
+from services.config import ConfigCache, RenderedEmbed, RenderedField
+from tests.config_cache.support import role
+from valmal.db.models import (
     DiscordChannel,
     DiscordEmbed,
     DiscordEmbedField,
     MessageTemplate,
 )
-from services.config import ConfigCache, RenderedEmbed, RenderedField
-from tests.config_cache.support import role
 
 pytestmark = pytest.mark.anyio
 

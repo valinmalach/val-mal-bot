@@ -3,8 +3,8 @@ from collections.abc import Callable
 import pytest
 
 from config import settings
-from db import config as db_config
-from db.config import _translate_query, get_database_url
+from valmal.db import config as db_config
+from valmal.db.config import _translate_query, get_database_url
 
 
 @pytest.fixture

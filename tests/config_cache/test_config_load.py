@@ -3,7 +3,9 @@ from typing import Any
 import pytest
 
 import services.config as service_config
-from db.models import (
+from services.config import ConfigCache, _coerce
+from tests.config_cache.support import DatabaseDown, role, setting
+from valmal.db.models import (
     DiscordAutoResponse,
     DiscordChannel,
     DiscordEmbed,
@@ -14,8 +16,6 @@ from db.models import (
     TwitchCommandComponent,
     TwitchCommandResponse,
 )
-from services.config import ConfigCache, _coerce
-from tests.config_cache.support import DatabaseDown, role, setting
 
 pytestmark = pytest.mark.anyio
 

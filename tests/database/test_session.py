@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 from config import settings
-from db import session
+from valmal.db import session
 
 pytestmark = pytest.mark.anyio
 

@@ -11,12 +11,12 @@ from sqlalchemy.dialects.postgresql import insert
 
 from config import settings
 from constants import TokenType
-from db.models import OAuthToken
-from db.session import session_scope
 from errors import notify
 from models.auth.auth_response import AuthResponse, RefreshResponse
 from services.http_client import client
 from services.twitch.oauth import configured_scopes
+from valmal.db.models import OAuthToken
+from valmal.db.session import session_scope
 
 logger = logging.getLogger(__name__)
 

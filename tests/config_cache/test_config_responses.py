@@ -7,12 +7,8 @@ import discord
 import pytest
 
 import services.config as service_config
-from db.models import (
-    AutoResponseMatch,
-    DiscordAutoResponse,
-    DiscordChannel,
-)
 from tests.config_cache.support import role
+from valmal.db.models import AutoResponseMatch, DiscordAutoResponse, DiscordChannel
 
 pytestmark = pytest.mark.anyio
 

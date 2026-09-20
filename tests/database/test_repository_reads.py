@@ -3,9 +3,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from db import repository
-from db.models import DiscordMessage, DiscordUser, LiveAlert, TwitchAutoShoutout
 from tests.database.support import Database, params, sql
+from valmal.db import repository
+from valmal.db.models import DiscordMessage, DiscordUser, LiveAlert, TwitchAutoShoutout
 
 pytestmark = pytest.mark.anyio
 

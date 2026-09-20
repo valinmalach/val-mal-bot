@@ -246,7 +246,7 @@ class TestClose:
             order.append("engine")
 
         monkeypatch.setattr(commands.Bot, "close", close)
-        monkeypatch.setattr("db.session.dispose_engine", dispose)
+        monkeypatch.setattr("valmal.db.session.dispose_engine", dispose)
         bot = bot_init.MyBot(command_prefix="$", intents=discord.Intents.none())
 
         await bot.close()

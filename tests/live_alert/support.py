@@ -7,12 +7,12 @@ from typing import Any
 import discord
 import pendulum
 
-from db.models import LiveAlert
 from models.twitch_api_responses.channel import Channel
 from models.twitch_api_responses.stream import Stream
 from models.twitch_api_responses.user import User
 from models.twitch_api_responses.video import Video
 from tests.twitch.support import channel_json, stream_json, user_json, video_json
+from valmal.db.models import LiveAlert
 
 NOW = pendulum.datetime(2026, 6, 15, 12)
 

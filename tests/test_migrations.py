@@ -14,8 +14,8 @@ import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-from db.models import metadata
 from tests.support import ROOT, run_python
+from valmal.db.models import metadata
 
 REVISIONS = sorted((ROOT / "migrations" / "versions").glob("*.py"))
 # The code under test; docs, vendored trees and the agent worktrees under .claude,

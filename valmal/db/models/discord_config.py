@@ -6,8 +6,8 @@ Stored text may carry ``{channel:promo}`` / ``{role:follower}`` placeholders.
 from sqlalchemy import BigInteger, Text, UniqueConstraint
 from sqlmodel import Field
 
-from db.base import TimestampMixin, enum_column
-from db.models.enums import AutoResponseMatch
+from valmal.db.base import TimestampMixin, enum_column
+from valmal.db.models.enums import AutoResponseMatch
 
 __all__ = [
     "DiscordAutoResponse",

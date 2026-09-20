@@ -5,10 +5,10 @@ import pytest
 from sqlalchemy.dialects import postgresql
 
 from constants import TokenType
-from db.models import OAuthToken
 from models.auth.auth_response import RefreshResponse
 from services.twitch.token_manager import TwitchTokenManager
 from tests.twitch.support import TokenDb
+from valmal.db.models import OAuthToken
 
 pytestmark = pytest.mark.anyio
 

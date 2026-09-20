@@ -16,7 +16,8 @@ from typing import Any, TypeVar
 
 from sqlalchemy import select
 
-from db.models import (
+from errors import notify_soon
+from valmal.db.models import (
     AppSetting,
     AutoResponseMatch,
     DiscordAutoResponse,
@@ -30,8 +31,7 @@ from db.models import (
     TwitchCommandComponent,
     TwitchCommandResponse,
 )
-from db.session import session_scope
-from errors import notify_soon
+from valmal.db.session import session_scope
 
 logger = logging.getLogger(__name__)
 

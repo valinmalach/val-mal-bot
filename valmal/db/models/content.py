@@ -3,7 +3,7 @@
 from sqlalchemy import Text
 from sqlmodel import Field
 
-from db.base import TimestampMixin
+from valmal.db.base import TimestampMixin
 
 __all__ = ["MessageTemplate"]
 

@@ -2,8 +2,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from db import repository
 from tests.database.support import Database, assigned, params, sql
+from valmal.db import repository
 
 pytestmark = pytest.mark.anyio
 

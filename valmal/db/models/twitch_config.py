@@ -6,7 +6,7 @@
 from sqlalchemy import CheckConstraint, Text, UniqueConstraint
 from sqlmodel import Field
 
-from db.base import TimestampMixin
+from valmal.db.base import TimestampMixin
 
 __all__ = ["TwitchCommand", "TwitchCommandComponent", "TwitchCommandResponse"]
 

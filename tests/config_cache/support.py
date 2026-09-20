@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 from typing import Any
 
-from db.models import AppSetting, DiscordRole, SettingValueType
+from valmal.db.models import AppSetting, DiscordRole, SettingValueType
 
 
 class FakeSession:

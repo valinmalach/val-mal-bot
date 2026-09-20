@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from config import settings
-from db.config import get_database_url
+from valmal.db.config import get_database_url
 
 __all__ = [
     "dispose_engine",

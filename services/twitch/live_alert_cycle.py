@@ -18,8 +18,6 @@ import aiohttp
 import discord
 import pendulum
 
-from db import repository
-from db.models import LiveAlert
 from errors import notify, report
 from models.twitch_api_responses.channel import Channel
 from models.twitch_api_responses.stream import Stream
@@ -41,6 +39,8 @@ from services.twitch.live_alert_embeds import (
     twitch_url,
     watch_button,
 )
+from valmal.db import repository
+from valmal.db.models import LiveAlert
 
 logger = logging.getLogger(__name__)
 

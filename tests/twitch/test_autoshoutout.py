@@ -3,7 +3,6 @@ from typing import Any
 
 import pytest
 
-from db import repository
 from models.twitch_api_responses.stream import Stream
 from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
 from models.twitch_event_subs.channel_points_custom_reward_redemption_add import (
@@ -12,6 +11,7 @@ from models.twitch_event_subs.channel_points_custom_reward_redemption_add import
 from services.config import config
 from services.twitch import autoshoutout, stream_session
 from tests.twitch.support import chat_event, redemption_event, stream_json
+from valmal.db import repository
 
 pytestmark = pytest.mark.anyio
 

@@ -11,8 +11,8 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col
 
-from db.models import DiscordMessage, DiscordUser, LiveAlert, TwitchAutoShoutout
-from db.session import session_scope
+from valmal.db.models import DiscordMessage, DiscordUser, LiveAlert, TwitchAutoShoutout
+from valmal.db.session import session_scope
 
 __all__ = [
     "add_autoshoutout",

@@ -9,7 +9,7 @@ from sqlalchemy import BigInteger, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field
 
-from db.base import UTC_TIMESTAMP, CreatedAtMixin, TimestampMixin
+from valmal.db.base import UTC_TIMESTAMP, CreatedAtMixin, TimestampMixin
 
 __all__ = ["DiscordMessage", "DiscordUser", "LiveAlert", "TwitchAutoShoutout"]
 

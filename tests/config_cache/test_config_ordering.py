@@ -10,8 +10,8 @@ from typing import Any
 
 import pytest
 
-from db.models import AutoResponseMatch, DiscordAutoResponse, DiscordEmbed
 from tests.config_cache.support import role
+from valmal.db.models import AutoResponseMatch, DiscordAutoResponse, DiscordEmbed
 
 pytestmark = pytest.mark.anyio
 

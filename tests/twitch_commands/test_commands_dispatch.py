@@ -3,13 +3,13 @@ from typing import Any
 
 import pytest
 
-from db.models import TwitchCommand
 from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
 from services.twitch import commands
 from services.twitch.commands import _is_mod, _render, dispatch, is_twitch_login
 from services.twitch.helix import HelixError
 from tests.twitch.support import chat_event
 from tests.twitch_commands.support import ChatWorld
+from valmal.db.models import TwitchCommand
 
 pytestmark = pytest.mark.anyio
 

@@ -1,7 +1,7 @@
 import pytest
 
-from db import repository
 from tests.database.support import Database
+from valmal.db import repository
 
 
 @pytest.fixture

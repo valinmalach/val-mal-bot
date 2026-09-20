@@ -5,25 +5,25 @@ Importing this registers the tables on the :data:`metadata` it exports.
 
 from sqlmodel import SQLModel
 
-from db.base import CreatedAtMixin, TimestampMixin
-from db.models.auth import OAuthToken
-from db.models.content import MessageTemplate
-from db.models.discord_config import (
+from valmal.db.base import CreatedAtMixin, TimestampMixin
+from valmal.db.models.auth import OAuthToken
+from valmal.db.models.content import MessageTemplate
+from valmal.db.models.discord_config import (
     DiscordAutoResponse,
     DiscordChannel,
     DiscordEmbed,
     DiscordEmbedField,
     DiscordRole,
 )
-from db.models.enums import AutoResponseMatch, SettingValueType
-from db.models.records import (
+from valmal.db.models.enums import AutoResponseMatch, SettingValueType
+from valmal.db.models.records import (
     DiscordMessage,
     DiscordUser,
     LiveAlert,
     TwitchAutoShoutout,
 )
-from db.models.settings import AppSetting
-from db.models.twitch_config import (
+from valmal.db.models.settings import AppSetting
+from valmal.db.models.twitch_config import (
     TwitchCommand,
     TwitchCommandComponent,
     TwitchCommandResponse,

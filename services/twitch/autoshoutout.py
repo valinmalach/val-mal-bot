@@ -19,7 +19,6 @@ would be cyclic.
 import logging
 from enum import Enum, auto
 
-from db import repository
 from errors import notify, report
 from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
 from models.twitch_event_subs.channel_points_custom_reward_redemption_add import (
@@ -29,6 +28,7 @@ from services.config import config
 from services.present import quoted
 from services.twitch import stream_session
 from services.twitch.chat import say
+from valmal.db import repository
 
 logger = logging.getLogger(__name__)
 
