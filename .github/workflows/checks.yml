@@ -1,0 +1,72 @@
+name: Checks
+
+# Every push, for the reason coverage.yml gives: what a pull request is judged on is
+# its branch tip, and a `pull_request` run would judge a merge commit instead.
+on: push
+
+permissions:
+  contents: read
+
+jobs:
+  # The two checks AGENTS.md says must be clean before a commit. Both are locked in
+  # uv.lock, so a new release cannot turn this red without a commit saying so.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Every action is pinned to a commit, since a tag can be moved.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - run: uv sync --locked
+      - name: Formatting
+        run: uv run ruff format --check . --exclude .venv
+      - name: Lint
+        run: uv run ruff check . --exclude .venv
+      - name: Types
+        run: uv run pyright
+
+  # The suite has no Postgres, so it can only render the migrations as SQL. This applies
+  # them to a real one: forwards, checked against the models, back to nothing, and
+  # forwards again. The image is the one compose.yaml runs locally.
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: valmal
+          POSTGRES_PASSWORD: valmal
+          POSTGRES_DB: valmal
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U valmal -d valmal"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgresql://valmal:valmal@localhost:5432/valmal
+      # The settings are validated when they are imported, and Alembic imports them, so
+      # each needs a value. Nothing here talks to Discord or Twitch.
+      DISCORD_TOKEN: unused
+      TWITCH_CLIENT_ID: unused
+      TWITCH_CLIENT_SECRET: unused
+      TWITCH_WEBHOOK_SECRET: unused
+      APP_URL: https://bot.example
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - run: uv sync --locked
+      - name: Upgrade to head
+        run: uv run alembic upgrade head
+      # Fails when the models declare something no revision creates, or a revision
+      # creates something the models do not declare.
+      - name: The models match the migrated schema
+        run: uv run alembic check
+      - name: Downgrade to base
+        run: uv run alembic downgrade base
+      - name: Upgrade to head again
+        run: uv run alembic upgrade head
+      - name: The models still match
+        run: uv run alembic check
