@@ -128,9 +128,9 @@ testpaths = ["tests"]
 pythonpath = ["."]
 # A misspelt marker is a test that silently runs unmarked.
 addopts = "--strict-markers"
-# No test takes more than a second, so a longer one is stuck: an awaited event nobody
-# sets. On Linux this fails that test. On Windows pytest-timeout can only dump the
-# stacks and end the process, which names the hang and still stops the run.
+# Fails a test that hangs instead of stopping the run: an awaited event nobody sets,
+# or, on Windows about one full run in twelve, an event loop that blocks creating its
+# self-pipe. Not tighter than 60s -- that flakes on the Windows case above.
 timeout = 60
 filterwarnings = [
     # A coroutine nobody awaited is a call that silently did nothing, which is
