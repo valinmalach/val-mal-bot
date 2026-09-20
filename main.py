@@ -8,13 +8,14 @@ from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse
 
 from constants import COGS
-from controller import twitch_oauth_router, twitch_router
 from valmal.bot.client import bot
 from valmal.core import http_client
 from valmal.core.background import fire_and_forget
 from valmal.core.errors import report
 from valmal.core.logging_json import JsonFormatter
 from valmal.core.settings import settings
+from valmal.twitch.eventsub.router import twitch_router
+from valmal.twitch.oauth.router import twitch_oauth_router
 
 # Railway colors a line by which stream it landed on, not by what Python
 # attached to it -- unless the line is JSON with a "level" key, which the

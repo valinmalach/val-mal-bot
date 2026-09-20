@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from typing import Any
 
-from services.twitch.helix import HelixError
+from valmal.twitch.client.helix import HelixError
 from valmal.twitch.models.api.subscription import Subscription
 
 ROUTES = {

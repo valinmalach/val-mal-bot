@@ -4,8 +4,6 @@ from typing import Any
 
 import pytest
 
-from services.twitch import migrate
-from services.twitch.helix import HelixError
 from tests.twitch_migrate.support import (
     CURRENT,
     ROUTES,
@@ -13,6 +11,8 @@ from tests.twitch_migrate.support import (
     sub,
     two_online_and_a_raid,
 )
+from valmal.twitch.client.helix import HelixError
+from valmal.twitch.eventsub import migrate
 
 pytestmark = pytest.mark.anyio
 

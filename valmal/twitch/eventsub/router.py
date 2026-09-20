@@ -16,12 +16,11 @@ from constants import (
     TWITCH_MESSAGE_TIMESTAMP,
     TWITCH_MESSAGE_TYPE,
 )
-from services.twitch import events
-from services.twitch.signature import get_hmac, get_hmac_message, verify_message
-from services.twitch.timestamps import parse_rfc3339
 from valmal.core.background import fire_and_forget
 from valmal.core.errors import notify, report
 from valmal.core.settings import settings
+from valmal.twitch.eventsub import events
+from valmal.twitch.eventsub.signature import get_hmac, get_hmac_message, verify_message
 from valmal.twitch.models.eventsub.channel_ad_break_begin import (
     ChannelAdBreakBeginEventSub,
 )
@@ -36,6 +35,7 @@ from valmal.twitch.models.eventsub.channel_points_custom_reward_redemption_add i
 from valmal.twitch.models.eventsub.channel_raid import ChannelRaidEventSub
 from valmal.twitch.models.eventsub.stream_offline import StreamOfflineEventSub
 from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
+from valmal.twitch.timestamps import parse_rfc3339
 
 logger = logging.getLogger(__name__)
 

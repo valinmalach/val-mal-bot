@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 import pendulum
 import pytest
 
-from services.twitch import live_alert
 from tests.live_alert.support import AlertWorld, alert, stream, user
+from valmal.twitch.stream import live_alert
 
 pytestmark = pytest.mark.anyio
 
@@ -106,7 +106,7 @@ class TestStoredStart:
         assert live_alert._stored_start(stored) == "2026-06-15T11:00:00+00:00"
 
     def test_what_it_returns_is_something_parse_rfc3339_accepts(self) -> None:
-        from services.twitch.timestamps import parse_rfc3339
+        from valmal.twitch.timestamps import parse_rfc3339
 
         assert parse_rfc3339(live_alert._stored_start(alert())) == pendulum.datetime(
             2026, 6, 15, 11

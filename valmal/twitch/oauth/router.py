@@ -11,18 +11,18 @@ from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import RedirectResponse
 
 from constants import TokenType
-from services.twitch.oauth import (
+from valmal.core.errors import notify, report
+from valmal.core.http_client import client
+from valmal.core.settings import settings
+from valmal.twitch.models.auth import RefreshResponse, TokenValidationResponse
+from valmal.twitch.oauth.grants import (
     authorization_url,
     callback_uri,
     configured_scopes,
     consume_authorization,
     expected_user_id,
 )
-from services.twitch.token_manager import token_manager
-from valmal.core.errors import notify, report
-from valmal.core.http_client import client
-from valmal.core.settings import settings
-from valmal.twitch.models.auth import RefreshResponse, TokenValidationResponse
+from valmal.twitch.oauth.token_manager import token_manager
 
 logger = logging.getLogger(__name__)
 

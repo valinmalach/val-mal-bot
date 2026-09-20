@@ -1,8 +1,8 @@
 import pytest
 
-from services.twitch import events
-from services.twitch.helix import HelixError
 from tests.twitch_events.support import EventWorld, live, profile
+from valmal.twitch.client.helix import HelixError
+from valmal.twitch.eventsub import events
 from valmal.twitch.models.api.stream import Stream
 from valmal.twitch.models.eventsub.stream_offline import StreamOfflineEventSub
 from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub

@@ -18,29 +18,29 @@ import aiohttp
 import discord
 import pendulum
 
-from services.twitch.api import (
+from valmal.bot.duration import get_age
+from valmal.bot.send import edit_embed
+from valmal.core.errors import notify, report
+from valmal.db import repository
+from valmal.db.models import LiveAlert
+from valmal.twitch.client.api import (
     get_channel,
     get_stream,
     get_stream_vod,
     get_user,
     live_stream,
 )
-from services.twitch.helix import HelixError
-from services.twitch.live_alert_embeds import (
+from valmal.twitch.client.helix import HelixError
+from valmal.twitch.models.api.channel import Channel
+from valmal.twitch.models.api.stream import Stream
+from valmal.twitch.models.api.user import User
+from valmal.twitch.models.api.video import Video
+from valmal.twitch.stream.live_alert_embeds import (
     live_embed,
     offline_embed,
     twitch_url,
     watch_button,
 )
-from valmal.bot.duration import get_age
-from valmal.bot.send import edit_embed
-from valmal.core.errors import notify, report
-from valmal.db import repository
-from valmal.db.models import LiveAlert
-from valmal.twitch.models.api.channel import Channel
-from valmal.twitch.models.api.stream import Stream
-from valmal.twitch.models.api.user import User
-from valmal.twitch.models.api.video import Video
 
 logger = logging.getLogger(__name__)
 

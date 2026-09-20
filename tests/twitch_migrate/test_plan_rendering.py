@@ -3,8 +3,9 @@ from typing import Any
 
 import pytest
 
-from services.twitch import migrate_plan
-from services.twitch.migrate_plan import (
+from tests.twitch_migrate.support import CURRENT, OLD, ROUTES, sub
+from valmal.twitch.eventsub import migrate_plan
+from valmal.twitch.eventsub.migrate_plan import (
     Action,
     condition_ids,
     condition_of,
@@ -12,7 +13,6 @@ from services.twitch.migrate_plan import (
     describe,
     render_dump,
 )
-from tests.twitch_migrate.support import CURRENT, OLD, ROUTES, sub
 from valmal.twitch.models.api.subscription import Subscription
 
 RAID = {"from_broadcaster_user_id": "", "to_broadcaster_user_id": "222"}

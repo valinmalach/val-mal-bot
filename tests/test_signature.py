@@ -1,6 +1,6 @@
 import pytest
 
-from services.twitch.signature import get_hmac, get_hmac_message, verify_message
+from valmal.twitch.eventsub.signature import get_hmac, get_hmac_message, verify_message
 
 
 def test_message_is_id_then_timestamp_then_body_with_nothing_between() -> None:

@@ -1,7 +1,7 @@
 import pytest
 
-from services.twitch import migrate
 from tests.twitch_migrate.support import MigrateWorld
+from valmal.twitch.eventsub import migrate
 
 
 @pytest.fixture

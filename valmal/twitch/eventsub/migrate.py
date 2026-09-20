@@ -21,15 +21,16 @@ import json
 import logging
 from collections.abc import Mapping
 
-from services.twitch.api import (
+from valmal.core.errors import notify, notify_file
+from valmal.twitch.client.api import (
     callback_url,
     create_subscription,
     delete_subscription,
     get_subscriptions,
     get_users,
 )
-from services.twitch.helix import HelixError
-from services.twitch.migrate_plan import (
+from valmal.twitch.client.helix import HelixError
+from valmal.twitch.eventsub.migrate_plan import (
     Action,
     Outcome,
     condition_ids,
@@ -38,7 +39,6 @@ from services.twitch.migrate_plan import (
     describe,
     render_dump,
 )
-from valmal.core.errors import notify, notify_file
 from valmal.twitch.models.api.subscription import Subscription
 
 logger = logging.getLogger(__name__)

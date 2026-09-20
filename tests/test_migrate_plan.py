@@ -1,4 +1,4 @@
-from services.twitch.migrate_plan import Action, condition_of, decide
+from valmal.twitch.eventsub.migrate_plan import Action, condition_of, decide
 from valmal.twitch.models.api.subscription import (
     Subscription,
     SubscriptionCondition,

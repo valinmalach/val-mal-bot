@@ -8,14 +8,14 @@ from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
 from discord.utils import escape_markdown
 
-from services.twitch.api import broken_subscriptions
-from services.twitch.helix import HelixError
 from valmal.bot.birthday import next_birthday
 from valmal.bot.send import send_message
 from valmal.core.config import config
 from valmal.core.errors import notify, report
 from valmal.db import repository
 from valmal.db.models import DiscordUser
+from valmal.twitch.client.api import broken_subscriptions
+from valmal.twitch.client.helix import HelixError
 
 logger = logging.getLogger(__name__)
 

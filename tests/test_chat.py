@@ -2,9 +2,9 @@ from typing import Any
 
 import pytest
 
-from services.twitch import chat
-from services.twitch.helix import HelixError
 from valmal.core.config import config
+from valmal.twitch.client import chat
+from valmal.twitch.client.helix import HelixError
 
 pytestmark = pytest.mark.anyio
 

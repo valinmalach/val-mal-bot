@@ -19,18 +19,18 @@ would be cyclic.
 import logging
 from enum import Enum, auto
 
-from services.twitch import stream_session
-from services.twitch.chat import say
 from valmal.bot.present import quoted
 from valmal.core.config import config
 from valmal.core.errors import notify, report
 from valmal.db import repository
+from valmal.twitch.client.chat import say
 from valmal.twitch.models.eventsub.channel_chat_message import (
     ChannelChatMessageEventSub,
 )
 from valmal.twitch.models.eventsub.channel_points_custom_reward_redemption_add import (
     ChannelPointsCustomRewardRedemptionAddEventSub,
 )
+from valmal.twitch.stream import stream_session
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ async def _consider(broadcaster_id: str, twitch_user_id: int, login: str) -> Non
     # Deferred: commands imports this module for `!aso`, so importing it at the
     # top would be a cycle - the same break `shoutout_queue.drain` makes for
     # `stream_session`.
-    from services.twitch.commands import is_twitch_login
+    from valmal.twitch.eventsub.commands import is_twitch_login
 
     # The third place a login becomes a command, and it goes through the same
     # boundary as the other two: this line is posted to chat and returns

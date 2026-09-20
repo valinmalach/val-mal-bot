@@ -4,7 +4,6 @@ import httpx
 import pytest
 
 from constants import TokenType
-from services.twitch import oauth
 from tests.credentials import CLIENT_ID, CLIENT_SECRET
 from tests.oauth_controller.support import (
     BOT_ID,
@@ -21,6 +20,7 @@ from tests.oauth_controller.support import (
     validation_body,
 )
 from tests.twitch.support import Script, reply
+from valmal.twitch.oauth import grants as oauth
 
 pytestmark = pytest.mark.anyio
 

@@ -68,8 +68,8 @@ rules:
   language: python
   paths:
     exclude:
-    - services/twitch/api.py
-    - services/twitch/chat.py
+    - valmal/twitch/client/api.py
+    - valmal/twitch/client/chat.py
 
 - id: db-text-uses-safe-format
   description: Text from the database is formatted with services.config.safe_format. A row is not source, and one unmatched brace should not lose the whole message.

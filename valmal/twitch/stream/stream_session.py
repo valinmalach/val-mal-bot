@@ -16,14 +16,14 @@ import logging
 
 import pendulum
 
-from services.twitch.api import get_ad_schedule, get_stream, live_stream
-from services.twitch.chat import say_template
-from services.twitch.helix import HelixError
-from services.twitch.shoutout_queue import shoutout_queue
 from valmal.core.background import fire_and_forget
 from valmal.core.config import config
 from valmal.core.errors import notify, report
+from valmal.twitch.client.api import get_ad_schedule, get_stream, live_stream
+from valmal.twitch.client.chat import say_template
+from valmal.twitch.client.helix import HelixError
 from valmal.twitch.models.api.stream import Stream
+from valmal.twitch.stream.shoutout_queue import shoutout_queue
 
 logger = logging.getLogger(__name__)
 

@@ -9,10 +9,10 @@ import httpx
 import pytest
 
 from constants import COGS
-from controller.twitch import WEBHOOK_PATHS
 from tests.support import run_python
 from valmal.core.logging_json import JsonFormatter
 from valmal.core.settings import settings
+from valmal.twitch.eventsub.router import WEBHOOK_PATHS
 
 pytestmark = pytest.mark.anyio
 

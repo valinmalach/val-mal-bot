@@ -12,7 +12,7 @@ import pendulum
 import pytest
 from fastapi import FastAPI, Request, Response
 
-import controller.twitch as ctl
+import valmal.twitch.eventsub.router as ctl
 from tests.webhook.support import NOW, Hooks
 from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 

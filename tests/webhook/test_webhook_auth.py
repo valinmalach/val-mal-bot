@@ -3,7 +3,7 @@ from typing import Any
 import httpx
 import pytest
 
-import controller.twitch as ctl
+import valmal.twitch.eventsub.router as ctl
 from tests.webhook.support import Hooks, delivery, iso, sign, stream_online_payload
 
 pytestmark = pytest.mark.anyio

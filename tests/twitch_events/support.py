@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from services.twitch.helix import HelixError
 from tests.twitch.support import stream_json, user_json
+from valmal.twitch.client.helix import HelixError
 from valmal.twitch.models.api.stream import Stream
 from valmal.twitch.models.api.user import User
 

@@ -40,7 +40,7 @@ async def run_background_tasks() -> None:
     the rest of the process the way an unconditional one-shot would.
     """
     # Deferred: both reach services.send, which imports this package for `bot`.
-    from services.twitch import live_alert, stream_session
+    from valmal.twitch.stream import live_alert, stream_session
 
     arms = (
         ("restore the live alert updaters", live_alert.restore_all()),
@@ -64,10 +64,10 @@ class MyBot(Bot):
         self.case_insensitive = True
 
     async def setup_hook(self) -> None:
-        from services.twitch.shoutout_queue import shoutout_queue
-        from services.twitch.token_manager import token_manager
         from valmal.bot.cogs.tasks import Tasks
         from valmal.core.config import config
+        from valmal.twitch.oauth.token_manager import token_manager
+        from valmal.twitch.stream.shoutout_queue import shoutout_queue
 
         await config.load()
         await token_manager.load()

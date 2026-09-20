@@ -3,11 +3,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from services.twitch import stream_session
-from services.twitch.helix import HelixError
 from tests.twitch_session.support import NOW, Calls, stream
+from valmal.twitch.client.helix import HelixError
 from valmal.twitch.models.api.ad_schedule import AdSchedule
 from valmal.twitch.models.api.stream import Stream
+from valmal.twitch.stream import stream_session
 
 pytestmark = pytest.mark.anyio
 

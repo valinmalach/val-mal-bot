@@ -10,18 +10,17 @@ import re
 import unicodedata
 from collections.abc import Awaitable, Callable
 
-from services.twitch import autoshoutout, stream_session
-from services.twitch.api import get_channel, get_user_by_username
-from services.twitch.chat import say, say_template
-from services.twitch.helix import HelixError
 from valmal.core.config import config, safe_format
 from valmal.core.errors import notify
+from valmal.twitch.client.api import get_channel, get_user_by_username
+from valmal.twitch.client.chat import say, say_template
+from valmal.twitch.client.helix import HelixError
 from valmal.twitch.models.api.user import User
 from valmal.twitch.models.eventsub.channel_chat_message import (
     ChannelChatMessageEventSub,
 )
-
-from .shoutout_queue import shoutout_queue
+from valmal.twitch.stream import autoshoutout, stream_session
+from valmal.twitch.stream.shoutout_queue import shoutout_queue
 
 logger = logging.getLogger(__name__)
 

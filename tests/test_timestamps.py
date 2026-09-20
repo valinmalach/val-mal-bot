@@ -1,7 +1,7 @@
 import pendulum
 import pytest
 
-from services.twitch.timestamps import parse_rfc3339
+from valmal.twitch.timestamps import parse_rfc3339
 
 
 def _arabic_indic(text: str) -> str:

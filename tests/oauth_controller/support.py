@@ -4,9 +4,9 @@ from urllib.parse import parse_qs
 import httpx
 
 from constants import TokenType
-from services.twitch import oauth
 from tests.credentials import CLIENT_ID
 from valmal.twitch.models.auth import RefreshResponse
+from valmal.twitch.oauth import grants as oauth
 
 SCOPES = ["chat:read", "moderator:manage:shoutouts"]
 BOT_ID = "999"

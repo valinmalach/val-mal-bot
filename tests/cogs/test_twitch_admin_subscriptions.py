@@ -3,10 +3,10 @@ from typing import Any
 import discord
 import pytest
 
-from services.twitch.helix import HelixError
 from tests.cogs.twitch_admin_world import Admin, listing, run, user
 from tests.twitch_migrate.support import sub
 from valmal.bot.cogs.twitch_admin import TwitchAdmin
+from valmal.twitch.client.helix import HelixError
 
 pytestmark = pytest.mark.anyio
 

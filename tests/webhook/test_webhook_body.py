@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from fastapi import HTTPException
 
-import controller.twitch as ctl
+import valmal.twitch.eventsub.router as ctl
 from tests.webhook.support import Hooks
 
 pytestmark = pytest.mark.anyio

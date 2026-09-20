@@ -1,7 +1,7 @@
 import pytest
 
-from services.twitch import events
 from tests.twitch_events.support import EventWorld
+from valmal.twitch.eventsub import events
 from valmal.twitch.models.eventsub.channel_ad_break_begin import (
     ChannelAdBreakBeginEventSub,
 )

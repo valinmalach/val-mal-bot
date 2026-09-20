@@ -3,9 +3,6 @@ import logging
 
 import pytest
 
-from services.twitch import migrate
-from services.twitch.helix import HelixError
-from services.twitch.migrate_plan import Outcome
 from tests.twitch_migrate.support import (
     CURRENT,
     OLD,
@@ -14,6 +11,9 @@ from tests.twitch_migrate.support import (
     sub,
     two_online_and_a_raid,
 )
+from valmal.twitch.client.helix import HelixError
+from valmal.twitch.eventsub import migrate
+from valmal.twitch.eventsub.migrate_plan import Outcome
 
 pytestmark = pytest.mark.anyio
 

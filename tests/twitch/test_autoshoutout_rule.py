@@ -1,6 +1,6 @@
 import pytest
 
-from services.twitch.autoshoutout import _Action, _decide
+from valmal.twitch.stream.autoshoutout import _Action, _decide
 
 pytestmark = pytest.mark.anyio
 

@@ -3,12 +3,12 @@ from typing import Any
 
 import pytest
 
-from services.twitch import commands
-from services.twitch.commands import _is_mod, _render, dispatch, is_twitch_login
-from services.twitch.helix import HelixError
 from tests.twitch.support import chat_event
 from tests.twitch_commands.support import ChatWorld
 from valmal.db.models import TwitchCommand
+from valmal.twitch.client.helix import HelixError
+from valmal.twitch.eventsub import commands
+from valmal.twitch.eventsub.commands import _is_mod, _render, dispatch, is_twitch_login
 from valmal.twitch.models.eventsub.channel_chat_message import (
     ChannelChatMessageEventSub,
 )
@@ -316,7 +316,7 @@ class TestComposite:
             components={"a": ["leaf", "b"], "b": ["leaf", "a"]},
         )
 
-        with caplog.at_level(logging.WARNING, logger="services.twitch.commands"):
+        with caplog.at_level(logging.WARNING, logger="valmal.twitch.eventsub.commands"):
             await dispatch(event(), "a", "")
 
         assert [text for _, text, _ in chatworld.said] == ["L", "L"]

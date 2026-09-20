@@ -6,12 +6,12 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from pydantic import BaseModel
 
-import controller.twitch as ctl
-import services.twitch.api as api
-from services.twitch.api import callback_url, undeliverable
+import valmal.twitch.client.api as api
+import valmal.twitch.eventsub.router as ctl
 from tests.twitch.support import subscription_json
 from tests.webhook.route_data import ROUTES, notification
 from tests.webhook.support import Hooks, delivery
+from valmal.twitch.client.api import callback_url, undeliverable
 from valmal.twitch.models.api.subscription import Subscription
 from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 

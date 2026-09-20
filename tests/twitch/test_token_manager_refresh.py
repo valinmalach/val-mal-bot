@@ -6,7 +6,6 @@ import pytest
 from pydantic import ValidationError
 
 from constants import TokenType
-from services.twitch.token_manager import TwitchTokenManager
 from tests.credentials import CLIENT_ID, CLIENT_SECRET
 from tests.twitch.support import (
     APP_OK,
@@ -20,6 +19,7 @@ from tests.twitch.support import (
     stale_refresh_tokens,
 )
 from valmal.core.config import config
+from valmal.twitch.oauth.token_manager import TwitchTokenManager
 
 pytestmark = pytest.mark.anyio
 

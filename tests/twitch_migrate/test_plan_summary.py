@@ -1,11 +1,8 @@
 import pytest
 
-from services.twitch import migrate_plan
-from services.twitch.migrate_plan import (
-    Outcome,
-    summary,
-)
 from tests.twitch_migrate.support import sub
+from valmal.twitch.eventsub import migrate_plan
+from valmal.twitch.eventsub.migrate_plan import Outcome, summary
 
 RAID = {"from_broadcaster_user_id": "", "to_broadcaster_user_id": "222"}
 LIMIT = migrate_plan._DISCORD_MESSAGE_LIMIT

@@ -4,8 +4,6 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from controller import twitch_oauth
-from services.twitch import oauth
 from tests.oauth_controller.support import (
     BOT_ID,
     BROADCASTER_ID,
@@ -15,6 +13,8 @@ from tests.oauth_controller.support import (
 )
 from tests.twitch.support import Script
 from valmal.core.config import config
+from valmal.twitch.oauth import grants as oauth
+from valmal.twitch.oauth import router as twitch_oauth
 
 
 @pytest.fixture(autouse=True)

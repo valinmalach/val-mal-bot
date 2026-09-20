@@ -3,15 +3,15 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-from services.twitch import stream_session
-from services.twitch.helix import HelixError
-from services.twitch.shoutout_queue import TwitchShoutoutQueue
 from tests.twitch_shoutout_queue.support import (
     NOW,
     Stop,
     World,
     pending,
 )
+from valmal.twitch.client.helix import HelixError
+from valmal.twitch.stream import stream_session
+from valmal.twitch.stream.shoutout_queue import TwitchShoutoutQueue
 
 pytestmark = pytest.mark.anyio
 

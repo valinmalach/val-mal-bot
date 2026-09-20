@@ -3,9 +3,9 @@ from typing import Any
 
 import pytest
 
-from services.twitch import live_alert, stream_session
 from tests.bot_init.support import Errors
 from valmal.bot import client as bot_init
+from valmal.twitch.stream import live_alert, stream_session
 
 pytestmark = pytest.mark.anyio
 

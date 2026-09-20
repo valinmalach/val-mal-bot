@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 import pytest
 
-import services.twitch.api as api
+import valmal.twitch.client.api as api
 from tests.credentials import WEBHOOK_SECRET
 from tests.twitch.support import (
     BOT_SETTINGS,

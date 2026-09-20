@@ -9,14 +9,13 @@ import asyncio
 import logging
 import time
 
-from services.twitch import autoshoutout, live_alert, stream_session
-from services.twitch.api import get_stream, get_user, live_stream
-from services.twitch.chat import say, say_template
-from services.twitch.commands import dispatch, is_twitch_login
-from services.twitch.helix import HelixError
 from valmal.bot.present import quoted
 from valmal.core.config import config
 from valmal.core.errors import notify, report
+from valmal.twitch.client.api import get_stream, get_user, live_stream
+from valmal.twitch.client.chat import say, say_template
+from valmal.twitch.client.helix import HelixError
+from valmal.twitch.eventsub.commands import dispatch, is_twitch_login
 from valmal.twitch.models.api.stream import Stream
 from valmal.twitch.models.eventsub.channel_ad_break_begin import (
     ChannelAdBreakBeginEventSub,
@@ -32,6 +31,7 @@ from valmal.twitch.models.eventsub.channel_points_custom_reward_redemption_add i
 from valmal.twitch.models.eventsub.channel_raid import ChannelRaidEventSub
 from valmal.twitch.models.eventsub.stream_offline import StreamOfflineEventSub
 from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
+from valmal.twitch.stream import autoshoutout, live_alert, stream_session
 
 logger = logging.getLogger(__name__)
 

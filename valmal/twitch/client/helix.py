@@ -15,9 +15,9 @@ import httpx
 from pydantic import BaseModel
 
 from constants import TokenType
-from services.twitch.token_manager import token_manager
 from valmal.core.http_client import client
 from valmal.core.settings import settings
+from valmal.twitch.oauth.token_manager import token_manager
 
 logger = logging.getLogger(__name__)
 

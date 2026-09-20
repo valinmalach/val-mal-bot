@@ -2,10 +2,10 @@ import asyncio
 
 import pytest
 
-from services.twitch import live_alert
-from services.twitch.helix import HelixError
-from services.twitch.live_alert_cycle import Action
 from tests.live_alert.support import AlertWorld
+from valmal.twitch.client.helix import HelixError
+from valmal.twitch.stream import live_alert
+from valmal.twitch.stream.live_alert_cycle import Action
 
 pytestmark = pytest.mark.anyio
 

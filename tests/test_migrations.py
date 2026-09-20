@@ -123,7 +123,7 @@ class TestTheRulesInTheReadme:
             elif isinstance(node, ast.Import):
                 imported |= {alias.name.split(".")[0] for alias in node.names}
 
-        assert not imported & {"db", "models", "services", "constants", "config"}
+        assert not imported & {"valmal", "constants"}
 
     def test_never_reads_a_data_file(self, path: Path) -> None:
         source = path.read_text(encoding="utf-8")

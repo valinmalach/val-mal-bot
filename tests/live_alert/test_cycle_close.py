@@ -1,9 +1,6 @@
 import pendulum
 import pytest
 
-from services.twitch import live_alert_cycle as lac
-from services.twitch.helix import HelixError
-from services.twitch.live_alert_cycle import Action
 from tests.live_alert.support import (
     NOW,
     CycleWorld,
@@ -14,8 +11,11 @@ from tests.live_alert.support import (
     user,
     video,
 )
+from valmal.twitch.client.helix import HelixError
 from valmal.twitch.models.api.channel import Channel
 from valmal.twitch.models.api.stream import Stream
+from valmal.twitch.stream import live_alert_cycle as lac
+from valmal.twitch.stream.live_alert_cycle import Action
 
 pytestmark = pytest.mark.anyio
 

@@ -10,7 +10,7 @@ from collections.abc import Callable
 
 import pytest
 
-import services.twitch.api as api
+import valmal.twitch.client.api as api
 from tests.twitch.support import Script, page, reply, subscription_json, user_json
 
 pytestmark = pytest.mark.anyio

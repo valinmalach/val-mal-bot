@@ -8,10 +8,10 @@ own failure on the floor. Nothing else may call ``send_chat_message``.
 
 from typing import Any
 
-from services.twitch.api import send_chat_message
-from services.twitch.helix import HelixError
 from valmal.core.config import config
 from valmal.core.errors import notify
+from valmal.twitch.client.api import send_chat_message
+from valmal.twitch.client.helix import HelixError
 
 
 async def say(broadcaster_id: str | int, text: str, what: str) -> bool:

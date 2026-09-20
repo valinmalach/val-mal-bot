@@ -4,9 +4,9 @@ import httpx
 import pytest
 
 from constants import TokenType
-from services.twitch.helix import HelixError, request
 from tests.credentials import CLIENT_ID
 from tests.twitch.support import FakeTokens, Script, reply
+from valmal.twitch.client.helix import HelixError, request
 
 pytestmark = pytest.mark.anyio
 

@@ -4,13 +4,13 @@ import aiohttp
 import discord
 import pytest
 
-from services.twitch.live_alert_cycle import (
+from tests.live_alert.support import alert, http_error, stream
+from valmal.twitch.stream.live_alert_cycle import (
     Action,
     _decide,
     _is_transient_edit_error,
     _owns_row,
 )
-from tests.live_alert.support import alert, http_error, stream
 
 
 class TestOwnsRow:

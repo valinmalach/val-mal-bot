@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
-from services.twitch.api import callback_url
+from valmal.twitch.client.api import callback_url
 from valmal.twitch.models.api.subscription import Subscription
 
 

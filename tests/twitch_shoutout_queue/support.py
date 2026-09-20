@@ -4,8 +4,8 @@ import asyncio
 
 import pendulum
 
-from services.twitch.shoutout_queue import TwitchShoutoutQueue
 from valmal.twitch.models.api.user import User
+from valmal.twitch.stream.shoutout_queue import TwitchShoutoutQueue
 
 NOW = pendulum.datetime(2026, 6, 15, 12)
 COOLDOWN = 61 * 60

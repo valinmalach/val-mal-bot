@@ -10,7 +10,7 @@ import itertools
 
 import pytest
 
-from services.twitch.commands import _MAX_TARGET, _target
+from valmal.twitch.eventsub.commands import _MAX_TARGET, _target
 
 # Characters that render as nothing (Cc, Cf) mixed with the ones that start a command.
 ZERO_WIDTH = "\u200b"  # ZERO WIDTH SPACE

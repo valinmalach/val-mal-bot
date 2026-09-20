@@ -9,11 +9,11 @@ import logging
 from typing import Any, Literal
 
 from constants import TokenType
-from services.twitch import helix
-from services.twitch.helix import HelixError
 from valmal.core.config import config
 from valmal.core.errors import notify
 from valmal.core.settings import settings
+from valmal.twitch.client import helix
+from valmal.twitch.client.helix import HelixError
 from valmal.twitch.models.api.ad_schedule import AdSchedule, AdScheduleResponse
 from valmal.twitch.models.api.channel import Channel, ChannelResponse
 from valmal.twitch.models.api.stream import Stream, StreamResponse, StreamType
@@ -297,7 +297,7 @@ async def _named_user(username: str) -> User | None:
     %r throughout, as everywhere else that logs a relayed value: a newline in
     one would otherwise forge a log line.
     """
-    from services.twitch.commands import is_twitch_login
+    from valmal.twitch.eventsub.commands import is_twitch_login
 
     if not is_twitch_login(username):
         logger.warning("Not a Twitch login, no lookup made: %r", username)

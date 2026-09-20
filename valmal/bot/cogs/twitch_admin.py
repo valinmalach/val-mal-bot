@@ -4,21 +4,21 @@ from discord.ext.commands import Bot, Cog
 from discord.utils import escape_markdown
 
 from constants import TokenType
-from controller.twitch import WEBHOOK_PATHS
-from services.twitch.api import (
+from valmal.bot.present import quoted
+from valmal.core.config import config
+from valmal.core.errors import report
+from valmal.twitch.client.api import (
     get_subscriptions,
     get_users,
     subscribe_to_user,
     unsubscribe_to_user,
 )
-from services.twitch.commands import is_twitch_login
-from services.twitch.helix import HelixError
-from services.twitch.migrate import migrate
-from services.twitch.migrate_plan import summary
-from services.twitch.oauth import create_authorization_start_url
-from valmal.bot.present import quoted
-from valmal.core.config import config
-from valmal.core.errors import report
+from valmal.twitch.client.helix import HelixError
+from valmal.twitch.eventsub.commands import is_twitch_login
+from valmal.twitch.eventsub.migrate import migrate
+from valmal.twitch.eventsub.migrate_plan import summary
+from valmal.twitch.eventsub.router import WEBHOOK_PATHS
+from valmal.twitch.oauth.grants import create_authorization_start_url
 
 
 def _login(value: str) -> str | None:

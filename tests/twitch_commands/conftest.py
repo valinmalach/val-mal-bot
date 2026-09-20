@@ -4,11 +4,12 @@ from typing import Any
 
 import pytest
 
-from services.twitch import autoshoutout, commands, stream_session
 from tests.twitch.support import channel_json, user_json
 from tests.twitch_commands.support import ChatWorld
+from valmal.twitch.eventsub import commands
 from valmal.twitch.models.api.channel import Channel
 from valmal.twitch.models.api.user import User
+from valmal.twitch.stream import autoshoutout, stream_session
 
 
 @pytest.fixture
