@@ -61,15 +61,12 @@ def _decide(live: bool, settled: bool, listed: bool | None) -> _Action:
 
 async def _consider(broadcaster_id: str, twitch_user_id: int, login: str) -> None:
     """Give this person their autoshoutout, if this is the stream for it."""
-    # The main broadcaster's channel, not merely some channel that reached
-    # here. `is_live()` answers for the main broadcaster while the line below
-    # is posted to whoever the event named, and the two are otherwise
-    # unconnected: a chat or redemption subscription for a second channel -
-    # most are provisioned by hand, and the app already takes stream.online
-    # for other broadcasters - would put `!so` into that
-    # channel every time the main broadcaster happened to be live, and settle
-    # the person out of the autoshoutout they were actually owed. The same
-    # boundary `channel_raid` and `channel_moderate` already apply.
+    # The main broadcaster's channel, not merely some channel that reached here.
+    # `is_live()` answers for the main broadcaster while the line below is posted to
+    # whoever the event named, so a chat or redemption subscription for a second
+    # channel would put `!so` into it whenever the main broadcaster was live, and
+    # settle the person out of the autoshoutout they were owed. The same boundary
+    # `channel_raid` and `channel_moderate` apply.
     if not stream_session.is_main_broadcaster(broadcaster_id):
         return
 
@@ -81,23 +78,20 @@ async def _consider(broadcaster_id: str, twitch_user_id: int, login: str) -> Non
     ):
         return
 
-    # Claimed before the lookup, not after it. Chat webhooks are dispatched
-    # concurrently, so two lines from one person can both pass the check above
-    # while the first is still awaiting the list - and both then shout, and
-    # both cost a query. Settling with no await since that check is what stops
-    # the second; `eventsub/replay.claim` takes a delivery id the same way
-    # and says the same thing about adding an await between a check and a take.
+    # Claimed before the lookup. Chat webhooks are dispatched concurrently, so two
+    # lines from one person can both pass the check above while the first awaits the
+    # list, and both then shout and both cost a query. Settling with no await since
+    # that check is what stops the second, as `eventsub/replay.claim` does for a
+    # delivery id.
     stream_session.settle(twitch_user_id)
     asked_during = stream_session.current_stream_id()
 
     listed = await repository.is_autoshoutout(twitch_user_id)
 
-    # The same stream, not merely some stream. Reading `is_live()` here would
-    # answer yes for a stream that started after the one this chatter spoke in
-    # ended, and post their line into it - someone the new stream's viewers
-    # never saw, who is no longer settled, because ending cleared that. A
-    # narrow window, and the same one `wake` and `live_alert._owns_row` both
-    # guard rather than argue about. `settled` is passed False deliberately:
+    # The same stream, not merely some stream: `is_live()` here would answer yes for
+    # a stream that started after the one this chatter spoke in ended, and post
+    # their line into it. A narrow window, and the one `wake` and
+    # `live_alert._owns_row` also guard. `settled` is passed False deliberately:
     # this task claimed it a moment ago and would otherwise ignore itself.
     same_stream = stream_session.current_stream_id() == asked_during
     if _decide(same_stream, False, listed) is not _Action.SHOUT:
@@ -132,11 +126,9 @@ async def _shout(broadcaster_id: str, login: str) -> None:
 async def chatted(event_sub: ChannelChatMessageEventSub) -> None:
     """Consider the chatter behind one message. Does not raise."""
     try:
-        # The bot is not a viewer turning up. It says `!so <login>` for every
-        # raid and every autoshoutout, and each of those lines comes back
-        # through this same webhook, so without this the bot is looked up in
-        # the list the first time it speaks each stream. Harmless but wasted,
-        # and it reads as an oversight rather than a decision.
+        # The bot is not a viewer turning up. It says `!so <login>` for every raid and
+        # autoshoutout, and each line comes back through this webhook, so without this
+        # the bot would be looked up in the list the first time it speaks each stream.
         if event_sub.event.chatter_user_id == config.setting("twitch_bot_user_id"):
             return
 

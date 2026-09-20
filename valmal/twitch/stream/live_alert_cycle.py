@@ -68,8 +68,7 @@ def _decide(
 ) -> Action:
     """The whole rule for one cycle, with every input already in hand.
 
-    Pure, because this is where the subtle cases live and they are worth reading
-    in one place.
+    Pure: see the module docstring.
     """
     if alert is None:
         return Action.STOP
@@ -122,11 +121,11 @@ async def _edit_or_retry(
 ) -> Action:
     """Attempt a Discord message edit and interpret the outcome.
 
-    Shared by ``_refresh`` and ``_close``: not-found forgets the row and
-    stops, a transient error retries. Everything else -- the embed, whether a
-    button accompanies it, the report text and what a caller does once a
-    failure is not transient -- is theirs to supply, because the two do not
-    agree on that last outcome (``on_error``) and never did.
+    Shared by ``_refresh`` and ``_close``: not-found forgets the row and stops, a
+    transient error retries. Everything else -- the embed, whether a button
+    accompanies it, the report text and what a caller does once a failure is not
+    transient -- is theirs to supply, because the two disagree on that last outcome
+    (``on_error``).
     """
     try:
         edited = await edit_embed(message_id, embed, channel_id, view, content=content)

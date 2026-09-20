@@ -59,14 +59,13 @@ def _start(stream: Stream) -> None:
     ever in a position to end: a stream.offline that never arrived leaves one
     standing, and this is what stops that outliving the gap between two streams.
 
-    Taking up the stream already held does nothing, because resetting is only
-    right for a stream that is over. `began()` can be reached again by a
-    redelivered or duplicate `stream.online`, and `resume()` can still run
-    more than once per process if a failed attempt gets retried by a later
-    reconnect - either way this must not empty the queue of shoutouts already
-    promised in chat or cancel the pending ad-break warning for a stream
-    that's still running. `live_alert._start` guards its own repeat callers
-    for the same reason.
+    Taking up the stream already held does nothing, because resetting is only right
+    for a stream that is over. `began()` can be reached again by a redelivered
+    `stream.online`, and `resume()` can run more than once per process if a failed
+    attempt is retried by a later reconnect; either way this must not empty the
+    queue of shoutouts already promised in chat or cancel the pending ad-break
+    warning for a stream that is still running. `live_alert._start` guards its own
+    repeat callers for the same reason.
     """
     global _stream
 
@@ -122,12 +121,11 @@ def settle(twitch_user_id: int) -> None:
 
     Recorded even when nobody is live, because a raid can arrive while
     `stream.online` is still confirming the stream with Helix and is answered
-    straight away; the mark has to outlive that gap or the raider is shouted
-    out twice. `_start` keeps what it finds for exactly that reason, so a mark
-    made between streams survives until one ends or another replaces it - a
-    raid into an offline channel therefore costs that raider their
-    autoshoutout next stream, which is the side to err on, since the raid
-    answered them already.
+    straight away; the mark has to outlive that gap or the raider is shouted out
+    twice. `_start` keeps what it finds for that reason, so a mark made between
+    streams survives until one ends or another replaces it. A raid into an offline
+    channel therefore costs that raider their autoshoutout next stream, the side to
+    err on, since the raid answered them already.
     """
     _settled.add(twitch_user_id)
 
@@ -159,13 +157,11 @@ async def resume() -> None:
     difference is the whole reason this is not a second call to began().
     """
     try:
-        # These three are exhaustive, which is what lets the docstring promise
-        # not to raise: config.setting is a dict lookup with a default, int()
-        # fails only as TypeError or ValueError, and helix raises HelixError
-        # and nothing else by its own stated contract. Named rather than a
-        # bare except so a broadcaster id that is missing or not a number
-        # stays distinguishable from Twitch being unreachable, rather than
-        # reaching the startup reporter as one undifferentiated failure.
+        # These three are exhaustive, which is what lets the docstring promise not to
+        # raise: config.setting is a dict lookup with a default, int() fails only as
+        # TypeError or ValueError, and helix raises HelixError and nothing else. Named
+        # rather than a bare except so a missing or non-numeric broadcaster id stays
+        # distinguishable from Twitch being unreachable.
         stream = live_stream(
             await get_stream(int(config.setting("twitch_broadcaster_id")))
         )
