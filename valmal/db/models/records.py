@@ -1,7 +1,4 @@
-"""Runtime records the bot reads and writes at runtime.
-
-Column names are snake_case even where the old parquet schema was not.
-"""
+"""Records the bot reads and writes at runtime."""
 
 from datetime import datetime
 
@@ -66,7 +63,7 @@ class DiscordMessage(CreatedAtMixin, table=True):
 class LiveAlert(TimestampMixin, table=True):
     """A live-alert message still being updated for a running stream.
 
-    Keyed by broadcaster, which is what the parquet ``id`` column held.
+    Keyed by broadcaster.
     """
 
     __tablename__ = "live_alert"

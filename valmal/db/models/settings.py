@@ -1,4 +1,4 @@
-"""Non-secret configuration that used to live in ``.env`` and ``constants.py``."""
+"""Non-secret scalar configuration."""
 
 from sqlalchemy import Text
 from sqlmodel import Field
