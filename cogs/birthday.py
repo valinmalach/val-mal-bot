@@ -15,6 +15,10 @@ from services.config import config, has_configured_role
 
 logger = logging.getLogger(__name__)
 
+# Sorted once at import: the set itself is fixed for the process's lifetime,
+# and autocomplete re-runs on every keystroke.
+_SORTED_TIMEZONES = sorted(pendulum.timezones())
+
 
 class Birthday(GroupCog):
     def __init__(self, bot: Bot) -> None:
@@ -91,7 +95,7 @@ class Birthday(GroupCog):
         # next and the 25 kept from a broad match were an arbitrary 25.
         choices = [
             Choice(name=tz, value=tz)
-            for tz in sorted(pendulum.timezones())
+            for tz in _SORTED_TIMEZONES
             if current_input.lower() in tz.lower()
         ]
         return choices[:25]
