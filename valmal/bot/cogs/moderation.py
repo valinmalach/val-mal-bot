@@ -16,8 +16,8 @@ async def _purge(interaction: Interaction, limit: int | None) -> None:
     """Shared body for `nuke` (limit=None) and `purge` (limit=count)."""
     ch = interaction.channel
     if ch is None or isinstance(ch, UNSENDABLE_CHANNEL_TYPES):
-        # Distinct per caller, as it was before the two shared this body: an
-        # operator grepping logs for one command's abort should still find it.
+        # Distinct per caller, so an operator grepping logs for one command's
+        # abort finds it.
         logger.warning(
             "%s aborted: invalid channel type %s",
             "Nuke" if limit is None else "Purge",
