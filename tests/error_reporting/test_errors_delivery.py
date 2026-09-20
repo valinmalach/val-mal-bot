@@ -227,7 +227,7 @@ class TestAnEnormousSingleLine:
         await errors.report(exc, "reading the thing")
 
         (call,) = admin.calls
-        assert call["content"].startswith(prefix + "reading the thing - Type: Runtime")
+        assert call["content"].startswith(f"{prefix}reading the thing - Type: Runtime")
         assert call["content"].endswith(errors._OVERFLOW_NOTE)
         assert len(call["content"]) <= errors._MAX_CONTENT
         assert call["file"].filename == "traceback.txt"
