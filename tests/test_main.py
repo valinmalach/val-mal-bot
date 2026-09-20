@@ -1,10 +1,6 @@
 import json
 import logging
-import os
-import subprocess
-import sys
 from collections.abc import AsyncGenerator, Coroutine, Iterator
-from pathlib import Path
 from types import ModuleType
 from typing import Any
 from unittest.mock import AsyncMock
@@ -16,6 +12,7 @@ from config import settings
 from constants import COGS
 from controller.twitch import WEBHOOK_PATHS
 from logging_json import JsonFormatter
+from tests.support import run_python
 
 pytestmark = pytest.mark.anyio
 
@@ -266,8 +263,6 @@ class TestRoutes:
         assert entry.app.router.lifespan_context is not None
 
 
-ROOT = Path(__file__).resolve().parents[1]
-
 # Run in a process of its own: importing main configures the root logger, which
 # pytest has already put handlers on, so basicConfig would do nothing in here and a
 # check made in here would pass whatever main asked for.
@@ -300,18 +295,7 @@ print(json.dumps(captured))
 
 def run_in_a_fresh_process(script: str) -> dict[str, Any]:
     """The last line the script prints, as JSON, from a process of its own."""
-    # The interpreter running the tests and a fixed script; nothing here is input.
-    done = subprocess.run(  # noqa: S603
-        [sys.executable, "-c", script],
-        cwd=ROOT,
-        env=os.environ | {"PYTHONIOENCODING": "utf-8"},
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=120,
-        check=False,
-    )
-    assert done.returncode == 0, done.stderr[-2000:]
+    done = run_python("-c", script)
     return json.loads(done.stdout.strip().splitlines()[-1])
 
 

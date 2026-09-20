@@ -7,10 +7,7 @@ seeds every configuration key the code reads.
 """
 
 import ast
-import os
 import re
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -18,8 +15,8 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 
 from db.models import metadata
+from tests.support import ROOT, run_python
 
-ROOT = Path(__file__).resolve().parents[1]
 REVISIONS = sorted((ROOT / "migrations" / "versions").glob("*.py"))
 # The code under test; docs, vendored trees and the agent worktrees under .claude,
 # each a whole copy of the repo, are not what reads configuration.
@@ -57,18 +54,7 @@ def script() -> ScriptDirectory:
 
 def offline(*arguments: str) -> str:
     """The SQL Alembic prints for these arguments, log lines removed."""
-    # Fixed arguments and the interpreter running the tests; nothing here is input.
-    done = subprocess.run(  # noqa: S603
-        [sys.executable, "-m", "alembic", *arguments, "--sql"],
-        cwd=ROOT,
-        env=os.environ | {"PYTHONIOENCODING": "utf-8"},
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=120,
-        check=False,
-    )
-    assert done.returncode == 0, done.stderr[-2000:]
+    done = run_python("-m", "alembic", *arguments, "--sql")
     return "\n".join(
         line for line in done.stdout.splitlines() if not line.startswith('{"level"')
     )
