@@ -25,15 +25,17 @@ Checks, all clean before committing, and **in this order**:
 ```sh
 sourcery review --fix .                            # apply what it can fix mechanically
 sourcery review --check .                          # what is left needs a person
-uvx ruff format . --exclude .venv
-uvx ruff check . --exclude .venv
-uvx pyright                                        # the [tool.pyright] settings Pylance also reads
+uv run ruff format . --exclude .venv
+uv run ruff check . --exclude .venv
+uv run pyright                                     # the [tool.pyright] settings Pylance also reads
 uv run pytest --cov                                # the tests; CI runs the same and reports to Codacy
 ```
 
 `sourcery` is a global `uv tool` (`uv tool install sourcery`), kept current with
-`uv tool upgrade --all` along with the Ruff and analyzers `VERITY.md` describes. The
-`uvx` commands above are a separate, cached copy of Ruff and pyright.
+`uv tool upgrade --all` along with the Ruff and analyzers `VERITY.md` describes. Ruff and
+pyright are locked in `uv.lock`, so CI runs the same versions as the commands above, and a
+release reaches both when the lock changes, not before. Sourcery is not in CI: its CLI needs
+an account token of its own, so its four custom rules are enforced by running it here.
 
 The linters read their rules from the repo, so the editor, the commands above and Codacy
 agree: `[tool.ruff]`, `[tool.pylint]` and `[tool.bandit]` in `pyproject.toml`,
@@ -134,10 +136,31 @@ non-ASCII or control character in a test as `chr(...)`: the editing tools turn a
 escape sequence typed into a source file (a backslash then `u` and four digits, or a
 backslash then `n`) into the literal character, which leaves an invisible one behind.
 
-`.github/workflows/coverage.yml` runs `pytest --cov` on every push and uploads
-`coverage.xml` to Codacy when the `CODACY_PROJECT_TOKEN` secret is set. Verity's
-`test_coverage` threshold is 95 and `test_quality` judges whether a test can fail;
+**CI is three jobs on every push, and a red one stops a merge.** `coverage`, in
+`.github/workflows/coverage.yml`, runs `pytest --cov` and uploads `coverage.xml` to Codacy
+when the `CODACY_PROJECT_TOKEN` secret is set. `.github/workflows/checks.yml` adds `lint`
+(ruff format, ruff check and pyright) and `migrations`, which applies every revision to a
+real Postgres 17, checks the result against the models with `alembic check`, downgrades
+to base and upgrades again: the one thing the suite, which only renders SQL, cannot do.
+Verity's `test_coverage` threshold is 95 and `test_quality` judges whether a test can fail;
 `.verity/standard.yaml` has both, and `verity standard push` uploads a change to them.
+
+**Merging to `master` is guarded by a ruleset**, which lives in the repository's settings
+and nowhere in the tree, so this is its record. A pull request is required, with no
+approval count because a sole maintainer cannot approve their own; review threads must be
+resolved; the branch must be up to date with `master`, so what CI tested is what merges;
+and `coverage`, `lint`, `migrations`, `Codacy Diff Coverage` and `Codacy Coverage
+Variation` must pass. Nobody bypasses it, force-pushes or deletes the branch.
+
+What is deliberately *not* required, and why. `Codacy Static Code Analysis` was red on
+the last five PRs before this, every finding in test code (the fake credentials in
+`tests/credentials.py`, a subprocess helper, `import_module`), so requiring it would have
+blocked each until dismissed by hand; exclude tests from those tools in `.codacy.yaml`
+and it can be added. `CodeQL` does not report on every PR, so a requirement on it would
+leave some at "Expected" forever. `Sourcery review` is skipped on most, and the two
+`Request reviews` jobs only ask for reviews. A required check has to be produced by the
+branch, so a job renamed here has to be renamed in the ruleset too, or every PR sits at
+"Expected".
 
 **A full review on every push is requested by `.github/workflows/request-reviews.yml`,
 because neither reviewer does one itself.** Sourcery re-reviews each commit on its own,

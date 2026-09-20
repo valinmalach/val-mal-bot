@@ -107,7 +107,7 @@ treatment for a different guild.
 ## Checks
 
 ```sh
-uvx ruff check . --exclude .venv
-uvx ruff format --check . --exclude .venv
-uvx pyright
+uv run ruff check . --exclude .venv
+uv run ruff format --check . --exclude .venv
+uv run pyright
 ```
