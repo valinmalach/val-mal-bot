@@ -254,8 +254,8 @@ async def migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
 _confirming = False
 
 
-async def _migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
-    subscriptions = await get_subscriptions()
+def _classify(subscriptions: list[Subscription], routes: Mapping[str, str]) -> Outcome:
+    """Sort every subscription into what is to be done with it, changing nothing."""
     outcome = Outcome()
     for subscription in subscriptions:
         match decide(subscription, routes):
@@ -265,6 +265,36 @@ async def _migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
                 outcome.keep.append(subscription)
             case Action.SKIP:
                 outcome.skip.append(subscription)
+    return outcome
+
+
+async def _report_failures(outcome: Outcome, logins: Mapping[str, str]) -> None:
+    """Say which subscriptions were destroyed, and which were left as they were."""
+    if outcome.lost:
+        await notify(
+            f"Migration destroyed {len(outcome.lost)} subscription(s) it could"
+            f" not recreate. Recreate these from the dump:\n"
+            + "\n".join(
+                f"- {describe(subscription, logins)}: {reason}"
+                for subscription, reason in outcome.lost
+            )
+        )
+    if outcome.stuck:
+        # Separately, and not as an emergency: these are still delivering on the
+        # old callback, so the remedy is running the command again.
+        await notify(
+            f"Migration left {len(outcome.stuck)} subscription(s) on the old"
+            f" callback, untouched. Re-running moves them:\n"
+            + "\n".join(
+                f"- {describe(subscription, logins)}: {reason}"
+                for subscription, reason in outcome.stuck
+            )
+        )
+
+
+async def _migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
+    subscriptions = await get_subscriptions()
+    outcome = _classify(subscriptions, routes)
 
     if not outcome.repoint:
         return outcome
@@ -300,24 +330,5 @@ async def _migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
     for subscription in outcome.repoint:
         await _repoint(subscription, routes[subscription.type], outcome, logins)
 
-    if outcome.lost:
-        await notify(
-            f"Migration destroyed {len(outcome.lost)} subscription(s) it could"
-            f" not recreate. Recreate these from the dump:\n"
-            + "\n".join(
-                f"- {describe(subscription, logins)}: {reason}"
-                for subscription, reason in outcome.lost
-            )
-        )
-    if outcome.stuck:
-        # Separately, and not as an emergency: these are still delivering on the
-        # old callback, so the remedy is running the command again.
-        await notify(
-            f"Migration left {len(outcome.stuck)} subscription(s) on the old"
-            f" callback, untouched. Re-running moves them:\n"
-            + "\n".join(
-                f"- {describe(subscription, logins)}: {reason}"
-                for subscription, reason in outcome.stuck
-            )
-        )
+    await _report_failures(outcome, logins)
     return outcome
