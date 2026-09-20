@@ -16,7 +16,7 @@ quality_dimensions:
       - metric: file_length
         threshold: 400
         unit: lines
-        rationale: "Raised from 300: the repo averages ~165 lines/file, and 300 would nag the healthy 300-400 line modules. Nothing under valmal/ or tests/ is over it today; the largest are valmal/twitch/client/api.py (395), valmal/bot/audit.py (392) and, in tests, tests/bot/cogs/test_birthday_commands.py (387). Four modules that had grown past it were split along a real seam rather than trimmed: the EventSub router (replay protection went to eventsub/replay.py), the live alert cycle (close-information lookup, live_alert_close.py), the configuration cache (core/safe_format.py) and the command dispatch tests. A file drifting over is a signal to look at splitting it again, not a threshold to keep artificially true by editing this rationale"
+        rationale: "Raised from 300: the repo averages ~165 lines/file, and 300 would nag the healthy 300-400 line modules. Nothing under valmal/ or tests/ is over it today; the largest are valmal/bot/audit.py (392), valmal/twitch/eventsub/router.py (353) and, in tests, tests/twitch/stream/test_autoshoutout.py (394). Modules that had grown past it were split along a real seam rather than trimmed: the EventSub router (replay protection went to eventsub/replay.py), the live alert cycle (close-information lookup, live_alert_close.py), the configuration cache (core/safe_format.py), the Helix endpoints (subscription health, client/subscription_health.py) and the command dispatch tests. A file drifting over is a signal to look at splitting it again, not a threshold to keep artificially true by editing this rationale"
       - metric: cyclomatic_complexity
         threshold: 15
         unit: per_function

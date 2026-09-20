@@ -183,7 +183,7 @@ everything for it, rather than one directory per kind of file:
 - `valmal/bot/` — Discord: `client` (the bot and its gateway handlers), `cogs/`, `views`,
   and what says something in a channel: `audit`, `send`, `present`, `roles`,
   `birthday` and `duration`.
-- `valmal/twitch/` — Twitch: `models/` (Pydantic payloads), `client/` (Helix and chat),
+- `valmal/twitch/` — Twitch: `models/` (Pydantic payloads), `client/` (Helix, chat and subscription health),
   `oauth/` (the grant flow, its routes and the stored tokens), `eventsub/` (the signed
   webhook route, its replay protection, what each event makes the bot do, chat
   commands, and repointing subscriptions) and `stream/` (what a live stream means:
