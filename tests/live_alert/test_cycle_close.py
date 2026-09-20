@@ -194,6 +194,7 @@ class TestCycle:
 
         assert await self.cycle(cycle_world) is Action.REFRESH
         assert cycle_world.edits[0]["embed"].footer.text == "Live for 1 hour"
+        assert cycle_world.edits[0]["embed"].author.icon_url == "https://cdn/p.png"
 
     async def test_the_age_is_two_units_of_how_long_it_has_been_up(
         self, cycle_world: CycleWorld
