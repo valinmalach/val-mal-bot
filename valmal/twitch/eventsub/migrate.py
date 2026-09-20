@@ -84,25 +84,16 @@ async def _logins(subscriptions: list[Subscription]) -> dict[str, str]:
     a user id, while ``/subscribe`` takes a login. A lookup that fails costs the
     names and not the dump, which is the part that cannot be reconstructed.
 
-    Anything that cannot be a user id is dropped before the call rather than
-    sent. Helix answers one malformed identifier with a 400 for the whole
-    request, and it ignores ids that merely do not exist, so a 400 from that
-    endpoint is about the shape of something rather than a deleted account --
-    and it cost every login in the batch, not just the bad one. Both notices
-    name the values involved, because the filter cannot be complete: a value
-    Helix refuses for a reason not visible from here has to leave behind enough
-    for somebody to find it.
+    Anything that cannot be a user id is dropped before the call: Helix answers one
+    malformed identifier with a 400 for the whole request (and ignores ids that
+    merely do not exist), which would cost every login in the batch. Both notices
+    name the values involved, because the filter cannot be complete: a value Helix
+    refuses for a reason not visible from here has to leave enough behind to find.
 
-    Each key carries the values it is about. Keying on the notice alone held back
-    a *different* set inside the fifteen-minute window, in the one path that
-    exists to make these visible -- and the run that follows a dry run is well
-    inside it.
-
-    ``json.dumps`` rather than joining on a comma, because ``unusable`` is by
-    construction whatever failed the digit test, so a value holding a comma is
-    the shape most likely to be in it -- and joining made ``['a,b']`` and
-    ``['a', 'b']`` the same key, which is the same suppression bug again by a
-    narrower route.
+    Each key carries the values it is about, since keying on the notice alone would
+    hold back a *different* set inside the fifteen-minute window, and the run that
+    follows a dry run is well inside it. ``json.dumps`` rather than joining on a
+    comma, which would make ``['a,b']`` and ``['a', 'b']`` the same key.
     """
     ids = condition_ids(subscriptions)
     usable = [value for value in ids if _usable(value)]
@@ -133,24 +124,22 @@ async def _logins(subscriptions: list[Subscription]) -> dict[str, str]:
 async def _exists_at(subscription: Subscription, callback: str) -> bool:
     """Whether Twitch already has this subscription on this callback.
 
-    Asked only after a 409, and the reason it has to be asked is that
-    ``create_subscription`` is ``repeatable``. A POST whose reply is lost is
-    re-sent, and Twitch answers the retry with a 409 because the first attempt
-    did create it -- so the 409 says the subscription exists at least as often as
-    it says somebody else got there first. Reporting it as destroyed would send
-    somebody to recreate, by hand, a subscription that is already in place, and
-    for the six types provisioned outside this repo that attempt 409s too.
+    Asked only after a 409, because ``create_subscription`` is ``repeatable``: a
+    POST whose reply is lost is re-sent, and Twitch answers the retry with a 409
+    because the first attempt did create it. So a 409 says the subscription exists
+    at least as often as it says somebody else got there first. Reporting it as
+    destroyed would send somebody to recreate by hand a subscription already in
+    place, and for the six types provisioned outside this repo that attempt 409s too.
 
-    A lookup that itself fails answers False: unproven is not the same as
-    present, and over-reporting a loss costs an unnecessary check while
-    under-reporting one costs a subscription nobody knows is missing.
+    A lookup that itself fails answers False: over-reporting a loss costs an
+    unnecessary check, under-reporting one costs a subscription nobody knows is
+    missing.
 
-    ``version`` is compared too, though Twitch documents its 409 as being about
-    the type and condition alone. If that is the whole key the clause is
-    redundant and costs nothing; if version is part of it, leaving the clause out
-    would let a subscription of another version for the same type and condition
-    be mistaken for the one just recreated. Redundant beats wrong, and a stricter
-    match errs toward reporting a loss, which is the direction chosen above.
+    ``version`` is compared too, though Twitch documents its 409 as being about the
+    type and condition alone. Redundant if that is the whole key; if version is part
+    of it, leaving it out would let another version be mistaken for the one just
+    recreated. A stricter match errs toward reporting a loss, the direction chosen
+    above.
     """
     try:
         return any(

@@ -32,23 +32,19 @@ class Action(StrEnum):
 def decide(subscription: Subscription, routes: Mapping[str, str]) -> Action:
     """What to do with this subscription. Pure, and the whole rule.
 
-    The callback decides, and the status deliberately does not. This used to
-    repoint anything not ``enabled`` even when its callback was already right,
-    on the reasoning that a disabled subscription delivers nothing whatever its
-    callback says. True, and not this command's problem: that reasoning bought a
-    delete-then-create on a subscription already pointing where it should.
+    The callback decides, and the status deliberately does not: repointing anything
+    not ``enabled`` deletes and recreates a subscription already pointing where it
+    should, which is worse than doing nothing in every case it reaches.
+    ``webhook_callback_verification_pending`` is a few-second transient on the way to
+    ``enabled``, so catching one mid-verification destroys something about to arrive
+    by itself. ``authorization_revoked``, ``user_removed`` and ``moderator_removed``
+    are not things recreating repairs, so the delete turns a subscription still
+    visible in ``get_subscriptions()`` into one that is gone, and six of the eight
+    types cannot be recreated here.
 
-    Which is worse than doing nothing in every case it reaches.
-    ``webhook_callback_verification_pending`` is a few-second transient on the
-    way to ``enabled``, so catching one mid-verification destroys something that
-    was about to arrive by itself. ``authorization_revoked``, ``user_removed``
-    and ``moderator_removed`` are not things recreating repairs, so the delete
-    turns a subscription that is at least visible in ``get_subscriptions()`` into
-    one that is gone -- and six of the eight types cannot be recreated here.
-
-    A subscription that is on the right callback and still not delivering is
-    already ``undeliverable``, which ``recheck_subscriptions`` reports hourly.
-    That check owns the problem; this one owns the callback.
+    A subscription on the right callback and still not delivering is already
+    ``undeliverable``, which ``recheck_subscriptions`` reports hourly. That check
+    owns the problem; this one owns the callback.
     """
     path = routes.get(subscription.type)
     if path is None:
@@ -102,12 +98,6 @@ def _named_ids(subscription: Subscription) -> list[tuple[str, str]]:
     ``channel.raid`` condition -- is skipped here for the same reason
     ``condition_of`` drops it from the recreate: a value that names nobody is
     not a value to look up, print, or resolve to a login.
-
-    Before this existed, three call sites read the raw attribute themselves and
-    only one of them remembered to check for ``""``. The other two put an empty
-    login lookup through Helix every run and printed "to broadcaster " with
-    nothing after it -- correct by the field's own logic, since ``""`` really is
-    what Twitch sent, and wrong by every reader's, since it never named anyone.
     """
     return [
         (label, value)
@@ -148,12 +138,10 @@ def condition_ids(subscriptions: list[Subscription]) -> list[str]:
     """Every distinct value these conditions name in an id field.
 
     Not necessarily an id: what a condition holds is Twitch's to decide, and
-    ``_usable`` (in ``valmal.twitch.eventsub.migrate``, the only caller) is what
-    decides whether it can be looked up. ``""`` is already excluded by
-    ``_named_ids`` -- it is not a value anybody sent to be resolved, it is
-    Twitch declining to fill in the other half of a raid condition, and a
-    lookup for it produced a false "cannot be a Twitch user id" notice on every
-    run that had one.
+    ``_usable`` (in ``valmal.twitch.eventsub.migrate``, the only caller) decides
+    whether it can be looked up. ``""`` is already excluded by ``_named_ids``: it is
+    Twitch declining to fill in the other half of a raid condition, not a value to
+    resolve.
     """
     ids = {
         value for subscription in subscriptions for _, value in _named_ids(subscription)
@@ -217,9 +205,7 @@ def describe(subscription: Subscription, logins: Mapping[str, str]) -> str:
     identically, and a failure list is exactly where telling them apart matters.
 
     Hence not ``subscription_target``, which answers with one id by design and is
-    right for the undeliverable summaries it serves. Building on it here meant
-    matching its rendered text to find out which id it had picked, which is a
-    thing to get wrong for no gain.
+    right for the undeliverable summaries it serves.
     """
     named = [
         f"{label} {value}" + (f" = {logins[value]}" if value in logins else "")

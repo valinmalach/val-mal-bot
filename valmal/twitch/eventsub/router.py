@@ -198,11 +198,10 @@ async def _refuse_payload(
 ) -> NoReturn:
     """Log, notify and raise the 400 for a payload that failed to validate.
 
-    4xx rather than 5xx because a payload this end cannot read is not a
-    server fault, and a full exception report for one is noise. Not for the
-    reason first given here: Twitch documents no 4xx/5xx distinction at all,
-    and revocation counts anything that is not a 2xx, so this spends the
-    subscription's failure budget exactly as a 500 would.
+    4xx rather than 5xx because a payload this end cannot read is not a server
+    fault, and a full exception report for one is noise. Not because it saves
+    retries: Twitch documents no 4xx/5xx distinction, and revocation counts anything
+    that is not a 2xx, so this spends the failure budget exactly as a 500 would.
     """
     # The field, not just the model: what this most often catches is this
     # end's model falling behind Twitch's payload, and the name of the
@@ -232,9 +231,8 @@ async def process_webhook[E: BaseModel](
     """Validate, parse and dispatch one EventSub notification.
 
     The type parameter ties a route's model to its handler, so a pair that
-    disagree stops type-checking; both were unannotated, and therefore Any.
-    Which event the route serves is asserted by the model itself, whose
-    subscription type is a Literal.
+    disagree stops type-checking. Which event the route serves is asserted by the
+    model itself, whose subscription type is a Literal.
     """
     try:
         validated = await validate_call(request, endpoint)
@@ -276,10 +274,9 @@ async def process_webhook[E: BaseModel](
 
 
 # Which webhook path serves each EventSub type. Derived from the routes below
-# rather than listed beside them, so it cannot drift from them: a ninth list of
-# the eight types is one more thing to keep in step by hand. Read by
-# valmal/twitch/eventsub/migrate.py, which is handed this rather than importing it,
-# since nothing under services/ may import controller/.
+# rather than listed beside them, so it cannot drift from them. Read by
+# valmal/twitch/eventsub/migrate.py, which is handed this rather than importing
+# it, since nothing under valmal/twitch/ imports a router.
 WEBHOOK_PATHS: dict[str, str] = {}
 
 
@@ -308,19 +305,18 @@ def _route[E: BaseModel](
     """Register one webhook route, with the path written once.
 
     Generic for the reason process_webhook is: a route whose model and handler
-    disagree has to fail type-checking rather than at the first delivery. The
-    path was previously given twice per route, in the decorator and again as
-    the endpoint the notices name, where the two could drift apart.
+    disagree has to fail type-checking rather than at the first delivery. The path
+    is written once, where the decorator and the endpoint the notices name would
+    otherwise repeat it and could drift apart.
     """
 
     async def webhook(request: Request) -> Response:
         return await process_webhook(request, path, event_model, task_func)
 
-    # Refused rather than overwritten, because a plain assignment makes the one
-    # kind of drift this map exists to prevent the silent kind: two models
-    # declaring the same type would leave the migration repointing every
-    # subscription of it at whichever route registered last, with the other route
-    # missing from the map and so never migrated at all.
+    # Refused rather than overwritten: a plain assignment would let two models
+    # declaring the same type make the migration repoint every subscription of it at
+    # whichever route registered last, leaving the other route out of the map and
+    # never migrated.
     subscription_type = _subscription_type(event_model)
     if subscription_type in WEBHOOK_PATHS:
         raise ValueError(

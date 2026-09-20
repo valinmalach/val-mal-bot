@@ -1,8 +1,4 @@
-"""Proving a webhook came from Twitch.
-
-Here rather than among the Discord helpers it used to live beside: none of it is
-about Discord, and all of it is about a Twitch delivery.
-"""
+"""Proving a webhook came from Twitch."""
 
 import hashlib
 import hmac
