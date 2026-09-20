@@ -1,10 +1,12 @@
 """Fakes for the Twitch layer: a token manager, and a scripted HTTP transport."""
 
 import json
+from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any
 
 import httpx
+import pendulum
 
 from constants import TokenType
 
@@ -12,6 +14,11 @@ from constants import TokenType
 # online and conflict-replacement tests agree on what this deployment answers on.
 ONLINE = "https://bot.example/webhook/twitch"
 OFFLINE = "https://bot.example/webhook/twitch/offline"
+
+# Shared by the actions and subscribe-conflict tests, each of which patches this
+# into config._settings themselves rather than through the directory's autouse
+# `scopes` fixture -- neither wants the app scopes that one seeds.
+BOT_SETTINGS = {"twitch_bot_user_id": "999", "twitch_broadcaster_id": "111"}
 
 
 class FakeTokens:
@@ -200,6 +207,23 @@ class Scope:
 
     async def __aexit__(self, *exc: object) -> None:
         return None
+
+
+# Shared by the token manager's refresh and concurrency tests, which otherwise
+# each defined their own identical copies.
+NOW = pendulum.datetime(2026, 6, 15, 12)
+TOKEN_URL = "https://id.twitch.tv/oauth2/token"
+Http = Callable[..., Script]
+Notices = list[tuple[str, str | None]]
+
+APP_OK = {"access_token": "new-app", "expires_in": 3600, "token_type": "bearer"}
+USER_OK = {
+    "access_token": "new-access",
+    "refresh_token": "new-refresh",
+    "expires_in": 14000,
+    "scope": ["chat:read"],
+    "token_type": "bearer",
+}
 
 
 def chat_event(

@@ -5,6 +5,7 @@ import pytest
 import services.twitch.api as api
 from services.config import config
 from tests.twitch.support import (
+    BOT_SETTINGS,
     ONLINE,
     Script,
     body,
@@ -22,11 +23,7 @@ HttpFactory = Callable[..., Script]
 
 @pytest.fixture(autouse=True)
 def _settings(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        config,
-        "_settings",
-        {"twitch_bot_user_id": "999", "twitch_broadcaster_id": "111"},
-    )
+    monkeypatch.setattr(config, "_settings", BOT_SETTINGS)
 
 
 @pytest.fixture

@@ -6,6 +6,7 @@ import services.twitch.api as api
 from services.config import config
 from tests.credentials import WEBHOOK_SECRET
 from tests.twitch.support import (
+    BOT_SETTINGS,
     OFFLINE,
     ONLINE,
     Script,
@@ -24,11 +25,7 @@ HttpFactory = Callable[..., Script]
 
 @pytest.fixture(autouse=True)
 def _settings(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        config,
-        "_settings",
-        {"twitch_bot_user_id": "999", "twitch_broadcaster_id": "111"},
-    )
+    monkeypatch.setattr(config, "_settings", BOT_SETTINGS)
 
 
 class TestChatAndShoutout:

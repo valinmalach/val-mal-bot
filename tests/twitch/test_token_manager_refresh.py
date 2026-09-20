@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from urllib.parse import parse_qs
 
 import httpx
@@ -10,23 +9,18 @@ from constants import TokenType
 from services.config import config
 from services.twitch.token_manager import TwitchTokenManager
 from tests.credentials import CLIENT_ID, CLIENT_SECRET
-from tests.twitch.support import Script, TokenDb, reply
+from tests.twitch.support import (
+    APP_OK,
+    NOW,
+    TOKEN_URL,
+    USER_OK,
+    Http,
+    Notices,
+    TokenDb,
+    reply,
+)
 
 pytestmark = pytest.mark.anyio
-
-NOW = pendulum.datetime(2026, 6, 15, 12)
-TOKEN_URL = "https://id.twitch.tv/oauth2/token"
-Http = Callable[..., Script]
-Notices = list[tuple[str, str | None]]
-
-APP_OK = {"access_token": "new-app", "expires_in": 3600, "token_type": "bearer"}
-USER_OK = {
-    "access_token": "new-access",
-    "refresh_token": "new-refresh",
-    "expires_in": 14000,
-    "scope": ["chat:read"],
-    "token_type": "bearer",
-}
 
 
 def written(db: TokenDb) -> list[object]:
