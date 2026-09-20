@@ -236,13 +236,16 @@ async def _deliver(text: str, attachment: tuple[str, str] | None) -> bool:
 
     # Leading, because the tail is what gets cut. Prepended here rather than at the
     # call site so every path through the admin channel carries it, and cleared
-    # only once something has actually arrived.
+    # only once something has actually arrived. Capped on its own: _undelivered is
+    # an unbounded counter, and without this an outage long enough to make the
+    # count itself enormous could leave no room for _shortened's overflow note,
+    # which is the one thing this function must never produce over the limit.
     prefix = (
         f"[{_undelivered} message(s) reached nobody while this channel was"
         f" unreachable]\n"
         if _undelivered
         else ""
-    )
+    )[: _MAX_CONTENT - len(_OVERFLOW_NOTE) - 1]
     if len(prefix) + len(text) > _MAX_CONTENT:
         # The whole notice goes as a file, unless something already claimed the
         # one attachment a message can carry -- a report's traceback, which is

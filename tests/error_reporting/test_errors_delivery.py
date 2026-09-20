@@ -247,3 +247,30 @@ class TestAnEnormousSingleLine:
         assert len(call["content"]) <= errors._MAX_CONTENT
         whole = call["file"].fp.read().decode()
         assert whole.startswith("[3 message(s) reached nobody") and whole.endswith(text)
+
+    async def test_a_prefix_that_would_itself_exceed_the_limit_is_capped(
+        self, admin: Channel, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """_undelivered is an unbounded counter. However unlikely reaching this
+        many digits is, the prefix must never itself leave no room for the
+        overflow note _shortened is required to produce."""
+        monkeypatch.setattr(errors, "_undelivered", 10**2000)
+
+        await errors.notify("y" * 5000)
+
+        (call,) = admin.calls
+        assert len(call["content"]) <= errors._MAX_CONTENT
+        assert call["content"].endswith(errors._OVERFLOW_NOTE)
+
+    async def test_a_prefix_that_would_itself_exceed_the_limit_still_fits_a_short_notice(
+        self, admin: Channel, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Capped, the prefix alone leaves enough room that a short notice needs
+        no truncation at all."""
+        monkeypatch.setattr(errors, "_undelivered", 10**2000)
+
+        await errors.notify("short notice")
+
+        (call,) = admin.calls
+        assert len(call["content"]) <= errors._MAX_CONTENT
+        assert call["content"].endswith("short notice")
