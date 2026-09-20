@@ -109,15 +109,10 @@ the union of `git diff --name-only HEAD`, `git diff --name-only --cached` and
 untracked files. Committed work is reached only through
 `.verity/.last-reviewed-sha`: a PASS or WARN writes the HEAD it was taken at
 (unless the change was too large to review whole), and everything committed since
-is added to the next reading. That file did not exist in this repo when this rule
-was written and does now, so a reading taken after the commit is no longer always
-empty. It is a batch of every commit since the last PASS rather than the one you
-meant to check. Observed 2026-09-20 (Verity 0.33.1): with the file at `727670b`, 81
-commits behind HEAD, the Stop review took in 104 files and reported them
-unreviewed under the byte cap. A truncated review does not move the file (the write
-is skipped when the delta was truncated, per the source), so once the backlog is
-over the cap it stays there and every turn ends "not a clean review" until the file
-is set to a commit a person accepts as reviewed. With no
+is added to the next reading. That is a batch of every commit since the last PASS,
+not the one you meant to check. A truncated review does not move the file, so once
+the backlog is over the byte cap it stays there and every turn ends "not a clean
+review" until the file is set to a commit a person accepts as reviewed. With no
 such file the fallback looks back exactly one commit and only within 120 seconds of
 it being made. So a clean tree with nothing analyzable since the last PASS answers
 
