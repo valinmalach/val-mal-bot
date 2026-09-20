@@ -17,8 +17,8 @@ If either doesn't exist, **proceed silently**. Don't flag their absence; don't s
 /
 ├── CONTEXT.md
 ├── docs/adr/
-│   ├── 0001-postgres-for-configuration.md
-│   └── 0002-....md
+│   ├── 0001-alert-updater-is-the-only-closer.md
+│   └── ...
 ├── valmal/
 └── ...
 ```
@@ -33,4 +33,4 @@ If the concept you need isn't in the glossary yet, that's a signal — either yo
 
 If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
 
-> _Contradicts ADR-0007 (event-sourced orders) — but worth reopening because…_
+> _Contradicts ADR-0004 (the stream session ends itself) — but worth reopening because…_

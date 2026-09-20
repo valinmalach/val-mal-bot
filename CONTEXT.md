@@ -139,8 +139,7 @@ Moving a **stored birthday** to its next occurrence. The same question asked
 when a birthday is set and when one has just been greeted, and now the same
 answer: rolling forward reads the local date back out of the instant and asks
 the setting rule for the parts. A row stored before the timezone was kept has
-none to read, and falls back to bumping the year on the instant — which is what
-moved the local day in 201 of 598 zones.
+none to read, and falls back to bumping the year on the instant.
 _Avoid_: reschedule, bump, advance
 
 **Stale birthday**:
@@ -190,12 +189,6 @@ _Avoid_: cached content, old message, history
 
 ## Flagged ambiguities
 
-**`log_error` names two different behaviours.** Four files define it as
-"upload the traceback to the admin channel"; `main.py` defines it as "write to
-the local logger and stop". Resolved: **report** is the only name for reaching
-the admin channel. Local logging is not a separate concept — every report logs
-locally first, and says so when it cannot go further.
-
 **"Audit log" names two different things.** Discord keeps one per guild, which
 the bot reads through `guild.audit_logs` to find out who deleted a message or
 cleared a channel. The bot also keeps its own, in the **audit channel**.
@@ -211,24 +204,14 @@ long ago an account was created, how long a stream has been live. A **stored
 birthday** carries no birth year, so the bot cannot know anyone's age and never
 says one.
 
-**Two functions named `_create_offline_embed`** existed, in `valmal/twitch/eventsub/router.py`
-and `valmal/twitch/client/api.py`. Resolved in language ahead of the code: closing is
-the **alert updater**'s job alone, so there is one closer and one offline embed.
-The webhook cannot identify which stream ended — Twitch's `stream.offline`
-payload carries no stream id — so it can only wake the updater, which re-checks
-Helix and, if it is **superseded**, closes its own message without touching the
-newer alert's row.
-
 **"Closing" answers two questions, not one.** Closing a **live alert** and
 standing a **stream session** down are different decisions about different
-scopes, and they are still one code path — which is how a session outlives its
-stream whenever no alert row exists to close. Resolved in language ahead of the
-code: the **alert updater** remains the only closer _of an alert_, per ADR 0001;
-the **stream session** ends itself, woken by `stream.offline` and confirmed
-against Helix. A
-`stream.offline` payload names no stream, which is fatal to the alert question
-and irrelevant to the session one, because there is only ever one session and it
-belongs to a broadcaster the bot already knows.
+scopes. The **alert updater** is the only closer _of an alert_ (ADR 0001); the
+**stream session** ends itself, woken by `stream.offline` and confirmed against
+Helix (ADR 0004). A `stream.offline` payload names no stream, which makes the
+alert question unanswerable from the webhook and is irrelevant to the session
+one, because there is only ever one session and it belongs to a broadcaster the
+bot already knows.
 
 ## Example dialogue
 

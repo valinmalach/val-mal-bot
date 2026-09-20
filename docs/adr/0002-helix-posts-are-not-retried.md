@@ -25,7 +25,7 @@ review of this repo read that as a bug and proposed retrying them.
 
 ## Consequences
 
-`subscribe_to_user` opts in. A duplicate subscription is not created: Twitch
+`create_subscription` opts in. A duplicate subscription is not created: Twitch
 rejects the second attempt as a conflict, so the worst case is a call reported
 as failed that actually succeeded. That is a false alarm, not a double side
 effect, which is the line this decision draws.
