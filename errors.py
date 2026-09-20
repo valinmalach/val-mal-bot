@@ -35,6 +35,12 @@ _MAX_CONTENT = 1900
 # was cut rather than that it ended there, which is what a bare slice looked like.
 _OVERFLOW_NOTE = "... the rest is attached."
 
+# The note itself, plus the newline that joins it to the last kept line. Two
+# call sites reserve this much room ahead of it: _shortened, against whatever
+# limit it is given, and _deliver, capping the outage prefix against the full
+# budget before _shortened's own arithmetic runs at all.
+_OVERFLOW_RESERVED = len(_OVERFLOW_NOTE) + 1
+
 # How long one delivered message stands in for its own repeats.
 _WINDOW_SECONDS = 15 * 60
 
@@ -164,7 +170,7 @@ async def notify_file(text: str, filename: str, content: str) -> bool:
     second would leave the destruction it precedes with nothing to reverse it.
     """
     try:
-        logger.info("%r (attached %s, %d characters)", text, filename, len(content))
+        logger.info("%r (attached %r, %d characters)", text, filename, len(content))
         return await _deliver(text, (filename, content))
     except Exception:
         logger.exception("Notifying failed for: %r", text)
@@ -207,7 +213,7 @@ def _shortened(text: str, limit: int = _MAX_CONTENT) -> str:
     prefix a delivery adds after an outage. The note that follows is what tells
     the reader the line was cut.
     """
-    budget = limit - len(_OVERFLOW_NOTE) - 1
+    budget = limit - _OVERFLOW_RESERVED
     kept: list[str] = []
     used = 0
     for line in text.split("\n"):
@@ -245,7 +251,7 @@ async def _deliver(text: str, attachment: tuple[str, str] | None) -> bool:
         f" unreachable]\n"
         if _undelivered
         else ""
-    )[: _MAX_CONTENT - len(_OVERFLOW_NOTE) - 1]
+    )[: _MAX_CONTENT - _OVERFLOW_RESERVED]
     if len(prefix) + len(text) > _MAX_CONTENT:
         # The whole notice goes as a file, unless something already claimed the
         # one attachment a message can carry -- a report's traceback, which is
