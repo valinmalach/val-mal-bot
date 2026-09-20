@@ -74,12 +74,14 @@ def _target(args: str) -> str:
     Bounded and stripped of invisible characters for the same reason: whatever
     comes back is going into a chat line the bot says.
     """
-    first = (args.split(" ", 1)[0] if args else "").lstrip("@!")
+    first = args.split(" ", 1)[0] if args else ""
     # Control and format characters removed: they are invisible, so they can
     # reorder or hide what the rest of the line says once it reaches chat, and
-    # no name needs one.
+    # no name needs one. Before the strip below, not after it: stripped first,
+    # `<zero-width space>!so` kept its bang hidden behind the invisible
+    # character, and it was the removal that then put `!so` at the front.
     kept = "".join(c for c in first if unicodedata.category(c) not in {"Cc", "Cf"})
-    return kept[:_MAX_TARGET]
+    return kept.lstrip("@!")[:_MAX_TARGET]
 
 
 def _render(message: str, event_sub: ChannelChatMessageEventSub, args: str) -> str:

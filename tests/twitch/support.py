@@ -1,5 +1,6 @@
 """Fakes for the Twitch layer: a token manager, and a scripted HTTP transport."""
 
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -152,4 +153,96 @@ def page(data: list[dict[str, Any]], cursor: str | None = None) -> dict[str, Any
         "total_cost": 0,
         "max_total_cost": 10,
         "pagination": {"cursor": cursor} if cursor else {},
+    }
+
+
+class TokenDb:
+    """What the token manager asks the database: rows for a select, anything else
+    is recorded (the upsert), and `error` makes every statement raise."""
+
+    def __init__(self) -> None:
+        self.rows: list[Any] = []
+        self.statements: list[Any] = []
+        self.error: Exception | None = None
+
+    async def execute(self, statement: Any) -> Any:
+        self.statements.append(statement)
+        if self.error is not None:
+            raise self.error
+        rows = list(self.rows)
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: rows))
+
+
+class Scope:
+    """An async context manager over a TokenDb. A class, not a generator: a tool
+    reads a `yield` after a `raise` as unreachable and deletes it."""
+
+    def __init__(self, db: TokenDb) -> None:
+        self.db = db
+
+    async def __aenter__(self) -> TokenDb:
+        return self.db
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+
+def chat_event(
+    text: str = "hello",
+    *,
+    chatter_id: str = "3",
+    chatter_login: str = "chatter",
+    chatter_name: str = "Chatter",
+    broadcaster_id: str = "111",
+    broadcaster_login: str = "bob",
+    badges: tuple[str, ...] = (),
+    source_broadcaster_id: str | None = None,
+) -> dict[str, Any]:
+    """A channel.chat.message notification body, as Twitch delivers it."""
+    event: dict[str, Any] = {
+        "broadcaster_user_id": broadcaster_id,
+        "broadcaster_user_login": broadcaster_login,
+        "broadcaster_user_name": broadcaster_login.title(),
+        "chatter_user_id": chatter_id,
+        "chatter_user_login": chatter_login,
+        "chatter_user_name": chatter_name,
+        "message": {"text": text, "fragments": []},
+        "badges": [{"set_id": b, "id": "1", "info": ""} for b in badges],
+    }
+    if source_broadcaster_id is not None:
+        event["source_broadcaster_user_id"] = source_broadcaster_id
+    return {"subscription": {"type": "channel.chat.message"}, "event": event}
+
+
+def redemption_event(
+    user_id: str = "5", user_login: str = "redeemer", broadcaster_id: str = "111"
+) -> dict[str, Any]:
+    return {
+        "subscription": {"type": "channel.channel_points_custom_reward_redemption.add"},
+        "event": {
+            "broadcaster_user_id": broadcaster_id,
+            "user_id": user_id,
+            "user_login": user_login,
+        },
+    }
+
+
+def channel_json(
+    broadcaster_id: str = "1",
+    login: str = "bob",
+    name: str = "Bob",
+    game: str = "A Game",
+) -> dict[str, Any]:
+    return {
+        "broadcaster_id": broadcaster_id,
+        "broadcaster_login": login,
+        "broadcaster_name": name,
+        "broadcaster_language": "en",
+        "game_name": game,
+        "game_id": "g1",
+        "title": "t",
+        "delay": 0,
+        "tags": [],
+        "content_classification_labels": [],
+        "is_branded_content": False,
     }

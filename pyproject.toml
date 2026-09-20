@@ -140,8 +140,9 @@ filterwarnings = [
 source = ["."]
 branch = true
 # Migrations are seeded configuration and run against a database; the tests
-# themselves would only measure themselves.
-omit = [".venv/*", "tests/*", "migrations/*"]
+# themselves would only measure themselves. .verity holds generated copies of the
+# tests, which counted twice and were never run; .codacy is tooling, not the bot.
+omit = [".venv/*", "tests/*", "migrations/*", ".verity/*", ".codacy/*"]
 
 [tool.coverage.report]
 # cogs/ and services/twitch/ have no __init__.py, and without this an untested file

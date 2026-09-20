@@ -23,6 +23,12 @@ from services.twitch.helix import HelixError
 
 logger = logging.getLogger(__name__)
 
+# A subscription at our callback in either of these is the goal already met.
+# Verification is a seconds-long transient on the way to "enabled": one caught
+# mid-way is about to arrive by itself, and replacing it destroys that.
+# migrate_plan.decide refuses to touch one for the same reason.
+_WORKING_STATUSES = frozenset({"enabled", "webhook_callback_verification_pending"})
+
 
 async def get_user(id: int) -> User | None:
     """The user with this id, or None when Twitch has no such user."""
@@ -245,9 +251,9 @@ async def _subscribe(sub_type: Literal["online", "offline"], user_id: str) -> No
     the condition alone -- not the transport. So a 409 says just as readily that
     a subscription exists pointing at a callback this deployment no longer
     answers on, or one Twitch disabled after too many failed deliveries, as that
-    a working one is already in place. Only the last of those is the goal
-    already met; reporting the other two as subscribed would promise an alert
-    that can never fire.
+    a working one -- enabled, or still mid-verification -- is already in place.
+    Only the last of those is the goal already met; reporting the other two as
+    subscribed would promise an alert that can never fire.
     """
     try:
         await _create_subscription(sub_type, user_id)
@@ -259,7 +265,8 @@ async def _subscribe(sub_type: Literal["online", "offline"], user_id: str) -> No
     callback = _callback_url(sub_type)
     existing = await _matching_subscriptions(sub_type, user_id)
     if any(
-        subscription.status == "enabled" and subscription.transport.callback == callback
+        subscription.status in _WORKING_STATUSES
+        and subscription.transport.callback == callback
         for subscription in existing
     ):
         logger.info(f"Already subscribed to stream.{sub_type} for user_id={user_id}")
