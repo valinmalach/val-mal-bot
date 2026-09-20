@@ -210,7 +210,10 @@ class TestOneConfirmedRunAtATime:
 
         async def slow_delete(subscription_id: str) -> None:
             inside.set()
-            await release.wait()
+            # Bounded, because a second run that got past the guard would wait
+            # here for a release only the first run's caller can give.
+            async with asyncio.timeout(5):
+                await release.wait()
 
         monkeypatch.setattr(migrate, "delete_subscription", slow_delete)
         async with asyncio.TaskGroup() as group:
