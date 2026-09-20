@@ -241,6 +241,15 @@ class TestRefreshUser:
         )
         assert key == f"token-refresh-failed:{label}"
 
+    @pytest.mark.parametrize("token_type", ["bearer", "Bearer", "BEARER"])
+    async def test_the_token_type_is_case_insensitive_for_a_user_too(
+        self, token_type: str, manager: TwitchTokenManager, oauth_http: Http
+    ) -> None:
+        """RFC 6749: the app path had this pinned and the user path did not."""
+        oauth_http(reply(200, {**USER_OK, "token_type": token_type}))
+
+        assert await manager.refresh_user_access_token() is True
+
     async def test_a_token_type_that_is_not_bearer_is_refused(
         self,
         manager: TwitchTokenManager,
