@@ -159,7 +159,9 @@ show_missing = true
 
 [dependency-groups]
 dev = [
+    "pyright>=1.1.414",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "pytest-timeout>=2.4.0",
+    "ruff>=0.16.8",
 ]
