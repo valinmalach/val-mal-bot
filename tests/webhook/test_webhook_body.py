@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 import controller.twitch as ctl
-from tests.webhook.conftest import Hooks
+from tests.webhook.support import Hooks
 
 pytestmark = pytest.mark.anyio
 

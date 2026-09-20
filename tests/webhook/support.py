@@ -8,9 +8,12 @@ can only ever agree with it.
 import hashlib
 import hmac
 import json
+from collections.abc import Coroutine
 from typing import Any
 
 import pendulum
+
+from models.twitch_event_subs.stream_online import StreamOnlineEventSub
 
 SECRET = "test"
 NOW = pendulum.datetime(2026, 6, 15, 12)
@@ -66,3 +69,20 @@ def stream_online_payload(stream_id: str = "10") -> dict[str, Any]:
             "started_at": "2026-06-15T11:59:00Z",
         },
     }
+
+
+class Hooks:
+    """What the controller announced, and what it dispatched."""
+
+    def __init__(self) -> None:
+        self.notified: list[tuple[str, str | None]] = []
+        self.reported: list[str] = []
+        self.dispatched: list[tuple[str | None, Coroutine[Any, Any, None]]] = []
+        self.events: list[StreamOnlineEventSub] = []
+        self.clock = 1000.0
+        self.fail_dispatch: Exception | None = None
+
+    async def run_dispatched(self) -> None:
+        for _, coro in self.dispatched:
+            await coro
+        self.dispatched.clear()
