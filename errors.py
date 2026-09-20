@@ -35,6 +35,12 @@ _MAX_CONTENT = 1900
 # was cut rather than that it ended there, which is what a bare slice looked like.
 _OVERFLOW_NOTE = "... the rest is attached."
 
+# The note itself, plus the newline that joins it to the last kept line. Two
+# call sites reserve this much room ahead of it: _shortened, against whatever
+# limit it is given, and _deliver, capping the outage prefix against the full
+# budget before _shortened's own arithmetic runs at all.
+_OVERFLOW_RESERVED = len(_OVERFLOW_NOTE) + 1
+
 # How long one delivered message stands in for its own repeats.
 _WINDOW_SECONDS = 15 * 60
 
@@ -164,7 +170,7 @@ async def notify_file(text: str, filename: str, content: str) -> bool:
     second would leave the destruction it precedes with nothing to reverse it.
     """
     try:
-        logger.info("%r (attached %s, %d characters)", text, filename, len(content))
+        logger.info("%r (attached %r, %d characters)", text, filename, len(content))
         return await _deliver(text, (filename, content))
     except Exception:
         logger.exception("Notifying failed for: %r", text)
@@ -193,20 +199,27 @@ def notify_soon(text: str, *, key: str | None = None) -> None:
     fire_and_forget(notify(text, key=key), name="notify")
 
 
-def _shortened(text: str) -> str:
+def _shortened(text: str, limit: int = _MAX_CONTENT) -> str:
     """The whole lines that fit, and a note saying the rest is attached.
 
     Whole lines because the tail of a notice is where its detail is, and a cut
     mid-line reads as the notice ending rather than as being truncated -- which
     is how a list of 97 undeliverable subscriptions appeared to stop at 30 for
-    no reason. A single line longer than the budget yields the note alone, since
-    there is nothing whole to keep.
+    no reason. A line longer than the whole budget can never fit, so it keeps its
+    head in whatever room is left, wherever it sits: a report's summary is one
+    line that leads with what was being attempted, and the attachment beside it
+    is a traceback that does not say, so dropping it left the admin channel with
+    no idea what had failed -- including behind the one-line "reached nobody"
+    prefix a delivery adds after an outage. The note that follows is what tells
+    the reader the line was cut.
     """
-    budget = _MAX_CONTENT - len(_OVERFLOW_NOTE) - 1
+    budget = limit - _OVERFLOW_RESERVED
     kept: list[str] = []
     used = 0
     for line in text.split("\n"):
         if used + len(line) > budget:
+            if len(line) > budget and used < budget:
+                kept.append(line[: budget - used])
             break
         kept.append(line)
         used += len(line) + 1
@@ -227,25 +240,32 @@ async def _deliver(text: str, attachment: tuple[str, str] | None) -> bool:
 
     from services.send import send_message
 
-    if _undelivered:
-        # Leading, because the tail is what gets cut. Prepended here rather than
-        # at the call site so every path through the admin channel carries it,
-        # and cleared only once something has actually arrived. Before the
-        # overflow check below, so the prefix cannot push the result back over.
-        text = (
-            f"[{_undelivered} message(s) reached nobody while this channel was"
-            f" unreachable]\n{text}"
-        )
-
-    if len(text) > _MAX_CONTENT:
+    # Leading, because the tail is what gets cut. Prepended here rather than at the
+    # call site so every path through the admin channel carries it, and cleared
+    # only once something has actually arrived. Capped on its own: _undelivered is
+    # an unbounded counter, and without this an outage long enough to make the
+    # count itself enormous could leave no room for _shortened's overflow note,
+    # which is the one thing this function must never produce over the limit.
+    prefix = (
+        f"[{_undelivered} message(s) reached nobody while this channel was"
+        f" unreachable]\n"
+        if _undelivered
+        else ""
+    )[: _MAX_CONTENT - _OVERFLOW_RESERVED]
+    if len(prefix) + len(text) > _MAX_CONTENT:
         # The whole notice goes as a file, unless something already claimed the
         # one attachment a message can carry -- a report's traceback, which is
         # worth more than its summary's tail. Nothing is discarded silently
         # either way: losing a report is the one thing this module exists to
         # prevent, and a slice at 1900 characters was doing exactly that.
         if attachment is None:
-            attachment = ("notice.txt", text)
-        text = _shortened(text)
+            attachment = ("notice.txt", prefix + text)
+        # Shortened without the prefix and given the room it takes, so the summary
+        # is the first line that competes for space. Shortening them together let
+        # a one-line prefix push a summary of about 1800 characters out whole.
+        text = prefix + _shortened(text, _MAX_CONTENT - len(prefix))
+    else:
+        text = prefix + text
 
     file = None
     if attachment is not None:
