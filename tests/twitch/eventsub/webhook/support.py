@@ -1,7 +1,7 @@
 """Signing and delivering EventSub notifications, independently of the code under test.
 
 The HMAC is computed here with the standard library rather than by calling
-services.twitch.signature: a test that signs with the function it is checking
+valmal.twitch.eventsub.signature: a test that signs with the function it is checking
 can only ever agree with it.
 """
 

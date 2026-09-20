@@ -8,7 +8,7 @@ from discord.ui import View
 from valmal.bot.client import bot
 
 # Channel kinds the bot cannot post a message or embed into. Shared with
-# cogs/moderation.py so the two do not drift, as they once did.
+# valmal/bot/cogs/moderation.py so the two do not drift, as they once did.
 UNSENDABLE_CHANNEL_TYPES = (ForumChannel, CategoryChannel, PrivateChannel)
 
 
@@ -42,7 +42,7 @@ async def send_message(
     quiet: bool = False,
     allowed_mentions: discord.AllowedMentions | None = None,
 ) -> int | None:
-    # quiet is for errors.py alone: announcing an unreachable admin channel
+    # quiet is for valmal/core/errors.py alone: announcing an unreachable admin channel
     # through the admin channel does not terminate.
     channel = await _sendable(channel_id, quiet)
     if channel is None:

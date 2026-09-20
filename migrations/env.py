@@ -16,7 +16,7 @@ from sqlmodel.sql.sqltypes import AutoString
 
 from valmal.db.config import get_database_url
 
-# Importing db.models is what registers every table on the metadata it exports.
+# Importing valmal.db.models is what registers every table on the metadata it exports.
 from valmal.db.models import metadata
 
 config = context.config

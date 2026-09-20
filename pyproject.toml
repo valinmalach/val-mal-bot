@@ -124,7 +124,7 @@ skips = ["*/logging_json.py", "*/tests/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# The modules live at the repo root, and nothing is installed as a package.
+# valmal/ and main.py live at the repo root, and nothing is installed as a package.
 pythonpath = ["."]
 # A misspelt marker is a test that silently runs unmarked.
 addopts = "--strict-markers"
@@ -164,9 +164,6 @@ omit = [
 ]
 
 [tool.coverage.report]
-# cogs/ and services/twitch/ have no __init__.py, and without this an untested file
-# in them is left out of the total instead of counting as 0%.
-include_namespace_packages = true
 show_missing = true
 
 [dependency-groups]

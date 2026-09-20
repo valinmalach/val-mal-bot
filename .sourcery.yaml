@@ -63,7 +63,7 @@ rules:
     - valmal/bot/audit.py
 
 - id: chat-sends-go-through-chat-py
-  description: Call services.twitch.chat.say or say_template. api.send_chat_message raises; three rounds of guarding call sites each missed one, so the guard lives in chat.py.
+  description: Call valmal.twitch.client.chat.say or say_template. api.send_chat_message raises; three rounds of guarding call sites each missed one, so the guard lives in chat.py.
   pattern: send_chat_message(...)
   language: python
   paths:
@@ -72,7 +72,7 @@ rules:
     - valmal/twitch/client/chat.py
 
 - id: db-text-uses-safe-format
-  description: Text from the database is formatted with services.config.safe_format. A row is not source, and one unmatched brace should not lose the whole message.
+  description: Text from the database is formatted with valmal.core.config.safe_format. A row is not source, and one unmatched brace should not lose the whole message.
   pattern: ${text}.format(...)
   language: python
   paths:

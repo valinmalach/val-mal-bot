@@ -15,7 +15,7 @@ class Clock:
 
 
 class Channel:
-    """What services.send.send_message was asked to do."""
+    """What valmal.bot.send.send_message was asked to do."""
 
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []

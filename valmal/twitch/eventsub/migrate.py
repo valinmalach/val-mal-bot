@@ -13,7 +13,7 @@ around: the dump goes out before anything is deleted, one failure does not
 abandon the rest, and a dry run is what you get unless you ask otherwise.
 
 The rule, the ``Outcome`` shape and the rendering of either live in
-``services.twitch.migrate_plan``, which this module imports and never the
+``valmal.twitch.eventsub.migrate_plan``, which this module imports and never the
 other way -- everything here is what actually touches Helix or Discord.
 """
 
@@ -239,7 +239,7 @@ async def migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
         return Outcome(busy=True)
     if confirm:
         # Taken here, with no await between the check above and this line, for
-        # the reason controller/twitch.py _claim is one step: an await in the
+        # the reason valmal/twitch/eventsub/replay.py `claim` is one step: an await in the
         # gap would let two runs both pass a check that only looked.
         _confirming = True
     try:

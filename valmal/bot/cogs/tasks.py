@@ -51,7 +51,7 @@ class Tasks(Cog):
         self.bot = bot
 
     # check_birthdays and recheck_subscriptions are started from
-    # MyBot.setup_hook() (init/bot_init.py), not from cog_load() here:
+    # MyBot.setup_hook() (valmal/bot/client.py), not from cog_load() here:
     # cog_load runs before bot.start() calls login(), too early for
     # Client._ready to exist yet, which is what each loop's before_loop
     # awaits via bot.wait_until_ready().

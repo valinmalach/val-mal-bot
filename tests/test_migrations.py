@@ -2,7 +2,7 @@
 
 There is no Postgres in the test run, so what can be proved is what Alembic can
 say offline: the chain is one line, each revision follows the rules in
-``db/README.md``, and the SQL it renders builds the schema the models describe and
+``valmal/db/README.md``, and the SQL it renders builds the schema the models describe and
 seeds every configuration key the code reads.
 """
 

@@ -95,7 +95,7 @@ def _linkable(text: str) -> str:
 # a game name goes into a description or a field value, both of which render
 # markdown: an unescaped "](" ends the link it sits inside and starts one
 # pointing anywhere. An author name is plain text to Discord and is left alone,
-# the same rule services/audit.py records.
+# the same rule valmal/bot/audit.py records.
 def announcement_embed(
     stream: Stream, user_info: User | None, url: str
 ) -> discord.Embed:

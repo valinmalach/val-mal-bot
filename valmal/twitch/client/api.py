@@ -167,7 +167,7 @@ def callback_prefix() -> str:
     Every webhook route begins with it, so a callback that does not begin here
     belongs to another deployment or to this one before it moved. Deliberately
     not a count: this said "seven" from the commit that added the check until the
-    eighth route landed in controller/twitch.py without touching this file, which
+    eighth route landed in valmal/twitch/eventsub/router.py without touching this file, which
     is exactly what a number written down in the wrong module does.
     """
     return callback_url("/webhook/twitch")
@@ -176,7 +176,7 @@ def callback_prefix() -> str:
 def callback_url(path: str) -> str:
     """The absolute callback this deployment answers one webhook path on.
 
-    rstrip to match services/twitch/oauth.py: a trailing slash in APP_URL would
+    rstrip to match valmal/twitch/oauth/grants.py: a trailing slash in APP_URL would
     otherwise build a //webhook/twitch that Twitch dutifully calls and FastAPI
     does not route.
     """
@@ -291,7 +291,7 @@ async def _named_user(username: str) -> User | None:
     The grammar is asked for here rather than trusted from the caller: these two
     are public, and a value that cannot name a channel should reach neither a
     Helix query parameter nor a log line on the strength of having been passed
-    in. Deferred because services.twitch.commands imports this module; it owns
+    in. Deferred because valmal.twitch.eventsub.commands imports this module; it owns
     the one grammar, and a second copy here is what issue #38 is about.
 
     %r throughout, as everywhere else that logs a relayed value: a newline in

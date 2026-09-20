@@ -11,7 +11,7 @@ from valmal.core.errors import notify, report
 logger = logging.getLogger(__name__)
 
 # Before this there were four different answers to "run once per process"
-# scattered across bot_init.py and cogs/tasks.py. What's left is one guard per
+# scattered across bot_init.py and valmal/bot/cogs/tasks.py. What's left is one guard per
 # question on_ready actually has to answer: has the Helix/DB-heavy startup
 # work *succeeded* yet (_started, cleared by run_background_tasks on failure
 # so a reconnect retries), and has the startup announcement been delivered
@@ -39,7 +39,7 @@ async def run_background_tasks() -> None:
     boot must not permanently strand a live alert or the stream session for
     the rest of the process the way an unconditional one-shot would.
     """
-    # Deferred: both reach services.send, which imports this package for `bot`.
+    # Deferred: both reach valmal.bot.send, which imports this package for `bot`.
     from valmal.twitch.stream import live_alert, stream_session
 
     arms = (
@@ -180,7 +180,7 @@ async def on_error(event_method: str, /, *args: object, **kwargs: object) -> Non
     calls this from inside it on failure, handing over which `on_*` method it
     was - the one thing that varied across the near-identical
     ``except Exception: await report(...)`` blocks this replaces in
-    `cogs/events.py`. `sys.exc_info()` still resolves the exception here,
+    `valmal/bot/cogs/events.py`. `sys.exc_info()` still resolves the exception here,
     since this runs from inside that except block's dynamic scope. This is a
     function on the `bot` instance via `@bot.event`, matching `on_ready`
     below, not a method on `MyBot` - View/button callbacks have their own,

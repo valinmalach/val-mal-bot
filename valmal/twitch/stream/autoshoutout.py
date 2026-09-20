@@ -88,7 +88,7 @@ async def _consider(broadcaster_id: str, twitch_user_id: int, login: str) -> Non
     # concurrently, so two lines from one person can both pass the check above
     # while the first is still awaiting the list - and both then shout, and
     # both cost a query. Settling with no await since that check is what stops
-    # the second; `controller/twitch._claim` takes a delivery id the same way
+    # the second; `eventsub/replay.claim` takes a delivery id the same way
     # and says the same thing about adding an await between a check and a take.
     stream_session.settle(twitch_user_id)
     asked_during = stream_session.current_stream_id()

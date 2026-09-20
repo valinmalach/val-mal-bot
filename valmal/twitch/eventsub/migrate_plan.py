@@ -3,7 +3,7 @@
 ``decide`` reads a subscription's callback against this deployment's routes
 and answers repoint/keep/skip; ``Outcome`` is what one migration pass
 collects; and ``describe``/``render_dump``/``summary`` say either back out
-loud. Nothing here touches Helix or Discord -- ``services/twitch/migrate.py``
+loud. Nothing here touches Helix or Discord -- ``valmal/twitch/eventsub/migrate.py``
 is the only thing that acts on the answer, and imports this module, never the
 other way around.
 """
@@ -148,7 +148,7 @@ def condition_ids(subscriptions: list[Subscription]) -> list[str]:
     """Every distinct value these conditions name in an id field.
 
     Not necessarily an id: what a condition holds is Twitch's to decide, and
-    ``_usable`` (in ``services.twitch.migrate``, the only caller) is what
+    ``_usable`` (in ``valmal.twitch.eventsub.migrate``, the only caller) is what
     decides whether it can be looked up. ``""`` is already excluded by
     ``_named_ids`` -- it is not a value anybody sent to be resolved, it is
     Twitch declining to fill in the other half of a raid condition, and a

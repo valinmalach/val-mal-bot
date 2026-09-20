@@ -50,7 +50,7 @@ def utc_now() -> datetime:
 class TableBase(SQLModel):
     """Base for every table class, restoring a usable ``__tablename__``.
 
-    ``Any`` not ``str``: SQLModel declares the name as both. See db/README.md.
+    ``Any`` not ``str``: SQLModel declares the name as both. See valmal/db/README.md.
     """
 
     __tablename__: ClassVar[Any]

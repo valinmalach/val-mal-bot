@@ -9,7 +9,7 @@ from valmal.twitch.models.api.user import User
 
 
 class EventWorld:
-    """Every collaborator of services.twitch.events, recorded and scriptable."""
+    """Every collaborator of valmal.twitch.eventsub.events, recorded and scriptable."""
 
     def __init__(self) -> None:
         self.notified: list[tuple[str, str | None]] = []

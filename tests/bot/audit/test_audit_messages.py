@@ -267,7 +267,7 @@ class TestDiscordDeliveryFailuresPropagate:
     async def test_a_failed_send_is_the_callers_to_handle(
         self, log: Audit, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """cogs/events.py relies on the raise reaching on_error rather than losing the entry."""
+        """valmal/bot/cogs/events.py relies on the raise reaching on_error rather than losing the entry."""
 
         async def refuse(*_: object, **__: object) -> int:
             raise discord.HTTPException(

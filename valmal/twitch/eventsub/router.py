@@ -278,7 +278,7 @@ async def process_webhook[E: BaseModel](
 # Which webhook path serves each EventSub type. Derived from the routes below
 # rather than listed beside them, so it cannot drift from them: a ninth list of
 # the eight types is one more thing to keep in step by hand. Read by
-# services/twitch/migrate.py, which is handed this rather than importing it,
+# valmal/twitch/eventsub/migrate.py, which is handed this rather than importing it,
 # since nothing under services/ may import controller/.
 WEBHOOK_PATHS: dict[str, str] = {}
 
