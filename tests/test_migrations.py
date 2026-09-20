@@ -112,18 +112,58 @@ class TestHistory:
             assert callable(getattr(revision.module, "downgrade", None))
 
 
+def roots_imported_by(source: str) -> set[str]:
+    """The top-level module of every import in the source, nested ones included."""
+    imported = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".")[0])
+        elif isinstance(node, ast.Import):
+            imported |= {alias.name.split(".")[0] for alias in node.names}
+    return imported
+
+
+# What keeps changing with the app. All of it is one package, valmal, so a single
+# root covers the models, the configuration and every helper; main.py is the one
+# module outside it, and a revision importing it would pull the whole app in.
+APP_ROOTS = {"valmal", "main"}
+
+
+class TestTheImportRuleCanFail:
+    """The rule below is a blacklist, so it is only worth having if it catches something."""
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "from valmal.db.models import metadata",
+            "import valmal.core.config",
+            "from valmal import db",
+            "import main",
+            f"def upgrade():{chr(10)}    from valmal.db.models import AppSetting",
+        ],
+    )
+    def test_a_revision_importing_the_app_is_caught(self, source: str) -> None:
+        assert roots_imported_by(source) & APP_ROOTS
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "from alembic import op",
+            "import sqlalchemy as sa",
+            "from sqlalchemy.dialects import postgresql",
+        ],
+    )
+    def test_what_a_revision_may_import_is_not(self, source: str) -> None:
+        assert not roots_imported_by(source) & APP_ROOTS
+
+
 @pytest.mark.parametrize("path", REVISIONS, ids=lambda p: p.name[:22])
 class TestTheRulesInTheReadme:
     def test_never_imports_what_keeps_changing(self, path: Path) -> None:
         """A revision has to mean the same thing forever."""
-        imported = set()
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                imported.add(node.module.split(".")[0])
-            elif isinstance(node, ast.Import):
-                imported |= {alias.name.split(".")[0] for alias in node.names}
+        source = path.read_text(encoding="utf-8")
 
-        assert not imported & {"valmal"}
+        assert not roots_imported_by(source) & APP_ROOTS
 
     def test_never_reads_a_data_file(self, path: Path) -> None:
         source = path.read_text(encoding="utf-8")
