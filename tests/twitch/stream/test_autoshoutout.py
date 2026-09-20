@@ -334,13 +334,26 @@ class TestRaided:
         assert stream_session.is_live() is False
         assert stream_session.is_settled(7)
 
-    def test_a_raider_id_that_is_not_a_number_is_logged_and_skipped(
-        self, caplog: pytest.LogCaptureFixture
+    def test_a_raider_id_that_is_not_a_number_is_skipped_and_said(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        notices: list[tuple[str, str | None]] = []
+        monkeypatch.setattr(
+            autoshoutout,
+            "notify_soon",
+            lambda text, *, key=None: notices.append((text, key)),
+        )
+
         autoshoutout.raided("not-a-number")
 
         assert stream_session._settled == set()
-        assert any("not-a-number" in r.getMessage() for r in caplog.records)
+        assert notices == [
+            (
+                "Raider id `not-a-number` is not a number, so they were not settled"
+                " and may be shouted out a second time this stream.",
+                "autoshoutout-bad-raider-id",
+            )
+        ]
 
 
 class TestSpend:

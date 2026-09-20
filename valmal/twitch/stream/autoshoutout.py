@@ -16,12 +16,11 @@ clears its own; if it imported back to ask what an autoshoutout is, the two
 would be cyclic.
 """
 
-import logging
 from enum import Enum, auto
 
 from valmal.bot.present import quoted
 from valmal.core.config import config
-from valmal.core.errors import notify, report
+from valmal.core.errors import notify, notify_soon, report
 from valmal.db import repository
 from valmal.twitch.client.chat import say
 from valmal.twitch.models.eventsub.channel_chat_message import (
@@ -31,8 +30,6 @@ from valmal.twitch.models.eventsub.channel_points_custom_reward_redemption_add i
     ChannelPointsCustomRewardRedemptionAddEventSub,
 )
 from valmal.twitch.stream import stream_session
-
-logger = logging.getLogger(__name__)
 
 __all__ = ["add", "chatted", "raided", "redeemed", "remove", "spend"]
 
@@ -106,6 +103,11 @@ async def _consider(broadcaster_id: str, twitch_user_id: int, login: str) -> Non
     if _decide(same_stream, False, listed) is not _Action.SHOUT:
         return
 
+    await _shout(broadcaster_id, login)
+
+
+async def _shout(broadcaster_id: str, login: str) -> None:
+    """Post `!so <login>`, unless that login cannot name a channel."""
     # Deferred: commands imports this module for `!aso`, so importing it at the
     # top would be a cycle - the same break `shoutout_queue.drain` makes for
     # `stream_session`.
@@ -114,8 +116,8 @@ async def _consider(broadcaster_id: str, twitch_user_id: int, login: str) -> Non
     # The third place a login becomes a command, and it goes through the same
     # boundary as the other two: this line is posted to chat and returns
     # through the chat webhook to be dispatched, so a value that cannot name a
-    # channel must not be built into one. Settled above regardless, because
-    # nothing here can help them this stream either way.
+    # channel must not be built into one. Settled by `_consider` regardless,
+    # because nothing here can help them this stream either way.
     if not is_twitch_login(login):
         await notify(
             f"Refused an autoshoutout for {quoted(login)}:"
@@ -162,7 +164,13 @@ def raided(twitch_user_id: str) -> None:
     try:
         stream_session.settle(int(twitch_user_id))
     except ValueError:
-        logger.warning("Raider id %r is not a number; not settled", twitch_user_id)
+        # Said aloud: a raider left unsettled gets a second shoutout on their
+        # first chat line, and nothing else would say why.
+        notify_soon(
+            f"Raider id {quoted(twitch_user_id)} is not a number, so they were not"
+            f" settled and may be shouted out a second time this stream.",
+            key="autoshoutout-bad-raider-id",
+        )
 
 
 async def redeemed(event_sub: ChannelPointsCustomRewardRedemptionAddEventSub) -> None:
