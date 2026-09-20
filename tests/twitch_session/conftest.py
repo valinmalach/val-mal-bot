@@ -32,14 +32,16 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> Calls:
 
     async def get_stream(broadcaster_id: int) -> Stream | None:
         calls.asked.append(broadcaster_id)
-        if isinstance(calls.stream_answer, Exception):
-            raise calls.stream_answer
-        return calls.stream_answer
+        stream_answer = calls.stream_answer
+        if isinstance(stream_answer, Exception):
+            raise stream_answer
+        return stream_answer
 
     async def get_ad_schedule(broadcaster_id: int) -> AdSchedule | None:
-        if isinstance(calls.ad_answer, Exception):
-            raise calls.ad_answer
-        return calls.ad_answer
+        ad_answer = calls.ad_answer
+        if isinstance(ad_answer, Exception):
+            raise ad_answer
+        return ad_answer
 
     async def sleep(seconds: float) -> None:
         calls.slept.append(seconds)
