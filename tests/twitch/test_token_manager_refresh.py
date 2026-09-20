@@ -18,6 +18,7 @@ from tests.twitch.support import (
     Notices,
     TokenDb,
     reply,
+    stale_refresh_tokens,
 )
 
 pytestmark = pytest.mark.anyio
@@ -145,10 +146,7 @@ class TestRefreshApp:
 class TestRefreshUser:
     @pytest.fixture(autouse=True)
     def _have_refresh_tokens(self, manager: TwitchTokenManager) -> None:
-        manager._access[TokenType.User] = "old-access"
-        manager._refresh[TokenType.User] = "old-refresh"
-        manager._access[TokenType.Broadcaster] = "old-bc-access"
-        manager._refresh[TokenType.Broadcaster] = "old-bc-refresh"
+        stale_refresh_tokens(manager)
 
     async def test_sends_the_refresh_token_as_a_form_body_not_a_query(
         self, manager: TwitchTokenManager, oauth_http: Http

@@ -9,6 +9,7 @@ import httpx
 import pendulum
 
 from constants import TokenType
+from services.twitch.token_manager import TwitchTokenManager
 
 # The two callbacks a subscribe/unsubscribe test cares about, shared so the
 # online and conflict-replacement tests agree on what this deployment answers on.
@@ -224,6 +225,14 @@ USER_OK = {
     "scope": ["chat:read"],
     "token_type": "bearer",
 }
+
+
+def stale_refresh_tokens(manager: TwitchTokenManager) -> None:
+    """Old, already-refreshable tokens for the User and Broadcaster identities."""
+    manager._access[TokenType.User] = "old-access"
+    manager._refresh[TokenType.User] = "old-refresh"
+    manager._access[TokenType.Broadcaster] = "old-bc-access"
+    manager._refresh[TokenType.Broadcaster] = "old-bc-refresh"
 
 
 def chat_event(

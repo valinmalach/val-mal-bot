@@ -8,7 +8,15 @@ import services.twitch.token_manager as tm_module
 from background import fire_and_forget
 from constants import TokenType
 from services.twitch.token_manager import TwitchTokenManager
-from tests.twitch.support import APP_OK, NOW, USER_OK, Http, TokenDb, reply
+from tests.twitch.support import (
+    APP_OK,
+    NOW,
+    USER_OK,
+    Http,
+    TokenDb,
+    reply,
+    stale_refresh_tokens,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -25,10 +33,7 @@ class TestOneRefreshAtATime:
 
     @pytest.fixture(autouse=True)
     def _have_refresh_tokens(self, manager: TwitchTokenManager) -> None:
-        manager._access[TokenType.User] = "old-access"
-        manager._refresh[TokenType.User] = "old-refresh"
-        manager._access[TokenType.Broadcaster] = "old-bc"
-        manager._refresh[TokenType.Broadcaster] = "old-bc-refresh"
+        stale_refresh_tokens(manager)
 
     def gated(
         self, monkeypatch: pytest.MonkeyPatch, *replies: httpx.Response
