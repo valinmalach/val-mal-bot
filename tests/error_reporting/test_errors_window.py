@@ -41,6 +41,45 @@ class TestShortened:
         assert result == "z" * budget + "\n" + errors._OVERFLOW_NOTE
         assert len(result) == errors._MAX_CONTENT
 
+    def test_a_long_line_behind_a_short_first_line_keeps_both_the_prefix_and_its_head(
+        self,
+    ) -> None:
+        """The first report after an outage leads with a one-line 'reached nobody'."""
+        prefix = "[1 message(s) reached nobody while this channel was unreachable]"
+        text = prefix + "\n" + "reading the thing - Type: RuntimeError " + "x" * 5000
+
+        result = errors._shortened(text)
+
+        assert result.startswith(prefix + "\nreading the thing - Type: RuntimeError")
+        assert result.endswith(errors._OVERFLOW_NOTE)
+        assert len(result) == errors._MAX_CONTENT
+
+    def test_a_long_line_in_the_middle_keeps_the_lines_before_it_whole(self) -> None:
+        text = "first\nsecond\n" + "y" * 5000 + "\nnever reached"
+
+        result = errors._shortened(text)
+
+        assert result.startswith("first\nsecond\nyyy")
+        assert "never reached" not in result
+        assert len(result) == errors._MAX_CONTENT
+
+    def test_a_line_that_would_fit_alone_is_dropped_whole_not_cut(self) -> None:
+        """Only a line that can never fit is cut; a list keeps its lines whole."""
+        budget = errors._MAX_CONTENT - len(errors._OVERFLOW_NOTE) - 1
+        text = "a" * (budget - 10) + "\n" + "b" * 500
+
+        result = errors._shortened(text)
+
+        assert result == "a" * (budget - 10) + "\n" + errors._OVERFLOW_NOTE
+
+    def test_no_room_left_adds_no_empty_line(self) -> None:
+        budget = errors._MAX_CONTENT - len(errors._OVERFLOW_NOTE) - 1
+        text = "a" * (budget - 1) + "\n" + "b" * 5000
+
+        result = errors._shortened(text)
+
+        assert "\n\n" not in result
+
     def test_a_line_that_fits_exactly_is_kept_whole(self) -> None:
         budget = errors._MAX_CONTENT - len(errors._OVERFLOW_NOTE) - 1
         line = "w" * budget
