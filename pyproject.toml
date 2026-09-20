@@ -147,21 +147,12 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["."]
+# Only the bot is measured: its package and its entrypoint. Tests measure themselves,
+# migrations are seeded configuration that runs against a database, and .verity,
+# .codacy and the agent worktrees under .claude are tooling, some of them whole
+# copies of the repo. Named as packages so the report keeps one source, the repo root.
+source_pkgs = ["valmal", "main"]
 branch = true
-# Migrations are seeded configuration and run against a database; the tests
-# themselves would only measure themselves. .verity holds generated copies of the
-# tests, which counted twice and were never run; .codacy is tooling, not the bot;
-# .claude holds agent worktrees, each a whole copy of the repo with its own .venv.
-omit = [
-    ".venv/*",
-    "**/.venv/**",
-    "tests/*",
-    "migrations/*",
-    ".verity/*",
-    ".codacy/*",
-    ".claude/**",
-]
 
 [tool.coverage.report]
 show_missing = true

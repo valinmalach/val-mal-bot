@@ -110,8 +110,9 @@ fails without the fix.
 400 lines, which is Verity's `file_length` signal; past about 470 a review also drops the
 middle of a file and says it is unchecked. `tests/conftest.py` fills the environment
 `valmal.core.settings` validates at import, so it must run before a test module imports
-anything that reaches `settings`. Anything that walks the repo (the seeded-key scan, the
-coverage `omit` list) skips `.claude/`, where agent worktrees hold whole copies of it.
+anything that reaches `settings`. Anything that walks the repo (the seeded-key scan) skips `.claude/`, where agent worktrees
+hold whole copies of it; coverage names the `valmal` package and `main` instead of walking the
+tree, so those copies, `.verity/` and `.codacy/` never count.
 Async tests carry `pytestmark = pytest.mark.anyio` and share one event loop for the
 whole session, held open by the `_one_event_loop` fixture in `tests/conftest.py`; a loop
 per test cost a socket pair each on Windows, and about one full run in twelve blocked
