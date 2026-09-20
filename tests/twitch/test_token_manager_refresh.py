@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from constants import TokenType
 from services.config import config
 from services.twitch.token_manager import TwitchTokenManager
+from tests.credentials import CLIENT_ID, CLIENT_SECRET
 from tests.twitch.support import Script, TokenDb, reply
 
 pytestmark = pytest.mark.anyio
@@ -50,8 +51,8 @@ class TestRefreshApp:
         (sent,) = script.requests
         assert (sent.method, str(sent.url).split("?")[0]) == ("POST", TOKEN_URL)
         assert dict(sent.url.params) == {
-            "client_id": "test",
-            "client_secret": "test",
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
             "grant_type": "client_credentials",
             "scope": " ".join(scopes),
         }
@@ -166,8 +167,8 @@ class TestRefreshUser:
         assert sent.url.query == b""
         assert sent.headers["Content-Type"] == "application/x-www-form-urlencoded"
         assert {k: v[0] for k, v in parse_qs(sent.content.decode()).items()} == {
-            "client_id": "test",
-            "client_secret": "test",
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
             "grant_type": "refresh_token",
             "refresh_token": "old-refresh",
         }

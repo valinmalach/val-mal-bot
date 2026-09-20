@@ -7,11 +7,13 @@ test, and the callback assertions read APP_URL back.
 
 import os
 
+from tests import credentials
+
 os.environ |= {
-    "DISCORD_TOKEN": "test",
-    "TWITCH_CLIENT_ID": "test",
-    "TWITCH_CLIENT_SECRET": "test",
-    "TWITCH_WEBHOOK_SECRET": "test",
+    "DISCORD_TOKEN": credentials.DISCORD_TOKEN,
+    "TWITCH_CLIENT_ID": credentials.CLIENT_ID,
+    "TWITCH_CLIENT_SECRET": credentials.CLIENT_SECRET,
+    "TWITCH_WEBHOOK_SECRET": credentials.WEBHOOK_SECRET,
     "DATABASE_URL": "postgresql://test:test@localhost:5432/test",
     "APP_URL": "https://bot.example",
     "USE_TEST_BOT": "",

@@ -14,8 +14,9 @@ from typing import Any
 import pendulum
 
 from models.twitch_event_subs.stream_online import StreamOnlineEventSub
+from tests.credentials import WEBHOOK_SECRET
 
-SECRET = "test"
+SECRET = WEBHOOK_SECRET
 NOW = pendulum.datetime(2026, 6, 15, 12)
 NOW_ISO = "2026-06-15T12:00:00Z"
 

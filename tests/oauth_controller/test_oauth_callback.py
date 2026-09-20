@@ -5,6 +5,7 @@ import pytest
 
 from constants import TokenType
 from services.twitch import oauth
+from tests.credentials import CLIENT_ID, CLIENT_SECRET
 from tests.oauth_controller.support import (
     BOT_ID,
     BROADCASTER_CALLBACK,
@@ -86,8 +87,8 @@ class TestTheCodeExchange:
         exchange, validate = script.requests
         assert (exchange.method, str(exchange.url)) == ("POST", TOKEN_URL)
         assert form(exchange) == {
-            "client_id": "test",
-            "client_secret": "test",
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
             "code": "c0de",
             "grant_type": "authorization_code",
             "redirect_uri": f"https://bot.example{path}",

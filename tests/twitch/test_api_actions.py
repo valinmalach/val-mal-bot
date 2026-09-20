@@ -7,6 +7,7 @@ import pytest
 
 import services.twitch.api as api
 from services.config import config
+from tests.credentials import WEBHOOK_SECRET
 from tests.twitch.support import (
     Script,
     page,
@@ -122,7 +123,7 @@ class TestSubscriptionCalls:
             "transport": {
                 "method": "webhook",
                 "callback": "https://cb/x",
-                "secret": "test",
+                "secret": WEBHOOK_SECRET,
             },
         }
 
