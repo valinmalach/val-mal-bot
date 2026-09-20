@@ -8,6 +8,7 @@ import itertools
 import logging
 from typing import Any, Literal
 
+from valmal.bot.present import quoted
 from valmal.core.config import config
 from valmal.core.errors import notify
 from valmal.core.settings import settings
@@ -294,17 +295,24 @@ async def _named_user(username: str) -> User | None:
     in. Deferred because valmal.twitch.eventsub.commands imports this module; it owns
     the one grammar, and a second copy here is what issue #38 is about.
 
-    %r throughout, as everywhere else that logs a relayed value: a newline in
-    one would otherwise forge a log line.
+    Both refusals are said in the admin channel, not only logged. The value that
+    failed the grammar is never echoed, since it can hold anything; a login that
+    passed it is safe to name, and is put in a code span all the same.
     """
     from valmal.twitch.eventsub.commands import is_twitch_login
 
     if not is_twitch_login(username):
-        logger.warning("Not a Twitch login, no lookup made: %r", username)
+        await notify(
+            "Refused a Twitch lookup: what was given cannot be a login.",
+            key="twitch-lookup-bad-login",
+        )
         return None
     user = await get_user_by_username(username)
     if not user:
-        logger.warning("User not found: %r", username)
+        await notify(
+            f"Twitch has no user called {quoted(username)}.",
+            key=f"twitch-lookup-not-found:{username}",
+        )
     return user
 
 
@@ -338,58 +346,3 @@ async def unsubscribe_to_user(username: str) -> bool:
     for subscription in matching:
         await delete_subscription(subscription.id)
     return True
-
-
-async def broken_subscriptions() -> dict[str, str]:
-    """Every subscription that will not reach the bot, by identity and reason.
-
-    Computes, says nothing: the startup check reports whatever it finds, while
-    the loop reports only what changed, and neither wants the other's rule.
-    """
-    return {
-        f"{subscription.type} ({subscription_target(subscription)})": reason
-        for subscription in await get_subscriptions()
-        if (reason := undeliverable(subscription)) is not None
-    }
-
-
-def subscription_target(subscription: Subscription) -> str:
-    """Whichever id identifies this subscription, since the field varies by type."""
-    condition = subscription.condition
-    return next(
-        (
-            f"{label} {value}"
-            for label, value in (
-                ("broadcaster", condition.broadcaster_user_id),
-                ("to broadcaster", condition.to_broadcaster_user_id),
-                ("from broadcaster", condition.from_broadcaster_user_id),
-                ("user", condition.user_id),
-            )
-            if value
-        ),
-        f"id {subscription.id}",
-    )
-
-
-def undeliverable(subscription: Subscription) -> str | None:
-    """Why this subscription will not reach the bot, or None when it will.
-
-    Two things are checkable without knowing which event types the bot expects,
-    and only two: Twitch having disabled it, and a callback pointing elsewhere.
-    Matching whole URLs instead would call every event type the bot does not
-    create itself — chat, follows, raids — undeliverable on every start.
-
-    The prefix has to end at a path boundary. A bare ``startswith`` also accepts
-    ``/webhook/twitching`` and ``/webhook/twitch-old``, which are different paths
-    that FastAPI does not route. What is left uncovered is an unrouted segment
-    *under* the prefix, and that fails its deliveries until Twitch disables it,
-    which the status check above then catches.
-    """
-    if subscription.status != "enabled":
-        return subscription.status
-
-    callback = subscription.transport.callback or ""
-    prefix = callback_prefix()
-    if callback != prefix and not callback.startswith(f"{prefix}/"):
-        return f"calling back on {callback or 'nothing'}"
-    return None

@@ -28,6 +28,24 @@ def _settings(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "_settings", BOT_SETTINGS)
 
 
+@pytest.fixture
+def notices(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str | None]]:
+    seen: list[tuple[str, str | None]] = []
+
+    async def notify(text: str, *, key: str | None = None) -> bool:
+        seen.append((text, key))
+        return True
+
+    monkeypatch.setattr(api, "notify", notify)
+    return seen
+
+
+BAD_LOGIN_NOTICE = (
+    "Refused a Twitch lookup: what was given cannot be a login.",
+    "twitch-lookup-bad-login",
+)
+
+
 class TestChatAndShoutout:
     async def test_a_chat_message_names_the_bot_as_sender(
         self, helix_http: HttpFactory
@@ -126,17 +144,23 @@ class TestSubscriptionCalls:
 
 class TestSubscribeToUser:
     async def test_an_invalid_login_is_refused_before_any_request(
-        self, helix_http: HttpFactory
+        self, helix_http: HttpFactory, notices: list[tuple[str, str | None]]
     ) -> None:
         script = helix_http(reply(200, {"data": []}))
 
         assert await api.subscribe_to_user("not a login!") is False
         assert script.requests == []
+        assert notices == [BAD_LOGIN_NOTICE], "and the refused value is never echoed"
 
-    async def test_an_unknown_user_is_false(self, helix_http: HttpFactory) -> None:
+    async def test_an_unknown_user_is_false_and_said(
+        self, helix_http: HttpFactory, notices: list[tuple[str, str | None]]
+    ) -> None:
         helix_http(reply(200, {"data": []}))
 
         assert await api.subscribe_to_user("nobody") is False
+        assert notices == [
+            ("Twitch has no user called `nobody`.", "twitch-lookup-not-found:nobody")
+        ]
 
     async def test_a_known_user_gets_online_and_offline_at_their_own_callbacks(
         self, helix_http: HttpFactory
@@ -183,17 +207,23 @@ class TestSubscribeToUser:
 
 class TestUnsubscribe:
     async def test_an_invalid_login_is_false_without_a_request(
-        self, helix_http: HttpFactory
+        self, helix_http: HttpFactory, notices: list[tuple[str, str | None]]
     ) -> None:
         script = helix_http(reply(200, {"data": []}))
 
         assert await api.unsubscribe_to_user("bad name") is False
         assert script.requests == []
+        assert notices == [BAD_LOGIN_NOTICE]
 
-    async def test_an_unknown_user_is_false(self, helix_http: HttpFactory) -> None:
+    async def test_an_unknown_user_is_false_and_said(
+        self, helix_http: HttpFactory, notices: list[tuple[str, str | None]]
+    ) -> None:
         helix_http(reply(200, {"data": []}))
 
         assert await api.unsubscribe_to_user("nobody") is False
+        assert notices == [
+            ("Twitch has no user called `nobody`.", "twitch-lookup-not-found:nobody")
+        ]
 
     async def test_no_subscriptions_is_still_success_and_deletes_nothing(
         self, helix_http: HttpFactory

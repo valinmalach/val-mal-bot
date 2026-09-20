@@ -11,7 +11,8 @@ import valmal.twitch.eventsub.router as ctl
 from tests.twitch.eventsub.webhook.route_data import ROUTES, notification
 from tests.twitch.eventsub.webhook.support import Hooks, delivery
 from tests.twitch.support import subscription_json
-from valmal.twitch.client.api import callback_url, undeliverable
+from valmal.twitch.client.api import callback_url
+from valmal.twitch.client.subscription_health import undeliverable
 from valmal.twitch.models.api.subscription import Subscription
 from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 

@@ -10,6 +10,7 @@ from tests.twitch.support import (
     subscription_json,
     user_json,
 )
+from valmal.twitch.client import subscription_health as health
 
 pytestmark = pytest.mark.anyio
 
@@ -126,7 +127,7 @@ class TestGetSubscriptions:
             )
         )
 
-        assert await api.broken_subscriptions() == {
+        assert await health.broken_subscriptions() == {
             "stream.offline (broadcaster 7)": "user_removed",
             "channel.raid (to broadcaster 8)": (
                 "calling back on https://old.example/webhook/twitch"

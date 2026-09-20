@@ -13,6 +13,7 @@ from tests.twitch.support import (
     video_json,
 )
 from valmal.core.settings import settings
+from valmal.twitch.client import subscription_health as health
 from valmal.twitch.models.api.stream import Stream, StreamType
 from valmal.twitch.models.api.subscription import Subscription
 
@@ -72,44 +73,44 @@ class TestLiveStream:
 
 class TestSubscriptionTarget:
     def test_names_whichever_id_identifies_it(self) -> None:
-        assert api.subscription_target(_subscription(broadcaster_user_id="7")) == (
+        assert health.subscription_target(_subscription(broadcaster_user_id="7")) == (
             "broadcaster 7"
         )
-        assert api.subscription_target(_subscription(to_broadcaster_user_id="8")) == (
-            "to broadcaster 8"
-        )
-        assert api.subscription_target(_subscription(from_broadcaster_user_id="9")) == (
-            "from broadcaster 9"
-        )
-        assert api.subscription_target(_subscription(user_id="6")) == "user 6"
+        assert health.subscription_target(
+            _subscription(to_broadcaster_user_id="8")
+        ) == ("to broadcaster 8")
+        assert health.subscription_target(
+            _subscription(from_broadcaster_user_id="9")
+        ) == ("from broadcaster 9")
+        assert health.subscription_target(_subscription(user_id="6")) == "user 6"
 
     def test_the_broadcaster_wins_when_several_are_set(self) -> None:
         sub = _subscription(broadcaster_user_id="7", user_id="6", moderator_user_id="5")
 
-        assert api.subscription_target(sub) == "broadcaster 7"
+        assert health.subscription_target(sub) == "broadcaster 7"
 
     def test_an_empty_string_is_not_a_target(self) -> None:
         """Twitch sends "" for the unset half of a channel.raid condition."""
         sub = _subscription(from_broadcaster_user_id="", to_broadcaster_user_id="8")
 
-        assert api.subscription_target(sub) == "to broadcaster 8"
+        assert health.subscription_target(sub) == "to broadcaster 8"
 
     def test_with_no_recognised_id_it_falls_back_to_the_subscription_id(self) -> None:
         sub = _subscription(id="abc", moderator_user_id="5")
 
-        assert api.subscription_target(sub) == "id abc"
+        assert health.subscription_target(sub) == "id abc"
 
 
 class TestUndeliverable:
     def test_enabled_at_this_deployments_callback_is_deliverable(self) -> None:
-        assert api.undeliverable(_subscription()) is None
+        assert health.undeliverable(_subscription()) is None
 
     @pytest.mark.parametrize(
         "path", ["/webhook/twitch", "/webhook/twitch/offline", "/webhook/twitch/x/y"]
     )
     def test_the_prefix_and_anything_under_it_is_ours(self, path: str) -> None:
         assert (
-            api.undeliverable(_subscription(callback=f"https://bot.example{path}"))
+            health.undeliverable(_subscription(callback=f"https://bot.example{path}"))
             is None
         )
 
@@ -123,12 +124,12 @@ class TestUndeliverable:
         ],
     )
     def test_a_status_other_than_enabled_is_the_reason(self, status: str) -> None:
-        assert api.undeliverable(_subscription(status=status)) == status
+        assert health.undeliverable(_subscription(status=status)) == status
 
     def test_a_status_problem_is_reported_before_a_callback_problem(self) -> None:
         sub = _subscription(status="user_removed", callback="https://elsewhere/x")
 
-        assert api.undeliverable(sub) == "user_removed"
+        assert health.undeliverable(sub) == "user_removed"
 
     @pytest.mark.parametrize(
         "callback",
@@ -146,18 +147,20 @@ class TestUndeliverable:
         self, callback: str
     ) -> None:
         """A bare startswith would accept /webhook/twitching, a different path."""
-        assert api.undeliverable(_subscription(callback=callback)) == (
+        assert health.undeliverable(_subscription(callback=callback)) == (
             f"calling back on {callback}"
         )
 
     def test_no_callback_at_all_is_named(self) -> None:
         assert (
-            api.undeliverable(_subscription(callback=None)) == "calling back on nothing"
+            health.undeliverable(_subscription(callback=None))
+            == "calling back on nothing"
         )
 
     def test_an_empty_callback_is_named_too(self) -> None:
         assert (
-            api.undeliverable(_subscription(callback="")) == "calling back on nothing"
+            health.undeliverable(_subscription(callback=""))
+            == "calling back on nothing"
         )
 
 
