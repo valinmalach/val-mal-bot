@@ -1,6 +1,6 @@
 """The two Twitch authorization-code flows, on their own router.
 
-Separate from the webhook controller because it shares nothing with it: no
+Separate from the webhook router because it shares nothing with it: no
 signature checking, no EventSub models, a different path prefix.
 """
 

@@ -2,9 +2,8 @@
 
 Anything that stops a call completing raises ``HelixError``. Nothing here
 announces the call's own failure: whoever catches has the context worth
-reporting, and three layers each announcing the same one is what this replaced.
-A refresh the token manager could not complete is its own news, and it still
-says so.
+reporting. A refresh the token manager could not complete is its own news, and
+it still says so.
 """
 
 import asyncio
