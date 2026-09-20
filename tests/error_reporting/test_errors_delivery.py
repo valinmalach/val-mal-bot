@@ -205,3 +205,49 @@ class TestAnEnormousSingleLine:
         assert call["content"].startswith("Subscription outage: yyy")
         assert len(call["content"]) <= errors._MAX_CONTENT
         assert call["file"].fp.read().decode() == text
+
+    async def test_a_summary_that_fits_alone_survives_the_outage_prefix(
+        self, admin: Channel, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A summary of about 1,850 characters fits by itself and not behind the
+        one-line 'reached nobody' prefix, and was dropped whole rather than cut."""
+        monkeypatch.setattr(errors, "_undelivered", 1)
+        prefix = "[1 message(s) reached nobody while this channel was unreachable]\n"
+        for width in range(600, 1000):
+            exc = RuntimeError("m" * width)
+            summary = (
+                f"reading the thing - Type: RuntimeError, Message: {exc},"
+                f" Args: {exc.args}"
+            )
+            if len(summary) <= errors._MAX_CONTENT < len(prefix) + len(summary):
+                break
+        else:
+            pytest.fail("no width put the summary in the window")
+
+        await errors.report(exc, "reading the thing")
+
+        (call,) = admin.calls
+        assert call["content"].startswith(prefix + "reading the thing - Type: Runtime")
+        assert call["content"].endswith(errors._OVERFLOW_NOTE)
+        assert len(call["content"]) <= errors._MAX_CONTENT
+        assert call["file"].filename == "traceback.txt"
+
+    async def test_the_prefix_and_a_notice_both_lead_the_content_and_the_file_has_both(
+        self, admin: Channel, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(errors, "_undelivered", 3)
+        text = "Outage: " + "y" * 5000
+
+        await errors.notify(text)
+
+        (call,) = admin.calls
+        assert call["content"].startswith("[3 message(s) reached nobody")
+        assert "Outage: yyy" in call["content"]
+        assert len(call["content"]) <= errors._MAX_CONTENT
+        whole = call["file"].fp.read().decode()
+        assert whole.startswith("[3 message(s) reached nobody") and whole.endswith(text)
+
+    def test_the_cap_stays_under_what_discord_accepts(self) -> None:
+        """Every other test states the cap as errors._MAX_CONTENT, so any value
+        would satisfy them; Discord rejects a message over 2000."""
+        assert errors._MAX_CONTENT <= 2000
