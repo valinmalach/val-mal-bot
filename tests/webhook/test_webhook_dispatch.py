@@ -144,10 +144,21 @@ class TestClaimsAreGivenBackWhenThisEndFails:
         self, client: httpx.AsyncClient, hooks: Hooks
     ) -> None:
         """A retry of one that worked must not run it twice; what the handler does
-        afterwards is its own report's business."""
+        afterwards is its own report's business -- _release is only ever called
+        when dispatch itself could not start, never for a handler that ran and
+        then failed."""
+        hooks.handler_error = RuntimeError("handler blew up")
         await post(client, message_id="done")
-
         assert "done" in ctl._handled
+
+        with pytest.raises(RuntimeError, match="handler blew up"):
+            await hooks.run_dispatched()
+        assert "done" in ctl._handled
+
+        retry = await post(client, message_id="done")
+
+        assert retry.status_code == 202
+        assert len(hooks.dispatched) == 1, "the retry must not be dispatched again"
 
 
 class TestRefusedPayloads:

@@ -27,6 +27,7 @@ class Hooks:
         self.events: list[StreamOnlineEventSub] = []
         self.clock = 1000.0
         self.fail_dispatch: Exception | None = None
+        self.handler_error: Exception | None = None
 
     async def run_dispatched(self) -> None:
         for _, coro in self.dispatched:
@@ -78,6 +79,8 @@ def app(hooks: Hooks) -> FastAPI:
     app = FastAPI()
 
     async def handler(event: StreamOnlineEventSub) -> None:
+        if hooks.handler_error is not None:
+            raise hooks.handler_error
         hooks.events.append(event)
 
     @app.post("/t")
