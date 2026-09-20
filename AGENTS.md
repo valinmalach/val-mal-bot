@@ -111,12 +111,16 @@ middle of a file and says it is unchecked. `tests/conftest.py` fills the environ
 `config.settings` validates at import, so it must run before a test module imports
 anything that reaches `config`. Anything that walks the repo (the seeded-key scan, the
 coverage `omit` list) skips `.claude/`, where agent worktrees hold whole copies of it.
-Async tests carry `pytestmark = pytest.mark.anyio`. `[tool.pytest.ini_options]` turns an
-unawaited coroutine into a failure with two filters, not one: the warning is raised while
-the coroutine is collected, so pytest reports it as an unraisable exception, and
-`error::RuntimeWarning` alone lets it through. A 60 second `timeout` (pytest-timeout)
-fails a test that hangs instead of stopping the run: an awaited event nobody sets, or, on
-Windows about one full run in twelve, an event loop that blocks creating its self-pipe.
+Async tests carry `pytestmark = pytest.mark.anyio` and share one event loop for the
+whole session, held open by the `_one_event_loop` fixture in `tests/conftest.py`; a loop
+per test cost a socket pair each on Windows, and about one full run in twelve blocked
+for good creating one. A test that leaves a task behind is therefore cleaned up by the
+next one, not by its own loop, and a task that must not outlive the test is the test's
+to cancel. `[tool.pytest.ini_options]` turns an unawaited coroutine into a failure with
+two filters, not one: the warning is raised while the coroutine is collected, so pytest
+reports it as an unraisable exception, and `error::RuntimeWarning` alone lets it
+through. A 60 second `timeout` (pytest-timeout) names a test that hangs: on Linux it
+fails that test, on Windows it can only dump the stacks and end the run.
 
 Three habits that each cost a debugging session. Patch with `monkeypatch`, never by
 assigning onto a module, or the fake leaks into the next test; assigning is only safe
