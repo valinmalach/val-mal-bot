@@ -112,6 +112,13 @@ class MyBot(Bot):
 
 bot = MyBot(command_prefix="$", intents=discord.Intents.all())
 
+# CheckFailure subclasses that are not somebody being refused: the bot lacking
+# a permission is a fault to report, and a cooldown is not a permission at all.
+_NOT_A_REFUSAL = (
+    discord.app_commands.BotMissingPermissions,
+    discord.app_commands.CommandOnCooldown,
+)
+
 
 async def _answer(
     interaction: discord.Interaction, template_key: str, command: str, verb: str
@@ -138,19 +145,22 @@ async def on_app_command_error(
 
     Two different things land here. A command that forgets to guard its own
     body raises past it - the case where nobody would otherwise hear about it,
-    and the person who ran it would be left on a spinner. A `MissingPermissions`
-    check failure also lands here, deliberately: `has_permissions` raises it by
-    design, so that branch answers the person directly instead of reporting it
-    as a bug.
+    and the person who ran it would be left on a spinner. A refused check also
+    lands here, deliberately: `has_permissions` raises `MissingPermissions` and
+    `has_configured_role` a plain `CheckFailure`, both by design, so that branch
+    answers the person directly instead of reporting it as a bug.
     """
     from errors import report
 
     command = interaction.command.qualified_name if interaction.command else "unknown"
 
-    if isinstance(error, discord.app_commands.MissingPermissions):
-        # A refusal `has_permissions` raises by design - a server admin has
-        # reconfigured who may run this command - not a bug, so it answers the
-        # person rather than reporting to the admin channel.
+    if isinstance(error, discord.app_commands.CheckFailure) and not isinstance(
+        error, _NOT_A_REFUSAL
+    ):
+        # A check doing its job - a server admin has reconfigured who may run
+        # this command, or somebody without the follower role tried a birthday
+        # command - not a bug, so it answers the person rather than reporting
+        # to the admin channel.
         await _answer(
             interaction, "command_no_permission", command, "lacked permission"
         )
