@@ -7,7 +7,7 @@ editing a row changes what the next /rules or /roles posts without a redeploy.
 from discord import Colour, Embed, Interaction
 from discord.ui import Button, View
 
-from services.config import config
+from valmal.core.config import config
 
 __all__ = ["RolePickerView", "build_embed", "persistent_views", "role_panels"]
 

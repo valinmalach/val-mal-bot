@@ -2,9 +2,9 @@ from typing import Any
 
 import pytest
 
-import services.config as service_config
-from services.config import ConfigCache, _coerce
+import valmal.core.config as service_config
 from tests.config_cache.support import DatabaseDown, role, setting
+from valmal.core.config import ConfigCache, _coerce
 from valmal.db.models import (
     DiscordAutoResponse,
     DiscordChannel,

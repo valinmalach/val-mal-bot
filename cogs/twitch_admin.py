@@ -5,8 +5,6 @@ from discord.utils import escape_markdown
 
 from constants import TokenType
 from controller.twitch import WEBHOOK_PATHS
-from errors import report
-from services.config import config
 from services.present import quoted
 from services.twitch.api import (
     get_subscriptions,
@@ -19,6 +17,8 @@ from services.twitch.helix import HelixError
 from services.twitch.migrate import migrate
 from services.twitch.migrate_plan import summary
 from services.twitch.oauth import create_authorization_start_url
+from valmal.core.config import config
+from valmal.core.errors import report
 
 
 def _login(value: str) -> str | None:

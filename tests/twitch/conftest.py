@@ -9,7 +9,6 @@ import pendulum
 import pytest
 
 import services.twitch.token_manager as tm_module
-from services.config import config
 from services.twitch import helix
 from services.twitch.token_manager import TwitchTokenManager
 from tests.twitch.support import (
@@ -18,6 +17,7 @@ from tests.twitch.support import (
     Script,
     TokenDb,
 )
+from valmal.core.config import config
 
 
 @pytest.fixture

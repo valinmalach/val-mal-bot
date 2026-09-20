@@ -6,7 +6,7 @@ import pytest
 
 from cogs import role_panels
 from cogs.role_panels import RolePanels
-from services.config import config
+from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio
 

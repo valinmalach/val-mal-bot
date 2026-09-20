@@ -10,14 +10,14 @@ import re
 import unicodedata
 from collections.abc import Awaitable, Callable
 
-from errors import notify
 from models.twitch_api_responses.user import User
 from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
-from services.config import config, safe_format
 from services.twitch import autoshoutout, stream_session
 from services.twitch.api import get_channel, get_user_by_username
 from services.twitch.chat import say, say_template
 from services.twitch.helix import HelixError
+from valmal.core.config import config, safe_format
+from valmal.core.errors import notify
 
 from .shoutout_queue import shoutout_queue
 

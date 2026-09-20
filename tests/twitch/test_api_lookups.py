@@ -3,7 +3,6 @@ from collections.abc import Callable
 import pytest
 
 import services.twitch.api as api
-from config import settings
 from models.twitch_api_responses.stream import Stream, StreamType
 from models.twitch_api_responses.subscription import Subscription
 from tests.twitch.support import (
@@ -15,6 +14,7 @@ from tests.twitch.support import (
     user_json,
     video_json,
 )
+from valmal.core.settings import settings
 
 pytestmark = pytest.mark.anyio
 

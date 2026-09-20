@@ -8,9 +8,9 @@ from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEven
 from models.twitch_event_subs.channel_points_custom_reward_redemption_add import (
     ChannelPointsCustomRewardRedemptionAddEventSub,
 )
-from services.config import config
 from services.twitch import autoshoutout, stream_session
 from tests.twitch.support import chat_event, redemption_event, stream_json
+from valmal.core.config import config
 from valmal.db import repository
 
 pytestmark = pytest.mark.anyio

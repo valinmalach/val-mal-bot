@@ -4,11 +4,11 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from config import settings
 from constants import TokenType
-from services.config import config
 from services.twitch import oauth
 from tests.credentials import CLIENT_ID
+from valmal.core.config import config
+from valmal.core.settings import settings
 
 SCOPES = ["chat:read", "moderator:manage:shoutouts"]
 

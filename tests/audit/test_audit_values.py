@@ -9,7 +9,6 @@ from constants import (
     UNNAMED_EVENT,
 )
 from services import audit
-from services.config import config
 from tests.audit.support import (
     AVATAR,
     COLORS,
@@ -18,6 +17,7 @@ from tests.audit.support import (
     invite,
     person,
 )
+from valmal.core.config import config
 
 BACKSLASH = chr(92)
 
@@ -226,7 +226,7 @@ class TestEmbed:
     def test_a_template_row_that_is_missing_still_produces_an_embed(
         self, log: object, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr("services.config.notify_soon", lambda *a, **k: None)
+        monkeypatch.setattr("valmal.core.config.notify_soon", lambda *a, **k: None)
         monkeypatch.setattr(config, "_templates", {})
 
         embed = audit._templated("audit_bulk_deleted", "embed_color_info", count=3)

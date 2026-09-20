@@ -2,9 +2,9 @@ from typing import Any
 
 import pytest
 
-from services.config import config
 from services.twitch import chat
 from services.twitch.helix import HelixError
+from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio
 
@@ -113,7 +113,7 @@ class TestSayTemplate:
         """config.template degrades to "" and reports the row itself; sending "" would
         only add a 400 on top."""
         monkeypatch.setattr(
-            "services.config.notify_soon", lambda text, *, key=None: None
+            "valmal.core.config.notify_soon", lambda text, *, key=None: None
         )
 
         assert await chat.say_template("111", "no_such_template") is False

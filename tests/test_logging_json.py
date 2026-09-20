@@ -5,8 +5,8 @@ from types import TracebackType
 
 import pytest
 
-import logging_json
-from logging_json import JsonFormatter
+from valmal.core import logging_json
+from valmal.core.logging_json import JsonFormatter
 
 ExcInfo = tuple[type[BaseException], BaseException, TracebackType | None]
 
@@ -172,7 +172,7 @@ def test_end_to_end_through_a_real_handler_one_json_object_per_line() -> None:
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
     handler.setFormatter(JsonFormatter())
-    logger = logging.getLogger("logging_json.e2e")
+    logger = logging.getLogger("valmal.core.logging_json.e2e")
     logger.handlers = [handler]
     logger.propagate = False
     logger.setLevel(logging.DEBUG)

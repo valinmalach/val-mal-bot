@@ -71,7 +71,7 @@ class JsonFormatter(logging.Formatter):
 
 
 def _demo() -> None:
-    logger = logging.getLogger("logging_json.demo")
+    logger = logging.getLogger("valmal.core.logging_json.demo")
     fmt = JsonFormatter()
 
     def rendered(record: logging.LogRecord) -> dict[str, object]:

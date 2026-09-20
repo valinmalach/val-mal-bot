@@ -16,7 +16,7 @@ from typing import Any, TypeVar
 
 from sqlalchemy import select
 
-from errors import notify_soon
+from valmal.core.errors import notify_soon
 from valmal.db.models import (
     AppSetting,
     AutoResponseMatch,

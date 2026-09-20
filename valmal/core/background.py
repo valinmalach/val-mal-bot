@@ -50,7 +50,7 @@ def _finished(task: asyncio.Task) -> None:
     # The last catch for a task whose own handler did not run, or did not
     # survive. report never raises, so the task started here cannot come back
     # through this branch.
-    from errors import report
+    from valmal.core.errors import report
 
     fire_and_forget(
         report(error, f"Background task {task.get_name()} failed"),

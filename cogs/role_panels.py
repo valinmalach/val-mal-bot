@@ -1,8 +1,8 @@
 from discord import Interaction, app_commands
 from discord.ext.commands import Bot, Cog
 
-from services.config import config
 from services.send import send_embed
+from valmal.core.config import config
 from views import role_panels
 
 

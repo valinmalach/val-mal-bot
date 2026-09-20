@@ -25,7 +25,7 @@ async def _sendable(channel_id: int, quiet: bool) -> Messageable | None:
 
     if not quiet:
         # Deferred: errors imports this module.
-        from errors import notify
+        from valmal.core.errors import notify
 
         await notify(
             f"Channel {channel_id} could not be resolved, so nothing sent to it"

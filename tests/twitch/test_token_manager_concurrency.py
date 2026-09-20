@@ -5,7 +5,6 @@ import pendulum
 import pytest
 
 import services.twitch.token_manager as tm_module
-from background import fire_and_forget
 from constants import TokenType
 from services.twitch.token_manager import TwitchTokenManager
 from tests.twitch.support import (
@@ -17,6 +16,7 @@ from tests.twitch.support import (
     reply,
     stale_refresh_tokens,
 )
+from valmal.core.background import fire_and_forget
 
 pytestmark = pytest.mark.anyio
 

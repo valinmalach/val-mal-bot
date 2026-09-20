@@ -14,10 +14,10 @@ from typing import Any, Literal
 import httpx
 from pydantic import BaseModel
 
-from config import settings
 from constants import TokenType
-from services.http_client import client
 from services.twitch.token_manager import token_manager
+from valmal.core.http_client import client
+from valmal.core.settings import settings
 
 logger = logging.getLogger(__name__)
 

@@ -10,8 +10,8 @@ import pytest
 from cogs import events
 from cogs.events import Events
 from services import audit
-from services.config import config
 from tests.audit.support import message
+from valmal.core.config import config
 
 NOW = pendulum.datetime(2026, 6, 15, 12)
 

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from config import settings
+from valmal.core.settings import settings
 from valmal.db.config import get_database_url
 
 __all__ = [

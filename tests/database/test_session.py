@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from config import settings
+from valmal.core.settings import settings
 from valmal.db import session
 
 pytestmark = pytest.mark.anyio

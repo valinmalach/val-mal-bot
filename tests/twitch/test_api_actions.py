@@ -3,7 +3,6 @@ from collections.abc import Callable
 import pytest
 
 import services.twitch.api as api
-from services.config import config
 from tests.credentials import WEBHOOK_SECRET
 from tests.twitch.support import (
     BOT_SETTINGS,
@@ -17,6 +16,7 @@ from tests.twitch.support import (
     subscription_json,
     user_json,
 )
+from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio
 

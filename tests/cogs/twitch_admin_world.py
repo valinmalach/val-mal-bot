@@ -7,10 +7,10 @@ import pytest
 from cogs import twitch_admin
 from cogs.twitch_admin import TwitchAdmin
 from models.twitch_api_responses.subscription import Subscription
-from services.config import config
 from services.twitch.helix import HelixError
 from services.twitch.migrate_plan import Outcome
 from tests.twitch_migrate.support import sub
+from valmal.core.config import config
 
 BACKSLASH = chr(92)
 OWNER = 99

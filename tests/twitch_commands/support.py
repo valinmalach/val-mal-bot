@@ -6,7 +6,7 @@ import pytest
 
 from models.twitch_api_responses.channel import Channel
 from models.twitch_api_responses.user import User
-from services.config import config
+from valmal.core.config import config
 from valmal.db.models import TwitchCommand
 
 

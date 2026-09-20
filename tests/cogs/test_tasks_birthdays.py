@@ -9,7 +9,7 @@ import pytest
 
 from cogs import tasks
 from cogs.tasks import Tasks
-from services.config import config
+from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio
 

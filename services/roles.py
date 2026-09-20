@@ -3,10 +3,10 @@
 from discord import Interaction, Member, Role
 from discord.ui import Button
 
-from background import fire_and_forget
-from errors import notify
 from init import bot
-from services.config import config
+from valmal.core.background import fire_and_forget
+from valmal.core.config import config
+from valmal.core.errors import notify
 
 
 def get_member_role(

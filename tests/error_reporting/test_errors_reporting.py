@@ -4,9 +4,9 @@ from typing import Any
 
 import pytest
 
-import errors
-from background import _tasks
 from tests.error_reporting.support import Clock
+from valmal.core import errors
+from valmal.core.background import _tasks
 
 pytestmark = pytest.mark.anyio
 

@@ -16,9 +16,9 @@ from models.twitch_api_responses.channel import Channel
 from models.twitch_api_responses.stream import Stream
 from models.twitch_api_responses.user import User
 from models.twitch_api_responses.video import Video
-from services.config import config
 from services.twitch.commands import is_twitch_login
 from services.twitch.timestamps import parse_rfc3339
+from valmal.core.config import config
 
 
 def twitch_url(user_login: str) -> str:

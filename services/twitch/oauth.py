@@ -5,9 +5,9 @@ import time
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
-from config import settings
 from constants import TokenType
-from services.config import config
+from valmal.core.config import config
+from valmal.core.settings import settings
 
 _AUTHORIZATION_TTL_SECONDS = 10 * 60
 _AUTHORIZATION_ENDPOINT = "https://id.twitch.tv/oauth2/authorize"

@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 import pytest
 
-from config import settings
+from valmal.core.settings import settings
 from valmal.db import config as db_config
 from valmal.db.config import _translate_query, get_database_url
 

@@ -5,7 +5,6 @@ import pytest
 from fastapi import FastAPI
 
 from controller import twitch_oauth
-from services.config import config
 from services.twitch import oauth
 from tests.oauth_controller.support import (
     BOT_ID,
@@ -15,6 +14,7 @@ from tests.oauth_controller.support import (
     Stored,
 )
 from tests.twitch.support import Script
+from valmal.core.config import config
 
 
 @pytest.fixture(autouse=True)

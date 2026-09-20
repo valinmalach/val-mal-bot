@@ -10,11 +10,8 @@ from discord.utils import escape_markdown
 from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import RedirectResponse
 
-from config import settings
 from constants import TokenType
-from errors import notify, report
 from models.auth.auth_response import RefreshResponse, TokenValidationResponse
-from services.http_client import client
 from services.twitch.oauth import (
     authorization_url,
     callback_uri,
@@ -23,6 +20,9 @@ from services.twitch.oauth import (
     expected_user_id,
 )
 from services.twitch.token_manager import token_manager
+from valmal.core.errors import notify, report
+from valmal.core.http_client import client
+from valmal.core.settings import settings
 
 logger = logging.getLogger(__name__)
 

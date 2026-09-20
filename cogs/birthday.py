@@ -8,9 +8,9 @@ from discord.ext.commands import Bot, GroupCog
 from discord.utils import escape_markdown
 
 from constants import MAX_DAYS, Months
-from errors import notify, report
 from services.birthday import is_leap_day, next_birthday_on
-from services.config import config, has_configured_role
+from valmal.core.config import config, has_configured_role
+from valmal.core.errors import notify, report
 from valmal.db import repository
 
 logger = logging.getLogger(__name__)

@@ -2,8 +2,8 @@ from typing import Any
 
 import pytest
 
-from services.config import ConfigCache, RenderedEmbed, RenderedField
 from tests.config_cache.support import role
+from valmal.core.config import ConfigCache, RenderedEmbed, RenderedField
 from valmal.db.models import (
     DiscordChannel,
     DiscordEmbed,

@@ -5,7 +5,7 @@ The connection string is a secret, so it stays in ``.env`` as ``DATABASE_URL``.
 
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from config import settings
+from valmal.core.settings import settings
 
 ASYNC_DRIVER = "postgresql+asyncpg"
 

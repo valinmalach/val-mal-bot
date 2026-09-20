@@ -3,9 +3,9 @@ from typing import Any
 
 import pytest
 
-import errors
-from background import fire_and_forget
 from tests.error_reporting.support import Clock
+from valmal.core import errors
+from valmal.core.background import fire_and_forget
 
 pytestmark = pytest.mark.anyio
 

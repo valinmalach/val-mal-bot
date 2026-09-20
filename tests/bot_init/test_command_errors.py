@@ -6,8 +6,8 @@ import pytest
 
 from cogs.birthday import Birthday
 from init import bot_init
-from services.config import config
 from tests.bot_init.support import Errors, interaction
+from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio
 

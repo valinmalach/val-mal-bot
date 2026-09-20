@@ -7,7 +7,7 @@ import discord
 import pytest
 
 from services import roles
-from services.config import config
+from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio
 

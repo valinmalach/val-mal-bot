@@ -8,7 +8,7 @@ import pytest
 
 from cogs import moderation
 from cogs.moderation import Moderation
-from services.config import config
+from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio
 

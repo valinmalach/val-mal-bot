@@ -72,7 +72,7 @@ max-complexity = 15
 
 [tool.ruff.lint.per-file-ignores]
 # _demo is a runnable self-check, and its asserts are the point.
-"logging_json.py" = ["S101"]
+"valmal/core/logging_json.py" = ["S101"]
 # A test is an assert, and its credentials are made up.
 "tests/*" = ["S101", "S105", "S106"]
 

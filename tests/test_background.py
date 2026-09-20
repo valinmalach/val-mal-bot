@@ -4,8 +4,8 @@ import logging
 
 import pytest
 
-import background
-from background import fire_and_forget
+from valmal.core import background
+from valmal.core.background import fire_and_forget
 
 pytestmark = pytest.mark.anyio
 
@@ -13,7 +13,7 @@ pytestmark = pytest.mark.anyio
 @pytest.fixture
 def reports(monkeypatch: pytest.MonkeyPatch) -> list[tuple[Exception, str]]:
     """errors.report is imported inside _finished, so it is patched at its home."""
-    import errors
+    from valmal.core import errors
 
     seen: list[tuple[Exception, str]] = []
 
@@ -199,7 +199,7 @@ def test_finishing_with_no_running_loop_only_logs(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A task finishing as the loop goes down has nowhere to schedule a report."""
-    import errors
+    from valmal.core import errors
 
     called: list[object] = []
     monkeypatch.setattr(errors, "report", lambda *args: called.append(args))

@@ -5,9 +5,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from services.config import config
 from services.twitch import autoshoutout, events, live_alert, stream_session
 from tests.twitch_events.support import EventWorld
+from valmal.core.config import config
 
 
 @pytest.fixture

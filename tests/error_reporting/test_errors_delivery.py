@@ -3,9 +3,9 @@ from types import SimpleNamespace
 import discord
 import pytest
 
-import errors
-from services.config import config
 from tests.error_reporting.support import Channel, Clock
+from valmal.core import errors
+from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio
 

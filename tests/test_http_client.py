@@ -3,7 +3,7 @@ from typing import Any
 import httpx
 import pytest
 
-from services import http_client
+from valmal.core import http_client
 
 pytestmark = pytest.mark.anyio
 

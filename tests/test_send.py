@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
-import errors
 from services import send
+from valmal.core import errors
 
 pytestmark = pytest.mark.anyio
 

@@ -30,7 +30,6 @@ from constants import (
     UNKNOWN_USER,
     UNNAMED_EVENT,
 )
-from services.config import config
 from services.duration import get_age
 from services.present import (
     MentionableChannel,
@@ -39,6 +38,7 @@ from services.present import (
     get_pfp,
 )
 from services.send import send_embed
+from valmal.core.config import config
 
 # Discord rejects the whole embed if any one of these is exceeded, so they are
 # enforced here rather than trusted to the callers.

@@ -2,9 +2,9 @@ import discord
 import pendulum
 import pytest
 
-from services.config import config
 from services.twitch import live_alert_embeds as embeds
 from tests.live_alert.support import NOW, channel, stream, user, video
+from valmal.core.config import config
 from valmal.db.models import DiscordRole
 
 pytestmark = pytest.mark.usefixtures("embed_config")

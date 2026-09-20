@@ -194,7 +194,7 @@ def notify_soon(text: str, *, key: str | None = None) -> None:
         return
 
     # Deferred both ways: background reaches back into this module for report.
-    from background import fire_and_forget
+    from valmal.core.background import fire_and_forget
 
     fire_and_forget(notify(text, key=key), name="notify")
 
@@ -229,7 +229,7 @@ def _shortened(text: str, limit: int = _MAX_CONTENT) -> str:
 async def _deliver(text: str, attachment: tuple[str, str] | None) -> bool:
     # Deferred: importing services at module scope runs the whole package, and
     # main.py reports cog-load failures before any of it is up.
-    from services.config import config
+    from valmal.core.config import config
 
     global _undelivered
 

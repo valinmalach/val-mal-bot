@@ -6,12 +6,12 @@ from typing import ClassVar, Self, cast
 import httpx
 import pendulum
 
-from background import fire_and_forget
-from errors import notify, report
 from models.twitch_api_responses.user import User
 from services.present import quoted
 from services.twitch.api import get_user, send_shoutout
 from services.twitch.helix import HelixError
+from valmal.core.background import fire_and_forget
+from valmal.core.errors import notify, report
 
 logger = logging.getLogger(__name__)
 

@@ -11,7 +11,7 @@ from discord import AllowedMentions
 from cogs import birthday
 from cogs.birthday import Birthday
 from constants import MAX_DAYS, Months
-from services.config import config
+from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio
 

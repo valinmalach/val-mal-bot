@@ -10,9 +10,9 @@ import pytest
 
 from models.twitch_api_responses.ad_schedule import AdSchedule
 from models.twitch_api_responses.stream import Stream
-from services.config import config
 from services.twitch import stream_session
 from tests.twitch_session.support import NOW, Calls
+from valmal.core.config import config
 
 
 @pytest.fixture

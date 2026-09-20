@@ -1,9 +1,9 @@
 import pytest
 
-from services.config import config
 from services.twitch import stream_session
 from services.twitch.helix import HelixError
 from tests.twitch_session.support import Calls, stream
+from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio
 

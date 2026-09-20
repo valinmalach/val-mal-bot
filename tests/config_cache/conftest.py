@@ -7,9 +7,9 @@ from typing import Any
 
 import pytest
 
-import services.config as service_config
-from services.config import ConfigCache
+import valmal.core.config as service_config
 from tests.config_cache.support import FakeSession
+from valmal.core.config import ConfigCache
 
 
 @pytest.fixture

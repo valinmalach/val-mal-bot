@@ -5,8 +5,8 @@ import sys
 import discord
 from discord.ext.commands import Bot
 
-from background import fire_and_forget
-from errors import notify, report
+from valmal.core.background import fire_and_forget
+from valmal.core.errors import notify, report
 
 logger = logging.getLogger(__name__)
 
@@ -65,9 +65,9 @@ class MyBot(Bot):
 
     async def setup_hook(self) -> None:
         from cogs.tasks import Tasks
-        from services.config import config
         from services.twitch.shoutout_queue import shoutout_queue
         from services.twitch.token_manager import token_manager
+        from valmal.core.config import config
 
         await config.load()
         await token_manager.load()
@@ -123,8 +123,8 @@ _NOT_A_REFUSAL = (
 async def _answer(
     interaction: discord.Interaction, template_key: str, command: str, verb: str
 ) -> None:
-    from errors import report
-    from services.config import config
+    from valmal.core.config import config
+    from valmal.core.errors import report
 
     try:
         # Composing the answer reads configuration, which is its own way to fail.
@@ -150,7 +150,7 @@ async def on_app_command_error(
     `has_configured_role` a plain `CheckFailure`, both by design, so that branch
     answers the person directly instead of reporting it as a bug.
     """
-    from errors import report
+    from valmal.core.errors import report
 
     command = interaction.command.qualified_name if interaction.command else "unknown"
 
@@ -209,7 +209,7 @@ async def on_ready() -> None:
     not folded into the same guard.
     """
     global _started, _announced
-    from services.config import config
+    from valmal.core.config import config
 
     if not _started:
         _started = True

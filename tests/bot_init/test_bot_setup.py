@@ -10,9 +10,9 @@ from discord.ext import commands
 import views
 from cogs.tasks import Tasks
 from init import bot_init
-from services.config import config
 from services.twitch.shoutout_queue import shoutout_queue
 from services.twitch.token_manager import token_manager
+from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio
 

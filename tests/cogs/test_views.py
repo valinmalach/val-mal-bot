@@ -5,7 +5,7 @@ import discord
 import pytest
 
 import views
-from services.config import RenderedEmbed, RenderedField, config
+from valmal.core.config import RenderedEmbed, RenderedField, config
 from views import RolePickerView, build_embed, persistent_views, role_panels
 
 pytestmark = pytest.mark.anyio

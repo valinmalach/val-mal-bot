@@ -4,8 +4,8 @@ from typing import ClassVar
 import pytest
 from pydantic import ValidationError
 
-import config
-from config import Settings
+from valmal.core import settings
+from valmal.core.settings import Settings
 
 # Names of every variable Settings reads, so a test can start from a blank slate
 # rather than from whatever the developer's shell happens to export.
@@ -38,7 +38,7 @@ def env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> pytest.MonkeyPatch:
 def test_loads_the_required_values_and_defaults_the_rest(
     env: pytest.MonkeyPatch,
 ) -> None:
-    loaded = config._load()
+    loaded = settings._load()
 
     assert loaded.discord_token == "discord-secret-value"
     assert loaded.database_url == "postgresql://user:hunter2@host:5432/db"
@@ -56,7 +56,7 @@ def test_a_missing_required_variable_is_named(
     env.delenv(name)
 
     with pytest.raises(RuntimeError, match=f"Bad environment configuration: {name}"):
-        config._load()
+        settings._load()
 
 
 @pytest.mark.parametrize("name", list(REQUIRED))
@@ -67,7 +67,7 @@ def test_a_blank_required_variable_fails_now_not_at_the_request_that_needed_it(
     env.setenv(name, "")
 
     with pytest.raises(RuntimeError, match=name):
-        config._load()
+        settings._load()
 
 
 def test_every_bad_variable_is_named_in_one_message(env: pytest.MonkeyPatch) -> None:
@@ -75,7 +75,7 @@ def test_every_bad_variable_is_named_in_one_message(env: pytest.MonkeyPatch) -> 
     env.setenv("APP_URL", "")
 
     with pytest.raises(RuntimeError) as caught:
-        config._load()
+        settings._load()
 
     assert "DISCORD_TOKEN" in str(caught.value)
     assert "APP_URL" in str(caught.value)
@@ -88,7 +88,7 @@ def test_the_error_never_carries_the_raw_values(env: pytest.MonkeyPatch) -> None
     env.setenv("DISCORD_TOKEN", "")
 
     with pytest.raises(RuntimeError) as caught:
-        config._load()
+        settings._load()
 
     message = str(caught.value)
     assert "hunter2" not in message
@@ -102,7 +102,7 @@ def test_a_non_numeric_port_is_named(env: pytest.MonkeyPatch) -> None:
     env.setenv("PORT", "eight thousand")
 
     with pytest.raises(RuntimeError, match="PORT"):
-        config._load()
+        settings._load()
 
 
 @pytest.mark.parametrize(
@@ -120,7 +120,7 @@ def test_a_blank_optional_variable_falls_back_to_its_default(
     would otherwise reject outright."""
     env.setenv(name, "")
 
-    assert getattr(config._load(), attribute) == expected
+    assert getattr(settings._load(), attribute) == expected
 
 
 @pytest.mark.parametrize(
@@ -131,13 +131,13 @@ def test_boolean_flags_read_the_usual_spellings(
 ) -> None:
     env.setenv("DB_ECHO", value)
 
-    assert config._load().db_echo is expected
+    assert settings._load().db_echo is expected
 
 
 def test_a_set_port_is_an_integer(env: pytest.MonkeyPatch) -> None:
     env.setenv("PORT", "9123")
 
-    assert config._load().port == 9123
+    assert settings._load().port == 9123
 
 
 def test_variables_that_are_not_declared_are_ignored(env: pytest.MonkeyPatch) -> None:
@@ -145,7 +145,7 @@ def test_variables_that_are_not_declared_are_ignored(env: pytest.MonkeyPatch) ->
     env.setenv("RAILWAY_ENVIRONMENT", "production")
     env.setenv("SOMETHING_ELSE", "x")
 
-    config._load()
+    settings._load()
 
 
 def test_a_dotenv_file_holding_variables_that_are_not_declared_still_loads(
@@ -158,14 +158,14 @@ def test_a_dotenv_file_holding_variables_that_are_not_declared_still_loads(
         encoding="utf-8",
     )
 
-    assert config._load().app_url == "https://bot.example"
+    assert settings._load().app_url == "https://bot.example"
 
 
 def test_variable_names_are_case_insensitive(env: pytest.MonkeyPatch) -> None:
     env.delenv("APP_URL")
     env.setenv("app_url", "https://lower.example")
 
-    assert config._load().app_url == "https://lower.example"
+    assert settings._load().app_url == "https://lower.example"
 
 
 def test_a_dotenv_file_supplies_what_the_environment_does_not(
@@ -176,7 +176,7 @@ def test_a_dotenv_file_supplies_what_the_environment_does_not(
         "APP_URL=https://from-file.example\n", encoding="utf-8"
     )
 
-    assert config._load().app_url == "https://from-file.example"
+    assert settings._load().app_url == "https://from-file.example"
 
 
 def test_the_environment_wins_over_the_dotenv_file(
@@ -186,12 +186,12 @@ def test_the_environment_wins_over_the_dotenv_file(
         "APP_URL=https://from-file.example\n", encoding="utf-8"
     )
 
-    assert config._load().app_url == "https://bot.example"
+    assert settings._load().app_url == "https://bot.example"
 
 
 class TestActiveDiscordToken:
     def test_the_real_token_by_default(self, env: pytest.MonkeyPatch) -> None:
-        assert config._load().active_discord_token == "discord-secret-value"
+        assert settings._load().active_discord_token == "discord-secret-value"
 
     def test_the_test_token_when_the_test_bot_is_on(
         self, env: pytest.MonkeyPatch
@@ -199,7 +199,7 @@ class TestActiveDiscordToken:
         env.setenv("USE_TEST_BOT", "1")
         env.setenv("TEST_DISCORD_TOKEN", "test-bot-token")
 
-        assert config._load().active_discord_token == "test-bot-token"
+        assert settings._load().active_discord_token == "test-bot-token"
 
     @pytest.mark.parametrize("test_token", [None, ""])
     def test_the_test_bot_without_a_token_refuses_to_fall_back_to_the_real_one(
@@ -212,14 +212,14 @@ class TestActiveDiscordToken:
             env.setenv("TEST_DISCORD_TOKEN", test_token)
 
         with pytest.raises(RuntimeError, match="TEST_DISCORD_TOKEN is empty"):
-            _ = config._load().active_discord_token
+            _ = settings._load().active_discord_token
 
     def test_the_test_token_is_ignored_while_the_test_bot_is_off(
         self, env: pytest.MonkeyPatch
     ) -> None:
         env.setenv("TEST_DISCORD_TOKEN", "test-bot-token")
 
-        assert config._load().active_discord_token == "discord-secret-value"
+        assert settings._load().active_discord_token == "discord-secret-value"
 
 
 class TestBlankIsUnset:

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import discord
 import pytest
 
-import services.config as service_config
+import valmal.core.config as service_config
 from tests.config_cache.support import role
 from valmal.db.models import AutoResponseMatch, DiscordAutoResponse, DiscordChannel
 

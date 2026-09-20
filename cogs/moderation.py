@@ -4,8 +4,8 @@ import discord
 from discord import Interaction, app_commands
 from discord.ext.commands import Bot, Cog
 
-from services.config import config
 from services.send import UNSENDABLE_CHANNEL_TYPES
+from valmal.core.config import config
 
 logger = logging.getLogger(__name__)
 

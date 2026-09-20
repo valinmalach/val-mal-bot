@@ -6,9 +6,9 @@ from typing import Any
 
 import pytest
 
-import errors
-from services.config import config
 from tests.error_reporting.support import Channel, Clock
+from valmal.core import errors
+from valmal.core.config import config
 
 
 @pytest.fixture
