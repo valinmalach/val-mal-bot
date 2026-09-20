@@ -3,7 +3,7 @@ created_by: "verity-setup"
 
 knowledge_spec:
   project_name: "val-mal-bot"
-  languages: [python, shell, dockerfile]
+  languages: [python]
   frameworks: [fastapi, discord.py, sqlmodel, alembic, pydantic, uvicorn, httpx]
   architecture: monolith
   build_system: uv
@@ -122,10 +122,10 @@ custom_patterns:
     rationale: "AGENTS.md: asyncio holds only a weak reference to a running task, so a bare create_task can be garbage collected mid-flight."
 
   - id: db-text-through-safe-format
-    description: "Text loaded from the database is rendered with safe_format or config.render, never bare str.format."
+    description: "Text loaded from the database is formatted with safe_format, never bare str.format. Stored text reaches Discord through config.template/embed/auto_response, which render {channel:key} and {role:key} before returning; nothing outside services/config.py calls render."
     severity: high
     enforced_by: [ai]
-    rationale: "AGENTS.md: a database row is not source. One unmatched brace in a row must not lose the whole message."
+    rationale: "AGENTS.md: a database row is not source. One unmatched brace in a row must not lose the whole message, and a caller holding raw stored text could send an unresolved placeholder."
 
   - id: self-reporting-through-errors-module
     description: "Everything the bot says about itself goes through errors.report(exc, context) or errors.notify(text). Nothing else may resolve config.channel('bot_admin')."
@@ -203,10 +203,10 @@ tool_configuration:
     enabled: true
   shellcheck:
     enabled: true
-    note: "start.sh brings up the tunnel, runs alembic upgrade head, then the app — a quoting bug there fails the deploy."
+    note: "No shell script in the repo today: the deploy is one startCommand in railway.json. Left on so one added later is checked; it matches no file until then."
   hadolint:
     enabled: true
-    note: "Dockerfile is the Railway deploy path."
+    note: "No Dockerfile in the repo today: Railway builds with Railpack (railway.json), and compose.yaml only starts a local Postgres. Left on so one added later is checked; it matches no file until then."
   pyright:
     enabled: false
     config_file: "pyproject.toml"
