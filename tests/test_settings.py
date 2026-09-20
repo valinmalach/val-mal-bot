@@ -154,7 +154,7 @@ def test_a_dotenv_file_holding_variables_that_are_not_declared_still_loads(
     """extra applies to a .env file, not to the process environment, so the test
     above cannot tell extra="ignore" from extra="forbid"."""
     (tmp_path / ".env").write_text(
-        "RAILWAY_ENVIRONMENT=production" + chr(10) + "SOMETHING_ELSE=x" + chr(10),
+        f"RAILWAY_ENVIRONMENT=production{chr(10)}SOMETHING_ELSE=x{chr(10)}",
         encoding="utf-8",
     )
 
