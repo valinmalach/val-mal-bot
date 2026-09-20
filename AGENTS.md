@@ -73,9 +73,10 @@ and without a `def f[T]`) return no pattern-rule findings at all for a file cont
 `def f[T]`, `class C[T]` or `type X = ...` — no parse error, no warning, and a clean
 report that reads exactly like a clean file. Worse, on 1.45 it is partial: structural rules such
 as `no-long-functions` still fire, so the output looks normal while every custom
-rule above has stopped guarding that file. `controller/twitch.py` is in this state
-today because `_route[E: BaseModel]` is worth more than the coverage; nothing else
-should join it without knowing the trade. `has_configured_role` uses a module-level
+rule above has stopped guarding that file. `controller/twitch.py` and
+`services/twitch/helix.py` are in this state today, because `_route[E: BaseModel]` and
+`fetch[T: BaseModel]` are worth more than the coverage; nothing else should join them
+without knowing the trade. `has_configured_role` uses a module-level
 `TypeVar` for exactly this reason — it needs the annotation and the coverage both.
 
 Migrations — see `db/README.md` for the rules:
@@ -106,13 +107,21 @@ fails without the fix.
 `support.py` for fakes, imported as `tests.<area>.support` — which is why Sourcery's
 `dont-import-test-modules` is disabled by id in `.sourcery.yaml`. Keep a test file under
 400 lines, which is Verity's `file_length` signal; past about 470 a review also drops the
-middle of a file and says it is unchecked. `tests/conftest.py` fills the environment `config.settings` validates at
-import, so it must run before a test module imports anything that reaches `config`.
-Async tests carry `pytestmark = pytest.mark.anyio`, and `error::RuntimeWarning` in
-`[tool.pytest.ini_options]` turns an unawaited coroutine into a failure.
+middle of a file and says it is unchecked. `tests/conftest.py` fills the environment
+`config.settings` validates at import, so it must run before a test module imports
+anything that reaches `config`. Anything that walks the repo (the seeded-key scan, the
+coverage `omit` list) skips `.claude/`, where agent worktrees hold whole copies of it.
+Async tests carry `pytestmark = pytest.mark.anyio`. `[tool.pytest.ini_options]` turns an
+unawaited coroutine into a failure with two filters, not one: the warning is raised while
+the coroutine is collected, so pytest reports it as an unraisable exception, and
+`error::RuntimeWarning` alone lets it through. A 60 second `timeout` (pytest-timeout)
+fails a test that hangs instead of stopping the run: an awaited event nobody sets, or, on
+Windows about one full run in twelve, an event loop that blocks creating its self-pipe.
 
 Three habits that each cost a debugging session. Patch with `monkeypatch`, never by
-assigning onto a module, or the fake leaks into the next test. Replace a module's own
+assigning onto a module, or the fake leaks into the next test; assigning is only safe
+where a fixture the test uses has already `monkeypatch.setattr`ed that name, which is
+what restores it. Replace a module's own
 `time` or `asyncio` name with a namespace holding the fake, never the global
 `time.monotonic` or `asyncio.sleep`, which the event loop itself reads. And write a
 non-ASCII or control character in a test as `chr(...)`: the editing tools turn an
@@ -628,9 +637,11 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 - **An admin-only command needs `app_commands.checks.has_permissions`, not just
   `default_permissions`.** The latter is a Discord UI default a server admin can
   reconfigure away — discord.py's own docs call it "only a hint" — so it enforces
-  nothing at runtime. `has_permissions` raises `MissingPermissions`, which
-  `bot.tree.error` (`init/bot_init.py`) answers ephemerally without reporting it
-  as a bug, since a refused permission check is the check working. Skip it only
+  nothing at runtime. `has_permissions` raises `MissingPermissions` (and
+  `has_configured_role` a plain `CheckFailure`), which `bot.tree.error`
+  (`init/bot_init.py`) answers ephemerally without reporting it as a bug, since a
+  refused check is the check working; `BotMissingPermissions` and a cooldown are
+  the two `CheckFailure`s it does report. Skip it only
   where a command already carries a strictly stronger runtime identity check —
   `twitch_auth` and `migrate_subscriptions` check `owner_id`, and adding
   `administrator` on top would block the owner in a guild where they hold that
