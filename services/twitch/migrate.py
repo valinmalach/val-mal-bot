@@ -21,7 +21,6 @@ import json
 import logging
 from collections.abc import Mapping
 
-from models.twitch_api_responses.subscription import Subscription
 from services.twitch.api import (
     callback_url,
     create_subscription,
@@ -40,6 +39,7 @@ from services.twitch.migrate_plan import (
     render_dump,
 )
 from valmal.core.errors import notify, notify_file
+from valmal.twitch.models.api.subscription import Subscription
 
 logger = logging.getLogger(__name__)
 

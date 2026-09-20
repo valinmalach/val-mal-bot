@@ -8,11 +8,11 @@ from typing import Any
 import pendulum
 import pytest
 
-from models.twitch_api_responses.ad_schedule import AdSchedule
-from models.twitch_api_responses.stream import Stream
 from services.twitch import stream_session
 from tests.twitch_session.support import NOW, Calls
 from valmal.core.config import config
+from valmal.twitch.models.api.ad_schedule import AdSchedule
+from valmal.twitch.models.api.stream import Stream
 
 
 @pytest.fixture

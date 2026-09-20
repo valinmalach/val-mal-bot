@@ -2,10 +2,10 @@
 
 from typing import Any
 
-from models.twitch_api_responses.stream import Stream
-from models.twitch_api_responses.user import User
 from services.twitch.helix import HelixError
 from tests.twitch.support import stream_json, user_json
+from valmal.twitch.models.api.stream import Stream
+from valmal.twitch.models.api.user import User
 
 
 class EventWorld:

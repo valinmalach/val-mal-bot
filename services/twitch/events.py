@@ -9,17 +9,6 @@ import asyncio
 import logging
 import time
 
-from models.twitch_api_responses.stream import Stream
-from models.twitch_event_subs.channel_ad_break_begin import ChannelAdBreakBeginEventSub
-from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
-from models.twitch_event_subs.channel_follow import ChannelFollowEventSub
-from models.twitch_event_subs.channel_moderate import ChannelModerateEventSub
-from models.twitch_event_subs.channel_points_custom_reward_redemption_add import (
-    ChannelPointsCustomRewardRedemptionAddEventSub,
-)
-from models.twitch_event_subs.channel_raid import ChannelRaidEventSub
-from models.twitch_event_subs.stream_offline import StreamOfflineEventSub
-from models.twitch_event_subs.stream_online import StreamOnlineEventSub
 from services.twitch import autoshoutout, live_alert, stream_session
 from services.twitch.api import get_stream, get_user, live_stream
 from services.twitch.chat import say, say_template
@@ -28,6 +17,21 @@ from services.twitch.helix import HelixError
 from valmal.bot.present import quoted
 from valmal.core.config import config
 from valmal.core.errors import notify, report
+from valmal.twitch.models.api.stream import Stream
+from valmal.twitch.models.eventsub.channel_ad_break_begin import (
+    ChannelAdBreakBeginEventSub,
+)
+from valmal.twitch.models.eventsub.channel_chat_message import (
+    ChannelChatMessageEventSub,
+)
+from valmal.twitch.models.eventsub.channel_follow import ChannelFollowEventSub
+from valmal.twitch.models.eventsub.channel_moderate import ChannelModerateEventSub
+from valmal.twitch.models.eventsub.channel_points_custom_reward_redemption_add import (
+    ChannelPointsCustomRewardRedemptionAddEventSub,
+)
+from valmal.twitch.models.eventsub.channel_raid import ChannelRaidEventSub
+from valmal.twitch.models.eventsub.stream_offline import StreamOfflineEventSub
+from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
 logger = logging.getLogger(__name__)
 

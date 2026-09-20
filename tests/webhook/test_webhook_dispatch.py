@@ -4,8 +4,8 @@ import httpx
 import pytest
 
 import controller.twitch as ctl
-from models.twitch_event_subs.stream_online import StreamOnlineEventSub
 from tests.webhook.support import Hooks, delivery, stream_online_payload
+from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
 pytestmark = pytest.mark.anyio
 

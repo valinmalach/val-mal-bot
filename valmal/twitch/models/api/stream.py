@@ -2,7 +2,7 @@ from enum import Enum
 
 from pydantic import BaseModel
 
-from .pagination import Pagination
+from valmal.twitch.models.api.pagination import Pagination
 
 
 class StreamType(str, Enum):

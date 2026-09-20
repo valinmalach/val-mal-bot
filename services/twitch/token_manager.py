@@ -10,13 +10,13 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from constants import TokenType
-from models.auth.auth_response import AuthResponse, RefreshResponse
 from services.twitch.oauth import configured_scopes
 from valmal.core.errors import notify
 from valmal.core.http_client import client
 from valmal.core.settings import settings
 from valmal.db.models import OAuthToken
 from valmal.db.session import session_scope
+from valmal.twitch.models.auth import AuthResponse, RefreshResponse
 
 logger = logging.getLogger(__name__)
 

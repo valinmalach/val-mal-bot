@@ -1,8 +1,10 @@
 import pytest
 
-from models.twitch_event_subs.channel_ad_break_begin import ChannelAdBreakBeginEventSub
 from services.twitch import events
 from tests.twitch_events.support import EventWorld
+from valmal.twitch.models.eventsub.channel_ad_break_begin import (
+    ChannelAdBreakBeginEventSub,
+)
 
 pytestmark = pytest.mark.anyio
 

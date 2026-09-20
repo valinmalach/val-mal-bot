@@ -11,7 +11,6 @@ from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import RedirectResponse
 
 from constants import TokenType
-from models.auth.auth_response import RefreshResponse, TokenValidationResponse
 from services.twitch.oauth import (
     authorization_url,
     callback_uri,
@@ -23,6 +22,7 @@ from services.twitch.token_manager import token_manager
 from valmal.core.errors import notify, report
 from valmal.core.http_client import client
 from valmal.core.settings import settings
+from valmal.twitch.models.auth import RefreshResponse, TokenValidationResponse
 
 logger = logging.getLogger(__name__)
 

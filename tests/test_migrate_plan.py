@@ -1,9 +1,9 @@
-from models.twitch_api_responses.subscription import (
+from services.twitch.migrate_plan import Action, condition_of, decide
+from valmal.twitch.models.api.subscription import (
     Subscription,
     SubscriptionCondition,
     SubscriptionTransport,
 )
-from services.twitch.migrate_plan import Action, condition_of, decide
 
 ROUTES = {"stream.online": "/webhook/twitch/stream-online"}
 CURRENT = "https://bot.example/webhook/twitch/stream-online"

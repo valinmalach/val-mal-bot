@@ -1,11 +1,11 @@
 import pytest
 
-from models.twitch_api_responses.stream import Stream
-from models.twitch_event_subs.stream_offline import StreamOfflineEventSub
-from models.twitch_event_subs.stream_online import StreamOnlineEventSub
 from services.twitch import events
 from services.twitch.helix import HelixError
 from tests.twitch_events.support import EventWorld, live, profile
+from valmal.twitch.models.api.stream import Stream
+from valmal.twitch.models.eventsub.stream_offline import StreamOfflineEventSub
+from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
 pytestmark = pytest.mark.anyio
 

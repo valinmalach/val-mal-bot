@@ -3,7 +3,6 @@ from typing import Any
 
 import pytest
 
-from models.twitch_api_responses.subscription import Subscription
 from services.twitch import migrate_plan
 from services.twitch.migrate_plan import (
     Action,
@@ -14,6 +13,7 @@ from services.twitch.migrate_plan import (
     render_dump,
 )
 from tests.twitch_migrate.support import CURRENT, OLD, ROUTES, sub
+from valmal.twitch.models.api.subscription import Subscription
 
 RAID = {"from_broadcaster_user_id": "", "to_broadcaster_user_id": "222"}
 LIMIT = migrate_plan._DISCORD_MESSAGE_LIMIT

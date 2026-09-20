@@ -19,16 +19,18 @@ would be cyclic.
 import logging
 from enum import Enum, auto
 
-from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
-from models.twitch_event_subs.channel_points_custom_reward_redemption_add import (
-    ChannelPointsCustomRewardRedemptionAddEventSub,
-)
 from services.twitch import stream_session
 from services.twitch.chat import say
 from valmal.bot.present import quoted
 from valmal.core.config import config
 from valmal.core.errors import notify, report
 from valmal.db import repository
+from valmal.twitch.models.eventsub.channel_chat_message import (
+    ChannelChatMessageEventSub,
+)
+from valmal.twitch.models.eventsub.channel_points_custom_reward_redemption_add import (
+    ChannelPointsCustomRewardRedemptionAddEventSub,
+)
 
 logger = logging.getLogger(__name__)
 

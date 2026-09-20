@@ -2,14 +2,16 @@ from typing import Any
 
 import pytest
 
-from models.twitch_api_responses.channel import Channel
-from models.twitch_api_responses.stream import Stream
-from models.twitch_api_responses.user import User
-from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
 from services.twitch import commands, stream_session
 from services.twitch.helix import HelixError
 from tests.twitch.support import channel_json, chat_event, stream_json, user_json
 from tests.twitch_commands.support import ChatWorld
+from valmal.twitch.models.api.channel import Channel
+from valmal.twitch.models.api.stream import Stream
+from valmal.twitch.models.api.user import User
+from valmal.twitch.models.eventsub.channel_chat_message import (
+    ChannelChatMessageEventSub,
+)
 
 pytestmark = pytest.mark.anyio
 

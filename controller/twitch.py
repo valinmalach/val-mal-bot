@@ -16,22 +16,26 @@ from constants import (
     TWITCH_MESSAGE_TIMESTAMP,
     TWITCH_MESSAGE_TYPE,
 )
-from models.twitch_event_subs.channel_ad_break_begin import ChannelAdBreakBeginEventSub
-from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
-from models.twitch_event_subs.channel_follow import ChannelFollowEventSub
-from models.twitch_event_subs.channel_moderate import ChannelModerateEventSub
-from models.twitch_event_subs.channel_points_custom_reward_redemption_add import (
-    ChannelPointsCustomRewardRedemptionAddEventSub,
-)
-from models.twitch_event_subs.channel_raid import ChannelRaidEventSub
-from models.twitch_event_subs.stream_offline import StreamOfflineEventSub
-from models.twitch_event_subs.stream_online import StreamOnlineEventSub
 from services.twitch import events
 from services.twitch.signature import get_hmac, get_hmac_message, verify_message
 from services.twitch.timestamps import parse_rfc3339
 from valmal.core.background import fire_and_forget
 from valmal.core.errors import notify, report
 from valmal.core.settings import settings
+from valmal.twitch.models.eventsub.channel_ad_break_begin import (
+    ChannelAdBreakBeginEventSub,
+)
+from valmal.twitch.models.eventsub.channel_chat_message import (
+    ChannelChatMessageEventSub,
+)
+from valmal.twitch.models.eventsub.channel_follow import ChannelFollowEventSub
+from valmal.twitch.models.eventsub.channel_moderate import ChannelModerateEventSub
+from valmal.twitch.models.eventsub.channel_points_custom_reward_redemption_add import (
+    ChannelPointsCustomRewardRedemptionAddEventSub,
+)
+from valmal.twitch.models.eventsub.channel_raid import ChannelRaidEventSub
+from valmal.twitch.models.eventsub.stream_offline import StreamOfflineEventSub
+from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
 logger = logging.getLogger(__name__)
 

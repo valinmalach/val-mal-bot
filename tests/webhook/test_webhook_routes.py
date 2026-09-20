@@ -8,12 +8,12 @@ from pydantic import BaseModel
 
 import controller.twitch as ctl
 import services.twitch.api as api
-from models.twitch_api_responses.subscription import Subscription
-from models.twitch_event_subs.stream_online import StreamOnlineEventSub
 from services.twitch.api import callback_url, undeliverable
 from tests.twitch.support import subscription_json
 from tests.webhook.route_data import ROUTES, notification
 from tests.webhook.support import Hooks, delivery
+from valmal.twitch.models.api.subscription import Subscription
+from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
 pytestmark = pytest.mark.anyio
 

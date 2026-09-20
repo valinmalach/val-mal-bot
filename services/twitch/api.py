@@ -9,17 +9,17 @@ import logging
 from typing import Any, Literal
 
 from constants import TokenType
-from models.twitch_api_responses.ad_schedule import AdSchedule, AdScheduleResponse
-from models.twitch_api_responses.channel import Channel, ChannelResponse
-from models.twitch_api_responses.stream import Stream, StreamResponse, StreamType
-from models.twitch_api_responses.subscription import Subscription, SubscriptionResponse
-from models.twitch_api_responses.user import User, UserResponse
-from models.twitch_api_responses.video import Video, VideoResponse
 from services.twitch import helix
 from services.twitch.helix import HelixError
 from valmal.core.config import config
 from valmal.core.errors import notify
 from valmal.core.settings import settings
+from valmal.twitch.models.api.ad_schedule import AdSchedule, AdScheduleResponse
+from valmal.twitch.models.api.channel import Channel, ChannelResponse
+from valmal.twitch.models.api.stream import Stream, StreamResponse, StreamType
+from valmal.twitch.models.api.subscription import Subscription, SubscriptionResponse
+from valmal.twitch.models.api.user import User, UserResponse
+from valmal.twitch.models.api.video import Video, VideoResponse
 
 logger = logging.getLogger(__name__)
 

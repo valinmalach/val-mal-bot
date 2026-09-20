@@ -4,10 +4,10 @@ import httpx
 import pytest
 
 from constants import TokenType
-from models.twitch_api_responses.user import UserResponse
 from services.twitch import helix
 from services.twitch.helix import HelixError, fetch, request
 from tests.twitch.support import Script, reply
+from valmal.twitch.models.api.user import UserResponse
 
 pytestmark = pytest.mark.anyio
 

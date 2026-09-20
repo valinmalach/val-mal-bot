@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from .pagination import Pagination
+from valmal.twitch.models.api.pagination import Pagination
 
 
 class SubscriptionCondition(BaseModel):

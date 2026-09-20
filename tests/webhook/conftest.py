@@ -13,8 +13,8 @@ import pytest
 from fastapi import FastAPI, Request, Response
 
 import controller.twitch as ctl
-from models.twitch_event_subs.stream_online import StreamOnlineEventSub
 from tests.webhook.support import NOW, Hooks
+from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
 
 @pytest.fixture

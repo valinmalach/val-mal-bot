@@ -2,8 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from .common.badge import Badge
-from .common.message import Message
+from valmal.twitch.models.eventsub.common.badge import Badge
+from valmal.twitch.models.eventsub.common.message import Message
 
 
 class ChannelChatMessageSubscription(BaseModel):

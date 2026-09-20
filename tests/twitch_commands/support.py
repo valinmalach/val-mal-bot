@@ -4,10 +4,10 @@ from typing import Any
 
 import pytest
 
-from models.twitch_api_responses.channel import Channel
-from models.twitch_api_responses.user import User
 from valmal.core.config import config
 from valmal.db.models import TwitchCommand
+from valmal.twitch.models.api.channel import Channel
+from valmal.twitch.models.api.user import User
 
 
 class ChatWorld:

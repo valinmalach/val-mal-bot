@@ -1,8 +1,8 @@
 from types import SimpleNamespace
 from typing import Any
 
-from models.twitch_api_responses.subscription import Subscription
 from services.twitch.helix import HelixError
+from valmal.twitch.models.api.subscription import Subscription
 
 ROUTES = {
     "stream.online": "/webhook/twitch/stream/online",

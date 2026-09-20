@@ -18,10 +18,6 @@ import aiohttp
 import discord
 import pendulum
 
-from models.twitch_api_responses.channel import Channel
-from models.twitch_api_responses.stream import Stream
-from models.twitch_api_responses.user import User
-from models.twitch_api_responses.video import Video
 from services.twitch.api import (
     get_channel,
     get_stream,
@@ -41,6 +37,10 @@ from valmal.bot.send import edit_embed
 from valmal.core.errors import notify, report
 from valmal.db import repository
 from valmal.db.models import LiveAlert
+from valmal.twitch.models.api.channel import Channel
+from valmal.twitch.models.api.stream import Stream
+from valmal.twitch.models.api.user import User
+from valmal.twitch.models.api.video import Video
 
 logger = logging.getLogger(__name__)
 

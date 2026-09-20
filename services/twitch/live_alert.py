@@ -12,8 +12,6 @@ import logging
 
 import pendulum
 
-from models.twitch_api_responses.stream import Stream
-from models.twitch_api_responses.user import User
 from services.twitch.live_alert_cycle import Action, cycle
 from services.twitch.live_alert_embeds import (
     announcement_embed,
@@ -27,6 +25,8 @@ from valmal.core.background import fire_and_forget
 from valmal.core.errors import notify, report
 from valmal.db import repository
 from valmal.db.models import LiveAlert
+from valmal.twitch.models.api.stream import Stream
+from valmal.twitch.models.api.user import User
 
 logger = logging.getLogger(__name__)
 

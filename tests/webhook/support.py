@@ -13,8 +13,8 @@ from typing import Any
 
 import pendulum
 
-from models.twitch_event_subs.stream_online import StreamOnlineEventSub
 from tests.credentials import WEBHOOK_SECRET
+from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
 SECRET = WEBHOOK_SECRET
 NOW = pendulum.datetime(2026, 6, 15, 12)

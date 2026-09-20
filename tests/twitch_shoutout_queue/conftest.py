@@ -7,11 +7,11 @@ from types import SimpleNamespace
 import pendulum
 import pytest
 
-from models.twitch_api_responses.user import User
 from services.twitch import shoutout_queue as sq
 from services.twitch.shoutout_queue import TwitchShoutoutQueue
 from tests.twitch.support import user_json
 from tests.twitch_shoutout_queue.support import Stop, World
+from valmal.twitch.models.api.user import User
 
 
 @pytest.fixture

@@ -12,13 +12,13 @@ import pendulum
 from discord.ui import View
 from discord.utils import escape_markdown
 
-from models.twitch_api_responses.channel import Channel
-from models.twitch_api_responses.stream import Stream
-from models.twitch_api_responses.user import User
-from models.twitch_api_responses.video import Video
 from services.twitch.commands import is_twitch_login
 from services.twitch.timestamps import parse_rfc3339
 from valmal.core.config import config
+from valmal.twitch.models.api.channel import Channel
+from valmal.twitch.models.api.stream import Stream
+from valmal.twitch.models.api.user import User
+from valmal.twitch.models.api.video import Video
 
 
 def twitch_url(user_login: str) -> str:

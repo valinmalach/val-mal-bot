@@ -3,8 +3,6 @@ from collections.abc import Callable
 import pytest
 
 import services.twitch.api as api
-from models.twitch_api_responses.stream import Stream, StreamType
-from models.twitch_api_responses.subscription import Subscription
 from tests.twitch.support import (
     Script,
     page,
@@ -15,6 +13,8 @@ from tests.twitch.support import (
     video_json,
 )
 from valmal.core.settings import settings
+from valmal.twitch.models.api.stream import Stream, StreamType
+from valmal.twitch.models.api.subscription import Subscription
 
 pytestmark = pytest.mark.anyio
 
