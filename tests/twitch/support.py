@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 import pendulum
 
-from constants import TokenType
+from valmal.db.models.enums import TokenType
 from valmal.twitch.oauth.token_manager import TwitchTokenManager
 
 # The two callbacks a subscribe/unsubscribe test cares about, shared so the

@@ -7,8 +7,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse
 
-from constants import COGS
 from valmal.bot.client import bot
+from valmal.bot.cogs import COGS
 from valmal.core import http_client
 from valmal.core.background import fire_and_forget
 from valmal.core.errors import report

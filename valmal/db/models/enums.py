@@ -1,8 +1,8 @@
-"""Enumerations backing the configuration tables."""
+"""Enumerations backing the database tables."""
 
 from enum import Enum
 
-__all__ = ["AutoResponseMatch", "SettingValueType"]
+__all__ = ["AutoResponseMatch", "SettingValueType", "TokenType"]
 
 
 class SettingValueType(str, Enum):
@@ -20,3 +20,11 @@ class AutoResponseMatch(str, Enum):
     EXACT = "exact"
     PREFIX = "prefix"
     CONTAINS = "contains"
+
+
+class TokenType(str, Enum):
+    """Which Twitch identity an ``oauth_token`` row holds a grant for."""
+
+    App = "app"
+    User = "user"
+    Broadcaster = "broadcaster"

@@ -8,7 +8,7 @@ import pendulum
 import pytest
 from discord import AllowedMentions
 
-from constants import MAX_DAYS, Months
+from valmal.bot.birthday import MAX_DAYS, Months
 from valmal.bot.cogs import birthday
 from valmal.bot.cogs.birthday import Birthday
 from valmal.core.config import config

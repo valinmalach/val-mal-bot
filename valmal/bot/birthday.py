@@ -6,14 +6,34 @@ being rolled forward. Two implementations of this disagreed once and wrote dates
 that had already passed, so the second asks the first wherever it can.
 """
 
-from calendar import isleap
+from calendar import isleap, monthrange
 from datetime import datetime
+from enum import Enum
 from functools import cache
 
 import pendulum
 from pendulum import DateTime
 
-from constants import Months
+
+class Months(Enum):
+    January = 1
+    February = 2
+    March = 3
+    April = 4
+    May = 5
+    June = 6
+    July = 7
+    August = 8
+    September = 9
+    October = 10
+    November = 11
+    December = 12
+
+
+# The longest that month can ever be, so 29 February is accepted and the year
+# it lands in is settled later, by next_birthday_on. A leap year is passed in
+# for exactly that reason.
+MAX_DAYS = {month: monthrange(2024, month.value)[1] for month in Months}
 
 
 @cache

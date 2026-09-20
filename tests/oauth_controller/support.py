@@ -3,8 +3,8 @@ from urllib.parse import parse_qs
 
 import httpx
 
-from constants import TokenType
 from tests.credentials import CLIENT_ID
+from valmal.db.models.enums import TokenType
 from valmal.twitch.models.auth import RefreshResponse
 from valmal.twitch.oauth import grants as oauth
 

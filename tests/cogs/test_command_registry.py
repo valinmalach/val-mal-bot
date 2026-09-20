@@ -11,7 +11,7 @@ import pytest
 from discord import app_commands
 from discord.ext.commands import Cog
 
-from constants import COGS
+from valmal.bot.cogs import COGS
 
 pytestmark = pytest.mark.anyio
 

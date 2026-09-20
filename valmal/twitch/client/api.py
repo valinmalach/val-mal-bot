@@ -8,10 +8,10 @@ import itertools
 import logging
 from typing import Any, Literal
 
-from constants import TokenType
 from valmal.core.config import config
 from valmal.core.errors import notify
 from valmal.core.settings import settings
+from valmal.db.models.enums import TokenType
 from valmal.twitch.client import helix
 from valmal.twitch.client.helix import HelixError
 from valmal.twitch.models.api.ad_schedule import AdSchedule, AdScheduleResponse

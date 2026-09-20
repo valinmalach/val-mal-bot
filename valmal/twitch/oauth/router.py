@@ -10,10 +10,10 @@ from discord.utils import escape_markdown
 from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import RedirectResponse
 
-from constants import TokenType
 from valmal.core.errors import notify, report
 from valmal.core.http_client import client
 from valmal.core.settings import settings
+from valmal.db.models.enums import TokenType
 from valmal.twitch.models.auth import RefreshResponse, TokenValidationResponse
 from valmal.twitch.oauth.grants import (
     authorization_url,

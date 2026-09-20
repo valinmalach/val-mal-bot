@@ -4,7 +4,6 @@ import discord
 import pytest
 from discord.ext.commands import CommandNotFound
 
-from constants import DEFAULT_MISSING_CONTENT, EMPTY_CONTENT, UNKNOWN_USER
 from tests.audit.support import (
     AVATAR,
     COLORS,
@@ -15,6 +14,7 @@ from tests.audit.support import (
     person,
 )
 from valmal.bot import audit
+from valmal.bot.audit import DEFAULT_MISSING_CONTENT, EMPTY_CONTENT, UNKNOWN_USER
 
 pytestmark = pytest.mark.anyio
 

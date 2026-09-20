@@ -9,11 +9,11 @@ import pendulum
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
-from constants import TokenType
 from valmal.core.errors import notify
 from valmal.core.http_client import client
 from valmal.core.settings import settings
 from valmal.db.models import OAuthToken
+from valmal.db.models.enums import TokenType
 from valmal.db.session import session_scope
 from valmal.twitch.models.auth import AuthResponse, RefreshResponse
 from valmal.twitch.oauth.grants import configured_scopes

@@ -7,8 +7,7 @@ from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
 from discord.utils import escape_markdown
 
-from constants import MAX_DAYS, Months
-from valmal.bot.birthday import is_leap_day, next_birthday_on
+from valmal.bot.birthday import MAX_DAYS, Months, is_leap_day, next_birthday_on
 from valmal.core.config import config, has_configured_role
 from valmal.core.errors import notify, report
 from valmal.db import repository

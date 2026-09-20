@@ -2,12 +2,6 @@ import discord
 import pendulum
 import pytest
 
-from constants import (
-    DEFAULT_MISSING_CONTENT,
-    EMPTY_CONTENT,
-    UNKNOWN_USER,
-    UNNAMED_EVENT,
-)
 from tests.audit.support import (
     AVATAR,
     COLORS,
@@ -17,6 +11,12 @@ from tests.audit.support import (
     person,
 )
 from valmal.bot import audit
+from valmal.bot.audit import (
+    DEFAULT_MISSING_CONTENT,
+    EMPTY_CONTENT,
+    UNKNOWN_USER,
+    UNNAMED_EVENT,
+)
 from valmal.core.config import config
 
 BACKSLASH = chr(92)

@@ -3,9 +3,9 @@ from urllib.parse import parse_qs, urlsplit
 import httpx
 import pytest
 
-from constants import TokenType
 from tests.credentials import CLIENT_ID
 from tests.oauth_controller.support import SCOPES, new_state
+from valmal.db.models.enums import TokenType
 from valmal.twitch.oauth import grants as oauth
 
 pytestmark = pytest.mark.anyio

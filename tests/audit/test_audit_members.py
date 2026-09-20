@@ -4,7 +4,6 @@ import discord
 import pendulum
 import pytest
 
-from constants import EMPTY_CONTENT
 from tests.audit.support import (
     AUDIT_CHANNEL,
     AVATAR,
@@ -17,6 +16,7 @@ from tests.audit.support import (
     role,
 )
 from valmal.bot import audit
+from valmal.bot.audit import EMPTY_CONTENT
 
 pytestmark = pytest.mark.anyio
 

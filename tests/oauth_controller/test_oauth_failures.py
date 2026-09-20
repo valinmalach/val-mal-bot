@@ -4,7 +4,6 @@ from typing import Any
 import httpx
 import pytest
 
-from constants import TokenType
 from tests.credentials import CLIENT_ID
 from tests.oauth_controller.support import (
     BOT_ID,
@@ -19,6 +18,7 @@ from tests.oauth_controller.support import (
     validation_body,
 )
 from tests.twitch.support import Script, reply
+from valmal.db.models.enums import TokenType
 
 pytestmark = pytest.mark.anyio
 

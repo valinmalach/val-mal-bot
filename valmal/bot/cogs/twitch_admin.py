@@ -3,10 +3,10 @@ from discord import Interaction, app_commands
 from discord.ext.commands import Bot, Cog
 from discord.utils import escape_markdown
 
-from constants import TokenType
 from valmal.bot.present import quoted
 from valmal.core.config import config
 from valmal.core.errors import report
+from valmal.db.models.enums import TokenType
 from valmal.twitch.client.api import (
     get_subscriptions,
     get_users,

@@ -24,12 +24,6 @@ from discord.ext.commands import CommandError, Context
 from discord.utils import escape_markdown
 from pendulum import DateTime
 
-from constants import (
-    DEFAULT_MISSING_CONTENT,
-    EMPTY_CONTENT,
-    UNKNOWN_USER,
-    UNNAMED_EVENT,
-)
 from valmal.bot.duration import get_age
 from valmal.bot.present import (
     MentionableChannel,
@@ -39,6 +33,11 @@ from valmal.bot.present import (
 )
 from valmal.bot.send import send_embed
 from valmal.core.config import config
+
+UNKNOWN_USER = "Unknown User"
+DEFAULT_MISSING_CONTENT = "`Message content not found in cache`"
+EMPTY_CONTENT = "`No text`"
+UNNAMED_EVENT = "Audit entry"
 
 # Discord rejects the whole embed if any one of these is exceeded, so they are
 # enforced here rather than trusted to the callers.

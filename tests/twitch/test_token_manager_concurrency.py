@@ -5,7 +5,6 @@ import pendulum
 import pytest
 
 import valmal.twitch.oauth.token_manager as tm_module
-from constants import TokenType
 from tests.twitch.support import (
     APP_OK,
     NOW,
@@ -16,6 +15,7 @@ from tests.twitch.support import (
     stale_refresh_tokens,
 )
 from valmal.core.background import fire_and_forget
+from valmal.db.models.enums import TokenType
 from valmal.twitch.oauth.token_manager import TwitchTokenManager
 
 pytestmark = pytest.mark.anyio
