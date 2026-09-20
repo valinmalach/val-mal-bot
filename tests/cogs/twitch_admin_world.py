@@ -54,10 +54,10 @@ def install(monkeypatch: pytest.MonkeyPatch) -> Admin:
     admin = Admin()
 
     async def get_subscriptions() -> list[Subscription]:
-        listing = admin.listing
-        if isinstance(listing, HelixError):
-            raise listing
-        return listing
+        answer = admin.listing
+        if isinstance(answer, HelixError):
+            raise answer
+        return answer
 
     async def get_users(ids: list[str]) -> list[Any]:
         admin.asked.append(list(ids))
