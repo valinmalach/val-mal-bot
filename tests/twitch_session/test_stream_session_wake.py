@@ -141,6 +141,9 @@ class TestAdBreakWarning:
 
         assert calls.slept == []
         assert calls.said == []
+        # An AttributeError on ad_schedule.next_ad_at, caught by the broad handler
+        # below, would report a bug here instead of the intended silent no-op.
+        assert calls.reported == []
 
     @pytest.mark.parametrize("seconds", [299, 60, 0, -600])
     async def test_an_ad_less_than_five_minutes_away_is_not_warned_about(

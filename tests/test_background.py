@@ -134,6 +134,36 @@ async def test_a_cancelled_task_reports_nothing(
     assert task not in background._tasks
 
 
+async def test_a_cancelled_tasks_own_done_callback_never_raises(
+    reports: list[tuple[Exception, str]],
+) -> None:
+    """task.exception() raises CancelledError on a cancelled task; that would
+    escape the done-callback itself, unnoticed by the two asserts above."""
+    loop = asyncio.get_running_loop()
+    caught: list[BaseException] = []
+    original = loop.get_exception_handler()
+
+    def catch(_loop: asyncio.AbstractEventLoop, context: dict[str, object]) -> None:
+        exc = context.get("exception")
+        if isinstance(exc, BaseException):
+            caught.append(exc)
+
+    loop.set_exception_handler(catch)
+    try:
+
+        async def forever() -> None:
+            await asyncio.Event().wait()
+
+        task = fire_and_forget(forever(), name="forever")
+        await asyncio.sleep(0)
+        task.cancel()
+        await _drain()
+    finally:
+        loop.set_exception_handler(original)
+
+    assert not caught
+
+
 async def test_a_base_exception_is_logged_but_not_reported(
     reports: list[tuple[Exception, str]], caplog: pytest.LogCaptureFixture
 ) -> None:
