@@ -114,6 +114,17 @@ class TestCanShoutout:
 
         assert queue._can_shoutout_target("42") is False
 
+    def test_a_backoff_ending_exactly_now_is_over(
+        self, queue: TwitchShoutoutQueue, world: World
+    ) -> None:
+        """It is allowed to try again at the moment it names, not a tick after."""
+        queue._next_attempt_allowed_by_target_id["42"] = NOW.add(seconds=30)
+
+        world.now = NOW.add(seconds=29)
+        assert queue._can_shoutout_target("42") is False
+        world.now = NOW.add(seconds=30)
+        assert queue._can_shoutout_target("42") is True
+
     def test_an_expired_backoff_falls_through_to_the_cooldown_check(
         self, queue: TwitchShoutoutQueue, world: World
     ) -> None:

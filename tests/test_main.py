@@ -1,6 +1,10 @@
+import json
 import logging
+import os
+import subprocess
 import sys
 from collections.abc import AsyncGenerator, Coroutine, Iterator
+from pathlib import Path
 from types import ModuleType
 from typing import Any
 from unittest.mock import AsyncMock
@@ -262,14 +266,61 @@ class TestRoutes:
         assert entry.app.router.lifespan_context is not None
 
 
+ROOT = Path(__file__).resolve().parents[1]
+
+# Run in a process of its own: importing main configures the root logger, which
+# pytest has already put handlers on, so basicConfig would do nothing in here and a
+# check made in here would pass whatever main asked for.
+DESCRIBE = """
+import json, logging, sys
+import main
+root = logging.getLogger()
+print(json.dumps({
+    "level": root.level,
+    "handlers": [
+        [type(h).__name__, type(h.formatter).__name__, h.stream is sys.stdout]
+        for h in root.handlers
+    ],
+    "httpx": logging.getLogger("httpx").level,
+}))
+"""
+
+
+@pytest.fixture(scope="module")
+def logging_of_a_fresh_process() -> dict[str, Any]:
+    # The interpreter running the tests and a fixed script; nothing here is input.
+    done = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", DESCRIBE],
+        cwd=ROOT,
+        env=os.environ | {"PYTHONIOENCODING": "utf-8"},
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr[-2000:]
+    return json.loads(done.stdout.strip().splitlines()[-1])
+
+
 class TestLogging:
-    def test_the_process_logs_json_to_stdout_through_the_shared_formatter(
-        self, entry: ModuleType
+    def test_the_root_logger_has_one_handler_writing_json_to_stdout(
+        self, logging_of_a_fresh_process: dict[str, Any]
     ) -> None:
-        assert isinstance(entry._handler.formatter, JsonFormatter)
-        assert entry._handler.stream is not sys.stderr
+        """Railway colours a line by its stream unless the line is JSON with a level."""
+        assert logging_of_a_fresh_process["handlers"] == [
+            ["StreamHandler", "JsonFormatter", True]
+        ]
+
+    def test_it_logs_from_info_up(
+        self, logging_of_a_fresh_process: dict[str, Any]
+    ) -> None:
+        assert logging_of_a_fresh_process["level"] == logging.INFO
 
     def test_httpx_is_quietened_because_it_logs_every_request_at_info(
-        self, entry: ModuleType
+        self, logging_of_a_fresh_process: dict[str, Any]
     ) -> None:
-        assert logging.getLogger("httpx").level == logging.WARNING
+        assert logging_of_a_fresh_process["httpx"] == logging.WARNING
+
+    def test_the_formatter_is_the_shared_one(self, entry: ModuleType) -> None:
+        assert isinstance(entry._handler.formatter, JsonFormatter)

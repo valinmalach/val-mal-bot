@@ -146,3 +146,19 @@ class TestSafeFormat:
         # The text is "{" and 500 x's, so two hundred characters is "{" and 199.
         assert "{" + "x" * 199 in text
         assert "x" * 200 not in text
+
+    def test_indexing_a_value_that_cannot_be_indexed_sends_the_text_as_written(
+        self, notices: list
+    ) -> None:
+        """A TypeError, unlike the KeyError and IndexError a missing field raises."""
+        assert safe_format("count is {n[0]}", {"n": 5}) == "count is {n[0]}"
+
+        assert len(notices) == 1
+        assert "subscriptable" in notices[0][0]
+
+    def test_a_format_spec_the_value_does_not_support_sends_the_text_as_written(
+        self, notices: list
+    ) -> None:
+        assert safe_format("{n:>+d}", {"n": "text"}) == "{n:>+d}"
+
+        assert len(notices) == 1
