@@ -13,6 +13,7 @@ from tests.live_alert.support import (
     video,
 )
 from valmal.twitch.client.helix import HelixError
+from valmal.twitch.stream import live_alert_close as close
 from valmal.twitch.stream import live_alert_cycle as lac
 from valmal.twitch.stream.live_alert_cycle import Action
 
@@ -51,12 +52,12 @@ class TestVod:
     ) -> None:
         cycle_world.vod_answer = video()
 
-        assert await lac._vod(111, 0) is None
+        assert await close.fetch_vod(111, 0) is None
 
     async def test_returns_the_vod(self, cycle_world: CycleWorld) -> None:
         cycle_world.vod_answer = video(id="555")
 
-        found = await lac._vod(111, 10)
+        found = await close.fetch_vod(111, 10)
 
         assert found is not None and found.id == "555"
 
@@ -65,7 +66,7 @@ class TestVod:
     ) -> None:
         cycle_world.vod_answer = HelixError("down")
 
-        assert await lac._vod(111, 10) is None
+        assert await close.fetch_vod(111, 10) is None
         assert cycle_world.reported == [
             "Failed to fetch VOD info for broadcaster_id=111"
         ]

@@ -11,6 +11,7 @@ from tests.live_alert.support import NOW, TEMPLATES, AlertWorld, CycleWorld
 from valmal.core.config import config
 from valmal.db.models import DiscordRole
 from valmal.twitch.stream import live_alert
+from valmal.twitch.stream import live_alert_close as close_module
 from valmal.twitch.stream import live_alert_cycle as cycle_module
 
 
@@ -35,12 +36,14 @@ def cycle_world(monkeypatch: pytest.MonkeyPatch, embed_config: None) -> CycleWor
         (cycle_module.repository, "get_live_alert", world.get_live_alert),
         (cycle_module.repository, "delete_live_alert", world.delete_live_alert),
         (cycle_module, "get_stream", world.get_stream),
-        (cycle_module, "get_channel", world.get_channel),
+        (close_module, "get_channel", world.get_channel),
         (cycle_module, "get_user", world.get_user),
-        (cycle_module, "get_stream_vod", world.get_stream_vod),
+        (close_module, "get_stream_vod", world.get_stream_vod),
         (cycle_module, "edit_embed", world.edit_embed),
         (cycle_module, "notify", world.notify),
         (cycle_module, "report", world.report),
+        (close_module, "notify", world.notify),
+        (close_module, "report", world.report),
     ]
     for target, name, fake in patches:
         monkeypatch.setattr(target, name, fake)

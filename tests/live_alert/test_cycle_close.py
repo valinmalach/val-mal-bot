@@ -14,6 +14,7 @@ from tests.live_alert.support import (
 from valmal.twitch.client.helix import HelixError
 from valmal.twitch.models.api.channel import Channel
 from valmal.twitch.models.api.stream import Stream
+from valmal.twitch.stream import live_alert_close as close
 from valmal.twitch.stream import live_alert_cycle as lac
 from valmal.twitch.stream.live_alert_cycle import Action
 
@@ -26,7 +27,7 @@ class TestGatherCloseInfo:
     async def gather(
         self, world: CycleWorld, stream_arg: object = None, user_info: object = None
     ) -> tuple[Stream | None, Channel | None, str]:
-        return await lac._gather_close_info(111, 10, stream_arg, user_info)  # pyright: ignore[reportArgumentType]
+        return await close.gather_close_info(111, 10, stream_arg, user_info)  # pyright: ignore[reportArgumentType]
 
     async def test_the_login_comes_from_the_profile_first(
         self, cycle_world: CycleWorld
