@@ -179,9 +179,9 @@ class TestAnnouncement:
 
 
 class TestLiveEmbed:
-    def build(self, **overrides: object) -> discord.Embed:
+    def build(self, now: pendulum.DateTime = NOW, **overrides: object) -> discord.Embed:
         return embeds.live_embed(
-            stream(**overrides), user(), URL, "2 hours", "<t:1:f>", NOW
+            stream(**overrides), user(), URL, "2 hours", "<t:1:f>", now
         )
 
     def test_adds_the_start_time_field_and_the_age_footer(self) -> None:
@@ -193,6 +193,23 @@ class TestLiveEmbed:
 
     def test_is_stamped_now_not_at_the_start(self) -> None:
         assert self.build().timestamp == NOW
+
+    def test_the_thumbnail_is_cache_busted_with_the_passed_now_not_the_wall_clock(
+        self,
+    ) -> None:
+        """embed_config patches pendulum.now() to NOW for every test in this file;
+        passing a different value here is what tells the cache-buster apart from
+        an independent wall-clock read that would pass just as well against NOW."""
+        later = NOW.add(hours=1)
+
+        embed = self.build(
+            now=later, thumbnail_url="https://cdn/live_{width}x{height}.jpg"
+        )
+
+        assert (
+            embed.image.url
+            == f"https://cdn/live_400x225.jpg?cb={int(later.timestamp())}"
+        )
 
     def test_escapes_title_and_game_like_the_announcement(self) -> None:
         embed = self.build(title="a](b)", game_name="_g_")

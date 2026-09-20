@@ -164,7 +164,12 @@ def live_embed(
             value=started_at_timestamp,
             inline=True,
         )
-        .set_image(url=f"{raw_thumb_url}?cb={int(pendulum.now().timestamp())}")
+        # now, not an independent pendulum.now() read: the caller already took
+        # "now" for this cycle to stamp the embed with, and a second, separate
+        # wall-clock read here would make the cache-buster nondeterministic
+        # against everything else the embed shows -- and untestable, since a
+        # test that fixes the clock for one can't tell whether the other used it.
+        .set_image(url=f"{raw_thumb_url}?cb={int(now.timestamp())}")
         .set_footer(text=config.template("stream_footer_online", age=age))
     )
 
