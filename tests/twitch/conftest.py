@@ -8,16 +8,16 @@ import httpx
 import pendulum
 import pytest
 
-import services.twitch.token_manager as tm_module
-from services.config import config
-from services.twitch import helix
-from services.twitch.token_manager import TwitchTokenManager
+import valmal.twitch.oauth.token_manager as tm_module
 from tests.twitch.support import (
     FakeTokens,
     Scope,
     Script,
     TokenDb,
 )
+from valmal.core.config import config
+from valmal.twitch.client import helix
+from valmal.twitch.oauth.token_manager import TwitchTokenManager
 
 
 @pytest.fixture

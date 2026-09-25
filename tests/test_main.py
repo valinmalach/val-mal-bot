@@ -8,11 +8,11 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
-from config import settings
-from constants import COGS
-from controller.twitch import WEBHOOK_PATHS
-from logging_json import JsonFormatter
 from tests.support import run_python
+from valmal.bot.cogs import COGS
+from valmal.core.logging_json import JsonFormatter
+from valmal.core.settings import settings
+from valmal.twitch.eventsub.router import WEBHOOK_PATHS
 
 pytestmark = pytest.mark.anyio
 

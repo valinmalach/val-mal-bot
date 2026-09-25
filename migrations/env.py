@@ -14,10 +14,10 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlmodel.sql.sqltypes import AutoString
 
-from db.config import get_database_url
+from valmal.db.config import get_database_url
 
-# Importing db.models is what registers every table on the metadata it exports.
-from db.models import metadata
+# Importing valmal.db.models is what registers every table on the metadata it exports.
+from valmal.db.models import metadata
 
 config = context.config
 

@@ -52,34 +52,34 @@ rules:
   language: python
   paths:
     exclude:
-    - background.py
+    - valmal/core/background.py
 
 - id: audit-channel-is-audit-pys
-  description: Only services/audit.py may resolve the audit_logs channel. One entry point per thing worth recording.
+  description: Only valmal/bot/audit.py may resolve the audit_logs channel. One entry point per thing worth recording.
   pattern: config.channel("audit_logs")
   language: python
   paths:
     exclude:
-    - services/audit.py
+    - valmal/bot/audit.py
 
 - id: chat-sends-go-through-chat-py
-  description: Call services.twitch.chat.say or say_template. api.send_chat_message raises; three rounds of guarding call sites each missed one, so the guard lives in chat.py.
+  description: Call valmal.twitch.client.chat.say or say_template. api.send_chat_message raises; three rounds of guarding call sites each missed one, so the guard lives in chat.py.
   pattern: send_chat_message(...)
   language: python
   paths:
     exclude:
-    - services/twitch/api.py
-    - services/twitch/chat.py
+    - valmal/twitch/client/api.py
+    - valmal/twitch/client/chat.py
 
 - id: db-text-uses-safe-format
-  description: Text from the database is formatted with services.config.safe_format. A row is not source, and one unmatched brace should not lose the whole message.
+  description: Text from the database is formatted with valmal.core.config.safe_format. A row is not source, and one unmatched brace should not lose the whole message.
   pattern: ${text}.format(...)
   language: python
   paths:
     exclude:
-    - services/config.py
+    - valmal/core/safe_format.py
     # The pattern is purely syntactic and can't tell logging.Formatter.format(record)
     # apart from str.format on database text -- logging_json's own self-check calls it,
     # and so do its tests.
-    - logging_json.py
-    - tests/test_logging_json.py
+    - valmal/core/logging_json.py
+    - tests/core/test_logging_json.py

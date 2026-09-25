@@ -59,6 +59,7 @@ So the file is a **merge** of the Cloud repo config and Verity's config. The scr
 made read-only (which turns the file-creation rewrite into an `EPERM` in the extension's log):
 
 ```sh
+rm -f .codacy/cloud.json                    # init refuses to overwrite it
 codacy-analysis init --remote gh valinmalach val-mal-bot --config-file .codacy/cloud.json
 verity config get | python -c "import json,sys; print(json.dumps(json.load(sys.stdin)['content'], indent=2))" > .codacy/verity.json
 attrib -R .codacy/codacy.config.json || true   # read-only from the last merge
@@ -142,10 +143,10 @@ whose `[tool.ruff]` carries the same families and more (see AGENTS.md); Verity's
 19-pattern list including `ANN001`/`ANN201`. Verity's wins in the merged file (as does Verity's list for any merged tool whose Cloud entry
 uses a local config file, which would otherwise ignore every pattern), and a tool has
 patterns or a local config file, never both, so the gate's Ruff does not read `pyproject.toml`:
-its `E4`/`E7`/`E9` rules and the per-file `S101` ignore for `logging_json.py` do not apply
+its `E4`/`E7`/`E9` rules and the per-file `S101` ignore for `valmal/core/logging_json.py` do not apply
 there. `S104` on `main.py`'s bind address is silenced inline (`# noqa: S104  # nosec B104`),
 which every mode honours, and `S105` no longer fires on the token-type comparison, which
-lower-cases the token type first. `S101` still fires 19 times in `logging_json.py` when that
+lower-cases the token type first. `S101` still fires 19 times in `valmal/core/logging_json.py` when that
 file is touched.
 **Semgrep:** Cloud analyses with it (649 patterns) and the merged file cannot.
 
@@ -177,13 +178,13 @@ all while still reporting success.
 
 ## Project Patterns
 
-These come from `AGENTS.md` and `db/README.md`, and are enforced by the AI reviewer:
+These come from `AGENTS.md` and `valmal/db/README.md`, and are enforced by the AI reviewer:
 
 - IDs are addressed by slug through `config.channel/role/setting/template`, never a literal snowflake
 - Background work goes through `background.fire_and_forget`, never a bare `asyncio.create_task`
-- Database text is formatted with `safe_format`, never bare `str.format`; stored text reaches Discord only through `config.template`/`embed`/`auto_response`, which render it (nothing outside `services/config.py` calls `render`)
+- Database text is formatted with `safe_format`, never bare `str.format`; stored text reaches Discord only through `config.template`/`embed`/`auto_response`, which render it (nothing outside `valmal/core/config.py` calls `render`)
 - Self-reporting goes through `errors.report` / `errors.notify`; nothing else resolves `bot_admin`
-- Configuration changes ship as an Alembic revision, under the rules in `db/README.md`
+- Configuration changes ship as an Alembic revision, under the rules in `valmal/db/README.md`
 
 ## How It Works
 
@@ -309,8 +310,8 @@ false positive no longer invites another suppression.
 running the gate's own Ruff (0.16.8, `@codacy/analysis-cli` 0.23.1) with only that pattern on:
 `shoutout_queue.py:28` and `token_manager.py:29`, both this case. Below py314 (`ruff check
 --select F821 --target-version py313`) the suite adds three more of the same shape, a method
-returning its own class, in `tests/database/support.py` (`Result`, `Scope`) and
-`tests/database/test_session.py` (`FakeSession`). At py314 the whole repo is clean.
+returning its own class, in `tests/db/support.py` (`Result`, `Scope`) and
+`tests/db/test_session.py` (`FakeSession`). At py314 the whole repo is clean.
 
 It returns it because `verity init` pushes the analysis config to the service as part of
 its own run ("Analysis config pushed"), and the removal was made on the service by a

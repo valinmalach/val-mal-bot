@@ -16,7 +16,7 @@ quality_dimensions:
       - metric: file_length
         threshold: 400
         unit: lines
-        rationale: "Raised from 300: the repo averages ~165 lines/file, and 300 would nag the healthy 300-400 line modules. The three files this threshold was written for -- cogs/events.py, services/twitch/live_alert.py and controller/twitch.py -- were split once and have since grown past 400 again on their own (299, 280 and 421 lines); services/twitch/live_alert_cycle.py and services/config.py are the other two over it, at 404 and 402. A file drifting over is a signal to look at splitting it again, not a threshold to keep artificially true by editing this rationale"
+        rationale: "Raised from 300: the repo averages ~165 lines/file, and 300 would nag the healthy 300-400 line modules. Nothing under valmal/ or tests/ is over it today; the largest are valmal/bot/audit.py (392), valmal/twitch/eventsub/router.py (353) and, in tests, tests/twitch/stream/test_autoshoutout.py (394). Modules that had grown past it were split along a real seam rather than trimmed: the EventSub router (replay protection went to eventsub/replay.py), the live alert cycle (close-information lookup, live_alert_close.py), the configuration cache (core/safe_format.py), the Helix endpoints (subscription health, client/subscription_health.py) and the command dispatch tests. A file drifting over is a signal to look at splitting it again, not a threshold to keep artificially true by editing this rationale"
       - metric: cyclomatic_complexity
         threshold: 15
         unit: per_function
@@ -122,7 +122,7 @@ custom_patterns:
     rationale: "AGENTS.md: asyncio holds only a weak reference to a running task, so a bare create_task can be garbage collected mid-flight."
 
   - id: db-text-through-safe-format
-    description: "Text loaded from the database is formatted with safe_format, never bare str.format. Stored text reaches Discord through config.template/embed/auto_response, which render {channel:key} and {role:key} before returning; nothing outside services/config.py calls render."
+    description: "Text loaded from the database is formatted with safe_format, never bare str.format. Stored text reaches Discord through config.template/embed/auto_response, which render {channel:key} and {role:key} before returning; nothing outside valmal/core/config.py calls render."
     severity: high
     enforced_by: [ai]
     rationale: "AGENTS.md: a database row is not source. One unmatched brace in a row must not lose the whole message, and a caller holding raw stored text could send an unresolved placeholder."
@@ -137,22 +137,22 @@ custom_patterns:
     description: "Configuration changes ship as an Alembic revision. A revision never imports the models or reads a data file, inserts tolerate a conflict, and an UPDATE is guarded by the value it replaces."
     severity: high
     enforced_by: [ai]
-    rationale: "db/README.md: migrations run on every container start, so a revision that imports a model breaks the moment the model moves ahead of it."
+    rationale: "valmal/db/README.md: migrations run on every container start, so a revision that imports a model breaks the moment the model moves ahead of it."
 
   - id: audit-channel-through-audit-module
-    description: "Everything posted to the audit log channel goes through services/audit.py. Nothing else may resolve config.channel('audit_logs')."
+    description: "Everything posted to the audit log channel goes through valmal/bot/audit.py. Nothing else may resolve config.channel('audit_logs')."
     severity: high
     enforced_by: [ai]
     rationale: "AGENTS.md: one entry point per audit event is what lets capping (_cap) and escaping (_said/_named/_quoted) be enforced rather than merely documented -- a call site outside the module can forget both."
 
   - id: chat-send-through-chat-module
-    description: "Every Twitch chat line goes through services/twitch/chat.py (say / say_template). api.send_chat_message is never called directly from anywhere else."
+    description: "Every Twitch chat line goes through valmal/twitch/client/chat.py (say / say_template). api.send_chat_message, the Helix endpoint wrapper defined in valmal/twitch/client/api.py, is called only by chat.py and never directly from anywhere else."
     severity: high
     enforced_by: [ai]
     rationale: "AGENTS.md: three separate rounds of guarding chat sends each missed a different call site, so the guard moved to the one place they all pass through."
 
   - id: helix-calls-through-helix-module
-    description: "Every Twitch Helix API call goes through services/twitch/helix.py, which owns token choice, pre-emptive refresh, the one 401 re-send, retry and status/parsing, and raises HelixError rather than reporting."
+    description: "Every Twitch Helix API call goes through valmal/twitch/client/helix.py, which owns token choice, pre-emptive refresh, the one 401 re-send, retry and status/parsing, and raises HelixError rather than reporting."
     severity: high
     enforced_by: [ai]
     rationale: "AGENTS.md: whoever catches HelixError has the context worth reporting; a Helix call made outside the module loses that and duplicates retry/refresh logic."
@@ -161,7 +161,7 @@ custom_patterns:
     description: "An admin-only command uses app_commands.checks.has_permissions, not just default_permissions, unless it already carries a strictly stronger runtime identity check (e.g. owner_id)."
     severity: high
     enforced_by: [ai]
-    rationale: "AGENTS.md: default_permissions is only a Discord UI hint a server admin can reconfigure away and enforces nothing at runtime; has_permissions raises MissingPermissions, which is handled centrally in init/bot_init.py."
+    rationale: "AGENTS.md: default_permissions is only a Discord UI hint a server admin can reconfigure away and enforces nothing at runtime; has_permissions raises MissingPermissions, which is handled centrally in valmal/bot/client.py."
 
   - id: give-up-is-reported
     description: "A retry loop or a path that degrades/gives up reports through errors.notify or errors.report, not just logger.warning."
