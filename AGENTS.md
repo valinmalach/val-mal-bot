@@ -161,8 +161,9 @@ within a second, before Codacy had started analysing that commit, so nothing nee
 
 One more gate runs at commit time. `git commit` is intercepted by Verity, which
 analyses the staged diff and can block the commit. It is a Claude Code hook, not a
-git hook — there is nothing in `.git/hooks`, and it does not fire for other tools.
-Its rules, and the narrow circumstances in which a finding may be waived, live in
+git hook — there is nothing in `.git/hooks`, and it does not fire for other tools. The
+Verity plugin also reviews what changed at the end of every turn, which cannot be
+switched off under the plugin (`VERITY.md` has the detail). Its rules, and the narrow circumstances in which a finding may be waived, live in
 `CLAUDE.md`; the Standard it enforces is `.verity/standard.yaml`, and `VERITY.md`
 covers the setup. Run it by hand with `verity analyze`. Everything Verity generates
 is gitignored, so a fresh clone has none of it — `VERITY.md` has the restore steps.

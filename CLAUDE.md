@@ -85,9 +85,6 @@ a finding. Declarations are budgeted per session and every one is recorded with
 its reason.
 
 <!-- verity-memory:preserve -->
-
-
-
 <!-- Add binding, hand-curated guidance here; it survives Verity regeneration. -->
 
 ## Never report a false positive without `--file`
@@ -110,9 +107,19 @@ staged or unstaged, both count — and only then `git commit`.
 This is mechanical, not a preference. `getChangedFiles()` in the Verity CLI takes
 the union of `git diff --name-only HEAD`, `git diff --name-only --cached` and
 untracked files. Committed work is reached only through
-`.verity/.last-reviewed-sha`, which does not exist in this repo, and the fallback
-for that case looks back exactly one commit and only within 120 seconds of it
-being made. So on a clean tree `verity analyze` answers
+`.verity/.last-reviewed-sha`: a PASS or WARN writes the HEAD it was taken at
+(unless the change was too large to review whole), and everything committed since
+is added to the next reading. That file did not exist in this repo when this rule
+was written and does now, so a reading taken after the commit is no longer always
+empty. It is a batch of every commit since the last PASS rather than the one you
+meant to check. Observed 2026-09-20 (Verity 0.33.1): with the file at `727670b`, 81
+commits behind HEAD, the Stop review took in 104 files and reported them
+unreviewed under the byte cap. A truncated review does not move the file (the write
+is skipped when the delta was truncated, per the source), so once the backlog is
+over the cap it stays there and every turn ends "not a clean review" until the file
+is set to a commit a person accepts as reviewed. With no
+such file the fallback looks back exactly one commit and only within 120 seconds of
+it being made. So a clean tree with nothing analyzable since the last PASS answers
 
 ```json
 {"gate_decision":"PASS","systemMessage":"Verity: No analyzable files changed"}
@@ -130,11 +137,15 @@ git commit ...     # only after it comes back clean
 
 **A PASS whose message says nothing was analyzed does not count as a gate.** That
 message has two causes and they need telling apart: the change is already
-committed, or nothing in it is analyzable. `ANALYZABLE_EXTENSIONS` covers `.py`
-and the other source extensions but not `.md`, so a docs-only commit cannot be
-gated and will always answer this way — which is fine, but it must be reported as
-"not gated", never as a green gate. For anything touching `.py`, seeing this
-message means the reading was taken too late.
+committed and already reviewed, or nothing in it is analyzable.
+`ANALYZABLE_EXTENSIONS` covers `.py` and the other source extensions but not `.md`,
+so a docs-only commit cannot be gated by `analyze` and will always answer this way
+(the pre-commit hook is a separate surface and has reviewed staged markdown on this
+repo) — which is fine, but `analyze` on it must be reported as "not gated", never as
+a green gate.
+`VERITY.md` and everything under `.verity/` and `.codacy/` (the Standard included)
+are Verity's own and are never counted as changed. For anything touching `.py`,
+seeing this message means the reading was taken too late.
 
 The same applies to a whole branch: getting a real reading after the fact means
 uncommitting or re-running per commit, not quoting the empty PASS.
