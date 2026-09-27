@@ -108,6 +108,7 @@ async def _forget_row(broadcaster_id: int, message_id: int) -> None:
 
 
 async def _edit_or_retry(
+    *,
     message_id: int,
     channel_id: int,
     broadcaster_id: int,
@@ -183,10 +184,10 @@ async def _refresh(
         )
 
     return await _edit_or_retry(
-        message_id,
-        channel_id,
-        broadcaster_id,
-        embed,
+        message_id=message_id,
+        channel_id=channel_id,
+        broadcaster_id=broadcaster_id,
+        embed=embed,
         kind="live",
         on_error=Action.RETRY,
         report_context=_report_context,
@@ -225,10 +226,10 @@ async def _close(
     # The stream is over: forgetting the row on success is what keeps a
     # restart from resurrecting an updater for a dead stream.
     return await _edit_or_retry(
-        message_id,
-        channel_id,
-        broadcaster_id,
-        embed,
+        message_id=message_id,
+        channel_id=channel_id,
+        broadcaster_id=broadcaster_id,
+        embed=embed,
         kind="offline",
         on_error=Action.STOP,
         report_context=lambda _: (

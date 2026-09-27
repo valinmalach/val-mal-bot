@@ -1,3 +1,4 @@
+import inspect
 from types import SimpleNamespace
 
 import aiohttp
@@ -159,6 +160,11 @@ class TestEditOrRetry:
 
         assert await self.edit(cycle_world, forget_on_success=True) is Action.RETRY
         assert cycle_world.deleted == []
+
+    def test_every_argument_is_by_name(self) -> None:
+        """Three of them are int ids, so a swap by position would still type-check."""
+        parameters = inspect.signature(lac._edit_or_retry).parameters.values()
+        assert {p.kind for p in parameters} == {inspect.Parameter.KEYWORD_ONLY}
 
 
 class TestRefresh:
