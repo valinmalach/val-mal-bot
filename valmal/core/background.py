@@ -9,16 +9,20 @@ task is eventually collected.
 import asyncio
 import logging
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
-_tasks: set[asyncio.Task] = set()
+_tasks: set[asyncio.Task[Any]] = set()
+
+# Not a PEP 695 parameter list, hence the UP047 below: Sourcery silently skips
+# its custom rules in a file that has one (see AGENTS.md).
+_T = TypeVar("_T")
 
 
-def fire_and_forget(
-    coro: Coroutine[Any, Any, Any], name: str | None = None
-) -> asyncio.Task:
+def fire_and_forget(  # noqa: UP047
+    coro: Coroutine[Any, Any, _T], name: str | None = None
+) -> asyncio.Task[_T]:
     """Start a coroutine nobody awaits, keeping it alive until it completes."""
     task = asyncio.create_task(coro, name=name)
     _tasks.add(task)
@@ -26,7 +30,7 @@ def fire_and_forget(
     return task
 
 
-def _finished(task: asyncio.Task) -> None:
+def _finished(task: asyncio.Task[Any]) -> None:
     _tasks.discard(task)
     if task.cancelled():
         return
