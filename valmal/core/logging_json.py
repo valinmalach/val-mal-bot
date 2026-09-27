@@ -93,7 +93,7 @@ def _demo() -> None:
             (),
             (type(exc), exc, exc.__traceback__),
         )
-    payload = rendered(record)
+        payload = rendered(record)
     assert payload["level"] == "error"
     exception = payload["exception"]
     assert isinstance(exception, str) and "ValueError" in exception
