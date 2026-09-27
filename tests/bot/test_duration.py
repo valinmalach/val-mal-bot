@@ -9,7 +9,11 @@ NOW = pendulum.datetime(2026, 6, 15, 12)
 @pytest.fixture(autouse=True)
 def _frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     """get_age reads the clock itself; a real one makes every expectation drift."""
-    monkeypatch.setattr(pendulum, "now", lambda tz=None: NOW)
+
+    def now(tz: object = None) -> pendulum.DateTime:
+        return NOW
+
+    monkeypatch.setattr(pendulum, "now", now)
 
 
 @pytest.mark.parametrize(

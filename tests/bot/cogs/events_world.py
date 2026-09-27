@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -70,6 +70,25 @@ class EventsWorld:
         for entry in self.audit_entries:
             yield entry
 
+    def store(self, *args: Any) -> None:
+        self.stored.append(args)
+
+    def rename(self, user_id: int, name: str) -> None:
+        self.usernames.append((user_id, name))
+
+    def remove_user(self, user_id: int) -> None:
+        self.removed_users.append(user_id)
+
+    def delete(self, message_id: int) -> None:
+        self.deleted.append(message_id)
+
+    def auto_response(self, content: str) -> str | None:
+        return self.reply
+
+
+def now(tz: object = None) -> pendulum.DateTime:
+    return NOW
+
 
 def install(monkeypatch: pytest.MonkeyPatch) -> EventsWorld:
     """Replace everything the Events cog reaches for, for the life of one test."""
@@ -82,7 +101,7 @@ def install(monkeypatch: pytest.MonkeyPatch) -> EventsWorld:
 
         return record
 
-    def failing(name: str, action: Any) -> Any:
+    def failing(name: str, action: Callable[..., None]) -> Any:
         async def run(*args: Any) -> None:
             world.order.append(name)
             if name in world.fail:
@@ -102,33 +121,24 @@ def install(monkeypatch: pytest.MonkeyPatch) -> EventsWorld:
     async def report(exc: Exception, context: str, **_: object) -> None:
         world.reported.append(context)
 
+    repository = events.repository
     for name in AUDIT_FUNCTIONS:
         monkeypatch.setattr(audit, name, recorder(name))
+    monkeypatch.setattr(repository, "upsert_message", failing("store", world.store))
     monkeypatch.setattr(
-        events.repository,
-        "upsert_message",
-        failing("store", lambda *a: world.stored.append(a)),
+        repository, "upsert_username", failing("username", world.rename)
     )
     monkeypatch.setattr(
-        events.repository,
-        "upsert_username",
-        failing("username", lambda *a: world.usernames.append(a)),
+        repository, "delete_user", failing("delete_user", world.remove_user)
     )
     monkeypatch.setattr(
-        events.repository,
-        "delete_user",
-        failing("delete_user", lambda i: world.removed_users.append(i)),
+        repository, "delete_message", failing("delete_message", world.delete)
     )
-    monkeypatch.setattr(
-        events.repository,
-        "delete_message",
-        failing("delete_message", lambda i: world.deleted.append(i)),
-    )
-    monkeypatch.setattr(events.repository, "get_message", get_message)
+    monkeypatch.setattr(repository, "get_message", get_message)
     monkeypatch.setattr(events, "send_embed", send_embed)
     monkeypatch.setattr(events, "report", report)
-    monkeypatch.setattr(pendulum, "now", lambda tz=None: NOW)
-    monkeypatch.setattr(config, "auto_response", lambda content: world.reply)
+    monkeypatch.setattr(pendulum, "now", now)
+    monkeypatch.setattr(config, "auto_response", world.auto_response)
     monkeypatch.setattr(config, "_channels", {"welcome": 900})
     monkeypatch.setattr(
         config,
@@ -144,10 +154,16 @@ def install(monkeypatch: pytest.MonkeyPatch) -> EventsWorld:
 
 
 def cog(world: EventsWorld) -> Events:
+    def get_guild(guild_id: int) -> Any:
+        return world.guilds.get(guild_id)
+
+    def get_channel(channel_id: int) -> Any:
+        return world.channels.get(channel_id)
+
     bot = MagicMock()
     bot.user = world.bot_user
-    bot.get_guild = lambda guild_id: world.guilds.get(guild_id)
-    bot.get_channel = lambda channel_id: world.channels.get(channel_id)
+    bot.get_guild = get_guild
+    bot.get_channel = get_channel
     return Events(bot)
 
 

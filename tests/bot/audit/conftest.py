@@ -15,7 +15,11 @@ def log(monkeypatch: pytest.MonkeyPatch) -> Audit:
         return 1
 
     monkeypatch.setattr(audit, "send_embed", send_embed)
-    monkeypatch.setattr(audit, "get_age", lambda when: "2 days")
+
+    def get_age(when: object) -> str:
+        return "2 days"
+
+    monkeypatch.setattr(audit, "get_age", get_age)
     monkeypatch.setattr(config, "_channels", {"audit_logs": AUDIT_CHANNEL})
     monkeypatch.setattr(config, "_templates", dict(TEMPLATES))
     monkeypatch.setattr(config, "_settings", dict(COLORS))

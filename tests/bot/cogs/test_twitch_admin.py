@@ -89,10 +89,15 @@ class TestTwitchAuth:
         self, admin: Admin, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         made: list[TokenType] = []
+
+        def create_authorization_start_url(token_type: TokenType) -> str:
+            made.append(token_type)
+            return "x"
+
         monkeypatch.setattr(
             twitch_admin,
             "create_authorization_start_url",
-            lambda token_type: made.append(token_type) or "x",
+            create_authorization_start_url,
         )
 
         await run(TwitchAdmin.twitch_auth, admin.interaction(user_id=5))

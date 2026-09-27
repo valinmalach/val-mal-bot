@@ -186,7 +186,7 @@ class TestRoleChanges:
         ],
     )
     async def test_one_role_and_several_use_their_own_sentence(
-        self, roles: list, sentence: str, log: Audit
+        self, roles: list[discord.Role], sentence: str, log: Audit
     ) -> None:
         await audit.role_added(person(), roles)
 
@@ -200,7 +200,7 @@ class TestRoleChanges:
         ],
     )
     async def test_removal_has_its_own_pair_of_sentences(
-        self, roles: list, sentence: str, log: Audit
+        self, roles: list[discord.Role], sentence: str, log: Audit
     ) -> None:
         await audit.role_removed(person(), roles)
 

@@ -107,9 +107,11 @@ class TestOnMessage:
     async def test_stores_before_answering(self, ev: EventsWorld) -> None:
         made = sent()
         ev.reply = "pong"
-        made.channel.send = AsyncMock(
-            side_effect=lambda *a, **k: ev.order.append("send")
-        )
+
+        def send(*_: object, **__: object) -> None:
+            ev.order.append("send")
+
+        made.channel.send = AsyncMock(side_effect=send)
 
         await cog(ev).on_message(made)
 

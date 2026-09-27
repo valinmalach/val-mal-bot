@@ -89,7 +89,11 @@ def world(monkeypatch: pytest.MonkeyPatch) -> World:
     monkeypatch.setattr(birthday.repository, "get_user", get_user)
     monkeypatch.setattr(birthday, "notify", notify)
     monkeypatch.setattr(birthday, "report", report)
-    monkeypatch.setattr(pendulum, "now", lambda tz=None: NOW)
+
+    def now(tz: object = None) -> pendulum.DateTime:
+        return NOW
+
+    monkeypatch.setattr(pendulum, "now", now)
     monkeypatch.setattr(
         config,
         "_templates",

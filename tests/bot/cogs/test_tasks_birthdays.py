@@ -79,7 +79,11 @@ def world(monkeypatch: pytest.MonkeyPatch) -> World:
     monkeypatch.setattr(tasks, "notify", notify)
     monkeypatch.setattr(tasks, "report", report)
     monkeypatch.setattr(tasks, "send_message", send_message)
-    monkeypatch.setattr(pendulum, "now", lambda tz=None: NOW)
+
+    def now(tz: object = None) -> pendulum.DateTime:
+        return NOW
+
+    monkeypatch.setattr(pendulum, "now", now)
     monkeypatch.setattr(config, "_channels", {"shoutouts": 8080})
     monkeypatch.setattr(
         config, "_templates", {"discord_birthday": "Happy birthday {mention}!"}
@@ -88,8 +92,11 @@ def world(monkeypatch: pytest.MonkeyPatch) -> World:
 
 
 def cog(world: World) -> Tasks:
+    def get_user(user_id: int) -> Any:
+        return world.users.get(user_id)
+
     bot = MagicMock()
-    bot.get_user = lambda user_id: world.users.get(user_id)
+    bot.get_user = get_user
     return Tasks(bot)
 
 

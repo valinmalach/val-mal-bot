@@ -27,7 +27,7 @@ class Startup:
         self.fired: list[tuple[str | None, Coroutine[Any, Any, None]]] = []
         self.synced: list[discord.Object] = []
         self.copied: list[discord.Object] = []
-        self.views: list[object] = []
+        self.views: list[Any] = []
         self.tasks = MagicMock(spec=Tasks)
         self.settings: dict[str, Any] = {"guild_id": GUILD, "command_prefix": "!"}
 
@@ -89,8 +89,17 @@ def instance(startup: Startup, monkeypatch: pytest.MonkeyPatch) -> bot_client.My
     monkeypatch.setattr(bot.tree, "sync", sync)
     monkeypatch.setattr(bot.tree, "copy_global_to", copy_global_to)
     monkeypatch.setattr(bot, "add_view", add_view)
-    monkeypatch.setattr(bot, "get_cog", lambda name: startup.tasks)
+
+    def get_cog(name: str) -> Any:
+        return startup.tasks
+
+    monkeypatch.setattr(bot, "get_cog", get_cog)
     return bot
+
+
+def prefix(bot: bot_client.MyBot) -> object:
+    # discord.py annotates command_prefix with a TypeVar its class never binds.
+    return bot.command_prefix  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
 
 
 class TestInit:
@@ -102,7 +111,7 @@ class TestInit:
     def test_starts_with_the_prefix_it_was_given(self) -> None:
         bot = bot_client.MyBot(command_prefix="?", intents=discord.Intents.none())
 
-        assert bot.command_prefix == "?"
+        assert prefix(bot) == "?"
 
     def test_the_process_wide_bot_is_one_of_these(self) -> None:
         assert isinstance(bot_client.bot, bot_client.MyBot)
@@ -141,7 +150,10 @@ class TestSetupHook:
         startup: Startup,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(instance, "get_cog", lambda name: None)
+        def get_cog(name: str) -> None:
+            return None
+
+        monkeypatch.setattr(instance, "get_cog", get_cog)
 
         await instance.setup_hook()
 
@@ -154,7 +166,11 @@ class TestSetupHook:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         impostor = MagicMock(spec=commands.Cog)
-        monkeypatch.setattr(instance, "get_cog", lambda name: impostor)
+
+        def get_cog(name: str) -> Any:
+            return impostor
+
+        monkeypatch.setattr(instance, "get_cog", get_cog)
 
         await instance.setup_hook()
 
@@ -165,7 +181,7 @@ class TestSetupHook:
     ) -> None:
         await instance.setup_hook()
 
-        assert instance.command_prefix == "!"
+        assert prefix(instance) == "!"
 
     async def test_a_missing_prefix_row_falls_back_to_dollar(
         self, instance: bot_client.MyBot, startup: Startup
@@ -174,7 +190,7 @@ class TestSetupHook:
 
         await instance.setup_hook()
 
-        assert instance.command_prefix == "$"
+        assert prefix(instance) == "$"
 
     async def test_copies_the_global_commands_to_the_guild_then_syncs_that_guild(
         self, instance: bot_client.MyBot, startup: Startup
@@ -191,7 +207,7 @@ class TestSetupHook:
     ) -> None:
         await instance.setup_hook()
 
-        assert [v.key for v in startup.views] == ["a", "b"]  # pyright: ignore[reportAttributeAccessIssue]
+        assert [v.key for v in startup.views] == ["a", "b"]
 
     async def test_views_are_registered_after_the_sync_so_a_failed_sync_leaves_none_half_done(
         self, instance: bot_client.MyBot, startup: Startup

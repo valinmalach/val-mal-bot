@@ -35,9 +35,7 @@ def world(monkeypatch: pytest.MonkeyPatch) -> Discord:
         world.notified.append((text, key))
         return True
 
-    monkeypatch.setattr(
-        send.bot, "get_channel", lambda channel_id: world.channels.get(channel_id)
-    )
+    monkeypatch.setattr(send.bot, "get_channel", world.channels.get)
     monkeypatch.setattr(errors, "notify", notify)
     return world
 
