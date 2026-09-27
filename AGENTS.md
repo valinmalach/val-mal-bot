@@ -67,10 +67,10 @@ run does not re-raise it.
 `.sourcery.yaml` carries four custom rules for conventions the other tools cannot
 see: a bare `create_task`, the audit channel outside `valmal/bot/audit.py`, a chat
 send outside `valmal/twitch/client/chat.py`, and `str.format` on database text. Each
-excludes the files that legitimately do the thing (the chat rule also `api.py`, which
-defines the wrapper; the `str.format` rule the logging formatter and its test, whose
-`.format` is not on database text), and those exclusions are relative to the config
-file — moving it breaks them silently. The Google style set
+excludes the files that legitimately do the thing. The chat rule also excludes `api.py`,
+which defines the wrapper, and the `str.format` rule also excludes the logging formatter
+and its test, whose `.format` is not on database text. The exclusions are relative to the
+config file, so moving it breaks them silently. The Google style set
 (`sourcery review --enable gpsg .`) is deliberately not enabled: 232 of its 272
 findings here are the docstring mandate the comment convention below rejects.
 
