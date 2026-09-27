@@ -70,6 +70,27 @@ class TestUpsertUser:
         assert "created_at" not in assigned(database.only)
 
 
+class TestClearBirthday:
+    async def test_nulls_all_three_columns_of_that_user_and_nothing_else(
+        self, database: Database
+    ) -> None:
+        """The three describe one birthday; clearing two would leave the third wrong."""
+        await repository.clear_birthday(7)
+
+        assert sql(database.only) == (
+            "UPDATE discord_user SET updated_at=now(), birthday=%(birthday)s,"
+            " is_birthday_leap=%(is_birthday_leap)s,"
+            " birthday_timezone=%(birthday_timezone)s"
+            " WHERE discord_user.id = %(id_1)s"
+        )
+        assert params(database.only) == {
+            "birthday": None,
+            "is_birthday_leap": None,
+            "birthday_timezone": None,
+            "id_1": 7,
+        }
+
+
 class TestUpsertUsername:
     async def test_leaves_every_birthday_column_out_of_the_statement(
         self, database: Database

@@ -7,7 +7,7 @@ lose them.
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col
 
@@ -16,6 +16,7 @@ from valmal.db.session import session_scope
 
 __all__ = [
     "add_autoshoutout",
+    "clear_birthday",
     "delete_live_alert",
     "delete_message",
     "delete_user",
@@ -73,6 +74,16 @@ async def upsert_user(
         },
         ["id"],
     )
+
+
+async def clear_birthday(user_id: int) -> None:
+    """Null all three birthday columns, for the same reason they are written together."""
+    async with session_scope() as session:
+        await session.execute(
+            update(DiscordUser)
+            .where(col(DiscordUser.id) == user_id)
+            .values(birthday=None, is_birthday_leap=None, birthday_timezone=None)
+        )
 
 
 async def upsert_username(user_id: int, username: str) -> None:
