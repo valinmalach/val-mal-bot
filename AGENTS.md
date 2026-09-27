@@ -20,6 +20,10 @@ uv run alembic upgrade head                        # schema and the configuratio
 uv run main.py                                     # run the bot (uvicorn on PORT, default 8000)
 ```
 
+`docker compose up` needs `POSTGRES_PASSWORD` in `.env` first, and `DATABASE_URL` uses the
+same password: letters and digits, since anything else needs percent-encoding in the URL.
+README.md has the local setup in full.
+
 Checks, all clean before committing, and **in this order**:
 
 ```sh
