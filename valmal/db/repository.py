@@ -61,9 +61,9 @@ async def upsert_user(
     """Write a user and all three birthday columns.
 
     All three, together: they describe one birthday, and a caller that wrote two
-    of them would leave the third describing a different one. None is allowed only
-    for the timezone, which rows written before that column existed lack; erasing
-    a birthday is ``clear_birthday``.
+    of them would leave the third describing a different one. Only the timezone may
+    be None: a row older than that column has none, and a name the tz database
+    dropped is cleared. Erasing a birthday is ``clear_birthday``.
     """
     await _upsert(
         DiscordUser,
