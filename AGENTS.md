@@ -345,7 +345,7 @@ startup check notices an undeliverable subscription; the command is what repairs
 docstrings of `valmal/twitch/eventsub/migrate.py` and `migrate_plan.py`; the rules an
 edit must not break:
 
-- It works off the live `get_subscriptions()` list, never a fixed one: there are eight
+- The migration works off the live `get_subscriptions()` list, never a fixed one: there are eight
   *types* but `6 + 2N` subscriptions, since `stream.online`/`stream.offline` exist once
   per subscribed broadcaster and only Twitch knows N.
 - Twitch's uniqueness key is the type and the condition, not the transport, so repointing
@@ -362,9 +362,10 @@ edit must not break:
   because `create_subscription` is `repeatable` and a retry 409s *because the first attempt
   created it*. That check answers False when its own lookup fails: over-reporting a loss
   costs a check, under-reporting one costs a subscription nobody knows is missing.
-- A failed delete (`stuck`: untouched, re-run is the whole remedy) and a failed create
-  (`lost`: destroyed, and for six of the eight types the dump is the only way back) are
-  reported apart.
+- A failed delete is reported as `stuck`: the subscription is untouched, and re-running is
+  the whole remedy.
+- A failed create is reported as `lost`, apart from `stuck`: the subscription is destroyed,
+  and for six of the eight types the dump is the only way back.
 - A second confirmed run refuses while one is in flight, with a plain module flag rather
   than an `asyncio.Lock`, which would queue. Taken with no await between check and set.
 - `SubscriptionCondition` is the one model that keeps what it does not declare
