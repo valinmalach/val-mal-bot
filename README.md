@@ -11,13 +11,15 @@ bot, and no public tunnel.
 **1. Point `.env` at a local database and at the test bot.**
 
 ```sh
-POSTGRES_PASSWORD=<any password of your own>
+POSTGRES_PASSWORD=<letters and digits of your own>
 DATABASE_URL=postgresql://valmal:<the same password>@localhost:5432/valmal
 USE_TEST_BOT=1
 APP_URL=http://localhost:8000
 ```
 
 `compose.yaml` reads `POSTGRES_PASSWORD` from `.env`, so no password is committed.
+Keep it to letters and digits: it goes into `DATABASE_URL` as well, where `@`, `/`,
+`#` or `%` would have to be percent-encoded.
 
 `USE_TEST_BOT=1` makes the bot log in with `TEST_DISCORD_TOKEN`. Without it the
 real bot logs in, which is rarely what you want against a local database.
