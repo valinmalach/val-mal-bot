@@ -18,7 +18,11 @@ class Guild:
     """One guild with one member, one role and the configuration row that names it."""
 
     def __init__(self) -> None:
-        self.role = MagicMock(spec=discord.Role, id=ROLE, mention="<@&3>")
+        self.role = MagicMock(
+            spec=discord.Role, id=ROLE, mention="<@&3>", managed=False
+        )
+        self.role.is_default.return_value = False
+        self.role.__ge__ = MagicMock(return_value=False)
         self.member = MagicMock(spec=discord.Member, id=USER)
         self.member.add_roles = AsyncMock()
         self.member.remove_roles = AsyncMock()
@@ -27,6 +31,9 @@ class Guild:
         self.guild: MagicMock | None = MagicMock(spec=discord.Guild)
         self.guild.get_member = lambda user_id: self.members.get(user_id)
         self.guild.get_role = lambda role_id: self.roles.get(role_id)
+        self.me = MagicMock(spec=discord.Member)
+        self.me.guild_permissions.manage_roles = True
+        self.guild.me = self.me
         self.members: dict[int, Any] = {USER: self.member}
         self.roles: dict[int, Any] = {ROLE: self.role}
         self.fired: list[Coroutine[Any, Any, None]] = []
@@ -123,6 +130,48 @@ class TestGetMemberRole:
         ((text, key),) = world.notified
         assert "'member'" in text and f"role id {ROLE}" in text
         assert key == "discord-role-missing:member"
+
+    @pytest.mark.parametrize(
+        ("unmanageable", "reason"),
+        [
+            (
+                lambda w: setattr(w.me.guild_permissions, "manage_roles", False),
+                "the bot lacks the Manage Roles permission",
+            ),
+            (
+                lambda w: setattr(w.role, "managed", True),
+                "it is @everyone or managed by an integration",
+            ),
+            (
+                lambda w: w.role.is_default.configure_mock(return_value=True),
+                "it is @everyone or managed by an integration",
+            ),
+            (
+                lambda w: w.role.__ge__.configure_mock(return_value=True),
+                "it is at or above the bot's top role",
+            ),
+        ],
+    )
+    async def test_a_role_the_bot_cannot_manage_is_nothing_and_says_why(
+        self, world: Guild, unmanageable: Any, reason: str
+    ) -> None:
+        unmanageable(world)
+
+        assert roles.get_member_role(GUILD, USER, "role_member") == (None, None)
+
+        (pending,) = world.fired
+        await pending
+        ((text, key),) = world.notified
+        assert "'member'" in text and f"role id {ROLE}" in text and reason in text
+        assert key == f"discord-role-unmanageable:member:{reason}"
+
+    def test_the_hierarchy_is_judged_against_the_bots_top_role(
+        self, world: Guild
+    ) -> None:
+        roles.get_member_role(GUILD, USER, "role_member")
+
+        world.role.__ge__.assert_called_once_with(world.me.top_role)
+        assert world.fired == []
 
 
 class TestToggleRole:

@@ -1,12 +1,24 @@
 """Giving and taking a Discord role from the roles panel."""
 
-from discord import Interaction, Member, Role
+from discord import Guild, Interaction, Member, Role
 from discord.ui import Button
 
 from valmal.bot.client import bot
 from valmal.core.background import fire_and_forget
 from valmal.core.config import config
 from valmal.core.errors import notify
+
+
+def _unmanageable(guild: Guild, role: Role) -> str | None:
+    """Why Discord would refuse the bot granting or revoking this role, if it would."""
+    me = guild.me
+    if not me.guild_permissions.manage_roles:
+        return "the bot lacks the Manage Roles permission"
+    if role.is_default() or role.managed:
+        return "it is @everyone or managed by an integration"
+    if role >= me.top_role:
+        return "it is at or above the bot's top role"
+    return None
 
 
 def get_member_role(
@@ -35,6 +47,19 @@ def get_member_role(
                 f"discord_role {stored.key!r} points at role id"
                 f" {stored.role_id}, which no longer exists in the guild.",
                 key=f"discord-role-missing:{stored.key}",
+            ),
+            name="notify",
+        )
+        return None, None
+
+    if reason := _unmanageable(guild, role):
+        # The reason is in the key so that fixing one cause does not hold back
+        # the notice for the next.
+        fire_and_forget(
+            notify(
+                f"discord_role {stored.key!r} points at role id {role.id},"
+                f" which the bot cannot manage: {reason}.",
+                key=f"discord-role-unmanageable:{stored.key}:{reason}",
             ),
             name="notify",
         )
