@@ -84,6 +84,10 @@ class Script:
     """
 
     def __init__(self, *outcomes: httpx.Response | Exception) -> None:
+        # Refused here: an empty script would raise inside the transport, where the
+        # code under test can catch it as a network failure and pass the test anyway.
+        if not outcomes:
+            raise ValueError("A Script needs at least one outcome")
         self.outcomes = list(outcomes)
         self.requests: list[httpx.Request] = []
 

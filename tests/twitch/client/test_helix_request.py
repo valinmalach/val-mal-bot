@@ -229,3 +229,10 @@ class TestTokens:
 
         with pytest.raises(HelixError, match="failed after refreshing the token"):
             await request("GET", "/x")
+
+
+class TestScript:
+    def test_an_empty_script_is_refused_before_any_request_can_reach_it(self) -> None:
+        """Raised inside the transport, the error could pass for a network failure."""
+        with pytest.raises(ValueError, match="at least one outcome"):
+            Script()
