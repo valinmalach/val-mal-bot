@@ -72,7 +72,7 @@ which defines the wrapper, and the `str.format` rule also excludes the logging f
 and its test, whose `.format` is not on database text. The exclusions are relative to the
 config file, so moving it breaks them silently. The Google style set
 (`sourcery review --enable gpsg .`) is deliberately not enabled: 232 of its 272
-findings here are the docstring mandate the comment convention below rejects.
+findings here come from its docstring mandate, which the comment convention below rejects.
 
 **A PEP 695 parameter list blinds Sourcery to the whole file, silently.** Sourcery
 1.45 and 1.46 return no pattern-rule findings at all for a file containing `def f[T]`,
