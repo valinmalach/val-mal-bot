@@ -96,6 +96,18 @@ uv run alembic current
 
 On Windows `--sql` needs `PYTHONIOENCODING=utf-8`: some seeded text is emoji.
 
+Railway service settings — see Deployment below:
+
+```sh
+uv run railway config plan                         # diff .railway/railway.py against the service
+uv run railway config apply                        # only after reading that plan
+```
+
+The CLI evaluates the file with whatever `python3` is on `PATH`, which must import
+`railway-sdk` (the dev group has it). A uv venv on Windows has no `python3.exe`, so there
+the command finds the global Python instead and says the SDK is not installed; copying
+`.venv\Scripts\python.exe` to `python3.exe` beside it for the run is the workaround.
+
 **The suite covers everything that does not need a live service.** About 2,400 tests
 cover 99% of the code outside `migrations/`, branches counted; what is left is `__main__`
 guards, a demo, and lines that cannot be reached. Nothing runs against Discord, Twitch
@@ -586,11 +598,16 @@ itself. An author line and a footer are plain text to Discord and are left alone
 
 ## Deployment
 
-Railway builds with Railpack (`railway.json`), which detects `pyproject.toml` +
-`uv.lock` and installs the pinned interpreter and dependencies itself — there is no
-Dockerfile. `deploy.startCommand` chains `alembic upgrade head` and the app in one
-shell command; Railpack runs `startCommand` through a shell, so `&&` sequences
-without needing a wrapper script. Migrations run on every deploy. `APP_URL` is the
+Railway builds with Railpack, which detects `pyproject.toml` + `uv.lock` and installs the
+pinned interpreter and dependencies itself — there is no Dockerfile. The service's
+settings are Infrastructure as Code in `.railway/railway.py`, which replaced the
+deprecated `railway.json`. **It is not read at deploy time:** a change reaches Railway only
+through `railway config apply`, so one that must be live before a merge deploys (the
+start command, say) is applied first. It owns this service alone (`PARTIAL`) and lists
+every variable, a secret as `preserve()` so its value stays on Railway; a variable added
+in the dashboard and not here is deleted by the next apply. The start command chains
+`alembic upgrade head` and the app in one shell command; Railway runs it through a shell,
+so `&&` sequences without a wrapper script. Migrations run on every deploy. `APP_URL` is the
 Railway domain itself now, not a tunnel in front of it — see `/migrate-subscriptions`
 above for what repoints EventSub when that domain changes.
 
@@ -599,8 +616,8 @@ above for what repoints EventSub when that domain changes.
 anything, which is what lets it patch FastAPI, httpx, asyncpg and aiohttp (discord.py's
 REST); the migration step before it is not wrapped. Railway's tracing switch on the
 service supplies `OTEL_EXPORTER_OTLP_*` and `OTEL_SERVICE_NAME` on each deploy, so none of
-them is set in the repo or `.env`, and the service sets `OTEL_METRICS_EXPORTER` and
-`OTEL_LOGS_EXPORTER` to `none` because Railway's receiver takes traces only. An
+them is set in the repo or `.env`, and `.railway/railway.py` sets `OTEL_METRICS_EXPORTER`
+and `OTEL_LOGS_EXPORTER` to `none` because Railway's receiver takes traces only. An
 instrumentation is a dependency in `pyproject.toml`, not `opentelemetry-bootstrap`'s pip
 install. The `logging` one is left out: it stamps four `otel*` attributes on every record, which
 `JsonFormatter` would print on every line as extras. `sqlalchemy` is left out because it
