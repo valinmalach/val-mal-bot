@@ -2,7 +2,7 @@
 
 import discord
 from discord import Guild, Interaction, Member, Role
-from discord.ui import Button
+from discord.ui import Button, View
 
 from valmal.bot.client import bot
 from valmal.core.background import fire_and_forget
@@ -90,7 +90,7 @@ async def toggle_role(
         return None
 
 
-async def roles_button_pressed(interaction: Interaction, button: Button) -> None:
+async def roles_button_pressed(interaction: Interaction, button: Button[View]) -> None:
     # Before the role change, which is an API call of its own: an interaction
     # left unanswered for about three seconds fails for the presser.
     await interaction.response.defer(ephemeral=True, thinking=True)
