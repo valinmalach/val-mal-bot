@@ -18,6 +18,10 @@ Issues and specs for this repo live as GitHub issues on `valinmalach/val-mal-bot
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
 
+## Pull requests as a triage surface
+
+**PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
+
 ## When a skill says "publish to the issue tracker"
 
 Create a GitHub issue.
