@@ -133,6 +133,51 @@ class TestSubscriptions:
 
         assert admin.sent[0][1]["embed"].fields == []
 
+    async def test_fields_stop_at_discords_25_and_the_footer_counts_the_rest(
+        self, admin: Admin
+    ) -> None:
+        """Discord refuses a whole message over 25 fields in one embed."""
+        admin.listing = listing(
+            *((f"type.{n:02d}", str(n), "enabled") for n in range(30))
+        )
+        for n in range(30):
+            admin.users[str(n)] = [user(f"Name{n}")]
+
+        await run(TwitchAdmin.subscriptions, admin.interaction())
+
+        embed = admin.sent[0][1]["embed"]
+        assert [f.name for f in embed.fields] == [f"type.{n:02d}" for n in range(25)]
+        assert embed.footer.text == (
+            "5 more not shown: more than one Discord embed can hold."
+        )
+
+    async def test_the_whole_embed_stays_under_discords_6000_characters(
+        self, admin: Admin
+    ) -> None:
+        """A long list reaches 6,000 characters in about five full fields."""
+        names = [f"Streamer{number:04d}{'x' * 12}" for number in range(400)]
+        admin.listing = listing(("stream.online", "1", "enabled"))
+        admin.users["1"] = [user(name) for name in names]
+
+        await run(TwitchAdmin.subscriptions, admin.interaction())
+
+        embed = admin.sent[0][1]["embed"]
+        assert len(embed) <= 6000
+        shown = sum(field.value.count("\n") + 1 for field in embed.fields)
+        assert shown < len(names)
+        assert embed.footer.text == (
+            f"{len(names) - shown} more not shown:"
+            " more than one Discord embed can hold."
+        )
+
+    async def test_nothing_left_out_means_no_footer(self, admin: Admin) -> None:
+        admin.listing = listing(("stream.online", "1", "enabled"))
+        admin.users["1"] = [user("One")]
+
+        await run(TwitchAdmin.subscriptions, admin.interaction())
+
+        assert admin.sent[0][1]["embed"].footer.text is None
+
 
 class TestSubscribeAndUnsubscribe:
     @pytest.mark.parametrize(

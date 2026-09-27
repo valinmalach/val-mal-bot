@@ -106,5 +106,5 @@ def live(login: str = "valinmalach", stream_id: str = "10") -> Stream:
     return Stream.model_validate(stream_json(stream_id, user_login=login))
 
 
-def profile(id: str = "111", login: str = "valinmalach") -> User:
-    return User.model_validate(user_json(id, login))
+def profile(user_id: str = "111", login: str = "valinmalach") -> User:
+    return User.model_validate(user_json(user_id, login))

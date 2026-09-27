@@ -204,12 +204,12 @@ class TestGatewayFloor:
 
         assert errors.reported == []
 
-    @pytest.mark.parametrize("exit", [KeyboardInterrupt, SystemExit])
+    @pytest.mark.parametrize("exc_type", [KeyboardInterrupt, SystemExit])
     async def test_an_exit_is_not_a_bug_to_report(
-        self, exit: type[BaseException], errors: Errors
+        self, exc_type: type[BaseException], errors: Errors
     ) -> None:
         try:
-            raise exit
+            raise exc_type
         except BaseException:  # noqa: BLE001
             await bot_client.on_error("on_ready")
 

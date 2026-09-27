@@ -31,9 +31,9 @@ logger = logging.getLogger(__name__)
 _WORKING_STATUSES = frozenset({"enabled", "webhook_callback_verification_pending"})
 
 
-async def get_user(id: int) -> User | None:
+async def get_user(user_id: int) -> User | None:
     """The user with this id, or None when Twitch has no such user."""
-    payload = await helix.fetch(UserResponse, "GET", "/users", params={"id": id})
+    payload = await helix.fetch(UserResponse, "GET", "/users", params={"id": user_id})
     return payload.data[0] if payload.data else None
 
 
@@ -55,9 +55,9 @@ async def get_users(ids: list[str]) -> list[User]:
     return users
 
 
-async def get_channel(id: int) -> Channel | None:
+async def get_channel(broadcaster_id: int) -> Channel | None:
     payload = await helix.fetch(
-        ChannelResponse, "GET", "/channels", params={"broadcaster_id": id}
+        ChannelResponse, "GET", "/channels", params={"broadcaster_id": broadcaster_id}
     )
     return payload.data[0] if payload.data else None
 
