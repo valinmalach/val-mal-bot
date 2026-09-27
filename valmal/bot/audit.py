@@ -20,7 +20,7 @@ from discord import (
     Role,
     User,
 )
-from discord.ext.commands import CommandError, Context
+from discord.ext.commands import Bot, CommandError, Context
 from discord.utils import escape_markdown
 from pendulum import DateTime
 
@@ -373,7 +373,7 @@ async def bulk_deleted(
     await _send(embed)
 
 
-async def command_failed(ctx: Context, error: CommandError) -> None:
+async def command_failed(ctx: Context[Bot], error: CommandError) -> None:
     """Named for the handler's real scope: not-found is only the reachable case.
 
     Both values carry what the user typed, so both are escaped - a log entry

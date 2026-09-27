@@ -134,7 +134,7 @@ class Events(Cog):
         )
 
     @Cog.listener()
-    async def on_command_error(self, ctx: Context, error: CommandError) -> None:
+    async def on_command_error(self, ctx: Context[Bot], error: CommandError) -> None:
         await audit.command_failed(ctx, error)
 
     @Cog.listener()

@@ -1,6 +1,6 @@
 """Environment-backed settings, validated once at import."""
 
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from pydantic import StringConstraints, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -44,12 +44,13 @@ class Settings(BaseSettings):
         """
         if not isinstance(values, dict):
             return values
+        supplied = cast("dict[str, Any]", values)
         optional = {
             name for name, field in cls.model_fields.items() if not field.is_required()
         }
         return {
             key: value
-            for key, value in values.items()
+            for key, value in supplied.items()
             if value != "" or key.lower() not in optional
         }
 

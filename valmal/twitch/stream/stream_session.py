@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # was asking".
 _stream: Stream | None = None
 
-_ad_break_task: asyncio.Task | None = None
+_ad_break_task: asyncio.Task[None] | None = None
 
 # Twitch user ids this session has already resolved: each is either **spent**,
 # meaning they had their autoshoutout, or was looked up and found not to be on

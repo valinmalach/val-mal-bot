@@ -71,7 +71,7 @@ def _include_object(
     return not (type_ == "check_constraint" and name in _ENUM_CHECKS)
 
 
-def _context_options() -> dict:
+def _context_options() -> dict[str, Any]:
     return {
         "target_metadata": target_metadata,
         # Without this, column type changes are silently skipped.
@@ -110,10 +110,11 @@ async def run_async_migrations() -> None:
         poolclass=pool.NullPool,
     )
 
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-
-    await connectable.dispose()
+    try:
+        async with connectable.connect() as connection:
+            await connection.run_sync(do_run_migrations)
+    finally:
+        await connectable.dispose()
 
 
 def run_migrations_online() -> None:

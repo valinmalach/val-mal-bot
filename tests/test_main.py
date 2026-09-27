@@ -72,14 +72,15 @@ def process(entry: ModuleType, monkeypatch: pytest.MonkeyPatch) -> Iterator[Proc
     ) -> None:
         process.fired.append((name, coro))
 
+    def remove_command(name: str) -> None:
+        process.removed.append(name)
+
     async def aclose() -> None:
         process.closed += 1
 
     monkeypatch.setattr(entry.bot, "load_extension", load_extension)
     monkeypatch.setattr(entry.bot, "start", start)
-    monkeypatch.setattr(
-        entry.bot, "remove_command", lambda name: process.removed.append(name)
-    )
+    monkeypatch.setattr(entry.bot, "remove_command", remove_command)
     monkeypatch.setattr(entry, "report", report)
     monkeypatch.setattr(entry, "fire_and_forget", fire_and_forget)
     monkeypatch.setattr(entry.http_client, "aclose", aclose)

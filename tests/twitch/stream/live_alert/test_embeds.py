@@ -3,6 +3,7 @@ import pendulum
 import pytest
 
 from tests.twitch.stream.live_alert.support import NOW, channel, stream, user, video
+from tests.twitch.support import record_notices
 from valmal.core.config import config
 from valmal.db.models import DiscordRole
 from valmal.twitch.stream import live_alert_embeds as embeds
@@ -284,10 +285,7 @@ class TestOfflineEmbed:
     def test_a_vod_with_a_non_numeric_id_means_no_field_not_a_broken_embed(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        notices: list[tuple[str, str | None]] = []
-        monkeypatch.setattr(
-            embeds, "notify_soon", lambda text, *, key=None: notices.append((text, key))
-        )
+        notices = record_notices(monkeypatch, embeds)
 
         embed = self.build(vod=video(id="abc](evil)"))
 

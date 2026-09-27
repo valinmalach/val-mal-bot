@@ -38,7 +38,7 @@ _MAX_INCONCLUSIVE_CYCLES = 5
 
 # Keyed by message: an alert is identified by the message it maintains, and a
 # broadcaster can briefly have a replaced alert whose updater is still winding up.
-_update_tasks: dict[int, asyncio.Task] = {}
+_update_tasks: dict[int, asyncio.Task[None]] = {}
 _wakeups: dict[int, asyncio.Event] = {}
 
 
@@ -135,7 +135,7 @@ async def _run(
         )
 
 
-def _forget_updater(message_id: int, finished: asyncio.Task) -> None:
+def _forget_updater(message_id: int, finished: asyncio.Task[None]) -> None:
     if _update_tasks.get(message_id) is finished:
         del _update_tasks[message_id]
         _wakeups.pop(message_id, None)

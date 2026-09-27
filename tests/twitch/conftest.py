@@ -60,7 +60,11 @@ NOW = pendulum.datetime(2026, 6, 15, 12)
 @pytest.fixture
 def now(monkeypatch: pytest.MonkeyPatch) -> pendulum.DateTime:
     """The token manager stamps and compares expiries against pendulum.now."""
-    monkeypatch.setattr(pendulum, "now", lambda tz=None: NOW)
+
+    def now(tz: object = None) -> pendulum.DateTime:
+        return NOW
+
+    monkeypatch.setattr(pendulum, "now", now)
     return NOW
 
 

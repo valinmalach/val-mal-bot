@@ -7,7 +7,7 @@ import discord
 import pytest
 
 import valmal.core.config as service_config
-from tests.core.config.support import role
+from tests.core.config.support import Notices, role
 from valmal.db.models import AutoResponseMatch, DiscordAutoResponse, DiscordChannel
 
 pytestmark = pytest.mark.anyio
@@ -84,7 +84,7 @@ class TestAutoResponse:
         assert cache.auto_response("where") == "see <#42>"
 
     async def test_a_dangling_slug_in_a_response_names_its_trigger(
-        self, load: Any, notices: list
+        self, load: Any, notices: Notices
     ) -> None:
         cache = await load(self.row("where", "{role:gone}"))
 

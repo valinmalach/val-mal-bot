@@ -3,7 +3,12 @@ from typing import Any
 
 import pytest
 
-from tests.twitch.support import chat_event, redemption_event, stream_json
+from tests.twitch.support import (
+    chat_event,
+    record_notices,
+    redemption_event,
+    stream_json,
+)
 from valmal.core.config import config
 from valmal.db import repository
 from valmal.twitch.models.api.stream import Stream
@@ -86,7 +91,7 @@ def world(monkeypatch: pytest.MonkeyPatch) -> World:
 @pytest.fixture(autouse=True)
 def _session(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(stream_session, "_stream", None)
-    monkeypatch.setattr(stream_session, "_settled", set())
+    monkeypatch.setattr(stream_session, "_settled", set[int]())
     monkeypatch.setattr(
         config,
         "_settings",
@@ -337,12 +342,7 @@ class TestRaided:
     def test_a_raider_id_that_is_not_a_number_is_skipped_and_said(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        notices: list[tuple[str, str | None]] = []
-        monkeypatch.setattr(
-            autoshoutout,
-            "notify_soon",
-            lambda text, *, key=None: notices.append((text, key)),
-        )
+        notices = record_notices(monkeypatch, autoshoutout)
 
         autoshoutout.raided("not-a-number")
 

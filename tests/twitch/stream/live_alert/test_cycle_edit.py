@@ -27,6 +27,10 @@ def not_found() -> discord.NotFound:
     return discord.NotFound(SimpleNamespace(status=404, reason="Not Found"), "gone")  # pyright: ignore[reportArgumentType]
 
 
+def report_context(e: Exception) -> str:
+    return f"context: {e}"
+
+
 class TestForgetRow:
     async def test_drops_the_row_this_updater_owns(
         self, cycle_world: CycleWorld
@@ -82,7 +86,7 @@ class TestEditOrRetry:
             "embed": discord.Embed(),
             "kind": "live",
             "on_error": Action.RETRY,
-            "report_context": lambda e: f"context: {e}",
+            "report_context": report_context,
             "on_success": Action.REFRESH,
         }
         return await lac._edit_or_retry(**(args | overrides))  # pyright: ignore[reportArgumentType]

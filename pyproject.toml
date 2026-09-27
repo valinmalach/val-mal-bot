@@ -37,28 +37,29 @@ dev = [
 ]
 
 [tool.pyright]
-# Pylance reads this section, so the editor and CLI pyright agree. "standard" is
-# Pylance's own default, pinned so a future change cannot move the goalposts.
-typeCheckingMode = "standard"
+# Pylance reads this section, so the editor and CLI pyright agree. Pinned rather
+# than left to Pylance's default, so a future change cannot move the goalposts.
+typeCheckingMode = "strict"
 
 # No exclude key: setting it REPLACES pyright's defaults instead of adding to
 # them, and those already cover .venv and __pycache__. "M.m" only, and required.
 pythonVersion = "3.14"
-# The webhook dispatcher is generic in its model, which binds a route to its
-# handler only as strongly as the handler annotates its own parameter. Without
-# this an unannotated handler is Any and pairs with anything.
-reportMissingParameterType = "error"
 venvPath = "."
 venv = ".venv"
 
-# Pylance greys these out; the CLI is silent unless they are promoted.
-reportUnusedImport = "warning"
-reportUnusedVariable = "warning"
-reportUnusedClass = "warning"
-reportUnusedFunction = "warning"
-reportUnusedExpression = "warning"
-reportUnreachable = "warning"
-reportDeprecated = "warning"
+# Strict leaves this one off.
+reportUnreachable = "error"
+# discord.ext is a namespace package, so discord's py.typed does not reach it
+# although its code is typed inline. A library that really is untyped still
+# shows up through strict's reportUnknown* rules.
+reportMissingTypeStubs = false
+
+[[tool.pyright.executionEnvironments]]
+root = "tests"
+# An environment's root replaces the project root for imports.
+extraPaths = ["."]
+# The suite pins behaviour through module internals on purpose.
+reportPrivateUsage = false
 
 [tool.ruff]
 # Stated rather than inferred from requires-python: a Ruff that does not read this

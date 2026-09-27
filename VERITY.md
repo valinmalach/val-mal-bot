@@ -155,7 +155,7 @@ all while still reporting success.
 
 - Comprehensibility (file length ≤ 400, complexity ≤ 15, function length ≤ 50, naming)
 - Modularity (separation of concerns, shallow abstractions)
-- Type Safety (ruff ANN001/ANN201; pyright `standard` is the project's authority)
+- Type Safety (ruff ANN001/ANN201; pyright `strict` is the project's authority)
 - Test Adequacy (coverage threshold 95 — `tests/` covers 99% of everything outside `migrations/`; tests are judged for whether they can fail; see AGENTS.md)
 
 ## Security Patterns

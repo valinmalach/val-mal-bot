@@ -28,6 +28,10 @@ SQLModel.metadata.naming_convention = NAMING_CONVENTION
 UTC_TIMESTAMP: Any = DateTime(timezone=True)
 
 
+def _enum_values(enum_type: type[Enum]) -> list[str]:
+    return [member.value for member in enum_type]
+
+
 def enum_column(enum_type: type[Enum], name: str, length: int = 16) -> Any:
     """A checked ``VARCHAR`` column type for a string enum.
 
@@ -39,7 +43,7 @@ def enum_column(enum_type: type[Enum], name: str, length: int = 16) -> Any:
         native_enum=False,
         create_constraint=True,
         length=length,
-        values_callable=lambda enum: [member.value for member in enum],
+        values_callable=_enum_values,
     )
 
 

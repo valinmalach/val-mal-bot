@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Callable, Coroutine
-from typing import Any, NoReturn, get_args
+from typing import Any, NoReturn, cast, get_args
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ValidationError
@@ -67,7 +67,7 @@ async def _bounded_body(request: Request, endpoint: str) -> bytes:
         chunks.append(chunk)
 
     body = b"".join(chunks)
-    request._body = body
+    request._body = body  # pyright: ignore[reportPrivateUsage]
     return body
 
 
@@ -119,7 +119,7 @@ async def _answer_non_notification(
 
     if message_type == "revocation":
         raw = body.get("subscription")
-        subscription: dict[str, Any] = raw if isinstance(raw, dict) else {}
+        subscription = cast("dict[str, Any]", raw) if isinstance(raw, dict) else {}
         await notify(
             f"Revoked {subscription.get('type', 'unknown')} notifications for"
             f" condition: {subscription.get('condition', {})} because"
@@ -183,7 +183,7 @@ async def validate_call(request: Request, endpoint: str) -> dict[str, Any] | Res
         logger.warning("400: Body is not a JSON object on %s", endpoint)
         await notify(f"400: Bad request on {endpoint}. Body is not a JSON object.")
         raise HTTPException(status_code=400)
-    body: dict[str, Any] = parsed
+    body = cast("dict[str, Any]", parsed)
 
     answer = await _answer_non_notification(message_type, body)
     if answer is not None:

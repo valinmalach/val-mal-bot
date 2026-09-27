@@ -30,7 +30,11 @@ def embed_config(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(config, "_channels", {"stream_alerts": 5001, "promo": 5002})
     monkeypatch.setattr(config, "_roles", {})
-    monkeypatch.setattr(pendulum, "now", lambda tz=None: NOW)
+
+    def now(tz: object = None) -> pendulum.DateTime:
+        return NOW
+
+    monkeypatch.setattr(pendulum, "now", now)
 
 
 @pytest.fixture
@@ -72,8 +76,8 @@ def alert_world(monkeypatch: pytest.MonkeyPatch, embed_config: None) -> AlertWor
                 **{**vars(asyncio), "wait_for": world.wait_for, "sleep": world.sleep}
             ),
         ),
-        (live_alert, "_update_tasks", {}),
-        (live_alert, "_wakeups", {}),
+        (live_alert, "_update_tasks", dict[int, asyncio.Task[None]]()),
+        (live_alert, "_wakeups", dict[int, asyncio.Event]()),
     ]
     for target, name, fake in patches:
         monkeypatch.setattr(target, name, fake)

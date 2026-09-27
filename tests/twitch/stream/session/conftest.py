@@ -58,7 +58,11 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> Calls:
         "clear",
         lambda: setattr(calls, "cleared", calls.cleared + 1),
     )
-    monkeypatch.setattr(pendulum, "now", lambda tz=None: NOW)
+
+    def now(tz: object = None) -> pendulum.DateTime:
+        return NOW
+
+    monkeypatch.setattr(pendulum, "now", now)
     return calls
 
 
@@ -66,6 +70,6 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> Calls:
 def _fresh_session(monkeypatch: pytest.MonkeyPatch) -> None:
     """The session is module state; each test starts with nobody live."""
     monkeypatch.setattr(stream_session, "_stream", None)
-    monkeypatch.setattr(stream_session, "_settled", set())
+    monkeypatch.setattr(stream_session, "_settled", set[int]())
     monkeypatch.setattr(stream_session, "_ad_break_task", None)
     monkeypatch.setattr(config, "_settings", {"twitch_broadcaster_id": "111"})

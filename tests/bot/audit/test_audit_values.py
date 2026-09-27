@@ -226,7 +226,10 @@ class TestEmbed:
     def test_a_template_row_that_is_missing_still_produces_an_embed(
         self, log: object, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr("valmal.core.safe_format.notify_soon", lambda *a, **k: None)
+        def notify_soon(*_: object, **__: object) -> None:
+            pass
+
+        monkeypatch.setattr("valmal.core.safe_format.notify_soon", notify_soon)
         monkeypatch.setattr(config, "_templates", {})
 
         embed = audit._templated("audit_bulk_deleted", "embed_color_info", count=3)

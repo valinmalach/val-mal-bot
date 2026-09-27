@@ -3,6 +3,7 @@
 import secrets
 import time
 from dataclasses import dataclass
+from typing import cast
 from urllib.parse import urlencode
 
 from valmal.core.config import config
@@ -42,9 +43,11 @@ def configured_scopes() -> list[str]:
     scopes = config.setting("twitch_app_scopes")
     if not isinstance(scopes, list) or not scopes:
         raise RuntimeError("twitch_app_scopes must be a non-empty JSON list")
-    if not all(isinstance(scope, str) and scope for scope in scopes):
+    listed = cast("list[object]", scopes)
+    valid = [scope for scope in listed if isinstance(scope, str) and scope]
+    if len(valid) != len(listed):
         raise RuntimeError("twitch_app_scopes contains an invalid scope")
-    return scopes
+    return valid
 
 
 def callback_uri(token_type: TokenType) -> str:

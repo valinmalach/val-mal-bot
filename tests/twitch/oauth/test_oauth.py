@@ -65,12 +65,20 @@ class TestConfiguredScopes:
 
     @pytest.mark.parametrize("scopes", [["ok", ""], ["ok", 3], ["ok", None], [""]])
     def test_a_list_with_a_blank_or_non_string_scope_is_refused(
-        self, scopes: list, monkeypatch: pytest.MonkeyPatch
+        self, scopes: list[object], monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setitem(config._settings, "twitch_app_scopes", scopes)
 
         with pytest.raises(RuntimeError, match="invalid scope"):
             oauth.configured_scopes()
+
+
+def authorization_url(token_type: TokenType) -> object:
+    return oauth.authorization_url(token_type, "state")
+
+
+def consume_authorization(token_type: TokenType) -> object:
+    return oauth.consume_authorization(token_type, "state")
 
 
 class TestIdentities:
@@ -121,8 +129,8 @@ class TestIdentities:
             oauth.callback_uri,
             oauth.expected_user_id,
             oauth.create_authorization_start_url,
-            lambda t: oauth.authorization_url(t, "state"),
-            lambda t: oauth.consume_authorization(t, "state"),
+            authorization_url,
+            consume_authorization,
         ],
     )
     def test_the_app_identity_has_no_authorization_flow(

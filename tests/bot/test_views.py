@@ -23,16 +23,14 @@ def button_of(view: RolePickerView, index: int) -> Any:
 
 
 def rendered(**overrides: Any) -> RenderedEmbed:
-    return RenderedEmbed(
-        **{
-            "title": "Pick a role",
-            "description": "Press a button",
-            "color": 0x123456,
-            "channel_key": "roles",
-            "fields": (),
-        }
-        | overrides
-    )
+    defaults: dict[str, Any] = {
+        "title": "Pick a role",
+        "description": "Press a button",
+        "color": 0x123456,
+        "channel_key": "roles",
+        "fields": (),
+    }
+    return RenderedEmbed(**(defaults | overrides))
 
 
 @pytest.fixture
@@ -44,14 +42,23 @@ def stored(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         "channels": {"roles": 500},
         "order": {"roles": ["pronouns"]},
     }
-    monkeypatch.setattr(
-        config, "roles_for_embed", lambda key: rows["roles"].get(key, [])
-    )
-    monkeypatch.setattr(config, "embed", lambda key: rows["embeds"].get(key))
-    monkeypatch.setattr(config, "embed_keys", lambda: list(rows["embeds"]))
-    monkeypatch.setattr(
-        config, "embed_keys_for_channel", lambda key: rows["order"].get(key, [])
-    )
+
+    def roles_for_embed(key: str) -> list[Any]:
+        return rows["roles"].get(key, [])
+
+    def embed(key: str) -> RenderedEmbed | None:
+        return rows["embeds"].get(key)
+
+    def embed_keys() -> list[str]:
+        return list(rows["embeds"])
+
+    def embed_keys_for_channel(key: str) -> list[str]:
+        return rows["order"].get(key, [])
+
+    monkeypatch.setattr(config, "roles_for_embed", roles_for_embed)
+    monkeypatch.setattr(config, "embed", embed)
+    monkeypatch.setattr(config, "embed_keys", embed_keys)
+    monkeypatch.setattr(config, "embed_keys_for_channel", embed_keys_for_channel)
 
     def channel(key: str) -> int:
         try:
@@ -106,7 +113,9 @@ class TestRolePickerView:
         """One callback closed over the loop variable would toggle the last role always."""
         seen: list[str | None] = []
 
-        async def pressed(interaction: object, button: discord.ui.Button) -> None:
+        async def pressed(
+            interaction: object, button: discord.ui.Button[discord.ui.View]
+        ) -> None:
             seen.append(button.custom_id)
 
         monkeypatch.setattr("valmal.bot.roles.roles_button_pressed", pressed)

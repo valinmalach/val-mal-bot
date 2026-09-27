@@ -1,4 +1,4 @@
-from typing import Any
+from typing import cast
 
 import httpx
 import pytest
@@ -36,7 +36,7 @@ async def test_the_client_is_configured_for_pooling_and_timeouts() -> None:
 
 async def test_connections_are_pooled_and_kept_alive_across_calls() -> None:
     client = http_client.client()
-    pool: Any = client._transport._pool  # pyright: ignore[reportAttributeAccessIssue]
+    pool = cast("httpx.AsyncHTTPTransport", client._transport)._pool
 
     assert pool._max_connections == 50
     assert pool._max_keepalive_connections == 20
@@ -46,7 +46,7 @@ async def test_connections_are_pooled_and_kept_alive_across_calls() -> None:
 
 async def test_http2_is_offered_because_twitch_and_discord_speak_it() -> None:
     client = http_client.client()
-    pool: Any = client._transport._pool  # pyright: ignore[reportAttributeAccessIssue]
+    pool = cast("httpx.AsyncHTTPTransport", client._transport)._pool
 
     assert pool._http2 is True
     await http_client.aclose()

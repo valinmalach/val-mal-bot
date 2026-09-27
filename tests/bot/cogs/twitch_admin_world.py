@@ -8,6 +8,7 @@ from tests.twitch.eventsub.migrate.support import sub
 from valmal.bot.cogs import twitch_admin
 from valmal.bot.cogs.twitch_admin import TwitchAdmin
 from valmal.core.config import config
+from valmal.db.models.enums import TokenType
 from valmal.twitch.client.helix import HelixError
 from valmal.twitch.eventsub.migrate_plan import Outcome
 from valmal.twitch.models.api.subscription import Subscription
@@ -90,10 +91,12 @@ def install(monkeypatch: pytest.MonkeyPatch) -> Admin:
     monkeypatch.setattr(twitch_admin, "unsubscribe_to_user", acting("unsubscribe"))
     monkeypatch.setattr(twitch_admin, "migrate", migrate)
     monkeypatch.setattr(twitch_admin, "report", report)
+
+    def create_authorization_start_url(token_type: TokenType) -> str:
+        return f"https://bot.example/start/{token_type.value}?state=s"
+
     monkeypatch.setattr(
-        twitch_admin,
-        "create_authorization_start_url",
-        lambda token_type: f"https://bot.example/start/{token_type.value}?state=s",
+        twitch_admin, "create_authorization_start_url", create_authorization_start_url
     )
     monkeypatch.setattr(
         config,

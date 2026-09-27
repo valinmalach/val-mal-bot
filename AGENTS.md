@@ -53,6 +53,16 @@ everything after `nosec` as test ids, so no prose follows it. Ruff's formatter w
 line that gets long, which moves a trailing `noqa` off the line Ruff reports on, so keep
 the markers short.
 
+`[tool.pyright]` is `strict`, over `tests/` as well, so anything `Unknown` is an error:
+give a generic its type argument, and hand `monkeypatch` or a mock an annotated function
+rather than a lambda, which cannot annotate its parameters. Three settings depart from
+strict, each with its reason in `pyproject.toml`: `reportUnreachable` is added, since strict
+leaves it off; `reportMissingTypeStubs` is off, because `discord.ext` is a namespace package
+that `discord`'s `py.typed` does not reach; and `tests/` is an execution environment of its
+own with `reportPrivateUsage` off, because the suite pins behaviour through module
+internals. A pyright suppression names its rule, `# pyright: ignore[reportPrivateUsage]`,
+and the reason sits beside it as for Ruff.
+
 **Sourcery runs first because its fixes are not guaranteed to satisfy the other
 three.** `use-named-expression` rewrote an `if matched:` into a walrus whose
 variable nothing then read — a ruff `F841` *and* a format violation, from a tool

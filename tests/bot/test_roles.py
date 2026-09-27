@@ -1,4 +1,4 @@
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -26,11 +26,11 @@ class Guild:
         self.member = MagicMock(spec=discord.Member, id=USER)
         self.member.add_roles = AsyncMock()
         self.member.remove_roles = AsyncMock()
-        self.member.get_role = lambda role_id: self.role if self.holds else None
+        self.member.get_role = self.held_role
         self.holds = False
         self.guild: MagicMock | None = MagicMock(spec=discord.Guild)
-        self.guild.get_member = lambda user_id: self.members.get(user_id)
-        self.guild.get_role = lambda role_id: self.roles.get(role_id)
+        self.guild.get_member = self.member_by_id
+        self.guild.get_role = self.role_by_id
         self.me = MagicMock(spec=discord.Member)
         self.me.guild_permissions.manage_roles = True
         self.guild.me = self.me
@@ -41,6 +41,15 @@ class Guild:
         self.reported: list[tuple[Exception, str]] = []
         self.deferred: list[tuple[bool, bool]] = []
         self.sent: list[tuple[str, bool]] = []
+
+    def held_role(self, role_id: int) -> Any:
+        return self.role if self.holds else None
+
+    def member_by_id(self, user_id: int) -> Any:
+        return self.members.get(user_id)
+
+    def role_by_id(self, role_id: int) -> Any:
+        return self.roles.get(role_id)
 
     def interaction(self, guild_id: int | None = GUILD) -> Any:
         async def defer(*, ephemeral: bool, thinking: bool) -> None:
@@ -75,11 +84,10 @@ def world(monkeypatch: pytest.MonkeyPatch) -> Guild:
     def fire_and_forget(coro: Coroutine[Any, Any, None], *, name: str) -> None:
         world.fired.append(coro)
 
-    monkeypatch.setattr(
-        roles.bot,
-        "get_guild",
-        lambda guild_id: world.guild if guild_id == GUILD else None,
-    )
+    def get_guild(guild_id: int) -> MagicMock | None:
+        return world.guild if guild_id == GUILD else None
+
+    monkeypatch.setattr(roles.bot, "get_guild", get_guild)
     monkeypatch.setattr(roles, "notify", notify)
     monkeypatch.setattr(roles, "report", report)
     monkeypatch.setattr(roles, "fire_and_forget", fire_and_forget)
@@ -95,6 +103,22 @@ def world(monkeypatch: pytest.MonkeyPatch) -> Guild:
         },
     )
     return world
+
+
+def lacks_manage_roles(w: Guild) -> None:
+    w.me.guild_permissions.manage_roles = False
+
+
+def is_managed(w: Guild) -> None:
+    w.role.managed = True
+
+
+def is_everyone(w: Guild) -> None:
+    w.role.is_default.configure_mock(return_value=True)
+
+
+def is_above_the_bot(w: Guild) -> None:
+    w.role.__ge__.configure_mock(return_value=True)
 
 
 class TestGetMemberRole:
@@ -144,26 +168,14 @@ class TestGetMemberRole:
     @pytest.mark.parametrize(
         ("unmanageable", "reason"),
         [
-            (
-                lambda w: setattr(w.me.guild_permissions, "manage_roles", False),
-                "the bot lacks the Manage Roles permission",
-            ),
-            (
-                lambda w: setattr(w.role, "managed", True),
-                "it is @everyone or managed by an integration",
-            ),
-            (
-                lambda w: w.role.is_default.configure_mock(return_value=True),
-                "it is @everyone or managed by an integration",
-            ),
-            (
-                lambda w: w.role.__ge__.configure_mock(return_value=True),
-                "it is at or above the bot's top role",
-            ),
+            (lacks_manage_roles, "the bot lacks the Manage Roles permission"),
+            (is_managed, "it is @everyone or managed by an integration"),
+            (is_everyone, "it is @everyone or managed by an integration"),
+            (is_above_the_bot, "it is at or above the bot's top role"),
         ],
     )
     async def test_a_role_the_bot_cannot_manage_is_nothing_and_says_why(
-        self, world: Guild, unmanageable: Any, reason: str
+        self, world: Guild, unmanageable: Callable[[Guild], None], reason: str
     ) -> None:
         unmanageable(world)
 
@@ -247,9 +259,11 @@ class TestRolesButtonPressed:
     ) -> None:
         """The role change is an API call, and Discord fails an unanswered press after 3s."""
         deferred_first: list[bool] = []
-        world.member.add_roles.side_effect = lambda role: deferred_first.append(
-            world.deferred == [(True, True)]
-        )
+
+        def add_roles(role: object) -> None:
+            deferred_first.append(world.deferred == [(True, True)])
+
+        world.member.add_roles.side_effect = add_roles
 
         await roles.roles_button_pressed(world.interaction(), button("role_member"))
 

@@ -52,7 +52,7 @@ quality_dimensions:
       - metric: static_type_check
         tool: pyright
         config: "pyproject.toml [tool.pyright]"
-        rationale: "typeCheckingMode=standard is pinned in pyproject.toml so the editor (Pylance) and CLI agree; pyright must be clean before work is handed over"
+        rationale: "typeCheckingMode=strict, tests included, is pinned in pyproject.toml so the editor (Pylance) and CLI agree; uv run pyright must be clean before work is handed over"
 
   - id: test_adequacy
     description: "Tests define expected behavior for agents"
@@ -210,4 +210,4 @@ tool_configuration:
   pyright:
     enabled: false
     config_file: "pyproject.toml"
-    note: "Run by the developer (uvx pyright), not by the gate. Recorded here because it is the project's type-safety authority."
+    note: "Run by the developer (uv run pyright), not by the gate. Recorded here because it is the project's type-safety authority."

@@ -1,9 +1,11 @@
+from typing import cast
 from urllib.parse import parse_qs
 
 import httpx
 import pendulum
 import pytest
 from pydantic import ValidationError
+from sqlalchemy.sql import ClauseElement
 
 from tests.credentials import CLIENT_ID, CLIENT_SECRET
 from tests.twitch.support import (
@@ -276,7 +278,11 @@ class TestRefreshUser:
         await manager.refresh_user_access_token()
 
         (statement,) = written(token_db)
-        params = statement.compile(dialect=postgresql.dialect()).params  # pyright: ignore[reportAttributeAccessIssue]
+        compiled = cast("ClauseElement", statement).compile(
+            dialect=postgresql.dialect()
+        )
+        params = compiled.params
+        assert params is not None
         assert params["scopes"] == ["chat:read"]
 
 
