@@ -594,6 +594,19 @@ without needing a wrapper script. Migrations run on every deploy. `APP_URL` is t
 Railway domain itself now, not a tunnel in front of it — see `/migrate-subscriptions`
 above for what repoints EventSub when that domain changes.
 
+**The app is traced with OpenTelemetry, configured entirely by the environment.**
+`opentelemetry-instrument` in the start command loads the SDK before `main.py` imports
+anything, which is what lets it patch FastAPI, httpx, asyncpg and aiohttp (discord.py's
+REST); the migration step before it is not wrapped. Railway's tracing switch on the
+service supplies `OTEL_EXPORTER_OTLP_*` and `OTEL_SERVICE_NAME` on each deploy, so none of
+them is set in the repo or `.env`, and the service sets `OTEL_METRICS_EXPORTER` and
+`OTEL_LOGS_EXPORTER` to `none` because Railway's receiver takes traces only. An
+instrumentation is a dependency in `pyproject.toml`, not `opentelemetry-bootstrap`'s pip
+install. The `logging` one is left out: it stamps four `otel*` attributes on every record, which
+`JsonFormatter` would print on every line as extras. `sqlalchemy` is left out because it
+would record every query a second time beside `asyncpg`. Locally
+`uv run main.py` runs without the wrapper and traces nothing.
+
 Locally, EventSub cannot reach `localhost`, so stream alerts, follows, raids, ad breaks
 and chat commands never fire without a tunnel in front of it. Outbound Helix calls
 still work.
