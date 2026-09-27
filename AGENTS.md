@@ -465,7 +465,8 @@ timezone name the tz database has dropped is cleared with a notice rather than r
 there is a birthday that never moves and is never greeted. `is_leap_day` is derived
 nowhere else, because its answer picks the year the instant lands in *and* is stored
 beside it as `is_birthday_leap`; all three birthday columns are written together by
-`upsert_user`. `docs/adr/0003-birthday-holds-the-next-occurrence.md` records why the
+`upsert_user`, which takes each without a default, and cleared together by
+`clear_birthday`, so no call erases a birthday by leaving an argument out. `docs/adr/0003-birthday-holds-the-next-occurrence.md` records why the
 column holds an instant.
 
 **Escaping depends on where the text lands, not on whether it is untrusted.**

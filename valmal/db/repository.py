@@ -54,14 +54,16 @@ async def get_user(user_id: int) -> DiscordUser | None:
 async def upsert_user(
     user_id: int,
     username: str,
-    birthday: datetime | None = None,
-    is_birthday_leap: bool | None = None,
-    birthday_timezone: str | None = None,
+    birthday: datetime,
+    is_birthday_leap: bool,
+    birthday_timezone: str | None,
 ) -> None:
     """Write a user and all three birthday columns.
 
     All three, together: they describe one birthday, and a caller that wrote two
-    of them would leave the third describing a different one.
+    of them would leave the third describing a different one. None is allowed only
+    for the timezone, which rows written before that column existed lack; erasing
+    a birthday is ``clear_birthday``.
     """
     await _upsert(
         DiscordUser,

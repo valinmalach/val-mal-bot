@@ -1,3 +1,4 @@
+import inspect
 from datetime import UTC, datetime
 
 import pytest
@@ -42,30 +43,22 @@ class TestUpsertUser:
             "birthday_timezone",
         ]
 
-    async def test_no_birthday_clears_all_three_rather_than_leaving_a_stale_one(
-        self, database: Database
-    ) -> None:
-        """The three describe one birthday; writing two would leave the third wrong."""
-        await repository.upsert_user(7, "val")
+    def test_every_birthday_column_is_required(self) -> None:
+        """A default of None would erase a stored birthday by omission."""
+        parameters = inspect.signature(repository.upsert_user).parameters.values()
 
-        written = params(database.only)
-        assert (
-            written["birthday"],
-            written["is_birthday_leap"],
-            written["birthday_timezone"],
-        ) == (None, None, None)
-        assert "excluded.birthday," in sql(database.only)
+        assert all(p.default is inspect.Parameter.empty for p in parameters)
 
     async def test_updated_at_is_set_by_the_database_clock_not_by_the_row_being_kept(
         self, database: Database
     ) -> None:
         """The column's onupdate does not fire for ON CONFLICT DO UPDATE."""
-        await repository.upsert_user(7, "val")
+        await repository.upsert_user(7, "val", MOMENT, False, "UTC")
 
         assert "updated_at = now()" in sql(database.only)
 
     async def test_created_at_is_never_overwritten(self, database: Database) -> None:
-        await repository.upsert_user(7, "val")
+        await repository.upsert_user(7, "val", MOMENT, False, "UTC")
 
         assert "created_at" not in assigned(database.only)
 
