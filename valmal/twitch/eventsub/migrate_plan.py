@@ -58,24 +58,28 @@ def decide(subscription: Subscription, routes: Mapping[str, str]) -> Action:
 class Outcome:
     """What one migration pass found, and then did."""
 
-    repoint: list[Subscription] = field(default_factory=list)
-    keep: list[Subscription] = field(default_factory=list)
-    skip: list[Subscription] = field(default_factory=list)
-    migrated: list[Subscription] = field(default_factory=list)
+    repoint: list[Subscription] = field(default_factory=list[Subscription])
+    keep: list[Subscription] = field(default_factory=list[Subscription])
+    skip: list[Subscription] = field(default_factory=list[Subscription])
+    migrated: list[Subscription] = field(default_factory=list[Subscription])
     # Two failure modes, kept apart because they call for opposite responses and
     # only one of them is an emergency. `stuck` did not move and is still
     # whatever it was, on the old callback -- a retry is the whole remedy.
     # `lost` is gone: the delete landed and the create did not, so for six of
     # the eight types the dump is the only way back. Reporting them as one list
     # made a working subscription and a destroyed one read identically.
-    stuck: list[tuple[Subscription, str]] = field(default_factory=list)
-    lost: list[tuple[Subscription, str]] = field(default_factory=list)
+    stuck: list[tuple[Subscription, str]] = field(
+        default_factory=list[tuple[Subscription, str]]
+    )
+    lost: list[tuple[Subscription, str]] = field(
+        default_factory=list[tuple[Subscription, str]]
+    )
     dumped: bool = False
     # True when a confirmed run was already in flight, so this one did nothing.
     busy: bool = False
     # Carried so the caller names people rather than ids, without asking Helix
     # the same question a second time.
-    logins: dict[str, str] = field(default_factory=dict)
+    logins: dict[str, str] = field(default_factory=dict[str, str])
 
 
 # Every condition field that carries a Twitch user id, with how to say it. The

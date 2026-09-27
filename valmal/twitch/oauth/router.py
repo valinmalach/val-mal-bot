@@ -56,7 +56,7 @@ async def _validate_oauth_identity(
     expected_id = expected_user_id(token_type)
     missing_scopes = sorted(set(configured_scopes()) - set(validation.scopes))
 
-    problems = []
+    problems: list[str] = []
     if validation.client_id != settings.twitch_client_id:
         problems.append("the token belongs to a different Twitch application")
     if validation.user_id != expected_id:
