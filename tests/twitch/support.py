@@ -1,4 +1,5 @@
-"""Fakes for the Twitch layer: a token manager, and a scripted HTTP transport."""
+"""Fakes for the Twitch layer: a token manager, a scripted HTTP transport, and a
+recorder for notify_soon."""
 
 import json
 from collections.abc import Callable
@@ -7,6 +8,7 @@ from typing import Any
 
 import httpx
 import pendulum
+import pytest
 
 from valmal.db.models.enums import TokenType
 from valmal.twitch.oauth.token_manager import TwitchTokenManager
@@ -20,6 +22,19 @@ OFFLINE = "https://bot.example/webhook/twitch/offline"
 # into config._settings themselves rather than through the directory's autouse
 # `scopes` fixture -- neither wants the app scopes that one seeds.
 BOT_SETTINGS = {"twitch_bot_user_id": "999", "twitch_broadcaster_id": "111"}
+
+
+def record_notices(
+    monkeypatch: pytest.MonkeyPatch, owner: object
+) -> list[tuple[str, str | None]]:
+    """Replace owner.notify_soon with one that records each text and its key."""
+    notices: list[tuple[str, str | None]] = []
+
+    def notify_soon(text: str, *, key: str | None = None) -> None:
+        notices.append((text, key))
+
+    monkeypatch.setattr(owner, "notify_soon", notify_soon)
+    return notices
 
 
 class FakeTokens:
