@@ -98,7 +98,11 @@ def test_a_parse_that_is_not_a_datetime_is_refused_as_the_same_error(
     parsed: object, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Pendulum can return other types; the shape check alone cannot rule them out."""
-    monkeypatch.setattr(pendulum, "parse", lambda text: parsed)
+
+    def parse(text: str) -> object:
+        return parsed
+
+    monkeypatch.setattr(pendulum, "parse", parse)
 
     with pytest.raises(ValueError, match="Not an RFC3339 timestamp"):
         parse_rfc3339("2026-06-15T11:00:00Z")
@@ -107,7 +111,10 @@ def test_a_parse_that_is_not_a_datetime_is_refused_as_the_same_error(
 def test_a_naive_parse_is_refused_because_it_would_be_read_as_local_time(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(pendulum, "parse", lambda text: pendulum.naive(2026, 6, 15))
+    def parse(text: str) -> pendulum.DateTime:
+        return pendulum.naive(2026, 6, 15)
+
+    monkeypatch.setattr(pendulum, "parse", parse)
 
     with pytest.raises(ValueError, match="Not an RFC3339 timestamp"):
         parse_rfc3339("2026-06-15T11:00:00Z")

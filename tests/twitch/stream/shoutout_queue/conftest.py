@@ -48,7 +48,11 @@ def world(monkeypatch: pytest.MonkeyPatch) -> World:
     monkeypatch.setattr(
         sq, "asyncio", SimpleNamespace(**{**vars(asyncio), "sleep": sleep})
     )
-    monkeypatch.setattr(pendulum, "now", lambda tz=None: world.now)
+
+    def now(tz: object = None) -> pendulum.DateTime:
+        return world.now
+
+    monkeypatch.setattr(pendulum, "now", now)
     return world
 
 

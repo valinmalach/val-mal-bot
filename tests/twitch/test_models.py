@@ -120,9 +120,10 @@ class TestEventSubs:
     def test_a_documented_payload_parses(self, sub_type: str) -> None:
         model = EVENTS[sub_type][0]
 
-        parsed = model.model_validate(_payload(sub_type))
+        # Any: the model is chosen per parameter, and each declares its own subscription.
+        parsed: Any = model.model_validate(_payload(sub_type))
 
-        assert parsed.subscription.type == sub_type  # pyright: ignore[reportAttributeAccessIssue]
+        assert parsed.subscription.type == sub_type
 
     def test_a_payload_for_another_event_is_refused(self, sub_type: str) -> None:
         payload = _payload(sub_type)
@@ -333,7 +334,7 @@ class TestAuthResponses:
         assert RefreshResponse.model_validate({**base, "scope": "a"}).scope == "a"
 
     def test_a_refresh_may_answer_with_no_expiry_but_must_say_so(self) -> None:
-        base = {
+        base: dict[str, Any] = {
             "access_token": "a",
             "refresh_token": "r",
             "scope": [],

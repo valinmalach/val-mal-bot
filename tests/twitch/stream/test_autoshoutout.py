@@ -86,7 +86,7 @@ def world(monkeypatch: pytest.MonkeyPatch) -> World:
 @pytest.fixture(autouse=True)
 def _session(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(stream_session, "_stream", None)
-    monkeypatch.setattr(stream_session, "_settled", set())
+    monkeypatch.setattr(stream_session, "_settled", set[int]())
     monkeypatch.setattr(
         config,
         "_settings",
@@ -338,11 +338,11 @@ class TestRaided:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         notices: list[tuple[str, str | None]] = []
-        monkeypatch.setattr(
-            autoshoutout,
-            "notify_soon",
-            lambda text, *, key=None: notices.append((text, key)),
-        )
+
+        def notify_soon(text: str, *, key: str | None = None) -> None:
+            notices.append((text, key))
+
+        monkeypatch.setattr(autoshoutout, "notify_soon", notify_soon)
 
         autoshoutout.raided("not-a-number")
 

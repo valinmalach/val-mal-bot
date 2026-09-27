@@ -285,9 +285,11 @@ class TestOfflineEmbed:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         notices: list[tuple[str, str | None]] = []
-        monkeypatch.setattr(
-            embeds, "notify_soon", lambda text, *, key=None: notices.append((text, key))
-        )
+
+        def notify_soon(text: str, *, key: str | None = None) -> None:
+            notices.append((text, key))
+
+        monkeypatch.setattr(embeds, "notify_soon", notify_soon)
 
         embed = self.build(vod=video(id="abc](evil)"))
 
