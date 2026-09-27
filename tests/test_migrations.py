@@ -255,6 +255,38 @@ class TestDowngrade:
         assert created - {"alembic_version"} == dropped - {"alembic_version"}
 
 
+# Run as its own process: env.py calls asyncio.run, which a test sharing the
+# session's event loop cannot, and the engine factory it imports is replaced
+# for that process alone.
+ONLINE_WITHOUT_A_DATABASE = """
+import sqlalchemy.ext.asyncio
+from alembic.config import main
+
+disposed = []
+
+class Unreachable:
+    def connect(self):
+        raise ConnectionRefusedError("no database")
+
+    async def dispose(self):
+        disposed.append(True)
+
+sqlalchemy.ext.asyncio.async_engine_from_config = lambda *a, **k: Unreachable()
+try:
+    main(["upgrade", "head"])
+except ConnectionRefusedError:
+    pass
+print("disposed" if disposed else "leaked")
+"""
+
+
+class TestOnline:
+    def test_the_engine_is_disposed_when_the_connection_fails(self) -> None:
+        done = run_python("-c", ONLINE_WITHOUT_A_DATABASE)
+
+        assert done.stdout.splitlines()[-1] == "disposed"
+
+
 class TestTheKeyScan:
     def test_finds_a_key_in_ordinary_source(self, tmp_path: Path) -> None:
         (tmp_path / "feature.py").write_text("KEY = 'twitch_new_template'")
