@@ -14,6 +14,9 @@ pytestmark = pytest.mark.anyio
 class Streamed:
     """A request that counts how often its body was read off the wire."""
 
+    # Declared, not set: _bounded_body treats a missing cache as unread.
+    _body: bytes
+
     def __init__(self, *chunks: bytes) -> None:
         self.chunks = chunks
         self.reads = 0
@@ -46,7 +49,7 @@ class TestBoundedBody:
 
         assert first == second == b"payload"
         assert request.reads == 1
-        assert request._body == b"payload"  # pyright: ignore[reportAttributeAccessIssue]
+        assert request._body == b"payload"
 
     async def test_a_body_already_cached_is_returned_without_touching_the_stream(
         self, hooks: Hooks
@@ -58,7 +61,7 @@ class TestBoundedBody:
     async def test_an_empty_cached_body_is_still_cached(self, hooks: Hooks) -> None:
         """b"" is a body that was read; only None means it was not."""
         request = Streamed(b"would-be-read")
-        request._body = b""  # pyright: ignore[reportAttributeAccessIssue]
+        request._body = b""
 
         assert await read(request) == b""
         assert request.reads == 0

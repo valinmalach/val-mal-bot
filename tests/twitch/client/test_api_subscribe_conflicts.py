@@ -1,5 +1,7 @@
 from collections.abc import Callable
+from typing import Any
 
+import httpx
 import pytest
 
 import valmal.twitch.client.api as api
@@ -43,7 +45,7 @@ class TestConflictOnSubscribe:
     a 409 says just as readily that a subscription exists pointing somewhere
     useless as that a working one is in place."""
 
-    def outcomes(self, existing: list[dict]) -> tuple:
+    def outcomes(self, existing: list[dict[str, Any]]) -> tuple[httpx.Response, ...]:
         return (
             reply(200, {"data": [user_json("42")]}),  # the lookup
             reply(409, text="exists"),  # online: conflict

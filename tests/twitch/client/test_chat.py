@@ -112,9 +112,11 @@ class TestSayTemplate:
     ) -> None:
         """config.template degrades to "" and reports the row itself; sending "" would
         only add a 400 on top."""
-        monkeypatch.setattr(
-            "valmal.core.safe_format.notify_soon", lambda text, *, key=None: None
-        )
+
+        def notify_soon(text: str, *, key: str | None = None) -> None:
+            pass
+
+        monkeypatch.setattr("valmal.core.safe_format.notify_soon", notify_soon)
 
         assert await chat.say_template("111", "no_such_template") is False
 

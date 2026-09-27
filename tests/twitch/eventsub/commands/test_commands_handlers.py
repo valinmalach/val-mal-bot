@@ -33,7 +33,7 @@ def go_live() -> None:
     stream_session._stream = Stream.model_validate(stream_json("10"))
 
 
-NOT_FOUND = ("111", "twitch_shoutout_not_found", {})
+NOT_FOUND: tuple[str, str, dict[str, str]] = ("111", "twitch_shoutout_not_found", {})
 
 
 class TestHug:

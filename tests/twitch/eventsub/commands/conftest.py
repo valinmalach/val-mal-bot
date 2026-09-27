@@ -62,15 +62,14 @@ def chatworld(monkeypatch: pytest.MonkeyPatch) -> ChatWorld:
     monkeypatch.setattr(commands, "get_channel", get_channel)
     monkeypatch.setattr(autoshoutout, "add", add)
     monkeypatch.setattr(autoshoutout, "remove", remove)
-    monkeypatch.setattr(
-        autoshoutout,
-        "spend",
-        lambda broadcaster, uid: world.spent.append((broadcaster, uid)),
-    )
-    monkeypatch.setattr(
-        commands.shoutout_queue,
-        "add_to_queue",
-        lambda login, uid: world.queued.append((login, uid)),
-    )
+
+    def spend(broadcaster: str, uid: int) -> None:
+        world.spent.append((broadcaster, uid))
+
+    def add_to_queue(login: str, uid: str) -> None:
+        world.queued.append((login, uid))
+
+    monkeypatch.setattr(autoshoutout, "spend", spend)
+    monkeypatch.setattr(commands.shoutout_queue, "add_to_queue", add_to_queue)
     monkeypatch.setattr(stream_session, "_stream", None)
     return world

@@ -42,8 +42,12 @@ def hooks(monkeypatch: pytest.MonkeyPatch) -> Hooks:
     monkeypatch.setattr(ctl, "report", report)
     monkeypatch.setattr(ctl, "fire_and_forget", fire_and_forget)
     monkeypatch.setattr(replay, "time", SimpleNamespace(monotonic=lambda: hooks.clock))
-    monkeypatch.setattr(pendulum, "now", lambda tz=None: NOW)
-    monkeypatch.setattr(replay, "_handled", OrderedDict())
+
+    def now(tz: object = None) -> pendulum.DateTime:
+        return NOW
+
+    monkeypatch.setattr(pendulum, "now", now)
+    monkeypatch.setattr(replay, "_handled", OrderedDict[str, float]())
     monkeypatch.setattr(replay, "_forgotten_early", 0)
     return hooks
 

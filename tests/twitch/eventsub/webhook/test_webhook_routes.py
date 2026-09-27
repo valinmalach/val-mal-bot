@@ -1,9 +1,11 @@
 from collections.abc import AsyncGenerator
-from typing import Any, Literal
+from types import CoroutineType
+from typing import Any, Literal, cast
 
 import httpx
 import pytest
 from fastapi import APIRouter, FastAPI
+from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
 import valmal.twitch.client.api as api
@@ -17,6 +19,10 @@ from valmal.twitch.models.api.subscription import Subscription
 from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
 pytestmark = pytest.mark.anyio
+
+
+def routes() -> list[APIRoute]:
+    return cast("list[APIRoute]", ctl.twitch_router.routes)
 
 
 @pytest.fixture
@@ -51,14 +57,14 @@ class TestWebhookPaths:
             )
 
     def test_the_router_serves_exactly_the_mapped_paths(self) -> None:
-        served = {route.path for route in ctl.twitch_router.routes}  # pyright: ignore[reportAttributeAccessIssue]
+        served = {route.path for route in routes()}
 
         assert served == set(ctl.WEBHOOK_PATHS.values())
 
     def test_each_route_is_named_for_its_path_so_operation_ids_stay_distinct(
         self,
     ) -> None:
-        names = [route.name for route in ctl.twitch_router.routes]  # pyright: ignore[reportAttributeAccessIssue]
+        names = [route.name for route in routes()]
 
         assert sorted(names) == sorted(ctl.WEBHOOK_PATHS.values())
 
@@ -102,7 +108,7 @@ class TestEachRoute:
         assert response.status_code == 202
         ((name, coro),) = hooks.dispatched
         assert name == path
-        assert coro.cr_code.co_name == handler  # pyright: ignore[reportAttributeAccessIssue]
+        assert cast("CoroutineType[Any, Any, None]", coro).cr_code.co_name == handler
 
     async def test_a_payload_for_another_event_is_refused(
         self,
@@ -207,7 +213,7 @@ class TestRegistering:
         ctl._route("/x", StreamOnlineEventSub, self.handler)
 
         assert ctl.WEBHOOK_PATHS == {"stream.online": "/x"}
-        assert [r.path for r in ctl.twitch_router.routes] == ["/x"]  # pyright: ignore[reportAttributeAccessIssue]
+        assert [r.path for r in routes()] == ["/x"]
 
     def test_two_models_declaring_one_type_are_refused_not_silently_overwritten(
         self,
