@@ -18,7 +18,11 @@ class Guild:
     """One guild with one member, one role and the configuration row that names it."""
 
     def __init__(self) -> None:
-        self.role = MagicMock(spec=discord.Role, id=ROLE, mention="<@&3>")
+        self.role = MagicMock(
+            spec=discord.Role, id=ROLE, mention="<@&3>", managed=False
+        )
+        self.role.is_default.return_value = False
+        self.role.__ge__ = MagicMock(return_value=False)
         self.member = MagicMock(spec=discord.Member, id=USER)
         self.member.add_roles = AsyncMock()
         self.member.remove_roles = AsyncMock()
@@ -27,20 +31,29 @@ class Guild:
         self.guild: MagicMock | None = MagicMock(spec=discord.Guild)
         self.guild.get_member = lambda user_id: self.members.get(user_id)
         self.guild.get_role = lambda role_id: self.roles.get(role_id)
+        self.me = MagicMock(spec=discord.Member)
+        self.me.guild_permissions.manage_roles = True
+        self.guild.me = self.me
         self.members: dict[int, Any] = {USER: self.member}
         self.roles: dict[int, Any] = {ROLE: self.role}
         self.fired: list[Coroutine[Any, Any, None]] = []
         self.notified: list[tuple[str, str | None]] = []
+        self.reported: list[tuple[Exception, str]] = []
+        self.deferred: list[tuple[bool, bool]] = []
         self.sent: list[tuple[str, bool]] = []
 
     def interaction(self, guild_id: int | None = GUILD) -> Any:
-        async def send_message(text: str, *, ephemeral: bool) -> None:
+        async def defer(*, ephemeral: bool, thinking: bool) -> None:
+            self.deferred.append((ephemeral, thinking))
+
+        async def send(text: str, *, ephemeral: bool) -> None:
             self.sent.append((text, ephemeral))
 
         return SimpleNamespace(
             guild_id=guild_id,
             user=SimpleNamespace(id=USER),
-            response=SimpleNamespace(send_message=send_message),
+            response=SimpleNamespace(defer=defer),
+            followup=SimpleNamespace(send=send),
         )
 
 
@@ -56,6 +69,9 @@ def world(monkeypatch: pytest.MonkeyPatch) -> Guild:
         world.notified.append((text, key))
         return True
 
+    async def report(exc: Exception, context: str) -> None:
+        world.reported.append((exc, context))
+
     def fire_and_forget(coro: Coroutine[Any, Any, None], *, name: str) -> None:
         world.fired.append(coro)
 
@@ -65,6 +81,7 @@ def world(monkeypatch: pytest.MonkeyPatch) -> Guild:
         lambda guild_id: world.guild if guild_id == GUILD else None,
     )
     monkeypatch.setattr(roles, "notify", notify)
+    monkeypatch.setattr(roles, "report", report)
     monkeypatch.setattr(roles, "fire_and_forget", fire_and_forget)
     stored = SimpleNamespace(key="member", role_id=ROLE)
     monkeypatch.setattr(config, "_roles_by_custom_id", {"role_member": stored})
@@ -112,7 +129,7 @@ class TestGetMemberRole:
     async def test_a_configured_role_the_guild_no_longer_has_is_reported_without_awaiting_it(
         self, world: Guild
     ) -> None:
-        """Discord's 3 second acknowledgement deadline must not wait on the admin channel."""
+        """The presser's reply must not wait on the admin channel."""
         world.roles.clear()
 
         assert roles.get_member_role(GUILD, USER, "role_member") == (None, None)
@@ -123,6 +140,48 @@ class TestGetMemberRole:
         ((text, key),) = world.notified
         assert "'member'" in text and f"role id {ROLE}" in text
         assert key == "discord-role-missing:member"
+
+    @pytest.mark.parametrize(
+        ("unmanageable", "reason"),
+        [
+            (
+                lambda w: setattr(w.me.guild_permissions, "manage_roles", False),
+                "the bot lacks the Manage Roles permission",
+            ),
+            (
+                lambda w: setattr(w.role, "managed", True),
+                "it is @everyone or managed by an integration",
+            ),
+            (
+                lambda w: w.role.is_default.configure_mock(return_value=True),
+                "it is @everyone or managed by an integration",
+            ),
+            (
+                lambda w: w.role.__ge__.configure_mock(return_value=True),
+                "it is at or above the bot's top role",
+            ),
+        ],
+    )
+    async def test_a_role_the_bot_cannot_manage_is_nothing_and_says_why(
+        self, world: Guild, unmanageable: Any, reason: str
+    ) -> None:
+        unmanageable(world)
+
+        assert roles.get_member_role(GUILD, USER, "role_member") == (None, None)
+
+        (pending,) = world.fired
+        await pending
+        ((text, key),) = world.notified
+        assert "'member'" in text and f"role id {ROLE}" in text and reason in text
+        assert key == f"discord-role-unmanageable:member:{reason}"
+
+    def test_the_hierarchy_is_judged_against_the_bots_top_role(
+        self, world: Guild
+    ) -> None:
+        roles.get_member_role(GUILD, USER, "role_member")
+
+        world.role.__ge__.assert_called_once_with(world.me.top_role)
+        assert world.fired == []
 
 
 class TestToggleRole:
@@ -151,18 +210,57 @@ class TestToggleRole:
         world.member.add_roles.assert_not_awaited()
         world.member.remove_roles.assert_not_awaited()
 
-    async def test_a_refused_grant_propagates_so_the_button_is_not_told_it_worked(
-        self, world: Guild
+    @pytest.mark.parametrize("holds", [False, True])
+    async def test_a_refused_change_is_none_and_reported_without_awaiting_it(
+        self, world: Guild, holds: bool
     ) -> None:
-        world.member.add_roles.side_effect = discord.Forbidden(
+        world.holds = holds
+        refused = discord.Forbidden(
             MagicMock(status=403, reason="x"), "Missing Permissions"
         )
+        world.member.add_roles.side_effect = refused
+        world.member.remove_roles.side_effect = refused
 
-        with pytest.raises(discord.Forbidden):
-            await roles.toggle_role(GUILD, USER, "role_member")
+        assert await roles.toggle_role(GUILD, USER, "role_member") is None
+
+        (pending,) = world.fired
+        assert world.reported == []
+        await pending
+        assert world.reported == [(refused, f"Failed to toggle role id {ROLE}")]
+
+    async def test_any_other_api_failure_is_caught_the_same_way(
+        self, world: Guild
+    ) -> None:
+        gone = discord.NotFound(MagicMock(status=404, reason="x"), "Unknown Member")
+        world.member.add_roles.side_effect = gone
+
+        assert await roles.toggle_role(GUILD, USER, "role_member") is None
+
+        (pending,) = world.fired
+        await pending
+        assert world.reported == [(gone, f"Failed to toggle role id {ROLE}")]
 
 
 class TestRolesButtonPressed:
+    async def test_defers_privately_before_changing_the_role(
+        self, world: Guild
+    ) -> None:
+        """The role change is an API call, and Discord fails an unanswered press after 3s."""
+        deferred_first: list[bool] = []
+        world.member.add_roles.side_effect = lambda role: deferred_first.append(
+            world.deferred == [(True, True)]
+        )
+
+        await roles.roles_button_pressed(world.interaction(), button("role_member"))
+
+        assert deferred_first == [True]
+
+    async def test_defers_even_when_nothing_can_be_resolved(self, world: Guild) -> None:
+        await roles.roles_button_pressed(world.interaction(), button(None))
+
+        assert world.deferred == [(True, True)]
+        assert world.sent == [("cannot", True)]
+
     async def test_tells_the_presser_privately_the_role_was_added(
         self, world: Guild
     ) -> None:
@@ -183,6 +281,19 @@ class TestRolesButtonPressed:
         await roles.roles_button_pressed(world.interaction(), button("role_other"))
 
         assert world.sent == [("cannot", True)]
+
+    async def test_a_refused_change_is_the_generic_error_privately(
+        self, world: Guild
+    ) -> None:
+        world.member.add_roles.side_effect = discord.Forbidden(
+            MagicMock(status=403, reason="x"), "Missing Permissions"
+        )
+
+        await roles.roles_button_pressed(world.interaction(), button("role_member"))
+
+        assert world.sent == [("cannot", True)]
+        (pending,) = world.fired
+        await pending
 
     async def test_a_button_with_no_custom_id_is_the_same_answer_and_toggles_nothing(
         self, world: Guild
