@@ -39,16 +39,21 @@ class Guild:
         self.fired: list[Coroutine[Any, Any, None]] = []
         self.notified: list[tuple[str, str | None]] = []
         self.reported: list[tuple[Exception, str]] = []
+        self.deferred: list[tuple[bool, bool]] = []
         self.sent: list[tuple[str, bool]] = []
 
     def interaction(self, guild_id: int | None = GUILD) -> Any:
-        async def send_message(text: str, *, ephemeral: bool) -> None:
+        async def defer(*, ephemeral: bool, thinking: bool) -> None:
+            self.deferred.append((ephemeral, thinking))
+
+        async def send(text: str, *, ephemeral: bool) -> None:
             self.sent.append((text, ephemeral))
 
         return SimpleNamespace(
             guild_id=guild_id,
             user=SimpleNamespace(id=USER),
-            response=SimpleNamespace(send_message=send_message),
+            response=SimpleNamespace(defer=defer),
+            followup=SimpleNamespace(send=send),
         )
 
 
@@ -124,7 +129,7 @@ class TestGetMemberRole:
     async def test_a_configured_role_the_guild_no_longer_has_is_reported_without_awaiting_it(
         self, world: Guild
     ) -> None:
-        """Discord's 3 second acknowledgement deadline must not wait on the admin channel."""
+        """The presser's reply must not wait on the admin channel."""
         world.roles.clear()
 
         assert roles.get_member_role(GUILD, USER, "role_member") == (None, None)
@@ -237,6 +242,25 @@ class TestToggleRole:
 
 
 class TestRolesButtonPressed:
+    async def test_defers_privately_before_changing_the_role(
+        self, world: Guild
+    ) -> None:
+        """The role change is an API call, and Discord fails an unanswered press after 3s."""
+        deferred_first: list[bool] = []
+        world.member.add_roles.side_effect = lambda role: deferred_first.append(
+            world.deferred == [(True, True)]
+        )
+
+        await roles.roles_button_pressed(world.interaction(), button("role_member"))
+
+        assert deferred_first == [True]
+
+    async def test_defers_even_when_nothing_can_be_resolved(self, world: Guild) -> None:
+        await roles.roles_button_pressed(world.interaction(), button(None))
+
+        assert world.deferred == [(True, True)]
+        assert world.sent == [("cannot", True)]
+
     async def test_tells_the_presser_privately_the_role_was_added(
         self, world: Guild
     ) -> None:

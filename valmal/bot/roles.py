@@ -41,8 +41,7 @@ def get_member_role(
     if not role:
         # Configured but gone from the guild -- worth a notice, unlike a member
         # who simply isn't there, which is silent below. Fired rather than
-        # awaited: this runs before the interaction has been answered, and
-        # Discord's ~3s ACK deadline must not wait on an admin-channel send.
+        # awaited, so the presser's reply does not wait on an admin-channel send.
         fire_and_forget(
             notify(
                 f"discord_role {stored.key!r} points at role id"
@@ -83,7 +82,7 @@ async def toggle_role(
         await member.remove_roles(role)
         return False, role
     except discord.HTTPException as e:
-        # Fired for the same ACK deadline as the notices above.
+        # Fired for the same reason as the notices above.
         fire_and_forget(
             report(e, f"Failed to toggle role id {role.id}"),
             name="report",
@@ -92,6 +91,9 @@ async def toggle_role(
 
 
 async def roles_button_pressed(interaction: Interaction, button: Button) -> None:
+    # Before the role change, which is an API call of its own: an interaction
+    # left unanswered for about three seconds fails for the presser.
+    await interaction.response.defer(ephemeral=True, thinking=True)
     guild_id = interaction.guild_id
     custom_id = button.custom_id
 
@@ -103,14 +105,14 @@ async def roles_button_pressed(interaction: Interaction, button: Button) -> None
         else None
     )
     if res is None:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             config.template("discord_role_error"),
             ephemeral=True,
         )
         return
 
     added, role = res
-    await interaction.response.send_message(
+    await interaction.followup.send(
         config.template(
             "discord_role_added" if added else "discord_role_removed",
             role=role.mention,
