@@ -8,7 +8,21 @@ Discord and Twitch bot. Configuration and runtime records live in Postgres; see
 Everything below stays on your machine: a Postgres container, the test Discord
 bot, and no public tunnel.
 
-**1. Start the database.**
+**1. Point `.env` at a local database and at the test bot.**
+
+```sh
+POSTGRES_PASSWORD=<any password of your own>
+DATABASE_URL=postgresql://valmal:<the same password>@localhost:5432/valmal
+USE_TEST_BOT=1
+APP_URL=http://localhost:8000
+```
+
+`compose.yaml` reads `POSTGRES_PASSWORD` from `.env`, so no password is committed.
+
+`USE_TEST_BOT=1` makes the bot log in with `TEST_DISCORD_TOKEN`. Without it the
+real bot logs in, which is rarely what you want against a local database.
+
+**2. Start the database.**
 
 ```sh
 docker compose up -d
@@ -16,17 +30,6 @@ docker compose up -d
 
 Postgres listens on `localhost:5432`. If that port is taken, change the host
 side of the mapping in `compose.yaml` and match it in `DATABASE_URL`.
-
-**2. Point `.env` at it and at the test bot.**
-
-```sh
-DATABASE_URL=postgresql://valmal:valmal@localhost:5432/valmal
-USE_TEST_BOT=1
-APP_URL=http://localhost:8000
-```
-
-`USE_TEST_BOT=1` makes the bot log in with `TEST_DISCORD_TOKEN`. Without it the
-real bot logs in, which is rarely what you want against a local database.
 
 **3. Create the schema and fill it.**
 
