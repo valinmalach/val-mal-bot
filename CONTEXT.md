@@ -42,7 +42,7 @@ _Avoid_: id, fingerprint, hash
 ### Twitch API
 
 **Helix call**:
-A request to Twitch's API, made only through `services/twitch/helix.py`. Its
+A request to Twitch's API, made only through `valmal/twitch/client/helix.py`. Its
 answer is the value or `None` when Twitch has none; a call that did not complete
 raises instead, so "absent" and "unknown" are never the same answer.
 _Avoid_: Twitch API call, twitch request
@@ -55,7 +55,7 @@ _Avoid_: idempotent, safe, retryable
 
 **Chat line**:
 One message the bot says in Twitch chat, sent only through
-`services/twitch/chat.py`. Saying it never raises and never fails a caller: a
+`valmal/twitch/client/chat.py`. Saying it never raises and never fails a caller: a
 line Twitch refused is a **notice**, not the end of whatever was saying it.
 _Avoid_: chat message, chat post
 
@@ -153,13 +153,13 @@ _Avoid_: missed birthday, overdue, expired
 
 **Audit channel**:
 The Discord channel holding the **audit entries**, resolved by the slug
-`audit_logs`. Written only by `services/audit.py`. Not the **admin channel**:
+`audit_logs`. Written only by `valmal/bot/audit.py`. Not the **admin channel**:
 this one records what people did, that one records what the bot could not do.
 _Avoid_: mod log, staff channel, audit_logs (in prose)
 
 **Audit entry**:
 One recorded thing in the **audit channel**, written by one call to
-`services/audit.py`. An entry is not an embed — a deleted message that carried
+`valmal/bot/audit.py`. An entry is not an embed — a deleted message that carried
 attachments is one entry and several embeds — and callers never learn which.
 _Avoid_: log line, audit message, event log
 
@@ -171,7 +171,7 @@ _Avoid_: user header, byline
 **Caption author**:
 An **audit entry**'s author line naming the event instead of a person, used
 where no one person is its subject — a member joining, a ban, an invite. The
-distinction is internal; nothing outside `services/audit.py` chooses between
+distinction is internal; nothing outside `valmal/bot/audit.py` chooses between
 them.
 _Avoid_: title, header, label
 
@@ -211,8 +211,8 @@ long ago an account was created, how long a stream has been live. A **stored
 birthday** carries no birth year, so the bot cannot know anyone's age and never
 says one.
 
-**Two functions named `_create_offline_embed`** existed, in `controller/twitch.py`
-and `services/twitch/api.py`. Resolved in language ahead of the code: closing is
+**Two functions named `_create_offline_embed`** existed, in `valmal/twitch/eventsub/router.py`
+and `valmal/twitch/client/api.py`. Resolved in language ahead of the code: closing is
 the **alert updater**'s job alone, so there is one closer and one offline embed.
 The webhook cannot identify which stream ended — Twitch's `stream.offline`
 payload carries no stream id — so it can only wake the updater, which re-checks

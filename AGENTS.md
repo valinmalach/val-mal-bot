@@ -59,8 +59,8 @@ for this repo, disable it by id in `.sourcery.yaml` with the reason, so the next
 run does not re-raise it.
 
 `.sourcery.yaml` carries four custom rules for conventions the other tools cannot
-see: a bare `create_task`, the audit channel outside `services/audit.py`, a chat
-send outside `services/twitch/chat.py`, and `str.format` on database text. Each
+see: a bare `create_task`, the audit channel outside `valmal/bot/audit.py`, a chat
+send outside `valmal/twitch/client/chat.py`, and `str.format` on database text. Each
 excludes the one file that legitimately does the thing, and those exclusions are
 relative to the config file — moving it breaks them silently. The Google style
 set (`sourcery review --enable gpsg .`) is deliberately not enabled: 232 of its
@@ -73,13 +73,13 @@ and without a `def f[T]`) return no pattern-rule findings at all for a file cont
 `def f[T]`, `class C[T]` or `type X = ...` — no parse error, no warning, and a clean
 report that reads exactly like a clean file. Worse, on 1.45 it is partial: structural rules such
 as `no-long-functions` still fire, so the output looks normal while every custom
-rule above has stopped guarding that file. `controller/twitch.py` and
-`services/twitch/helix.py` are in this state today, because `_route[E: BaseModel]` and
+rule above has stopped guarding that file. `valmal/twitch/eventsub/router.py` and
+`valmal/twitch/client/helix.py` are in this state today, because `_route[E: BaseModel]` and
 `fetch[T: BaseModel]` are worth more than the coverage; nothing else should join them
 without knowing the trade. `has_configured_role` uses a module-level
 `TypeVar` for exactly this reason — it needs the annotation and the coverage both.
 
-Migrations — see `db/README.md` for the rules:
+Migrations — see `valmal/db/README.md` for the rules:
 
 ```sh
 uv run alembic revision --autogenerate -m "..."    # diff the models against the database
@@ -98,19 +98,21 @@ or Postgres, so a real database round trip and a real gateway session are untest
 Helix and OAuth go through `httpx.MockTransport`, the FastAPI apps through
 `httpx.ASGITransport`, repository statements are compiled with the Postgres dialect and
 asserted, and `tests/test_migrations.py` renders every revision offline in a subprocess
-to check the chain, the rules in `db/README.md`, the schema against the models, and that
+to check the chain, the rules in `valmal/db/README.md`, the schema against the models, and that
 every configuration key the code reads is seeded. Do not describe a change as tested
 unless a test exercises it, and a bug a test finds is fixed with a regression test that
 fails without the fix.
 
-`tests/` has a directory per area with its own `conftest.py` for fixtures and
-`support.py` for fakes, imported as `tests.<area>.support` — which is why Sourcery's
+`tests/` mirrors `valmal/`, and an area with fixtures or fakes of its own has a
+`conftest.py` and a `support.py`, imported by path as `tests.twitch.stream.live_alert.support`
+— which is why Sourcery's
 `dont-import-test-modules` is disabled by id in `.sourcery.yaml`. Keep a test file under
 400 lines, which is Verity's `file_length` signal; past about 470 a review also drops the
 middle of a file and says it is unchecked. `tests/conftest.py` fills the environment
-`config.settings` validates at import, so it must run before a test module imports
-anything that reaches `config`. Anything that walks the repo (the seeded-key scan, the
-coverage `omit` list) skips `.claude/`, where agent worktrees hold whole copies of it.
+`valmal.core.settings` validates at import, so it must run before a test module imports
+anything that reaches `settings`. Anything that walks the repo (the seeded-key scan) skips `.claude/`, where agent worktrees
+hold whole copies of it; coverage names the `valmal` package and `main` instead of walking the
+tree, so those copies, `.verity/` and `.codacy/` never count.
 Async tests carry `pytestmark = pytest.mark.anyio` and share one event loop for the
 whole session, held open by the `_one_event_loop` fixture in `tests/conftest.py`; a loop
 per test cost a socket pair each on Windows, and about one full run in twelve blocked
@@ -168,17 +170,41 @@ switched off under the plugin (`VERITY.md` has the detail). Its rules, and the n
 covers the setup. Run it by hand with `verity analyze`. Everything Verity generates
 is gitignored, so a fresh clone has none of it — `VERITY.md` has the restore steps.
 
+## Layout
+
+Everything importable lives in one package, `valmal/`, so the repository root holds
+`main.py` and configuration and nothing else. A directory names one concern and holds
+everything for it, rather than one directory per kind of file:
+
+- `valmal/core/` — plumbing the rest leans on: `settings` (the `.env`), `config` (the
+  database-backed configuration) and the `safe_format` it renders with, `errors`,
+  `background`, `logging_json` and `http_client`.
+- `valmal/db/` — Postgres: `models/` (the tables), `session` and `repository`.
+  Alembic's revisions are `migrations/`, at the root.
+- `valmal/bot/` — Discord: `client` (the bot and its gateway handlers), `cogs/`, `views`,
+  and what says something in a channel: `audit`, `send`, `present`, `roles`,
+  `birthday` and `duration`.
+- `valmal/twitch/` — Twitch: `models/` (Pydantic payloads), `client/` (Helix, chat and subscription health),
+  `oauth/` (the grant flow, its routes and the stored tokens), `eventsub/` (the signed
+  webhook route, its replay protection, what each event makes the bot do, chat
+  commands, and repointing subscriptions) and `stream/` (what a live stream means:
+  the Discord alert, the session and the shoutouts).
+
+`bot` and `twitch` lean on each other — the cogs call Twitch, and Twitch says things
+through `bot.send` — and the deferred imports under Conventions are what keep that
+from being a cycle at import time. `tests/` mirrors this tree.
+
 ## Architecture
 
 **One process wearing two faces.** `main.py` is a FastAPI app, and the Discord bot
 is not the entrypoint: the lifespan handler starts `main()` as a background task,
-which loads `constants.COGS` and calls `bot.start()`. Twitch never connects to the
-bot — it delivers EventSub webhooks over HTTP to the router in `controller/twitch.py`,
-which verifies and parses them and hands each to `services/twitch/events.py`.
+which loads `COGS` (`valmal/bot/cogs/__init__.py`) and calls `bot.start()`. Twitch never connects to the
+bot — it delivers EventSub webhooks over HTTP to the router in `valmal/twitch/eventsub/router.py`,
+which verifies and parses them and hands each to `valmal/twitch/eventsub/events.py`.
 Stop the web server and the bot goes with it.
 
 **Startup order is spread across three files.** lifespan (`main.py`) → cog loading →
-`MyBot.setup_hook()` (`init/bot_init.py`: `config.load()`, `token_manager.load()`,
+`MyBot.setup_hook()` (`valmal/bot/client.py`: `config.load()`, `token_manager.load()`,
 the shoutout drainer, command prefix, guild command-tree sync, persistent view
 registration, `check_birthdays`/`recheck_subscriptions` started on the `Tasks`
 cog behind their own `before_loop` wait for `bot.wait_until_ready()`) →
@@ -200,11 +226,11 @@ whether the startup notice has been *delivered*, which a failed send is
 likewise worth retrying on the next reconnect. Anything wanted once per
 process belongs in `setup_hook` for that reason.
 
-**A gateway listener has one floor.** `on_error` (`init/bot_init.py`, a function on
+**A gateway listener has one floor.** `on_error` (`valmal/bot/client.py`, a function on
 the `bot` instance via `@bot.event`, matching `on_ready` — not a method on `MyBot`)
 is what discord.py calls when a dispatched listener — cog listeners included —
 raises past it, handing over the event name it was dispatched as. Every listener in
-`cogs/events.py` used to wrap its own body in `except Exception: await report(e,
+`valmal/bot/cogs/events.py` used to wrap its own body in `except Exception: await report(e,
 "Fatal error with on_X event")` for exactly that; `on_error` does it once, from
 `sys.exc_info()`, and a new listener needs no boilerplate to be covered. A listener
 that needs to report more than its own name keeps its own `try`/`except` and says
@@ -215,12 +241,12 @@ a `discord.ui.View`/button callback that raises reaches `View.on_error` instead,
 which is unrelated and still just logs — not covered here, and not something
 issue #24 touched.
 
-**Two configuration sources, one hard line.** `.env` → `config.settings` answers *how
+**Two configuration sources, one hard line.** `.env` → `valmal/core/settings.py` answers *how
 this instance authenticates and where it runs*, validated once at import and failing
-with the raw values redacted. Postgres → `ConfigCache` in `services/config.py` answers
+with the raw values redacted. Postgres → `ConfigCache` in `valmal/core/config.py` answers
 *what the bot does*, snapshotted once in `setup_hook()`. `config.load()` has that one
 call site and nothing else calls it again, so a database edit takes effect on the next
-restart, not before. `db/README.md` records which side each value falls on and why;
+restart, not before. `valmal/db/README.md` records which side each value falls on and why;
 keep new values on the right side of that line.
 
 **IDs are addressed by slug, never by value.** Resolve at call time —
@@ -230,11 +256,11 @@ snowflake in code or hold one across calls, so an ID can change in the database
 without a redeploy.
 
 **Changing configuration means writing a migration, not editing a file.** The rows
-live in revisions. `db/README.md` has the three rules that matter — never import the
+live in revisions. `valmal/db/README.md` has the three rules that matter — never import the
 models or read a data file from a revision, make inserts tolerate a conflict, and
 guard an UPDATE with the value it replaces — read it before touching `migrations/`.
 
-**Nothing connects at import time.** `db/session.py` builds the engine lazily, so
+**Nothing connects at import time.** `valmal/db/session.py` builds the engine lazily, so
 importing any module is safe without a reachable `DATABASE_URL`.
 
 **Twitch user grants start in Discord.** The owner-only `/twitch-auth` command
@@ -244,15 +270,14 @@ flows. Both request `twitch_app_scopes`; the callbacks validate the returned
 Twitch user ID, client ID and scopes before upserting `oauth_token`. The `app`
 row is separate, uses client credentials and has no refresh token.
 
-**Three files, three jobs.** `controller/twitch.py` is over Verity's 400-line
-`file_length` signal (421) and has been since before this was written; splitting it
-again is worth doing but is a separate change from whatever else brought you here.
-`controller/twitch.py` receives a signed notification, verifies it, parses it and
-hands it on. `services/twitch/events.py` says what each event makes the bot do —
-it lives under `services/` because it names no HTTP type at all, and nothing
-under `services/` imports `controller/`. `controller/twitch_oauth.py` carries the
-two authorization-code flows on their own router; it shares nothing with the
-webhook controller, not the signature check, the models, or the path prefix.
+**Three files, three jobs.** `valmal/twitch/eventsub/router.py` receives a signed
+notification, verifies it, parses it and hands it on; whether a delivery is fresh and
+has not been handled already is `valmal/twitch/eventsub/replay.py`, which the router
+composes. `valmal/twitch/eventsub/events.py` says what each event makes the bot do —
+it is a module of its own because it names no HTTP type at all, and only `main.py` and
+the admin cog import a router. `valmal/twitch/oauth/router.py` carries the two
+authorization-code flows on their own router; it shares nothing with the webhook
+router, not the signature check, the models, or the path prefix.
 
 **A webhook route's model says which event it serves.** Each `*Subscription`
 declares its own `type` as a `Literal`, so a payload for the wrong event fails to
@@ -310,14 +335,14 @@ startup check notices an undeliverable subscription; the command is what repairs
 **The migration works off the live list, never a fixed one.** There are eight
 *types* but `6 + 2N` *subscriptions* — `stream.online`/`stream.offline` exist once
 per subscribed broadcaster, and nothing here knows what N is, because that list
-lives only in Twitch. `services/twitch/migrate.py` therefore starts from
+lives only in Twitch. `valmal/twitch/eventsub/migrate.py` therefore starts from
 `get_subscriptions()`; a migration seeded from a list written in this repo would
 silently leave every promo broadcaster behind.
 
 **The rule, the `Outcome` shape and the rendering of either live apart from the
-I/O.** `services/twitch/migrate_plan.py` holds `Action`, `decide`, `Outcome`,
+I/O.** `valmal/twitch/eventsub/migrate_plan.py` holds `Action`, `decide`, `Outcome`,
 `condition_of` and everything that renders one (`describe`, `render_dump`,
-`summary`) — nothing in it touches Helix or Discord. `services/twitch/migrate.py`
+`summary`) — nothing in it touches Helix or Discord. `valmal/twitch/eventsub/migrate.py`
 keeps `_logins`, `_exists_at`, `_repoint`, `migrate` and `_confirming`, and
 imports the plan, never the other way — the same one-way split as
 `live_alert.py`/`live_alert_cycle.py`: the loop reads a conclusion rather than
@@ -361,7 +386,7 @@ that no longer means what the check above assumes. A plain module flag rather th
 an `asyncio.Lock`, because what is wanted is refusal and a lock queues — and a run
 that waits and then finds nothing to do looks exactly like one that was not needed.
 Taken with no await between the check and the set, for the reason
-`controller/twitch.py`'s `_claim` is one step. A dry run is not guarded: it changes
+`valmal/twitch/eventsub/replay.py`'s `claim` is one step. A dry run is not guarded: it changes
 nothing.
 
 Twitch's uniqueness key is the type and the condition **alone, not the transport**,
@@ -398,10 +423,10 @@ against `""` and not tested for falsity, so a `0` or `False` Twitch chose to sen
 in an undeclared key survives. **Do not make this round-trip faithful again.**
 
 **`WEBHOOK_PATHS` is derived from the `_route` table, not written beside it.**
-`controller/twitch.py` builds it as the routes register, reading each type off the
+`valmal/twitch/eventsub/router.py` builds it as the routes register, reading each type off the
 `Literal` its model already declares — a ninth list of the eight types is one more
 thing to keep in step by hand. It is passed *into* `migrate`, never imported by it,
-because nothing under `services/` may import `controller/`; `cogs/twitch_admin.py`
+because nothing under `valmal/twitch/` imports a router; `valmal/bot/cogs/twitch_admin.py`
 may, and is what hands it over.
 
 **A live alert is closed by its updater, never by a webhook.** `stream.offline`
@@ -422,7 +447,7 @@ an `Action`, which is why the split holds: the loop reads a conclusion rather
 than watching the I/O that reached it.
 
 **An autoshoutout is one per person per stream, and the session remembers who.**
-`services/twitch/autoshoutout.py` owns the list, the rule and the four places
+`valmal/twitch/stream/autoshoutout.py` owns the list, the rule and the four places
 someone can turn up. The rule is `_decide` and is pure, like
 `live_alert_cycle._decide`; the lookup is *inside* it, as `LOOK_UP`, because
 the cost guarantee — one query per distinct chatter per stream — is the rule
@@ -465,19 +490,19 @@ startup path could never have been `began`. Beginning is not the opposite of
 ending — it resets whatever a previous session left, which is also how a session
 nothing could end recovers at the next `stream.online`.
 
-**A subject per file, and no file holding six.** `services/helper/helper.py` used
-to hold sending, presentation, durations, birthdays, roles and webhook
-signatures. They are now `send.py`, `present.py`, `duration.py`, `birthday.py`,
-`roles.py` and `services/twitch/signature.py` — the last where it belongs, since
-none of it was ever about Discord. The `helper/` package went with them: it was
-left holding one module, and a directory is not a subject.
+**A subject per file, and no file holding six.** A `helper/helper.py` once held
+sending, presentation, durations, birthdays, roles and webhook signatures; they are
+now `send.py`, `present.py`, `duration.py`, `birthday.py`, `roles.py` (all in
+`valmal/bot/`) and `valmal/twitch/eventsub/signature.py` — the last where it belongs,
+since none of it was ever about Discord. A directory is a concern, not a place to
+put whatever is left: it is the same reason `constants.py`, which held three domains'
+values in one file, is gone, and each value sits with the code that uses it.
 
-**A name is imported from the module that owns it.** `services/__init__.py` and
-`db/__init__.py` re-exported everything beneath them, which is what let the
-split above land without touching a consumer — a migration convenience, and it
-outlived the migration. Both are docstrings now, so `from services import
-send_embed` is `from services.send import send_embed` and a reader lands on the
-file that defines it. `db/models/__init__.py` still re-exports, because
+**A name is imported from the module that owns it.** No package `__init__` re-exports
+what is beneath it, so `from valmal.bot.send import send_embed` lands a reader on the
+file that defines it, and there is no `controller/__init__` or `init/__init__` handing
+on a name from somewhere else. The package `__init__` files are docstrings that say
+what the directory is for. `valmal/db/models/__init__.py` is the exception, because
 importing it is what registers the tables on the metadata Alembic reads.
 
 **Escaping depends on where the text lands, not on whether it is untrusted.**
@@ -499,13 +524,13 @@ asks: it used to call `ended()`, which made the session depend on an alert row
 existing, and three ways of ending an updater never reached that call.
 `docs/adr/0004-the-stream-session-ends-itself.md` has the why.
 
-**Every Twitch chat line goes through `services/twitch/chat.py`.** `say` and
+**Every Twitch chat line goes through `valmal/twitch/client/chat.py`.** `say` and
 `say_template` report their own failure and never raise, so a line Twitch refused
 cannot fail whatever was saying it. `api.send_chat_message` is not re-exported
-from `services` — three separate rounds of guarding chat sends each missed a
+anywhere — three separate rounds of guarding chat sends each missed a
 different call site, so the guard moved to the one place they all pass through.
 
-**Every Helix call goes through `services/twitch/helix.py`.** It owns the token
+**Every Helix call goes through `valmal/twitch/client/helix.py`.** It owns the token
 choice, the pre-emptive refresh, the one 401 re-send, retry, status checking and
 parsing, and it raises `HelixError` rather than reporting — whoever catches has
 the context worth reporting. `api.py` holds the endpoints on top of it: `None`
@@ -515,7 +540,7 @@ call site; `docs/adr/0002-helix-posts-are-not-retried.md` says why POSTs do not.
 **A stored birthday is the next occurrence, not a date of birth.** One rule
 answers when that is: `next_birthday_on` from the parts when it is being set,
 `next_birthday` from the instant when it is being rolled forward, both in
-`services/birthday.py`. Two implementations of it disagreed once and
+`valmal/bot/birthday.py`. Two implementations of it disagreed once and
 `/birthday set` wrote dates that had already passed, which is why the second now
 asks the first: it reads the local date back off the instant using
 `birthday_timezone` and hands it over as parts. Only a row written before that
@@ -531,8 +556,9 @@ are written together by `upsert_user`, since they describe one birthday.
 `docs/adr/0003-birthday-holds-the-next-occurrence.md` records why the column
 holds an instant.
 
-**Two model packages with confusable names.** `models/` is Pydantic: Twitch API
-responses and EventSub payloads. `db/models/` is SQLModel: the tables.
+**Two model packages, both called `models`.** `valmal/twitch/models/` is Pydantic:
+Twitch API responses and EventSub payloads. `valmal/db/models/` is SQLModel: the
+tables. Each sits under the concern it belongs to, so the path says which is which.
 
 ## Conventions
 
@@ -542,19 +568,20 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   running, which is the last catch in the process — and the report is keyed on the
   task's name, so an unnamed task would report under a new name every time.
   A `@tasks.loop` cog task does not need it for the reference: discord.py keeps
-  the task on the `Loop`, which the cog keeps, and names it. `cogs/tasks.py` is
+  the task on the `Loop`, which the cog keeps, and names it. `valmal/bot/cogs/tasks.py` is
   the example; reviewers read it as a bypass about once a round. It does still
   need its own reporting — a `Loop` that dies only logs — so wrap the body in a
   `try` that calls `report`, as `check_birthdays` does.
 - **Deferred imports inside functions** are load-order management, not style:
-  `init/bot_init.py` and `views/` import services lazily to break cycles. Leave them.
+  `valmal/bot/client.py` and `valmal/bot/views.py` import their collaborators lazily to
+  break cycles. Leave them.
 - **`token_manager` and `shoutout_queue` are singletons** (`__new__`). Import the
   instance; do not construct another.
-- **Everything in the audit channel goes through `services/audit.py`.** One entry
+- **Everything in the audit channel goes through `valmal/bot/audit.py`.** One entry
   point per thing worth recording, each named for the event and taking the domain
   objects it happened to; the module settles the colour, the author line, how many
   embeds it takes and which channel it lands in. Nothing else may resolve
-  `config.channel("audit_logs")`. It touches no database: `cogs/events.py` gathers
+  `config.channel("audit_logs")`. It touches no database: `valmal/bot/cogs/events.py` gathers
   the facts, including reading back a message the gateway cache has dropped, and
   passes them in. The welcome and goodbye embeds are deliberately not entries —
   they go to `welcome`, and they are announcements to members rather than a record
@@ -562,7 +589,7 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 - **An audit entry's sentences are `message_template` rows; what fills them is
   code.** The sentences of the description, and a caption author that names the
   event, are `audit_*` templates, so they change by migration like the rest of the
-  configuration. Everything else stays in `services/audit.py`: field labels,
+  configuration. Everything else stays in `valmal/bot/audit.py`: field labels,
   footers, a description that is only values (a mention and a name) and so has no
   sentence in it, and the values a template is filled with — names, mentions,
   times, a guild's name as a caption, and the marker for a value that is absent
@@ -587,7 +614,7 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   front of whoever reads the audit log. An **author line** and a **footer** are
   plain text to Discord and are deliberately left alone, which is why a name is
   escaped in one place on an entry and not the other.
-- **Everything the bot says about itself goes through `errors.py`.** `report(exc,
+- **Everything the bot says about itself goes through `valmal/core/errors.py`.** `report(exc,
   context)` for an exception, `notify(text)` for anything else worth the admin
   channel, `notify_soon(text)` for synchronous renderers that cannot
   await, `notify_file(text, filename, content)` for a notice carrying a record
@@ -602,7 +629,7 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
 - **A path that degrades or gives up says so in the admin channel.** Catching a
   `HelixError` to carry on without an avatar is fine; catching it into
   `logger.warning` alone is not. The logs are not watched and the Discord server
-  is. Volume is not a reason to stay quiet: `errors.py` holds back a repeat of
+  is. Volume is not a reason to stay quiet: `valmal/core/errors.py` holds back a repeat of
   something it already delivered for fifteen minutes and says how many it stood
   in for, so the first of anything always lands and an outage still costs a
   handful of messages. Pass an explicit `key=` wherever the text carries a detail
@@ -618,7 +645,7 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   themselves.** `config.template()`, `config.embed()` and `config.auto_response()`
   return it already rendered, and `embed()` returns a `RenderedEmbed`, not the table
   rows, so a caller cannot send an unresolved placeholder by forgetting a step — it
-  has no raw text to send. Nothing outside `services/config.py` calls `render`; a
+  has no raw text to send. Nothing outside `valmal/core/config.py` calls `render`; a
   new accessor over stored text must render before it returns, as these do. An
   auto-response goes out with `AllowedMentions.none()`, because anyone can trigger
   one and a rendered `{role:key}` in a message would otherwise ping the role.
@@ -638,15 +665,15 @@ responses and EventSub payloads. `db/models/` is SQLModel: the tables.
   `logging.basicConfig` a second time, install a further handler, or `print`/
   write to stdout or stderr directly — any of those is a line Railway
   mis-levels by the stream it came in on.
-- **A new cog needs an entry in `constants.COGS`.** Nothing auto-discovers.
+- **A new cog needs an entry in `COGS` (`valmal/bot/cogs/__init__.py`).** Nothing auto-discovers.
 - **Comments record a non-obvious *why*, or do not exist.** Match the density in
-  `db/base.py` and `db/config.py`; do not narrate what the code already says.
+  `valmal/db/base.py` and `valmal/db/config.py`; do not narrate what the code already says.
 - **An admin-only command needs `app_commands.checks.has_permissions`, not just
   `default_permissions`.** The latter is a Discord UI default a server admin can
   reconfigure away — discord.py's own docs call it "only a hint" — so it enforces
   nothing at runtime. `has_permissions` raises `MissingPermissions` (and
   `has_configured_role` a plain `CheckFailure`), which `bot.tree.error`
-  (`init/bot_init.py`) answers ephemerally without reporting it as a bug, since a
+  (`valmal/bot/client.py`) answers ephemerally without reporting it as a bug, since a
   refused check is the check working; `BotMissingPermissions` and a cooldown are
   the two `CheckFailure`s it does report. Skip it only
   where a command already carries a strictly stronger runtime identity check —

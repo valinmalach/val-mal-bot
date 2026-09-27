@@ -19,8 +19,7 @@ If either doesn't exist, **proceed silently**. Don't flag their absence; don't s
 ├── docs/adr/
 │   ├── 0001-postgres-for-configuration.md
 │   └── 0002-....md
-├── cogs/
-├── services/
+├── valmal/
 └── ...
 ```
 

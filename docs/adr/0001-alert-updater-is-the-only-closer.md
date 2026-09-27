@@ -13,8 +13,8 @@ updater, and closing lives in one place.
 - **The webhook closes, with the updater as a fallback** — what the code did.
   Fastest, and wrong in a way that is hard to see: end a stream and start
   another, and the offline for the first closes the second. It also left two
-  implementations of the offline embed, one in `controller/twitch.py` and one in
-  `services/twitch/api.py`, which could drift apart.
+  implementations of the offline embed, one in `valmal/twitch/eventsub/router.py` and one in
+  `valmal/twitch/client/api.py`, which could drift apart.
 - **Both call one guarded `close()`** — one implementation, two entry points.
   Fixes the drift but not the concurrency: webhook and updater can enter it at
   once, and the webhook still has no stream id to check against.

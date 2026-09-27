@@ -72,7 +72,7 @@ max-complexity = 15
 
 [tool.ruff.lint.per-file-ignores]
 # _demo is a runnable self-check, and its asserts are the point.
-"logging_json.py" = ["S101"]
+"valmal/core/logging_json.py" = ["S101"]
 # A test is an assert, and its credentials are made up.
 "tests/*" = ["S101", "S105", "S106"]
 
@@ -124,7 +124,7 @@ skips = ["*/logging_json.py", "*/tests/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# The modules live at the repo root, and nothing is installed as a package.
+# valmal/ and main.py live at the repo root, and nothing is installed as a package.
 pythonpath = ["."]
 # A misspelt marker is a test that silently runs unmarked.
 addopts = "--strict-markers"
@@ -147,26 +147,14 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["."]
+# Only the bot is measured: its package and its entrypoint. Tests measure themselves,
+# migrations are seeded configuration that runs against a database, and .verity,
+# .codacy and the agent worktrees under .claude are tooling, some of them whole
+# copies of the repo. Named as packages so the report keeps one source, the repo root.
+source_pkgs = ["valmal", "main"]
 branch = true
-# Migrations are seeded configuration and run against a database; the tests
-# themselves would only measure themselves. .verity holds generated copies of the
-# tests, which counted twice and were never run; .codacy is tooling, not the bot;
-# .claude holds agent worktrees, each a whole copy of the repo with its own .venv.
-omit = [
-    ".venv/*",
-    "**/.venv/**",
-    "tests/*",
-    "migrations/*",
-    ".verity/*",
-    ".codacy/*",
-    ".claude/**",
-]
 
 [tool.coverage.report]
-# cogs/ and services/twitch/ have no __init__.py, and without this an untested file
-# in them is left out of the total instead of counting as 0%.
-include_namespace_packages = true
 show_missing = true
 
 [dependency-groups]

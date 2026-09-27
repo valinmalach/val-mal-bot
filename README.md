@@ -1,7 +1,7 @@
 # Valin Malach Bot
 
 Discord and Twitch bot. Configuration and runtime records live in Postgres; see
-[db/README.md](db/README.md) for the schema and the migration status.
+[valmal/db/README.md](valmal/db/README.md) for the schema and the migration status.
 
 ## Running locally
 

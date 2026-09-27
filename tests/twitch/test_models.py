@@ -5,31 +5,35 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from models.auth.auth_response import (
-    AuthResponse,
-    RefreshResponse,
-    TokenValidationResponse,
-)
-from models.twitch_api_responses.pagination import Pagination
-from models.twitch_api_responses.stream import Stream, StreamType
-from models.twitch_api_responses.subscription import (
+from tests.twitch.support import stream_json, user_json, video_json
+from valmal.twitch.models.api.pagination import Pagination
+from valmal.twitch.models.api.stream import Stream, StreamType
+from valmal.twitch.models.api.subscription import (
     Subscription,
     SubscriptionCondition,
     SubscriptionResponse,
 )
-from models.twitch_api_responses.user import BroadcasterType, User, UserType
-from models.twitch_api_responses.video import Video, VideoType
-from models.twitch_event_subs.channel_ad_break_begin import ChannelAdBreakBeginEventSub
-from models.twitch_event_subs.channel_chat_message import ChannelChatMessageEventSub
-from models.twitch_event_subs.channel_follow import ChannelFollowEventSub
-from models.twitch_event_subs.channel_moderate import ChannelModerateEventSub
-from models.twitch_event_subs.channel_points_custom_reward_redemption_add import (
+from valmal.twitch.models.api.user import BroadcasterType, User, UserType
+from valmal.twitch.models.api.video import Video, VideoType
+from valmal.twitch.models.auth import (
+    AuthResponse,
+    RefreshResponse,
+    TokenValidationResponse,
+)
+from valmal.twitch.models.eventsub.channel_ad_break_begin import (
+    ChannelAdBreakBeginEventSub,
+)
+from valmal.twitch.models.eventsub.channel_chat_message import (
+    ChannelChatMessageEventSub,
+)
+from valmal.twitch.models.eventsub.channel_follow import ChannelFollowEventSub
+from valmal.twitch.models.eventsub.channel_moderate import ChannelModerateEventSub
+from valmal.twitch.models.eventsub.channel_points_custom_reward_redemption_add import (
     ChannelPointsCustomRewardRedemptionAddEventSub,
 )
-from models.twitch_event_subs.channel_raid import ChannelRaidEventSub
-from models.twitch_event_subs.stream_offline import StreamOfflineEventSub
-from models.twitch_event_subs.stream_online import StreamOnlineEventSub
-from tests.twitch.support import stream_json, user_json, video_json
+from valmal.twitch.models.eventsub.channel_raid import ChannelRaidEventSub
+from valmal.twitch.models.eventsub.stream_offline import StreamOfflineEventSub
+from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
 BROADCASTER = {
     "broadcaster_user_id": "1",

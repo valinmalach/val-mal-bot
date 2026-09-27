@@ -1,0 +1,295 @@
+"""Everything the bot says about itself, in one place.
+
+None of these raise. They run inside somebody's ``except`` block, where an
+escaping exception would replace the one being reported, and a lost report is
+worse than an ugly one.
+
+Every distinct failure reaches the admin channel at least once. Repeats of one
+already delivered are held back for ``_WINDOW_SECONDS`` and counted, and the
+next one through says how many it stood in for, so a sustained outage costs a
+few messages rather than one a minute. Suppression follows a delivery and only
+a delivery: a notice that did not land opens no window, so the first report of
+anything is never the one that goes missing. The windows live in memory, so a
+restart says everything again.
+"""
+
+import asyncio
+import io
+import logging
+import time
+import traceback
+from dataclasses import dataclass
+
+import discord
+
+logger = logging.getLogger(__name__)
+
+_ADMIN_CHANNEL = "bot_admin"
+
+# Discord rejects a message over 2000 characters, and a rejected report is a
+# lost one. A notice whose length follows how much went wrong reaches this: 97
+# undeliverable subscriptions is one line each, several times over the limit.
+_MAX_CONTENT = 1900
+
+# What replaces the lines that did not fit. Named so the reader knows the notice
+# was cut rather than that it ended there, which is what a bare slice looked like.
+_OVERFLOW_NOTE = "... the rest is attached."
+
+# The note itself, plus the newline that joins it to the last kept line. Two
+# call sites reserve this much room ahead of it: _shortened, against whatever
+# limit it is given, and _deliver, capping the outage prefix against the full
+# budget before _shortened's own arithmetic runs at all.
+_OVERFLOW_RESERVED = len(_OVERFLOW_NOTE) + 1
+
+# How long one delivered message stands in for its own repeats.
+_WINDOW_SECONDS = 15 * 60
+
+# Only reached if a key turns out to vary per event, which is the bug this
+# would otherwise hide as unbounded memory.
+_MAX_TRACKED = 512
+
+# Messages that reached nobody, counted across keys rather than per key. A
+# window only ever reports repeats of its own key, so when the channel itself is
+# unreachable every key fails and one that never fires again says nothing at all.
+# This is what the operator is owed on the way back: how much they did not see.
+_undelivered = 0
+
+# Every log line below carries text relayed from Twitch, Discord or the
+# database, so all of them use %r: it shows where a value carries whitespace
+# or quoting that a plain %s would hide.
+
+
+@dataclass
+class _Window:
+    until: float
+    suppressed: int
+
+
+_windows: dict[str, _Window] = {}
+
+
+def _prune(now: float) -> None:
+    for key in [k for k, w in _windows.items() if now - w.until > _WINDOW_SECONDS]:
+        del _windows[key]
+    # Down to one below the cap, because the caller is about to add one.
+    if len(_windows) >= _MAX_TRACKED:
+        # Closest to expiry first: they are the ones with the least left to say.
+        for key in sorted(_windows, key=lambda k: _windows[k].until)[
+            : len(_windows) - _MAX_TRACKED + 1
+        ]:
+            del _windows[key]
+
+
+async def _send_once(key: str, text: str, attachment: tuple[str, str] | None) -> bool:
+    """Deliver unless an identical message already did, inside the window."""
+    now = time.monotonic()
+    _prune(now)
+
+    window = _windows.get(key)
+    if window is not None and now < window.until:
+        window.suppressed += 1
+        logger.info("Held back (%d since the last report): %r", window.suppressed, text)
+        return True
+
+    # Claimed before the send, and nothing between here and it yields: two tasks
+    # racing on one key must not both deliver.
+    held = window.suppressed if window is not None else 0
+    window = _Window(until=now + _WINDOW_SECONDS, suppressed=0)
+    _windows[key] = window
+
+    if held:
+        # Leading, because _deliver truncates the tail. "went unreported" rather
+        # than "since the last report": these are the occurrences nobody saw a
+        # message for, which is true both of ones held back behind a delivery
+        # and of ones whose own delivery failed.
+        text = f"[{held} more went unreported] {text}"
+
+    sent = False
+    try:
+        sent = await _deliver(text, attachment)
+    finally:
+        # In a finally because a _deliver that raises has delivered nothing
+        # either, and leaving its window standing would suppress the retry —
+        # the one way this could swallow a failure whole.
+        if not sent and _windows.get(key) is window:
+            window.until = now
+            window.suppressed += held + 1
+    return sent
+
+
+async def report(exc: Exception, context: str, *, key: str | None = None) -> None:
+    """Log an exception, then deliver it and its traceback to the admin channel."""
+    try:
+        summary = (
+            f"{context} - Type: {type(exc).__name__}, Message: {exc}, Args: {exc.args}"
+        )
+        # format_exception, not format_exc: an exception collected from
+        # asyncio.gather(return_exceptions=True) is not the one being handled,
+        # and format_exc would describe nothing.
+        trace = "".join(traceback.format_exception(exc))
+        logger.error("%r", summary, exc_info=exc)
+        # Context names the thing that failed; the type keeps two different
+        # failures reported from one place from standing in for each other.
+        await _send_once(
+            key or f"{context}\x00{type(exc).__name__}",
+            summary,
+            ("traceback.txt", trace),
+        )
+    except Exception:
+        # Describing an exception can itself fail: a __str__ that raises, or a
+        # services import that never completed.
+        logger.exception("Reporting failed for: %r", context)
+
+
+async def notify(text: str, *, key: str | None = None) -> bool:
+    """Deliver a notice: something the admin channel should see that is not an exception.
+
+    ``key`` is what two occurrences must share to count as the same notice.
+    Give one wherever the text carries a detail that varies between repeats of
+    the same problem, or every repeat is a new notice and nothing is held back.
+
+    Returns whether the admin channel has the news — true when this call
+    delivered it, and true when a message inside the window already did.
+    """
+    try:
+        # Callers that have a severity log it themselves; this is the record
+        # that a notice was raised at all.
+        logger.info("%r", text)
+        return await _send_once(key or text, text, None)
+    except Exception:
+        logger.exception("Notifying failed for: %r", text)
+        return False
+
+
+async def notify_file(text: str, filename: str, content: str) -> bool:
+    """Deliver a notice with a file attached, never held back as a repeat.
+
+    The window is deliberately skipped rather than keyed around. This carries a
+    record somebody needs in order to undo what the bot is about to do, and two
+    of them inside one window are two different records -- suppressing the
+    second would leave the destruction it precedes with nothing to reverse it.
+    """
+    try:
+        logger.info("%r (attached %r, %d characters)", text, filename, len(content))
+        return await _deliver(text, (filename, content))
+    except Exception:
+        logger.exception("Notifying failed for: %r", text)
+        return False
+
+
+def notify_soon(text: str, *, key: str | None = None) -> None:
+    """Notify from a caller that is not async, on the running loop if there is one.
+
+    For the places that render text out of the database and are ordinary
+    functions. Without this they can only log, and a template that is missing,
+    will not format, or names a channel/role with no row is a message the
+    viewer sees as wrong with nothing anywhere saying why.
+    """
+    logger.warning("%r", text)
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # No loop: configuration is being read outside the bot, and the log
+        # line is all there can be.
+        return
+
+    # Deferred both ways: background reaches back into this module for report.
+    from valmal.core.background import fire_and_forget
+
+    fire_and_forget(notify(text, key=key), name="notify")
+
+
+def _shortened(text: str, limit: int = _MAX_CONTENT) -> str:
+    """The whole lines that fit, and a note saying the rest is attached.
+
+    Whole lines because the tail of a notice is where its detail is, and a cut
+    mid-line reads as the notice ending rather than as being truncated -- which
+    is how a list of 97 undeliverable subscriptions appeared to stop at 30 for
+    no reason. A line longer than the whole budget can never fit, so it keeps its
+    head in whatever room is left, wherever it sits: a report's summary is one
+    line that leads with what was being attempted, and the attachment beside it
+    is a traceback that does not say, so dropping it left the admin channel with
+    no idea what had failed -- including behind the one-line "reached nobody"
+    prefix a delivery adds after an outage. The note that follows is what tells
+    the reader the line was cut.
+    """
+    budget = limit - _OVERFLOW_RESERVED
+    kept: list[str] = []
+    used = 0
+    for line in text.split("\n"):
+        if used + len(line) > budget:
+            if len(line) > budget and used < budget:
+                kept.append(line[: budget - used])
+            break
+        kept.append(line)
+        used += len(line) + 1
+    return "\n".join([*kept, _OVERFLOW_NOTE])
+
+
+async def _deliver(text: str, attachment: tuple[str, str] | None) -> bool:
+    # Deferred: importing services at module scope runs the whole package, and
+    # main.py reports cog-load failures before any of it is up.
+    from valmal.core.config import config
+
+    global _undelivered
+
+    if not config.loaded:
+        _undelivered += 1
+        logger.warning("Undelivered, no configuration loaded: %r", text)
+        return False
+
+    from valmal.bot.send import send_message
+
+    # Leading, because the tail is what gets cut. Prepended here rather than at the
+    # call site so every path through the admin channel carries it, and cleared
+    # only once something has actually arrived. Capped on its own: _undelivered is
+    # an unbounded counter, and without this an outage long enough to make the
+    # count itself enormous could leave no room for _shortened's overflow note,
+    # which is the one thing this function must never produce over the limit.
+    prefix = (
+        f"[{_undelivered} message(s) reached nobody while this channel was"
+        f" unreachable]\n"
+        if _undelivered
+        else ""
+    )[: _MAX_CONTENT - _OVERFLOW_RESERVED]
+    if len(prefix) + len(text) > _MAX_CONTENT:
+        # The whole notice goes as a file, unless something already claimed the
+        # one attachment a message can carry -- a report's traceback, which is
+        # worth more than its summary's tail. Nothing is discarded silently
+        # either way: losing a report is the one thing this module exists to
+        # prevent, and a slice at 1900 characters was doing exactly that.
+        if attachment is None:
+            attachment = ("notice.txt", prefix + text)
+        # Shortened without the prefix and given the room it takes, so the summary
+        # is the first line that competes for space. Shortening them together let
+        # a one-line prefix push a summary of about 1800 characters out whole.
+        text = prefix + _shortened(text, _MAX_CONTENT - len(prefix))
+    else:
+        text = prefix + text
+
+    file = None
+    if attachment is not None:
+        filename, content = attachment
+        file = discord.File(io.BytesIO(content.encode("utf-8")), filename=filename)
+
+    # Counted before the attempt, not after it: send_message raises on a
+    # channel it resolved but could not post to, and that reached nobody too.
+    # quiet: send_message announces a channel it cannot resolve, and announcing
+    # this one goes through here again.
+    _undelivered += 1
+    sent = await send_message(
+        text,
+        config.channel(_ADMIN_CHANNEL),
+        file=file,
+        quiet=True,
+        # Nothing here is ever meant to ping. Reports and notices relay text
+        # from Twitch, Discord and the database, and any of it could carry a
+        # mention that nobody chose to send.
+        allowed_mentions=discord.AllowedMentions.none(),
+    )
+    if sent is None:
+        logger.warning("Undelivered, admin channel unavailable: %r", text)
+        return False
+
+    _undelivered = 0
+    return True
