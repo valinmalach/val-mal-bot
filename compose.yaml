@@ -1,16 +1,29 @@
-# Local Postgres for development. The bot itself runs on the host, so a code
-# change only needs a restart rather than an image rebuild.
+# Local Postgres for development, and the one CI applies the migrations to. The bot
+# itself runs on the host, so a code change only needs a restart rather than an image
+# rebuild.
 services:
   postgres:
-    image: postgres:17-alpine
+    # The major version production runs. Pinned by digest, for the reason the actions in
+    # .github/workflows are pinned to commits: a tag can be moved. The tag stays so a
+    # reader can see what it is. To take a newer 18.x, pull it and use the digest that
+    # `docker image inspect postgres:18-alpine --format "{{index .RepoDigests 0}}"` prints.
+    image: postgres:18-alpine@sha256:6c538e7206ea40ff740ef27883529390a690b6ead6ba96b44c67a9f7c638e8fd
     environment:
       POSTGRES_USER: valmal
-      POSTGRES_PASSWORD: valmal
       POSTGRES_DB: valmal
+      # From the untracked .env beside this file, which compose reads, or from CI, which
+      # generates one per run. No password is committed.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
-      - "5432:5432"
+      # Loopback only. A bare "5432:5432" publishes the database on every network
+      # interface.
+      - "127.0.0.1:5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # 18 and later keep the cluster in a versioned directory under this path, so it is
+      # the parent that is mounted. A new name, not the old `pgdata`: that volume holds a
+      # pre-18 cluster at its root, and 18 refuses to start on one. Move its data with
+      # pg_upgrade or a dump if it matters, then `docker volume rm` it.
+      - postgresql:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U valmal -d valmal"]
       interval: 2s
@@ -18,4 +31,4 @@ services:
       retries: 30
 
 volumes:
-  pgdata:
+  postgresql:
