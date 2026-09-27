@@ -187,8 +187,9 @@ class ConfigCache:
         placeholder rather than raising.
 
         A doubled ``{{channel:key}}``/``{{role:key}}`` is left untouched, like
-        str.format's ``{{``/``}}`` escape: template() unescapes it through
-        safe_format; embed() and auto_response() leave the doubled braces.
+        str.format's ``{{``/``}}`` escape. template() unescapes it through
+        safe_format only when it is given values; without them, and in embed()
+        and auto_response(), the doubled braces go out as written.
         """
 
         def replace(match: re.Match[str]) -> str:
