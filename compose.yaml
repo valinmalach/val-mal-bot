@@ -18,9 +18,10 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       # 18 and later keep the cluster in a versioned directory under this path, so it is
-      # the parent that is mounted. The volume an older image used holds its data in a
-      # `data` directory, which 18 does not read.
-      - pgdata:/var/lib/postgresql
+      # the parent that is mounted. A new name, not the old `pgdata`: that volume holds a
+      # pre-18 cluster at its root, and 18 refuses to start on one. Move its data with
+      # pg_upgrade or a dump if it matters, then `docker volume rm` it.
+      - postgresql:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U valmal -d valmal"]
       interval: 2s
@@ -28,4 +29,4 @@ services:
       retries: 30
 
 volumes:
-  pgdata:
+  postgresql:
