@@ -1,12 +1,13 @@
 """Giving and taking a Discord role from the roles panel."""
 
+import discord
 from discord import Guild, Interaction, Member, Role
 from discord.ui import Button
 
 from valmal.bot.client import bot
 from valmal.core.background import fire_and_forget
 from valmal.core.config import config
-from valmal.core.errors import notify
+from valmal.core.errors import notify, report
 
 
 def _unmanageable(guild: Guild, role: Role) -> str | None:
@@ -75,19 +76,26 @@ async def toggle_role(
     if not member or not role:
         return None
 
-    if member.get_role(role.id) is None:
-        await member.add_roles(role)
-        return True, role
-    else:
+    try:
+        if member.get_role(role.id) is None:
+            await member.add_roles(role)
+            return True, role
         await member.remove_roles(role)
         return False, role
+    except discord.HTTPException as e:
+        # Fired for the same ACK deadline as the notices above.
+        fire_and_forget(
+            report(e, f"Failed to toggle role id {role.id}"),
+            name="report",
+        )
+        return None
 
 
 async def roles_button_pressed(interaction: Interaction, button: Button) -> None:
     guild_id = interaction.guild_id
     custom_id = button.custom_id
 
-    # A button with no custom_id and a toggle that could not resolve the role
+    # A button with no custom_id and a toggle that could not be made
     # are one answer to the presser: the reason is theirs to act on in neither case.
     res = (
         await toggle_role(guild_id, interaction.user.id, custom_id)

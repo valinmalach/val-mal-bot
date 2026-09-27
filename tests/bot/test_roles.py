@@ -38,6 +38,7 @@ class Guild:
         self.roles: dict[int, Any] = {ROLE: self.role}
         self.fired: list[Coroutine[Any, Any, None]] = []
         self.notified: list[tuple[str, str | None]] = []
+        self.reported: list[tuple[Exception, str]] = []
         self.sent: list[tuple[str, bool]] = []
 
     def interaction(self, guild_id: int | None = GUILD) -> Any:
@@ -63,6 +64,9 @@ def world(monkeypatch: pytest.MonkeyPatch) -> Guild:
         world.notified.append((text, key))
         return True
 
+    async def report(exc: Exception, context: str) -> None:
+        world.reported.append((exc, context))
+
     def fire_and_forget(coro: Coroutine[Any, Any, None], *, name: str) -> None:
         world.fired.append(coro)
 
@@ -72,6 +76,7 @@ def world(monkeypatch: pytest.MonkeyPatch) -> Guild:
         lambda guild_id: world.guild if guild_id == GUILD else None,
     )
     monkeypatch.setattr(roles, "notify", notify)
+    monkeypatch.setattr(roles, "report", report)
     monkeypatch.setattr(roles, "fire_and_forget", fire_and_forget)
     stored = SimpleNamespace(key="member", role_id=ROLE)
     monkeypatch.setattr(config, "_roles_by_custom_id", {"role_member": stored})
@@ -200,15 +205,35 @@ class TestToggleRole:
         world.member.add_roles.assert_not_awaited()
         world.member.remove_roles.assert_not_awaited()
 
-    async def test_a_refused_grant_propagates_so_the_button_is_not_told_it_worked(
-        self, world: Guild
+    @pytest.mark.parametrize("holds", [False, True])
+    async def test_a_refused_change_is_none_and_reported_without_awaiting_it(
+        self, world: Guild, holds: bool
     ) -> None:
-        world.member.add_roles.side_effect = discord.Forbidden(
+        world.holds = holds
+        refused = discord.Forbidden(
             MagicMock(status=403, reason="x"), "Missing Permissions"
         )
+        world.member.add_roles.side_effect = refused
+        world.member.remove_roles.side_effect = refused
 
-        with pytest.raises(discord.Forbidden):
-            await roles.toggle_role(GUILD, USER, "role_member")
+        assert await roles.toggle_role(GUILD, USER, "role_member") is None
+
+        (pending,) = world.fired
+        assert world.reported == []
+        await pending
+        assert world.reported == [(refused, f"Failed to toggle role id {ROLE}")]
+
+    async def test_any_other_api_failure_is_caught_the_same_way(
+        self, world: Guild
+    ) -> None:
+        gone = discord.NotFound(MagicMock(status=404, reason="x"), "Unknown Member")
+        world.member.add_roles.side_effect = gone
+
+        assert await roles.toggle_role(GUILD, USER, "role_member") is None
+
+        (pending,) = world.fired
+        await pending
+        assert world.reported == [(gone, f"Failed to toggle role id {ROLE}")]
 
 
 class TestRolesButtonPressed:
@@ -232,6 +257,19 @@ class TestRolesButtonPressed:
         await roles.roles_button_pressed(world.interaction(), button("role_other"))
 
         assert world.sent == [("cannot", True)]
+
+    async def test_a_refused_change_is_the_generic_error_privately(
+        self, world: Guild
+    ) -> None:
+        world.member.add_roles.side_effect = discord.Forbidden(
+            MagicMock(status=403, reason="x"), "Missing Permissions"
+        )
+
+        await roles.roles_button_pressed(world.interaction(), button("role_member"))
+
+        assert world.sent == [("cannot", True)]
+        (pending,) = world.fired
+        await pending
 
     async def test_a_button_with_no_custom_id_is_the_same_answer_and_toggles_nothing(
         self, world: Guild
