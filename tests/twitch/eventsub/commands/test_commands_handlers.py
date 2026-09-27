@@ -21,11 +21,11 @@ def event(**kwargs: Any) -> ChannelChatMessageEventSub:
     return ChannelChatMessageEventSub.model_validate(chat_event("!x", **kwargs))
 
 
-def alice(world: ChatWorld, id: str = "42") -> None:
+def alice(world: ChatWorld, user_id: str = "42") -> None:
     """Twitch knows `alice`, and her channel, playing Chess."""
-    world.users["alice"] = User.model_validate(user_json(id, "alice"))
-    world.channels[int(id)] = Channel.model_validate(
-        channel_json(id, "alice", "Alice", "Chess")
+    world.users["alice"] = User.model_validate(user_json(user_id, "alice"))
+    world.channels[int(user_id)] = Channel.model_validate(
+        channel_json(user_id, "alice", "Alice", "Chess")
     )
 
 

@@ -48,6 +48,42 @@ def _bulleted(names: list[str]) -> list[str]:
     return values
 
 
+# Discord also refuses a whole message over 25 fields in an embed or 6,000 characters
+# across it. The footer saying what did not fit needs room of its own.
+_EMBED_FIELD_LIMIT = 25
+_EMBED_CHARACTER_LIMIT = 6000
+_FOOTER_ROOM = 100
+
+
+def _listing(names: dict[str, list[str]]) -> discord.Embed:
+    """The display names under each subscription type, cut to what Discord accepts."""
+    embed = discord.Embed(
+        title="Subscriptions",
+        description=(
+            "Here are the subscriptions grouped by type. Anything not "
+            "enabled is labelled with its status and will not deliver."
+        ),
+        color=discord.Color.blue(),
+    )
+    omitted = 0
+    for sub_type, user_names in names.items():
+        for number, value in enumerate(_bulleted(user_names)):
+            name = sub_type if number == 0 else f"{sub_type} (continued)"
+            if omitted or (
+                len(embed.fields) == _EMBED_FIELD_LIMIT
+                or len(embed) + len(name) + len(value)
+                > _EMBED_CHARACTER_LIMIT - _FOOTER_ROOM
+            ):
+                omitted += value.count("\n") + 1
+                continue
+            embed.add_field(name=name, value=value, inline=False)
+    if omitted:
+        embed.set_footer(
+            text=f"{omitted} more not shown: more than one Discord embed can hold."
+        )
+    return embed
+
+
 async def _refuse_login(interaction: Interaction, value: str) -> None:
     # Stripped of mentions here, escaped and truncated by `quoted`: the one string
     # in this file that carries what somebody typed, reached only by a value that
@@ -150,14 +186,7 @@ class TwitchAdmin(Cog):
                 grouped_subscriptions[sub_type].append(
                     subscription.condition.broadcaster_user_id
                 )
-        embed = discord.Embed(
-            title="Subscriptions",
-            description=(
-                "Here are the subscriptions grouped by type. Anything not "
-                "enabled is labelled with its status and will not deliver."
-            ),
-            color=discord.Color.blue(),
-        )
+        names: dict[str, list[str]] = {}
         for sub_type, user_ids in grouped_subscriptions.items():
             if not user_ids:
                 continue
@@ -166,19 +195,9 @@ class TwitchAdmin(Cog):
             except HelixError as e:
                 await report(e, f"Failed to fetch users for {sub_type}")
                 continue
-            if not users:
-                continue
-            user_names = [user.display_name for user in users if user]
-            if not user_names:
-                continue
-            user_names.sort()
-            for number, value in enumerate(_bulleted(user_names)):
-                embed.add_field(
-                    name=sub_type if number == 0 else f"{sub_type} (continued)",
-                    value=value,
-                    inline=False,
-                )
-        await interaction.response.send_message(embed=embed)
+            if user_names := sorted(user.display_name for user in users if user):
+                names[sub_type] = user_names
+        await interaction.response.send_message(embed=_listing(names))
 
     @app_commands.command(
         description="Subscribe to online and offline events for a user"

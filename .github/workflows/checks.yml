@@ -33,7 +33,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      DATABASE_URL: postgresql://valmal:valmal@127.0.0.1:5432/valmal
       # The settings are validated when they are imported, and Alembic imports them, so
       # each needs a value. Nothing here talks to Discord or Twitch.
       DISCORD_TOKEN: unused
@@ -45,6 +44,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
       - run: uv sync --locked
+      # compose.yaml requires one, and a fresh one per run means no password is
+      # committed. Braces keep the URL from reading as a literal credential.
+      - name: Generate a database password
+        run: |
+          password=$(openssl rand -hex 16)
+          echo "::add-mask::$password"
+          echo "POSTGRES_PASSWORD=$password" >> "$GITHUB_ENV"
+          echo "DATABASE_URL=postgresql://valmal:${password}@127.0.0.1:5432/valmal" >> "$GITHUB_ENV"
       # --wait returns once the healthcheck in compose.yaml passes.
       - name: Start Postgres
         run: docker compose up -d --wait postgres

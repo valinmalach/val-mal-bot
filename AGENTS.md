@@ -20,6 +20,10 @@ uv run alembic upgrade head                        # schema and the configuratio
 uv run main.py                                     # run the bot (uvicorn on PORT, default 8000)
 ```
 
+`docker compose up` needs `POSTGRES_PASSWORD` in `.env` first, and `DATABASE_URL` uses the
+same password: letters and digits, since anything else needs percent-encoding in the URL.
+README.md has the local setup in full.
+
 Checks, all clean before committing, and **in this order**:
 
 ```sh
@@ -32,9 +36,10 @@ uv run pytest --cov                                # the tests; CI runs the same
 ```
 
 `sourcery` is a global `uv tool` (`uv tool install sourcery`), kept current with
-`uv tool upgrade --all` along with the Ruff and analyzers `VERITY.md` describes. Ruff and
-pyright are locked in `uv.lock`, so CI runs the same versions as the commands above, and a
-release reaches both when the lock changes, not before. Sourcery is not in CI: its CLI needs
+`uv tool upgrade --all` along with the analyzers `VERITY.md` describes for Verity's gate,
+which include a global Ruff of their own. The Ruff and pyright the commands above run are
+not those: they are locked in `uv.lock`, so CI runs the same versions, and a release
+reaches them when the lock changes, not before. Sourcery is not in CI: its CLI needs
 an account token of its own, so its four custom rules are enforced by running it here.
 
 The linters read their rules from the repo, so the editor, the commands above and Codacy
