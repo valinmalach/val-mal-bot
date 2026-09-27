@@ -73,11 +73,10 @@ async def _wait_for_stream_info(
 async def stream_online(event_sub: StreamOnlineEventSub) -> None:
     raw_broadcaster_id = event_sub.event.broadcaster_user_id
     try:
-        # Converted inside the guard. A payload whose broadcaster id is not a
-        # number cannot come from Twitch through a verified signature, but if
-        # one ever did, converting it above the try would raise past this
-        # handler's own report onto the task floor - which names the route and
-        # not the event, and so says the least exactly when it matters most.
+        # Converted inside the guard: a broadcaster id that is not a number cannot come
+        # from Twitch through a verified signature, but converting it above the try
+        # would raise past this handler's own report onto the task floor, which names
+        # the route and not the event.
         broadcaster_id = int(raw_broadcaster_id)
         stream_info, lookup_error = await _wait_for_stream_info(broadcaster_id)
         if stream_info is None:
@@ -125,14 +124,13 @@ async def stream_offline(event_sub: StreamOfflineEventSub) -> None:
     try:
         # Inside the guard, for the reason stream_online gives.
         broadcaster_id = int(raw_broadcaster_id)
-        # The payload names no stream, so this handler cannot tell which one
-        # ended. It wakes both, and each re-checks Helix for its own scope: the
-        # updater to find out which alert this was (docs/adr/0001), the session
-        # to find out whether anyone is still live at all (docs/adr/0004).
+        # The payload names no stream, so this handler cannot tell which one ended. It
+        # wakes both, and each re-checks Helix for its own scope: the updater to find
+        # out which alert this was (docs/adr/0001), the session whether anyone is still
+        # live at all (docs/adr/0004).
         #
-        # Neither can fail the other: both report their own failures and return.
-        # They are sequential only because nothing here needs them concurrent -
-        # the alert wake sets an Event and returns without waiting on Helix.
+        # Neither can fail the other: both report their own failures and return. They
+        # are sequential because the alert wake only sets an Event.
         await live_alert.wake(broadcaster_id)
         await stream_session.wake(broadcaster_id)
 
@@ -142,10 +140,8 @@ async def stream_offline(event_sub: StreamOfflineEventSub) -> None:
 
 async def channel_chat_message(event_sub: ChannelChatMessageEventSub) -> None:
     try:
-        # The shared-chat guard moved to the top. It used to sit below the
-        # command parse, which was harmless while a relayed line could only
-        # produce a command; an autoshoutout is owed to someone who turned up
-        # in *this* channel, so a line relayed from another one must be
+        # The shared-chat guard comes first: an autoshoutout is owed to someone who
+        # turned up in *this* channel, so a line relayed from another one must be
         # dropped before anything reads it.
         if (
             event_sub.event.source_broadcaster_user_id is not None
@@ -154,9 +150,8 @@ async def channel_chat_message(event_sub: ChannelChatMessageEventSub) -> None:
         ):
             return
 
-        # Above the "!" check, not below it: turning up is what earns an
-        # autoshoutout, and most people turn up by saying something ordinary.
-        # Below this line only chatters who type commands would ever get one.
+        # Above the "!" check: turning up is what earns an autoshoutout, and most
+        # people turn up by saying something ordinary.
         await autoshoutout.chatted(event_sub)
 
         if not event_sub.event.message.text.startswith("!"):
@@ -187,11 +182,11 @@ async def channel_ad_break_begin(event_sub: ChannelAdBreakBeginEventSub) -> None
     try:
         ad_duration = event_sub.event.duration_seconds
 
-        # Each step stands alone: a dropped "ads starting" used to take the
-        # "ads over" message and the next break's warning down with it.
-        # Real minutes, not `// 60`: Twitch's breaks are multiples of thirty
-        # seconds, so truncating said "0 minute" for the shortest and "1 minute"
-        # for a minute and a half. `g` drops the trailing zero of a whole number.
+        # Each step stands alone, so a dropped "ads starting" does not take the "ads
+        # over" message and the next break's warning with it.
+        # Real minutes, not `// 60`: Twitch's breaks are multiples of thirty seconds, so
+        # truncating said "0 minute" for the shortest and "1 minute" for a minute and a
+        # half. `g` drops the trailing zero of a whole number.
         await say_template(
             broadcaster_id, "twitch_ad_break_start", minutes=f"{ad_duration / 60:g}"
         )
@@ -214,13 +209,11 @@ async def channel_points_custom_reward_redemption_add(
 
 async def channel_raid(event_sub: ChannelRaidEventSub) -> None:
     try:
-        # Both logins are checked before anything is built from them, rather
-        # than after it is read back. Outbound, the login becomes a URL the bot
-        # posts in chat; inbound, it becomes a `!so <login>` line that returns
-        # through the chat webhook and is dispatched, so a value that cannot
-        # name a channel must not reach either. The payload is signed, which is
-        # why neither has ever fired - this is the boundary, not a doubt about
-        # Twitch, and it is the same one `!so` itself uses.
+        # Both logins are checked before anything is built from them. Outbound, the
+        # login becomes a URL posted in chat; inbound, a `!so <login>` line that returns
+        # through the chat webhook and is dispatched, so a value that cannot name a
+        # channel must reach neither. The payload is signed: this is the boundary `!so`
+        # itself uses, not a doubt about Twitch.
         if stream_session.is_main_broadcaster(event_sub.event.from_broadcaster_user_id):
             raided = event_sub.event.to_broadcaster_user_login
             if not is_twitch_login(raided):
@@ -246,13 +239,10 @@ async def channel_raid(event_sub: ChannelRaidEventSub) -> None:
                 )
                 return
 
-            # The raid is the appearance that spends their autoshoutout, but
-            # only once the line is actually out: it is the `!so` that gives
-            # them one, so a login that could not be used and a line Twitch
-            # refused both leave them owed it, and their first chat message
-            # should still earn it. Marked here rather than in the shoutout
-            # handler, which a mod's manual `!so` also reaches and which must
-            # spend nothing.
+            # The raid spends their autoshoutout, but only once the line is out: it is the
+            # `!so` that gives them one, so a login that could not be used or a line Twitch
+            # refused leaves them owed it. Marked here, not in the shoutout handler, which a
+            # mod's manual `!so` also reaches and which must spend nothing.
             if await say(
                 event_sub.event.to_broadcaster_user_id,
                 f"!so {raider}",

@@ -1,11 +1,10 @@
 # Database
 
 Postgres (Railway), described with [SQLModel](https://sqlmodel.tiangolo.com/) and
-migrated with [Alembic](https://alembic.sqlalchemy.org/). The parquet files and
-the scattered hardcoded values have been consolidated here: the bot reads its
-records through `valmal/db/repository.py` and its configuration through
-`valmal/core/config.py`; the few facts that cannot be edited, such as the header names Twitch
-signs a delivery with, live in code beside what uses them.
+migrated with [Alembic](https://alembic.sqlalchemy.org/). The bot reads its records
+through `valmal/db/repository.py` and its configuration through
+`valmal/core/config.py`; the few facts that cannot be edited, such as the header names
+Twitch signs a delivery with, live in code beside what uses them.
 
 ## Layout
 
@@ -15,6 +14,7 @@ signs a delivery with, live in code beside what uses them.
 | `valmal/db/session.py` | Lazily created async engine, session factory, `session_scope()` |
 | `valmal/db/base.py` | Constraint naming convention, `created_at`/`updated_at` mixins |
 | `valmal/db/models/` | The tables |
+| `valmal/db/repository.py` | Reads and writes the records the bot keeps at runtime |
 | `migrations/` | Alembic revisions; `env.py` reads `DATABASE_URL` |
 
 Nothing connects at import time, so importing a module cannot fail on a missing
@@ -56,71 +56,60 @@ A delete can rely on the schema: `discord_embed_field` and both
 `twitch_command` child tables are `ON DELETE CASCADE`, so removing the row that
 owns them takes them with it.
 
-Checks, all of which should be clean before committing:
+The checks to run before committing are in [AGENTS.md](../../AGENTS.md).
 
-```sh
-uvx ruff check . --exclude .venv
-uvx ruff format --check . --exclude .venv
-uvx pyright                                        # same settings Pylance uses
-```
+## The tables
 
-## Where each table comes from
+### Records
 
-### Records that were in parquet
-
-| Table | Replaces | Notes |
-| --- | --- | --- |
-| `discord_user` | `data/users.parquet` | `isBirthdayLeap` → `is_birthday_leap`; `birthday` becomes a real `timestamptz` holding the next occurrence in UTC, with `birthday_timezone` beside it so rolling it forward can rebuild the local date |
-| `discord_message` | `data/messages.parquet` | `attachment_urls` becomes a `JSONB` array instead of a JSON string |
-| `live_alert` | `data/live_alerts.parquet` | the parquet `id` is the Twitch broadcaster, so it is named `broadcaster_id` |
+| Table | Notes |
+| --- | --- |
+| `discord_user` | A guild member and their next birthday: `birthday` is a `timestamptz` holding the next occurrence in UTC, with `birthday_timezone` beside it so rolling it forward can rebuild the local date |
+| `discord_message` | Cached content, for reporting edits and deletions; `attachment_urls` is a `JSONB` array |
+| `live_alert` | A live-alert message still being updated, keyed by `broadcaster_id` |
+| `twitch_autoshoutout` | The Twitch users due an autoshoutout, keyed by Twitch user id |
 
 ### Twitch OAuth tokens
 
-`oauth_token` replaces the five `data/twitch/*.txt` files, one row per identity
-(`app`, `user`, `broadcaster`), keyed to match `TokenType` in `valmal/db/models/enums.py`.
+`oauth_token` holds one row per identity (`app`, `user`, `broadcaster`), keyed to
+match `TokenType` in `valmal/db/models/enums.py`.
 
 These are the one kind of secret that cannot live in `.env`: the bot mints and
-rotates them itself, so it needs somewhere it can *write*. Files were fine on a
-single long-lived host and stop being fine on ephemeral storage.
+rotates them itself, so it needs somewhere it can *write*.
 
 Two caveats:
 
 * **Stored in plaintext for now.** Encrypting `access_token` and `refresh_token`
   under a key held in `.env` is a deliberate later step; it would mean a
   database dump alone is not enough to act as the account.
-* **Do not migrate the current values.** Twitch issues a new refresh token on
-  every refresh and invalidates the previous one, so any copied token is dead as
-  soon as the running bot refreshes. Create the rows empty and let them fill at
-  cutover: the app token needs one `client_credentials` call and correctly has no
-  refresh token. Run the owner-only `/twitch-auth` Discord command to create the
-  user and broadcaster grants through `/twitch/oauth/callback` and
-  `/twitch/oauth/callback/broadcaster`.
+* **A copied token is dead** as soon as the running bot refreshes it, because
+  Twitch issues a new refresh token on every refresh and invalidates the previous
+  one. A new environment starts with empty rows: the app token needs one
+  `client_credentials` call and correctly has no refresh token, and the owner-only
+  `/twitch-auth` Discord command creates the user and broadcaster grants through
+  `/twitch/oauth/callback` and `/twitch/oauth/callback/broadcaster`.
 
-`expires_at` is what allows a token to be refreshed *before* it lapses instead
-of after a request comes back 401. `TwitchTokenManager` already tracks this in
-memory, from the `expires_in` that `AuthResponse` and `RefreshResponse` were
-previously parsing and discarding; the column is where it becomes durable. It is
-nullable because Twitch does not always return `expires_in`, and a null means
-"unknown", which falls back to refreshing reactively.
+`expires_at` lets a token be refreshed *before* it lapses instead of after a
+request comes back 401. It is nullable because Twitch does not always return
+`expires_in`; null means "unknown" and falls back to refreshing reactively.
 
-### Configuration that was hardcoded
+### Configuration
 
-| Table | Replaces |
+| Table | Holds |
 | --- | --- |
-| `discord_channel` | the `*_CHANNEL` constants in `constants.py` |
-| `discord_role` | the `*_ROLE` constants **and** `EMOJI_ROLE_MAP`, plus each button's `custom_id` from `valmal/bot/views.py` |
-| `discord_embed` / `discord_embed_field` | `RULES_EMBED`, `PING_ROLES_EMBED`, `NSFW_ACCESS_EMBED`, `PRONOUN_ROLES_EMBED`, `OTHER_ROLES_EMBED`, `DMS_OPEN_EMBED` |
-| `discord_auto_response` | the `ping` → `pong` / `plap` → `clank` replies in `valmal/bot/cogs/events.py` |
-| `twitch_command` / `twitch_command_response` | the message text in `valmal/twitch/eventsub/commands.py` and the dispatch dict in `valmal/twitch/eventsub/router.py` |
-| `twitch_command_component` | `!everything`, which fans out to other commands |
-| `message_template` | one-off canned text: the follow thank-you, the ad-break warning, the raid-out message, the birthday wish, the startup message |
-| `app_setting` | `GUILD_ID`, `OWNER_ID`, `BROADCASTER_USERNAME`, the `$` command prefix, the embed colour palette, the Twitch scope list in `token_manager.py`, and the two Twitch account IDs (see below) |
+| `discord_channel` | The channels the bot posts to, by slug (`audit_logs`, `welcome`) |
+| `discord_role` | The roles it hands out, by slug, plus each panel button's `custom_id` |
+| `discord_embed` / `discord_embed_field` | The rules and role-panel embeds |
+| `discord_auto_response` | Canned replies to plain chat messages, such as `ping` → `pong` |
+| `twitch_command` / `twitch_command_response` | Chat commands and the text each sends |
+| `twitch_command_component` | Commands that fan out to other commands, such as `!everything` |
+| `message_template` | One-off canned text: the follow thank-you, the ad-break warning, the raid-out message, the birthday wish, the startup message and the audit-entry sentences |
+| `app_setting` | Scalar settings: `guild_id`, `owner_id`, `broadcaster_username`, the command prefix, the embed colour palette, the Twitch scope list and the two Twitch account IDs |
 
 ### What splits between `.env` and the database
 
 `.env` answers *how this instance authenticates* and *where it runs*. The
-database describes *what the bot does*. That line puts most of the old `.env`
-back in `.env`:
+database describes *what the bot does*.
 
 | `.env` | Why it stays |
 | --- | --- |
@@ -132,25 +121,15 @@ back in `.env`:
 | `PORT` | Railway injects this; not a value the bot has an opinion about |
 | `USE_TEST_BOT`, `DB_ECHO` | Switches for one instance, not settings the bot acts on |
 
-Two values move out of `.env` entirely. They are not credentials and not
-environment-specific — they name the Twitch accounts the bot acts *as* and acts
-*on*, which is the same kind of fact as a Discord channel or role ID:
-
-| Old `.env` | `app_setting.key` | `value_type` |
-| --- | --- | --- |
-| `TWITCH_BOT_USER_ID` | `twitch_bot_user_id` | `string` |
-| `TWITCH_BROADCASTER_ID` | `twitch_broadcaster_id` | `string` |
-
-Both are stored as strings rather than integers because that is how Helix
-returns them and how every call site already uses them.
-
-They are gone from `.env.example`, and nothing reads them from the environment:
-`config.setting("twitch_broadcaster_id")` resolves them at call time.
+The two Twitch account IDs, `twitch_bot_user_id` and `twitch_broadcaster_id`, are
+`app_setting` rows rather than `.env` values: they are not credentials and not
+environment-specific, and name the accounts the bot acts *as* and acts *on*, the
+same kind of fact as a Discord channel or role ID. They are strings because that
+is how Helix returns them and how every call site uses them.
 
 ### Deliberately not in the database
 
-* **Credentials and environment** — everything in the first table above. They
-  stay in `.env`.
+* **Credentials and environment** — everything in the `.env` table above.
 * **Facts, not configuration** — `Months`/`MAX_DAYS`, the `COGS` list, the
   Twitch EventSub header names, `HMAC_PREFIX`, and the Helix rate-limit
   constants in `shoutout_queue.py`.
@@ -189,7 +168,7 @@ constraints.
 **Enums are checked `VARCHAR`, not native Postgres enums.** Adding a value to a
 native enum needs `ALTER TYPE`; rewriting a CHECK constraint is an ordinary
 migration. `enum_column()` in `valmal/db/base.py` builds them. `oauth_token.key` uses
-`constants.TokenType` rather than a second enum of its own: the column's values
+`enums.TokenType` rather than a second enum of its own: the column's values
 and the ones the Helix layer passes around are the same three strings.
 
 **Two columns are deliberately unread.** `twitch_command.cooldown_seconds` and
@@ -210,23 +189,7 @@ without knowing why:
   declares that name twice — as `ClassVar[str]` and as a `declared_attr` — so
   `str` trades one type error for an incompatible-override error.
 
-## Done
-
-1. **Seed.** Revision `0002` inserts the constants, embed text and command
-   responses, so `alembic upgrade head` carries the configuration with the
-   schema and `seed.py`/`seed_data.py` are gone. Each row is `INSERT ... ON
-   CONFLICT DO NOTHING`, so an ID edited in the database survives the next
-   deploy. Changing configuration is a data revision now: see above.
-2. ~~**Backfill.**~~ Done and removed. The first deploy loaded the parquet
-   records; `backfill.py` and `data/` went with it. Recover them from history if
-   a re-run is ever needed.
-3. **Repository layer.** `valmal/db/repository.py` reads and writes the records; the
-   parquet cache is gone.
-4. **Token cutover.** `TwitchTokenManager` reads and writes `oauth_token`.
-5. **Configuration.** `valmal/core/config.py` serves channels, roles, settings,
-   templates, embeds and Twitch commands from the database.
-
-## Remaining
+## Not done yet
 
 1. **Encrypt `oauth_token`.** Deliberately deferred; see the caveat above.
 2. **Editing without database access** — admin commands or a frontend over the

@@ -26,11 +26,11 @@ MESSAGE_WINDOW_SECONDS = 600
 # refuses everything as stale anyway, so the usable skew cannot exceed a window.
 _HANDLED_TTL_SECONDS = MESSAGE_WINDOW_SECONDS * 2
 
-# A safety valve, not the eviction policy; the TTL is. The chat route claims one
-# id per chat line, so the old 1024 was reached at under two lines a second and
-# then forgot ids inside their own window, which is precisely a redelivery being
-# handled twice. Reaching even this says the traffic broke the assumption, so it
-# is counted and said out loud rather than silently dropping the oldest.
+# A safety valve, not the eviction policy (the TTL is). The chat route claims
+# one id per chat line, so a small cap would forget ids inside their own window,
+# which is a redelivery handled twice. Reaching even this says the traffic broke
+# the assumption, so it is counted and said out loud rather than silently
+# dropping the oldest.
 _HANDLED_LIMIT = 20_000
 _handled: OrderedDict[str, float] = OrderedDict()
 _forgotten_early = 0

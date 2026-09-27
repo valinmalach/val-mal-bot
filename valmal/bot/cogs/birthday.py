@@ -156,9 +156,8 @@ class Birthday(GroupCog):
             text = config.template(
                 "birthday_operation_failed", action=set_forget, mention=mention
             )
-            # No caller can reach this with the response already used, since each
-            # answers and returns. Kept so that adding one cannot resurrect the
-            # second-initial-response bug this replaced.
+            # No caller reaches this with the response already used (each answers
+            # and returns); guarded so adding one cannot send a second initial response.
             if interaction.response.is_done():
                 await interaction.followup.send(text)
             else:

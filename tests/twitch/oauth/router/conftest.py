@@ -48,7 +48,7 @@ def said(monkeypatch: pytest.MonkeyPatch) -> Said:
 
 @pytest.fixture
 def twitch(monkeypatch: pytest.MonkeyPatch) -> Callable[..., Script]:
-    """Point the controller at a scripted id.twitch.tv: exchange first, then validate."""
+    """Point the router at a scripted id.twitch.tv: exchange first, then validate."""
 
     def install(*outcomes: httpx.Response | Exception) -> Script:
         script = Script(*outcomes)

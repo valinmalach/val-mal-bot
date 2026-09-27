@@ -27,36 +27,32 @@ logger = logging.getLogger(__name__)
 _ADMIN_CHANNEL = "bot_admin"
 
 # Discord rejects a message over 2000 characters, and a rejected report is a
-# lost one. A notice whose length follows how much went wrong reaches this: 97
-# undeliverable subscriptions is one line each, several times over the limit.
+# lost one. A notice can grow with what went wrong (a line per undeliverable
+# subscription), so it is cut to fit under that.
 _MAX_CONTENT = 1900
 
-# What replaces the lines that did not fit. Named so the reader knows the notice
-# was cut rather than that it ended there, which is what a bare slice looked like.
+# What replaces the lines that did not fit, so a cut notice does not read as one
+# that ended there.
 _OVERFLOW_NOTE = "... the rest is attached."
 
-# The note itself, plus the newline that joins it to the last kept line. Two
-# call sites reserve this much room ahead of it: _shortened, against whatever
-# limit it is given, and _deliver, capping the outage prefix against the full
-# budget before _shortened's own arithmetic runs at all.
+# The note plus the newline joining it to the last kept line, reserved by
+# _shortened and by _deliver when it caps the outage prefix.
 _OVERFLOW_RESERVED = len(_OVERFLOW_NOTE) + 1
 
 # How long one delivered message stands in for its own repeats.
 _WINDOW_SECONDS = 15 * 60
 
-# Only reached if a key turns out to vary per event, which is the bug this
-# would otherwise hide as unbounded memory.
+# A backstop for a key that varies per event, which would otherwise grow the
+# table without bound.
 _MAX_TRACKED = 512
 
-# Messages that reached nobody, counted across keys rather than per key. A
-# window only ever reports repeats of its own key, so when the channel itself is
-# unreachable every key fails and one that never fires again says nothing at all.
-# This is what the operator is owed on the way back: how much they did not see.
+# Messages that reached nobody, counted across keys: a window only reports its
+# own key's repeats, so with the channel unreachable a key that never fires
+# again would say nothing. Reported when the channel comes back.
 _undelivered = 0
 
-# Every log line below carries text relayed from Twitch, Discord or the
-# database, so all of them use %r: it shows where a value carries whitespace
-# or quoting that a plain %s would hide.
+# Every log line below carries relayed text, so all use %r: it shows whitespace
+# and quoting that %s would hide.
 
 
 @dataclass
@@ -98,19 +94,16 @@ async def _send_once(key: str, text: str, attachment: tuple[str, str] | None) ->
     _windows[key] = window
 
     if held:
-        # Leading, because _deliver truncates the tail. "went unreported" rather
-        # than "since the last report": these are the occurrences nobody saw a
-        # message for, which is true both of ones held back behind a delivery
-        # and of ones whose own delivery failed.
+        # Leading, because _deliver truncates the tail. "Unreported" covers both
+        # occurrences held back behind a delivery and ones whose delivery failed.
         text = f"[{held} more went unreported] {text}"
 
     sent = False
     try:
         sent = await _deliver(text, attachment)
     finally:
-        # In a finally because a _deliver that raises has delivered nothing
-        # either, and leaving its window standing would suppress the retry —
-        # the one way this could swallow a failure whole.
+        # In a finally: a _deliver that raises has delivered nothing, and its
+        # window left standing would suppress the retry.
         if not sent and _windows.get(key) is window:
             window.until = now
             window.suppressed += held + 1
@@ -136,8 +129,7 @@ async def report(exc: Exception, context: str, *, key: str | None = None) -> Non
             ("traceback.txt", trace),
         )
     except Exception:
-        # Describing an exception can itself fail: a __str__ that raises, or a
-        # services import that never completed.
+        # Describing an exception can itself fail (a __str__ that raises).
         logger.exception("Reporting failed for: %r", context)
 
 
@@ -202,16 +194,11 @@ def notify_soon(text: str, *, key: str | None = None) -> None:
 def _shortened(text: str, limit: int = _MAX_CONTENT) -> str:
     """The whole lines that fit, and a note saying the rest is attached.
 
-    Whole lines because the tail of a notice is where its detail is, and a cut
-    mid-line reads as the notice ending rather than as being truncated -- which
-    is how a list of 97 undeliverable subscriptions appeared to stop at 30 for
-    no reason. A line longer than the whole budget can never fit, so it keeps its
-    head in whatever room is left, wherever it sits: a report's summary is one
-    line that leads with what was being attempted, and the attachment beside it
-    is a traceback that does not say, so dropping it left the admin channel with
-    no idea what had failed -- including behind the one-line "reached nobody"
-    prefix a delivery adds after an outage. The note that follows is what tells
-    the reader the line was cut.
+    Whole lines, because a cut mid-line reads as the notice ending rather than
+    as truncated. A line longer than the whole budget can never fit, so it keeps
+    its head in whatever room is left: a report's summary says what was being
+    attempted and its traceback does not, so dropping it would leave the admin
+    channel with no idea what failed. The note that follows says it was cut.
     """
     budget = limit - _OVERFLOW_RESERVED
     kept: list[str] = []
@@ -227,8 +214,7 @@ def _shortened(text: str, limit: int = _MAX_CONTENT) -> str:
 
 
 async def _deliver(text: str, attachment: tuple[str, str] | None) -> bool:
-    # Deferred: importing services at module scope runs the whole package, and
-    # main.py reports cog-load failures before any of it is up.
+    # Deferred: config imports this module.
     from valmal.core.config import config
 
     global _undelivered
@@ -240,12 +226,10 @@ async def _deliver(text: str, attachment: tuple[str, str] | None) -> bool:
 
     from valmal.bot.send import send_message
 
-    # Leading, because the tail is what gets cut. Prepended here rather than at the
-    # call site so every path through the admin channel carries it, and cleared
-    # only once something has actually arrived. Capped on its own: _undelivered is
-    # an unbounded counter, and without this an outage long enough to make the
-    # count itself enormous could leave no room for _shortened's overflow note,
-    # which is the one thing this function must never produce over the limit.
+    # Leading, because the tail is what gets cut. Prepended here so every path
+    # through the admin channel carries it, and cleared only once something has
+    # arrived. Capped on its own: _undelivered is unbounded, and a huge count
+    # could leave no room for _shortened's overflow note.
     prefix = (
         f"[{_undelivered} message(s) reached nobody while this channel was"
         f" unreachable]\n"
@@ -253,16 +237,13 @@ async def _deliver(text: str, attachment: tuple[str, str] | None) -> bool:
         else ""
     )[: _MAX_CONTENT - _OVERFLOW_RESERVED]
     if len(prefix) + len(text) > _MAX_CONTENT:
-        # The whole notice goes as a file, unless something already claimed the
-        # one attachment a message can carry -- a report's traceback, which is
-        # worth more than its summary's tail. Nothing is discarded silently
-        # either way: losing a report is the one thing this module exists to
-        # prevent, and a slice at 1900 characters was doing exactly that.
+        # The whole notice goes as a file, unless a report's traceback already
+        # holds the message's one attachment; the summary is then shortened,
+        # never silently sliced.
         if attachment is None:
             attachment = ("notice.txt", prefix + text)
-        # Shortened without the prefix and given the room it takes, so the summary
-        # is the first line that competes for space. Shortening them together let
-        # a one-line prefix push a summary of about 1800 characters out whole.
+        # Shortened without the prefix, given the room it takes, so the summary
+        # competes for space first; together, the prefix could push it out whole.
         text = prefix + _shortened(text, _MAX_CONTENT - len(prefix))
     else:
         text = prefix + text
@@ -272,19 +253,16 @@ async def _deliver(text: str, attachment: tuple[str, str] | None) -> bool:
         filename, content = attachment
         file = discord.File(io.BytesIO(content.encode("utf-8")), filename=filename)
 
-    # Counted before the attempt, not after it: send_message raises on a
-    # channel it resolved but could not post to, and that reached nobody too.
-    # quiet: send_message announces a channel it cannot resolve, and announcing
-    # this one goes through here again.
+    # Counted before the attempt: send_message raises on a channel it resolved
+    # but could not post to, and that reached nobody too. quiet, because
+    # announcing an unresolvable channel would come back through here.
     _undelivered += 1
     sent = await send_message(
         text,
         config.channel(_ADMIN_CHANNEL),
         file=file,
         quiet=True,
-        # Nothing here is ever meant to ping. Reports and notices relay text
-        # from Twitch, Discord and the database, and any of it could carry a
-        # mention that nobody chose to send.
+        # Relayed text could carry a mention nobody chose to send.
         allowed_mentions=discord.AllowedMentions.none(),
     )
     if sent is None:

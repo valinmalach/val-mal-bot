@@ -1,7 +1,7 @@
-"""Shared by the tests at the repo's own root, which have no per-area conftest
-to hold this: the repo root, and running a fixed command in a process of its
-own -- needed by test_main.py and test_migrations.py alike, each for a
-different reason importing the app itself in-process would not answer for.
+"""Shared by the tests at the repo's root, which have no per-area conftest: the
+repo root, and running a fixed command in a process of its own (test_main.py
+and test_migrations.py each need that, for a reason importing in-process would
+not answer).
 """
 
 import os

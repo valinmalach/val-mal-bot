@@ -10,12 +10,10 @@ from valmal.core.errors import notify, report
 
 logger = logging.getLogger(__name__)
 
-# Before this there were four different answers to "run once per process"
-# scattered across bot_init.py and valmal/bot/cogs/tasks.py. What's left is one guard per
-# question on_ready actually has to answer: has the Helix/DB-heavy startup
-# work *succeeded* yet (_started, cleared by run_background_tasks on failure
-# so a reconnect retries), and has the startup announcement been delivered
-# yet (_announced, likewise retried on reconnect until it has).
+# One flag per question on_ready has to answer: has the Helix/DB-heavy startup
+# work *succeeded* (_started, cleared by run_background_tasks on failure so a
+# reconnect retries), and has the startup announcement been delivered
+# (_announced, likewise retried on reconnect until it has).
 _started = False
 _announced = False
 
@@ -24,20 +22,16 @@ async def run_background_tasks() -> None:
     """Bring the per-process helpers back up, saying which one failed.
 
     The arms are gathered so one cannot delay the other, and their results are
-    read: `return_exceptions=True` on its own is silence, because the gather
-    completes normally and `background._finished` sees nothing to report. An
-    unreachable database at boot would then leave every stored alert without an
-    updater for the life of the process with nothing said. `main()` reads its
-    cog-loading results the same way.
+    read: `return_exceptions=True` alone is silence, because the gather completes
+    normally and `background._finished` sees nothing to report. `main()` reads
+    its cog-loading results the same way.
 
-    Each arm is named for what was lost rather than for the function that lost
-    it, because that is what the admin channel needs to act on.
+    Each arm is named for what was lost, not for the function that lost it.
 
-    A failed arm resets `_started` so the next reconnect retries: `_started` is
-    set before this runs so an overlapping reconnect can't fire a second
-    concurrent attempt, but a Twitch outage or a cold-start database hiccup at
-    boot must not permanently strand a live alert or the stream session for
-    the rest of the process the way an unconditional one-shot would.
+    A failed arm resets `_started` so the next reconnect retries. `_started` is
+    set before this runs so an overlapping reconnect cannot fire a second
+    attempt, but a boot-time Twitch or database outage must not strand a live
+    alert or the stream session for the rest of the process.
     """
     # Deferred: both reach valmal.bot.send, which imports this package for `bot`.
     from valmal.twitch.stream import live_alert, stream_session
@@ -72,20 +66,14 @@ class MyBot(Bot):
         await config.load()
         await token_manager.load()
 
-        # Here rather than in on_ready, which fires again on every gateway
-        # reconnect: one drainer is wanted for the life of the process, and it
-        # idles until a session puts something in the queue.
+        # Here rather than in on_ready, which fires again on every reconnect: one
+        # drainer is wanted for the life of the process, idle until something is queued.
         fire_and_forget(shoutout_queue.drain(), name="shoutout-queue")
 
-        # Also here, not in Tasks.cog_load(): cog_load runs during cog
-        # loading, before bot.start() even calls login(), and Client._ready
-        # does not exist yet at that point -- each loop's before_loop awaiting
-        # bot.wait_until_ready() would raise RuntimeError immediately and the
-        # loop would die silently, never to run again. setup_hook runs inside
-        # login(), after the internal setup that creates _ready, so
-        # wait_until_ready() here correctly awaits the gateway's READY instead
-        # of finding nothing to wait on -- and, like the drainer, it only
-        # needs to happen once, since setup_hook itself never re-runs.
+        # Also here, not in Tasks.cog_load(): that runs before login(), when
+        # Client._ready does not exist, so each loop's before_loop would raise on
+        # bot.wait_until_ready() and the loop would die silently. setup_hook runs
+        # inside login(), after _ready exists, and only once.
         tasks_cog = self.get_cog("Tasks")
         if isinstance(tasks_cog, Tasks):
             tasks_cog.check_birthdays.start()
@@ -157,10 +145,9 @@ async def on_app_command_error(
     if isinstance(error, discord.app_commands.CheckFailure) and not isinstance(
         error, _NOT_A_REFUSAL
     ):
-        # A check doing its job - a server admin has reconfigured who may run
-        # this command, or somebody without the follower role tried a birthday
-        # command - not a bug, so it answers the person rather than reporting
-        # to the admin channel.
+        # A check doing its job (an admin reconfigured who may run this, or
+        # somebody lacks the follower role) is not a bug: it answers the person
+        # instead of reporting.
         await _answer(
             interaction, "command_no_permission", command, "lacked permission"
         )
@@ -176,15 +163,11 @@ async def on_app_command_error(
 async def on_error(event_method: str, /, *args: object, **kwargs: object) -> None:
     """The floor under every gateway listener, cog listeners included.
 
-    discord.py wraps each dispatched listener's call in its own try/except and
-    calls this from inside it on failure, handing over which `on_*` method it
-    was - the one thing that varied across the near-identical
-    ``except Exception: await report(...)`` blocks this replaces in
-    `valmal/bot/cogs/events.py`. `sys.exc_info()` still resolves the exception here,
-    since this runs from inside that except block's dynamic scope. This is a
-    function on the `bot` instance via `@bot.event`, matching `on_ready`
-    below, not a method on `MyBot` - View/button callbacks have their own,
-    separate `on_error` and are not covered by this one.
+    discord.py calls this from inside the listener's except block on failure,
+    handing over which `on_*` event it was, so `sys.exc_info()` still resolves
+    the exception. A function on the `bot` instance via `@bot.event`, matching
+    `on_ready`, not a method on `MyBot`. View/button callbacks have their own
+    `on_error` and are not covered.
     """
     exc = sys.exc_info()[1]
     if isinstance(exc, Exception):
@@ -193,20 +176,14 @@ async def on_error(event_method: str, /, *args: object, **kwargs: object) -> Non
 
 @bot.event
 async def on_ready() -> None:
-    """The only per-connection entry point left, answering two different
-    questions rather than blurring them into one.
+    """The only per-connection entry point left; two flags answer two questions.
 
-    on_ready fires again every time the gateway session cannot be resumed -
-    a reconnect, not a restart. Whether `run_background_tasks` has *succeeded*
-    is decided by `_started`: it stops a successful run's Helix/DB-heavy work
-    from repeating on every reconnect, rather than relying on
-    `live_alert._start` and `stream_session._start` to no-op it away, but
-    `run_background_tasks` itself clears the flag on failure so a later
-    reconnect still retries rather than stranding a live alert or the stream
-    session for the life of the process. Whether the startup announcement has
-    been *delivered* is a separate question with its own state, `_announced` -
-    a send that fails is worth retrying on the next reconnect too, so it is
-    not folded into the same guard.
+    on_ready fires again whenever the gateway session cannot be resumed. `_started`
+    says whether `run_background_tasks` has *succeeded*, so a reconnect does not
+    repeat its Helix/DB-heavy work; that function clears it on failure so a later
+    reconnect retries. `_announced` says whether the startup notice has been
+    *delivered*; a failed send is worth retrying on the next reconnect too, so it
+    is not folded into the same guard.
     """
     global _started, _announced
     from valmal.core.config import config

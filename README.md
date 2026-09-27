@@ -1,7 +1,8 @@
 # Valin Malach Bot
 
 Discord and Twitch bot. Configuration and runtime records live in Postgres; see
-[valmal/db/README.md](valmal/db/README.md) for the schema and the migration status.
+[valmal/db/README.md](valmal/db/README.md) for the schema and where each setting lives.
+[AGENTS.md](AGENTS.md) has the architecture and conventions.
 
 ## Running locally
 
@@ -36,7 +37,7 @@ side of the mapping in `compose.yaml` and match it in `DATABASE_URL`.
 **3. Create the schema and fill it.**
 
 ```sh
-uv run alembic upgrade head   # 14 tables and the configuration in them
+uv run alembic upgrade head   # the schema, and the configuration in it
 ```
 
 Configuration arrives with the schema, in a migration, and skips what already
@@ -57,6 +58,18 @@ the bot will mint an app token on demand.
 
 To exercise webhooks locally you need a tunnel in front of `localhost` yourself;
 nothing here bundles one anymore.
+
+### Pointing the test bot at a test guild
+
+`guild_id` is an `app_setting` row, not a constant. To keep local runs out of
+the real server, change it once the migrations have run:
+
+```sql
+UPDATE app_setting SET value = '<test guild id>' WHERE key = 'guild_id';
+```
+
+The channel and role IDs in `discord_channel` and `discord_role` need the same
+treatment for a different guild.
 
 ## Reauthorizing Twitch accounts
 
@@ -97,22 +110,13 @@ The implementation follows Twitch's current documentation for the
 [shoutout authorization](https://dev.twitch.tv/docs/api/reference/#send-a-shoutout),
 and [ad-schedule authorization](https://dev.twitch.tv/docs/api/reference/#get-ad-schedule).
 
-### Pointing the test bot at a test guild
-
-`guild_id` is an `app_setting` row, not a constant. To keep local runs out of
-the real server, change it once the migrations have run:
-
-```sql
-UPDATE app_setting SET value = '<test guild id>' WHERE key = 'guild_id';
-```
-
-The channel and role IDs in `discord_channel` and `discord_role` need the same
-treatment for a different guild.
-
 ## Checks
 
 ```sh
+uv run ruff format . --exclude .venv   # formats in place; CI runs it with --check
 uv run ruff check . --exclude .venv
-uv run ruff format --check . --exclude .venv
 uv run pyright
+uv run pytest --cov
 ```
+
+[AGENTS.md](AGENTS.md) has the full sequence, including Sourcery, which runs first.

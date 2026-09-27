@@ -85,10 +85,9 @@ def _listing(names: dict[str, list[str]]) -> discord.Embed:
 
 
 async def _refuse_login(interaction: Interaction, value: str) -> None:
-    # Stripped of mentions here, escaped and truncated by `quoted`: this is the
-    # one string in this file that carries what somebody typed, and it is only
-    # ever reached by a value that failed _login - so unlike a real login it
-    # can hold anything at all.
+    # Stripped of mentions here, escaped and truncated by `quoted`: the one string
+    # in this file that carries what somebody typed, reached only by a value that
+    # failed _login, so unlike a real login it can hold anything.
     await interaction.response.send_message(
         f"{quoted(value)} is not a Twitch username:"
         " 1-25 characters, letters, digits and underscore.",

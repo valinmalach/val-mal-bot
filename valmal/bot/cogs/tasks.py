@@ -30,9 +30,8 @@ def undeliverable_summary(broken: dict[str, str]) -> str:
     The counts and the advice come first because they are what survives being
     cut, and one reason covering every subscription is the whole diagnosis: a
     public URL that moved makes all of them undeliverable for the same reason,
-    which as a line each was 97 copies of one sentence and five times what a
-    Discord message holds. The per-subscription detail still follows, for the
-    cases where which one matters.
+    which as a line each is many copies of one sentence. The per-subscription
+    detail still follows, for the cases where which one matters.
     """
     counts = Counter(broken.values())
     headline = "\n".join(
@@ -51,10 +50,7 @@ class Tasks(Cog):
         self.bot = bot
 
     # check_birthdays and recheck_subscriptions are started from
-    # MyBot.setup_hook() (valmal/bot/client.py), not from cog_load() here:
-    # cog_load runs before bot.start() calls login(), too early for
-    # Client._ready to exist yet, which is what each loop's before_loop
-    # awaits via bot.wait_until_ready().
+    # MyBot.setup_hook() (valmal/bot/client.py), not cog_load(): see the comment there.
 
     # What was undeliverable last time this looked. A broken subscription stays
     # broken until somebody fixes it, so a loop that reported every pass would
@@ -68,8 +64,7 @@ class Tasks(Cog):
         Twitch only reports a subscription it disabled by calling the webhook,
         which is the thing that is not working, so nothing else would ever find
         out. An interval loop runs its first pass immediately, so this is the
-        startup check as well as the hourly one - having both meant the first
-        hourly pass reported everything startup had already reported.
+        startup check as well as the hourly one.
         """
         try:
             broken = await broken_subscriptions()
@@ -156,11 +151,10 @@ class Tasks(Cog):
         """The record's timezone, or None if it is not one any more.
 
         next_birthday raises on a name pendulum cannot resolve, and it is called
-        before the write above deliberately - so a raise there is a birthday
-        that never moves, comes due on every tick and is never greeted again.
-        The tz database does drop names: US/Pacific-New went in 2020. Clearing
-        the column degrades that row to the UTC roll, which is wrong by a day at
-        worst rather than silent, and stops the notice repeating for ever.
+        before the write above, so a raise there is a birthday that never moves,
+        comes due on every tick and is never greeted. The tz database does drop
+        names (US/Pacific-New went in 2020). Clearing the column degrades that
+        row to the UTC roll, wrong by a day at worst, and stops the repeat notice.
         """
         zone = record.birthday_timezone
         if zone is None or zone in pendulum.timezones():

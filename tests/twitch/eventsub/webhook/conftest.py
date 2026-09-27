@@ -1,5 +1,4 @@
-"""Fixtures for the webhook controller tests, split across files so each is short
-enough to be reviewed whole."""
+"""Fixtures for the webhook router tests."""
 
 import asyncio
 from collections import OrderedDict

@@ -2,8 +2,8 @@
 
 migrate_plan.decide already refuses to touch one for that reason: verification is a
 seconds-long transient, so catching a subscription mid-way and destroying it
-destroys something that was about to arrive by itself. _subscribe reached the same
-subscription by a different door and did exactly that.
+destroys something that was about to arrive by itself. _subscribe must leave it
+alone too.
 """
 
 from collections.abc import Callable

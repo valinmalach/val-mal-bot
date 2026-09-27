@@ -8,7 +8,7 @@ from discord.ui import View
 from valmal.bot.client import bot
 
 # Channel kinds the bot cannot post a message or embed into. Shared with
-# valmal/bot/cogs/moderation.py so the two do not drift, as they once did.
+# valmal/bot/cogs/moderation.py so the two cannot drift.
 UNSENDABLE_CHANNEL_TYPES = (ForumChannel, CategoryChannel, PrivateChannel)
 
 

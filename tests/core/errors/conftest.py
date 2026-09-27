@@ -1,5 +1,4 @@
-"""Fixtures for the error-reporting tests, which are split across files so that
-each is short enough to be reviewed whole."""
+"""Fixtures for the error-reporting tests."""
 
 from types import SimpleNamespace
 from typing import Any

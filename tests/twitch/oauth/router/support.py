@@ -69,7 +69,7 @@ class Stored:
 
 
 class Said:
-    """The admin channel, as the controller reached it."""
+    """The admin channel, as the router reached it."""
 
     def __init__(self) -> None:
         self.notified: list[tuple[str, str | None]] = []

@@ -8,8 +8,8 @@ permissions:
   contents: read
 
 jobs:
-  # The two checks AGENTS.md says must be clean before a commit. Both are locked in
-  # uv.lock, so a new release cannot turn this red without a commit saying so.
+  # Ruff and pyright, which AGENTS.md says must be clean before a commit. Both are
+  # locked in uv.lock, so a new release cannot turn this red without a commit saying so.
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -13,9 +13,6 @@ from valmal.db.models import AutoResponseMatch, DiscordAutoResponse, DiscordChan
 pytestmark = pytest.mark.anyio
 
 
-# --- auto responses -------------------------------------------------------------
-
-
 class TestAutoResponse:
     def row(
         self,
@@ -94,9 +91,6 @@ class TestAutoResponse:
         cache.auto_response("where")
 
         assert "discord_auto_response:where" in notices[0][0]
-
-
-# --- has_configured_role --------------------------------------------------------
 
 
 class TestHasConfiguredRole:

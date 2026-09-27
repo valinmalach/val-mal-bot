@@ -73,7 +73,7 @@ def stream_online_payload(stream_id: str = "10") -> dict[str, Any]:
 
 
 class Hooks:
-    """What the controller announced, and what it dispatched."""
+    """What the router announced, and what it dispatched."""
 
     def __init__(self) -> None:
         self.notified: list[tuple[str, str | None]] = []

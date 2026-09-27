@@ -59,8 +59,7 @@ def get_database_url() -> str:
     """The configured database URL, pointed at asyncpg and ready for an engine.
 
     Railway's ``postgresql://`` names no DBAPI and carries options asyncpg
-    rejects. Alembic runs on the same async engine, so there is one driver here
-    and no caller has ever asked for another.
+    rejects. Alembic runs on the same async engine, so one driver serves both.
     """
     parts = urlsplit(settings.database_url)
     if parts.scheme not in _POSTGRES_SCHEMES:

@@ -95,10 +95,9 @@ class TwitchShoutoutQueue:
     async def drain(self) -> None:
         """Send queued shoutouts for as long as the process runs.
 
-        One task, started once, rather than one per stream. Tying its lifetime
-        to the stream is what used to need a generation counter: a drainer told
-        to stand down could still be inside a two-minute sleep when the next
-        stream started one alongside it.
+        One task, started once, rather than one per stream: a drainer told to stand
+        down could still be inside a two-minute sleep when the next stream started
+        another alongside it.
 
         Each pass asks the session, rather than draining whatever it finds. The
         queue is only fed while a session is live and is emptied when one ends,
@@ -117,9 +116,8 @@ class TwitchShoutoutQueue:
                     continue
                 await self._drain_once()
             except Exception as e:  # noqa: BLE001
-                # One pass, not the queue. The Helix failures inside handle
-                # themselves; this is for what was never anticipated, and
-                # without it one of those ended shoutouts for the whole stream.
+                # One pass, not the queue: the Helix failures inside handle themselves, and an
+                # unanticipated one must not end shoutouts for the whole stream.
                 await report(e, "Shoutout queue: a pass failed unexpectedly")
                 await asyncio.sleep(5)
 
@@ -147,12 +145,10 @@ class TwitchShoutoutQueue:
         try:
             user = await get_user(int(user_id_str))
         except HelixError as e:
-            # One unreachable lookup must not end the queue, nor spin on it. The
-            # back-off has to outlast the wait that follows it: setting it to the
-            # interval the loop then slept for meant it had already expired by
-            # the time the loop looked again. No shoutout went out, so the global
-            # interval does not apply here and the queue is free to try a
-            # different target.
+            # One unreachable lookup must not end the queue, nor spin on it. The back-off has
+            # to outlast the wait that follows it, or it has expired by the time the loop
+            # looks again. No shoutout went out, so the global interval does not apply and
+            # the queue is free to try a different target.
             await notify(
                 f"Could not look up {login} for a shoutout: {e}",
                 key=f"shoutout-lookup:{user_id_str}",

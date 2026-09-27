@@ -10,9 +10,6 @@ from valmal.core.config import config
 pytestmark = pytest.mark.anyio
 
 
-# --- _deliver -------------------------------------------------------------------
-
-
 class TestDeliver:
     async def test_without_a_loaded_configuration_nothing_is_sent_and_it_is_counted(
         self, monkeypatch: pytest.MonkeyPatch
@@ -148,9 +145,6 @@ class TestDeliver:
         mentions = admin.calls[0]["allowed_mentions"]
         assert (mentions.everyone, mentions.users, mentions.roles) == (False,) * 3
         assert mentions.replied_user is False
-
-
-# --- end to end -----------------------------------------------------------------
 
 
 class TestEndToEnd:

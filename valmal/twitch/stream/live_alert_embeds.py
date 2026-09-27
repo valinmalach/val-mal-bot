@@ -166,11 +166,9 @@ def live_embed(
             value=started_at_timestamp,
             inline=True,
         )
-        # now, not an independent pendulum.now() read: the caller already took
-        # "now" for this cycle to stamp the embed with, and a second, separate
-        # wall-clock read here would make the cache-buster nondeterministic
-        # against everything else the embed shows -- and untestable, since a
-        # test that fixes the clock for one can't tell whether the other used it.
+        # now, not an independent pendulum.now(): the caller already took "now" to stamp
+        # the embed with, and a second wall-clock read would make the cache-buster
+        # nondeterministic against the rest of the embed, and untestable.
         .set_image(url=f"{raw_thumb_url}?cb={int(now.timestamp())}")
         .set_footer(text=config.template("stream_footer_online", age=age))
     )
@@ -231,11 +229,9 @@ def offline_embed(
         try:
             link = vod_url(vod.id)
         except ValueError:
-            # Same "degrade rather than lose the embed" reasoning as _title,
-            # _display_name and _game above: an id Twitch didn't actually
-            # send as numeric means no VOD field, not a broken offline embed.
-            # Said aloud, though: the field is the alert's way back to the
-            # recording, and leaving it out is a decision somebody should see.
+            # Degrade rather than lose the embed, as _title, _display_name and _game do: an
+            # id Twitch did not send as numeric means no VOD field. Said aloud, though: the
+            # field is the alert's way back to the recording, so leaving it out should be seen.
             link = None
             notify_soon(
                 f"A live alert closed without its VOD link: the id Twitch sent,"

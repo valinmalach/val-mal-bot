@@ -29,18 +29,15 @@ __all__ = ["dispatch", "is_twitch_login"]
 
 COMPOSITE_HANDLER = "composite"
 
-# A Twitch login: up to 25 characters of ASCII letter, digit or underscore.
-# Anything else cannot name a channel, so it is refused before the lookup
-# rather than after: it costs no Helix call, and nothing a chatter typed
-# reaches Twitch as a query parameter on the strength of being a word.
+# A Twitch login: up to 25 ASCII letters, digits or underscores. Anything else
+# cannot name a channel, so it is refused before the lookup: it costs no Helix
+# call, and nothing a chatter typed reaches Twitch as a query parameter.
 #
-# No lower bound, though Twitch has required four since long before this bot.
-# That rule binds signups, not accounts, so a legacy handle shorter than four
-# is Twitch's to have issued and not this code's to refuse - and refusing one
-# would silently drop the shoutout for a raid from that channel, since the
-# raid handler posts `!so <login>` and it arrives back through here. The
-# charset and the maximum are what make the value safe to hand to Helix; the
-# minimum only ever adds false rejections.
+# No lower bound, though Twitch requires four of new signups: a legacy handle
+# shorter than that is Twitch's to have issued, and refusing one would silently
+# drop the shoutout for a raid from that channel, since the raid handler posts
+# `!so <login>` and it arrives back through here. The charset and the maximum
+# are what make the value safe for Helix; a minimum only adds false rejections.
 _TWITCH_LOGIN = re.compile(r"\A[a-zA-Z0-9_]{1,25}\Z")
 
 # A target is echoed into chat by `!hug` and by any stored response naming
@@ -76,16 +73,14 @@ def _target(args: str) -> str:
     Bounded and stripped of invisible characters for the same reason: whatever
     comes back is going into a chat line the bot says.
     """
-    # Any run of whitespace ends the word, and leading whitespace is skipped.
-    # Splitting on a single space read `!so  bob` (two spaces, an ordinary typo)
-    # as an empty first word, so a shoutout went to the broadcaster's own channel
-    # and a hug went to everyone, instead of to bob.
+    # Any run of whitespace ends the word, and leading whitespace is skipped:
+    # splitting on one space read `!so  bob` (an ordinary typo) as an empty first
+    # word, so the shoutout went to the broadcaster's own channel.
     first = next(iter(args.split()), "")
-    # Control and format characters removed: they are invisible, so they can
-    # reorder or hide what the rest of the line says once it reaches chat, and
-    # no name needs one. Before the strip below, not after it: stripped first,
-    # `<zero-width space>!so` kept its bang hidden behind the invisible
-    # character, and it was the removal that then put `!so` at the front.
+    # Control and format characters removed: they are invisible, can reorder or
+    # hide what the rest of the line says once it reaches chat, and no name needs
+    # one. Before the strip below: `<zero-width space>!so` only starts with `!so`
+    # once the invisible character is gone.
     kept = "".join(c for c in first if unicodedata.category(c) not in {"Cc", "Cf"})
     return kept.lstrip("@!")[:_MAX_TARGET]
 
@@ -150,9 +145,8 @@ async def shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> bool:
     if user and stream_session.is_live():
         shoutout_queue.add_to_queue(user.login, str(user.id))
 
-    # The answer is whether the line landed, not whether a channel was found.
-    # `say_template` reports its own failure and returns False, and a shoutout
-    # nobody saw is not one - so `!aso` leaves them unsettled and their next
+    # The answer is whether the line landed, not whether a channel was found: a
+    # shoutout nobody saw is not one, so `!aso` leaves them unsettled and their next
     # message earns another attempt. The Helix shoutout queued above is not
     # duplicated by that: the queue refuses a target it already holds, and the
     # same-target cooldown stops a second send inside the hour.
@@ -196,13 +190,12 @@ async def auto_shoutout(event_sub: ChannelChatMessageEventSub, args: str) -> Non
         # either, because `!so` is what a mod types when they want one now.
         return
 
-    # Spent only if a shoutout was actually given. `shoutout` answers "not
-    # found" identically for a channel that is gone and for a lookup that
-    # failed, and spending on either would settle someone who was never
-    # shouted out - they would get nothing when they later turned up, and
-    # re-running `!aso` would do nothing because the row is already there. The
-    # row stays either way: wanting them on the list is what `!aso` records,
-    # and a shoutout Twitch could not complete does not undo that.
+    # Spent only if a shoutout was actually given. `shoutout` answers "not found"
+    # identically for a channel that is gone and for a failed lookup, and spending
+    # on either would settle someone never shouted out: they would get nothing when
+    # they later turned up, and re-running `!aso` would do nothing because the row
+    # exists. The row stays either way: `!aso` records wanting them on the list, and
+    # a shoutout Twitch could not complete does not undo that.
     if await shoutout(event_sub, args):
         autoshoutout.spend(event_sub.event.broadcaster_user_id, int(user.id))
 

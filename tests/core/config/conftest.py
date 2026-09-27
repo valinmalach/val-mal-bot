@@ -1,5 +1,4 @@
-"""Fixtures for the ConfigCache tests, split across files so each is short
-enough to be reviewed whole."""
+"""Fixtures for the ConfigCache tests."""
 
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager

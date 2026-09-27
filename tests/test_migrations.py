@@ -18,8 +18,8 @@ from tests.support import ROOT, run_python
 from valmal.db.models import metadata
 
 REVISIONS = sorted((ROOT / "migrations" / "versions").glob("*.py"))
-# The code under test; docs, vendored trees and the agent worktrees under .claude,
-# each a whole copy of the repo, are not what reads configuration.
+# The code under test: not docs, vendored trees or the agent worktrees under
+# .claude (each a whole copy of the repo), none of which read configuration.
 NOT_SOURCE = {".venv", "tests", "migrations", ".verity", ".codacy", ".claude", "docs"}
 # Keys are these shapes; a literal of another shape is not a configuration row.
 KEY_SHAPE = re.compile(r"^(audit|admin|birthday|discord|stream|twitch|embed)_[a-z_]+$")

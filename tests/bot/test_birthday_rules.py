@@ -202,7 +202,7 @@ class TestNextBirthdayFromTheStoredInstant:
 
 
 class TestRowsWrittenBeforeTheZoneColumnExisted:
-    """No zone to read the local date in, so the year is simply bumped (issue #12)."""
+    """No zone to read the local date in, so the year is simply bumped."""
 
     def test_a_birthday_later_this_year(self) -> None:
         assert next_birthday(utc(2025, 7, 4), False, AFTER) == pendulum.datetime(

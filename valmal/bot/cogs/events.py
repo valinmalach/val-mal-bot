@@ -35,10 +35,8 @@ class Events(Cog):
     ) -> None:
         """Run a database write, reporting failures instead of raising.
 
-        Takes the call already made rather than a function and its arguments.
-        Passed as `*args: object` they were checked against nothing, so
-        upsert_message's six could be reordered and pyright would agree; written
-        out at the call site they are checked as ordinary arguments.
+        Takes the call already made rather than a function and its arguments, so
+        pyright checks them as ordinary arguments.
         """
         try:
             await write

@@ -1,7 +1,7 @@
 """The Helix endpoints the bot uses.
 
 ``None`` and an empty list mean Twitch has nothing to give; a call that did not
-complete raises ``HelixError``. The two are no longer the same answer.
+complete raises ``HelixError``.
 """
 
 import itertools
@@ -167,9 +167,7 @@ def callback_prefix() -> str:
 
     Every webhook route begins with it, so a callback that does not begin here
     belongs to another deployment or to this one before it moved. Deliberately
-    not a count: this said "seven" from the commit that added the check until the
-    eighth route landed in valmal/twitch/eventsub/router.py without touching this file, which
-    is exactly what a number written down in the wrong module does.
+    not a count, which would go stale whenever a route is added in router.py.
     """
     return callback_url("/webhook/twitch")
 
@@ -292,8 +290,8 @@ async def _named_user(username: str) -> User | None:
     The grammar is asked for here rather than trusted from the caller: these two
     are public, and a value that cannot name a channel should reach neither a
     Helix query parameter nor a log line on the strength of having been passed
-    in. Deferred because valmal.twitch.eventsub.commands imports this module; it owns
-    the one grammar, and a second copy here is what issue #38 is about.
+    in. Deferred because valmal.twitch.eventsub.commands imports this module; it
+    owns the one grammar, and a second copy here could disagree with it.
 
     Both refusals are said in the admin channel, not only logged. The value that
     failed the grammar is never echoed, since it can hold anything; a login that

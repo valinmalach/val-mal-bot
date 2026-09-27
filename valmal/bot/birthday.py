@@ -58,11 +58,10 @@ def next_birthday(
     """The next occurrence of a stored birthday, strictly after ``after``.
 
     With the zone it was set in, the local date is read back off the instant and
-    ``next_birthday_on`` answers from the parts, as it did when the birthday was
-    set. Without one there is nothing to construct a local date in, so advancing
-    a UTC instant is a year bump - which preserves neither the local day nor
-    local midnight across a zone's transitions, and is why the column exists
-    (issue #12). ``None`` is every row written before it did.
+    ``next_birthday_on`` answers from the parts. Without one (rows written before
+    the column existed) there is nothing to build a local date in, so it is a
+    year bump on the UTC instant, which preserves neither the local day nor local
+    midnight across a zone's transitions.
     """
     moment = pendulum.instance(birthday)
     if moment > after:

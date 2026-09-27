@@ -11,9 +11,6 @@ from valmal.core.background import _tasks
 pytestmark = pytest.mark.anyio
 
 
-# --- report ---------------------------------------------------------------------
-
-
 class TestReport:
     async def test_delivers_the_summary_and_a_traceback_attachment(
         self, clock: Clock, delivered: list[tuple[str, Any]]
@@ -112,9 +109,6 @@ class TestReport:
         monkeypatch.setattr(errors, "_deliver", deliver)
 
         await errors.report(RuntimeError("x"), "ctx")
-
-
-# --- notify / notify_file / notify_soon -----------------------------------------
 
 
 class TestNotify:

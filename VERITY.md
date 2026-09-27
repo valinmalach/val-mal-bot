@@ -40,19 +40,15 @@ Codacy VS Code extension reads the same file for its live diagnostics, and **reg
 from Codacy Cloud, overwriting it and `codacy.config.baseline.json` with the same content**:
 
 - at activation, when `metadata.source` is not `"remote"` while it holds a Codacy token
-  (`initialize()`: `remote === hasIdentification()`). Verity's own config says `"local"`, so
-  the extension replaced it at 13:52:36 on 2026-09-19, 27 s after the window opened, with no
-  log line and before any prompt was sent;
+  (Verity's own config says `"local"`), with no log line and before any prompt is sent;
 - whenever a file is created through VS Code's own UI (not by a shell or an agent) outside
-  `.git/`, `.codacy/`, `.vscode/`, `.github/`, `node_modules/` (`configDiscover`). Nothing
-  turns this off.
+  `.git/`, `.codacy/`, `.vscode/`, `.github/`, `node_modules/`. Nothing turns this off.
 
-Nothing said so: `cmp` of the config against its `.baseline.json` reports identical because
-the extension writes both together. Tell the files apart by `metadata.source` and by
+`cmp` of the config against its `.baseline.json` reports identical, because the extension
+writes both together. Tell the files apart by `metadata.source` and by
 `codacy-analysis analyze --inspect`, which lists the tools. Because the Cloud config holds
 Semgrep and there is no win32 Opengrep, `--install-dependencies` aborts the whole run (no tool
-executes, exit 0, 0 issues), so with the overwritten file the gate was probably analysing
-nothing.
+executes, exit 0, 0 issues), so an overwritten file means the gate analyses nothing.
 
 So the file is a **merge** of the Cloud repo config and Verity's config. The script forces
 `metadata.source` to `"remote"` (which stops the activation rewrite), and the file is then
@@ -70,21 +66,17 @@ attrib +R .codacy/codacy.config.json
 
 The merge is written aside and moved into place only if the script succeeds. `>` straight onto
 the config truncates it before Python runs, so a crash (a tool with no `patterns` key raises
-`KeyError`) would leave the gate a 0-byte file. The analyzer then exits 0 with 0 issues from
-0 tools run, which Verity records as `no_tools_ran`.
+`KeyError`) would leave the gate a 0-byte file, which the analyzer runs as 0 tools and 0 issues
+and Verity records as `no_tools_ran`.
 
 The Cloud dump is `.codacy/cloud.json`, never the default path: **never run `codacy-analysis
 init` or `/configure-codacy` without `--config-file`**, or it *is* the gate's config. To change
 the merged file, `attrib -R` it, re-run the merge, `attrib +R` it.
 
 **Re-run the whole block after any change to `.codacy.yaml`, not only the merge.** `codacy-analysis
-init --remote` bakes that file's `engines.*.exclude_paths` into each tool's own `exclude` at the
-moment it runs, so the merged file never sees a later edit. On 2026-09-20 it was a day stale:
-Bandit lacked `tests/**` and Lizard lacked `uv.lock`, both of which `.codacy.yaml` had gained
-since. The Cloud repo's tools and patterns had not moved, and `verity config get` matched
-`.codacy/verity.json`, so a fresh merge differed only in those two excludes. Merging into a
-scratch file and comparing it with `.codacy/codacy.config.json`, ignoring the timestamps in
-`metadata`, is the check.
+init --remote` bakes that file's `engines.*.exclude_paths` into each tool's own `exclude` when it
+runs, so the merged file never sees a later edit. Merge into a scratch file and compare it with
+`.codacy/codacy.config.json`, ignoring the timestamps in `metadata`, to check.
 
 `.codacy/merge-config.py` is gitignored like the rest of `.codacy/`, so this copy is the source:
 
@@ -140,15 +132,15 @@ json.dump(
 
 Two things the merge cannot keep at once. **Ruff:** Cloud's entry says "use `pyproject.toml`",
 whose `[tool.ruff]` carries the same families and more (see AGENTS.md); Verity's is a
-19-pattern list including `ANN001`/`ANN201`. Verity's wins in the merged file (as does Verity's list for any merged tool whose Cloud entry
-uses a local config file, which would otherwise ignore every pattern), and a tool has
-patterns or a local config file, never both, so the gate's Ruff does not read `pyproject.toml`:
-its `E4`/`E7`/`E9` rules and the per-file `S101` ignore for `valmal/core/logging_json.py` do not apply
-there. `S104` on `main.py`'s bind address is silenced inline (`# noqa: S104  # nosec B104`),
-which every mode honours, and `S105` no longer fires on the token-type comparison, which
-lower-cases the token type first. `S101` still fires 19 times in `valmal/core/logging_json.py` when that
-file is touched.
-**Semgrep:** Cloud analyses with it (649 patterns) and the merged file cannot.
+19-pattern list including `ANN001`/`ANN201`. Verity's wins in the merged file (as does Verity's
+list for any merged tool whose Cloud entry uses a local config file, which would otherwise ignore
+every pattern), and a tool has patterns or a local config file, never both, so the gate's Ruff does
+not read `pyproject.toml`: its `E4`/`E7`/`E9` rules and the per-file `S101` ignore for
+`valmal/core/logging_json.py` do not apply there. `S104` on `main.py`'s bind address is silenced
+inline (`# noqa: S104  # nosec B104`), which every mode honours, and `S105` no longer fires on the
+token-type comparison, which lower-cases the token type first. `S101` still fires 19 times in
+`valmal/core/logging_json.py` when that file is touched. **Semgrep:** Cloud analyses with it (649
+patterns) and the merged file cannot.
 
 The gate enforces the Standard version uploaded to the service, so it runs without a
 local copy; `.verity/standard.yaml` is only the source you edit and push from, and
@@ -222,11 +214,10 @@ none is a Python package, and the PyPI wrappers for the last two only lag them).
 Codacy CLI classes a PATH tool as `global` and leaves it alone; a tool in
 `~/.codacy/tools` or `~/.codacy/runtimes` is *managed*, and every `codacy-analysis
 analyze` (with or without `--install-dependencies`) reinstalls a managed tool whose
-version differs from the adapter's pin. That is what used to keep trying to downgrade
-Ruff and Trivy to 0.16.0 and 0.72.0, and it was only failing because of the `tar` bug
-below. The run's own table shows the truth in its Install column
-(`global (newer than 0.16.0)`); `--inspect` does not run the reinstall, so it cannot.
-`~/.codacy/tools` is empty now, and should stay so. Keep them current with:
+version differs from the adapter's pin, downgrading it. The run's own table shows the
+truth in its Install column (`global (newer than 0.16.0)`); `--inspect` does not run the
+reinstall, so it cannot. `~/.codacy/tools` is empty now, and should stay so. Keep them
+current with:
 
 ```sh
 uv tool upgrade --all
@@ -234,9 +225,8 @@ winget upgrade AquaSecurity.Trivy koalaman.shellcheck hadolint.hadolint
 ```
 
 Nothing in this repo has a shell script or a Dockerfile, so ShellCheck and Hadolint match
-no files here. They were checked against a planted `Dockerfile` and `.sh` (DL3006, DL3008,
-SC2006, SC2034, SC2086) with the same findings before and after the move. The adapters
-parse `--version` only to report it, so a newer binary is used as-is.
+no files here. The adapters parse `--version` only to report it, so a newer binary is
+used as-is.
 
 To re-validate the pattern IDs after any change, point the validator at the installed
 adapters — it cannot find them on Windows by itself:
@@ -245,27 +235,22 @@ adapters — it cannot find them on Windows by itself:
 CODACY_TOOLS_DIR=/c/nvm4w/nodejs/node_modules/@codacy/analysis-cli/node_modules/@codacy   node /c/nvm4w/nodejs/node_modules/@codacy/verity-cli/data/skills/verity-setup/validate-patterns.mjs .codacy/codacy.config.json
 ```
 
-(The script used to be at `.claude/skills/verity-setup/`; under the plugin that directory is
-empty. The copy inside `@codacy/verity-cli` is the one `verity doctor` runs.)
-
-Note that the IDs this adapter defines carry a slug suffix
-(`Ruff_ANN001_missing-type-function-argument`, not `Ruff_ANN001`). A wrong ID disables
-the tool **silently**, so never hand-author one — derive it with `--list` and validate.
+The IDs this adapter defines carry a slug suffix (`Ruff_ANN001_missing-type-function-argument`,
+not `Ruff_ANN001`). A wrong ID disables the tool **silently**, so never hand-author one —
+derive it with `--list` and validate.
 
 **One failure it always reports is a false alarm: `spectral_no-$ref-siblings`.** The adapter
-does define it (`tools-spectral-1/dist/index.js`, `id: "spectral_no-$ref-siblings"`), but the
-validator harvests IDs with `ID_CHAR = /[A-Za-z0-9_@./-]/`, which has no `$`, so it reads the
-ID as `spectral_no-` and finds nothing. Since `verity doctor` shells out to the same script, it
-prints `.codacy/codacy.config.json: ⚠ ids do not resolve` and advises `verity standard
-synthesize --config-only` or `verity init`. **Do neither for this:** the config is not broken,
-and `init` re-pushes an analysis config that brings `Ruff_F821` back (below). `verity init`
-does try: on 2026-09-20 it printed "Re-deriving it from your Standard…" and then "Could not
-re-derive it: EPERM … codacy.config.json". That EPERM is the read-only bit on the merged file
-doing its job; the file was identical to the merge afterwards. Never `attrib -R` it to make
-`init` "succeed". `codacy-analysis update-config` is the same hazard: its help says a remote
-config is "always fully re-synced from Codacy Cloud (cloud is authoritative)". Any *other* line
-in the validator's output is real. Checked 2026-09-20 against `@codacy/verity-cli` 0.33.1 and
-`@codacy/analysis-cli` 0.23.1; both copies of the script carry the same `ID_CHAR`.
+does define it, but the validator harvests IDs with `ID_CHAR = /[A-Za-z0-9_@./-]/`, which has
+no `$`, so it reads the ID as `spectral_no-` and finds nothing. `verity doctor` shells out to
+the same script, so it prints `.codacy/codacy.config.json: ⚠ ids do not resolve` and advises
+`verity standard synthesize --config-only` or `verity init`. **Do neither for this:** the
+config is not broken, and `init` re-pushes an analysis config that brings `Ruff_F821` back
+(below). `verity init` also tries to re-derive the file and fails with `EPERM` on the read-only
+bit, which is that bit doing its job; never `attrib -R` it to make `init` "succeed".
+`codacy-analysis update-config` is the same hazard: its help says a remote config is "always
+fully re-synced from Codacy Cloud (cloud is authoritative)". Any *other* line in the
+validator's output is real. Checked 2026-09-20 against `@codacy/verity-cli` 0.33.1 and
+`@codacy/analysis-cli` 0.23.1.
 
 ### Reporting a false positive: always pass `--file`
 
@@ -280,8 +265,8 @@ Demonstrated on 2026-09-10: three unscoped `false_positive` reports for
 function annotated `-> int` returning a `str` reviewing as `PASS` with zero
 findings and `suppressions_applied: [{pattern_id: type-safety, file_glob:
 "**/*.py", count: 2}]`. Reported upstream; until it is cleared, Verity's
-`type-safety` dimension is blind on this repo and `uvx pyright` plus
-`uvx ruff check` are the cover — both catch exactly what it now swallows.
+`type-safety` dimension is blind on this repo and `uv run pyright` plus
+`uv run ruff check` are the cover — both catch exactly what it now swallows.
 
 So: pass `--file` (and `--line`), and before trusting a clean run, read
 `suppressions_applied`. Zero findings is indistinguishable from a blinded
@@ -294,41 +279,30 @@ class annotating itself in its own body —
 `_instance: ClassVar[TwitchShoutoutQueue | None] = None` inside
 `class TwitchShoutoutQueue`. On Python 3.14 that is correct code: PEP 649
 compiles annotations into a lazy `__annotate__` thunk, so the class body never
-evaluates the name. The modules import and `__annotations__` resolves.
+evaluates the name.
 
-`ruff check --target-version py314` passes; py313 and below report it. The
-repo's `requires-python = ">=3.14.7"` makes the project's own Ruff infer py314,
-which is why `uvx ruff check` is clean and Verity's was not, and
-`.codacy/codacy.config.json` exposes no target-version to fix it with (`pyproject.toml` now
-states `target-version = "py314"`, so a Ruff that reads it has no such problem; only the
-gate's pattern mode does). F821 was
-therefore removed from the list rather than suppressed: the project's own Ruff
-and pyright both enforce it correctly, so nothing is lost, and the recurring
-false positive no longer invites another suppression.
+`pyproject.toml` states `target-version = "py314"`, so a Ruff that reads it has no such
+problem; only the gate's pattern mode, which exposes no target version, does. At py314 the
+whole repo is clean; with `ruff check --select F821 --target-version py313` it reports
+`valmal/twitch/stream/shoutout_queue.py:28` and `valmal/twitch/oauth/token_manager.py:29`
+(this case) and three more of the same shape in `tests/db/support.py` and
+`tests/db/test_session.py`. F821 was therefore removed from the list rather than
+suppressed: the project's own Ruff and pyright both enforce it correctly, so nothing is lost,
+and the recurring false positive no longer invites another suppression.
 
-`verity config get` still returns it, so the merge script drops it. Re-checked 2026-09-20 by
-running the gate's own Ruff (0.16.8, `@codacy/analysis-cli` 0.23.1) with only that pattern on:
-`shoutout_queue.py:28` and `token_manager.py:29`, both this case. Below py314 (`ruff check
---select F821 --target-version py313`) the suite adds three more of the same shape, a method
-returning its own class, in `tests/db/support.py` (`Result`, `Scope`) and
-`tests/db/test_session.py` (`FakeSession`). At py314 the whole repo is clean.
-
-It returns it because `verity init` pushes the analysis config to the service as part of
-its own run ("Analysis config pushed"), and the removal was made on the service by a
-`verity config push` on 2026-09-10. On 2026-09-18 `verity init` ran (13:59:10Z, per
-`verity doctor`) and the service copy's `updated_at` is one second later: F821 was back
-and `S104` added. So expect `verity config get` to regress after any `verity init`, and
-restore from the merge, never from `verity config get` alone. The gate runs from the
-local file, and the only readers of the service copy found are `verity config get` and
-`verity doctor`, so it is left as is rather than pushed over again, which the next `init`
-would undo. If the service turns out to use its copy for the review, push a Verity-only,
-F821-free file with `verity config push --file`, never the merged one.
+`verity config get` still returns it, so the merge script drops it. It returns because
+`verity init` pushes the analysis config to the service as part of its own run: after the
+`init` of 2026-09-18 F821 was back, and `S104` with it. So expect `verity config get` to
+regress after any `verity init`, and restore from the merge, never from `verity config get`
+alone. The gate runs from the local file, and the only readers of the service copy found are
+`verity config get` and `verity doctor`, so it is left as is rather than pushed over again.
+If the service turns out to use its copy for the review, push a Verity-only, F821-free file
+with `verity config push --file`, never the merged one.
 
 ### Two Windows workarounds this setup depends on
 
 Both are upstream bugs in the current releases (`@codacy/verity-cli` 0.33.1,
-`@codacy/analysis-cli` 0.23.1; both first found on 0.31.1 and 0.21.0, and the code paths below
-are unchanged in the newer ones, read from `dist/index.js` and `bin/verity.js` rather than
+`@codacy/analysis-cli` 0.23.1, read from `dist/index.js` and `bin/verity.js` rather than
 reproduced). Re-apply them if the tooling is reinstalled.
 
 1. **`codacy-analysis --install-dependencies` cannot install its own tools.** It shells
@@ -339,10 +313,10 @@ reproduced). Re-apply them if the tooling is reinstalled.
 2. **Verity cannot spawn the analyzer.** `verity.js` calls
    `spawnSync(codacyAnalysisPath() ?? "codacy-analysis", ...)` with no `shell: true`. On
    Windows npm installs that command only as `.cmd`/`.ps1` shims, so the bare name gives
-   `ENOENT` and `.cmd` gives `EINVAL` (Node's CVE-2024-27980 fix). 0.32.7 fixed *finding*
-   the analyzer (a `PATH`/`PATHEXT` walk instead of `which`), which is why the doctor no
-   longer says it is missing; that walk still returns a `.cmd` shim, and spawning one still
-   fails. Without a fix the gate reports `spawn_failed` and runs **no** static analysis at all.
+   `ENOENT` and `.cmd` gives `EINVAL` (Node's CVE-2024-27980 fix). The doctor finds the
+   analyzer by a `PATH`/`PATHEXT` walk, but that walk still returns a `.cmd` shim, and
+   spawning one still fails. Without a fix the gate reports `spawn_failed` and runs **no**
+   static analysis at all.
 
    Fixed by `~/.local/bin/codacy-analysis.exe` — a small C# forwarder to
    `node <analysis-cli>/dist/index.js`. That directory precedes the npm shim directory

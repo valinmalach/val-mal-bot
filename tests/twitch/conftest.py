@@ -1,5 +1,4 @@
-"""Fixtures for the Twitch layer, split across files so each is short enough to be
-reviewed whole."""
+"""Fixtures for the Twitch layer."""
 
 from collections.abc import Callable
 from types import SimpleNamespace
