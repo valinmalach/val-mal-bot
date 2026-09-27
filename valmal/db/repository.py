@@ -7,7 +7,7 @@ lose them.
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col
 
@@ -16,6 +16,7 @@ from valmal.db.session import session_scope
 
 __all__ = [
     "add_autoshoutout",
+    "clear_birthday",
     "delete_live_alert",
     "delete_message",
     "delete_user",
@@ -53,14 +54,16 @@ async def get_user(user_id: int) -> DiscordUser | None:
 async def upsert_user(
     user_id: int,
     username: str,
-    birthday: datetime | None = None,
-    is_birthday_leap: bool | None = None,
-    birthday_timezone: str | None = None,
+    birthday: datetime,
+    is_birthday_leap: bool,
+    birthday_timezone: str | None,
 ) -> None:
     """Write a user and all three birthday columns.
 
     All three, together: they describe one birthday, and a caller that wrote two
-    of them would leave the third describing a different one.
+    of them would leave the third describing a different one. Only the timezone may
+    be None: a row older than that column has none, and a name the tz database
+    dropped is cleared. Erasing a birthday is ``clear_birthday``.
     """
     await _upsert(
         DiscordUser,
@@ -73,6 +76,16 @@ async def upsert_user(
         },
         ["id"],
     )
+
+
+async def clear_birthday(user_id: int) -> None:
+    """Null all three birthday columns, for the same reason they are written together."""
+    async with session_scope() as session:
+        await session.execute(
+            update(DiscordUser)
+            .where(col(DiscordUser.id) == user_id)
+            .values(birthday=None, is_birthday_leap=None, birthday_timezone=None)
+        )
 
 
 async def upsert_username(user_id: int, username: str) -> None:

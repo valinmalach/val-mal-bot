@@ -1,3 +1,4 @@
+import inspect
 from datetime import UTC, datetime
 
 import pytest
@@ -42,32 +43,45 @@ class TestUpsertUser:
             "birthday_timezone",
         ]
 
-    async def test_no_birthday_clears_all_three_rather_than_leaving_a_stale_one(
-        self, database: Database
-    ) -> None:
-        """The three describe one birthday; writing two would leave the third wrong."""
-        await repository.upsert_user(7, "val")
+    def test_every_birthday_column_is_required(self) -> None:
+        """A default of None would erase a stored birthday by omission."""
+        parameters = inspect.signature(repository.upsert_user).parameters.values()
 
-        written = params(database.only)
-        assert (
-            written["birthday"],
-            written["is_birthday_leap"],
-            written["birthday_timezone"],
-        ) == (None, None, None)
-        assert "excluded.birthday," in sql(database.only)
+        assert all(p.default is inspect.Parameter.empty for p in parameters)
 
     async def test_updated_at_is_set_by_the_database_clock_not_by_the_row_being_kept(
         self, database: Database
     ) -> None:
         """The column's onupdate does not fire for ON CONFLICT DO UPDATE."""
-        await repository.upsert_user(7, "val")
+        await repository.upsert_user(7, "val", MOMENT, False, "UTC")
 
         assert "updated_at = now()" in sql(database.only)
 
     async def test_created_at_is_never_overwritten(self, database: Database) -> None:
-        await repository.upsert_user(7, "val")
+        await repository.upsert_user(7, "val", MOMENT, False, "UTC")
 
         assert "created_at" not in assigned(database.only)
+
+
+class TestClearBirthday:
+    async def test_nulls_all_three_columns_of_that_user_and_nothing_else(
+        self, database: Database
+    ) -> None:
+        """The three describe one birthday; clearing two would leave the third wrong."""
+        await repository.clear_birthday(7)
+
+        assert sql(database.only) == (
+            "UPDATE discord_user SET updated_at=now(), birthday=%(birthday)s,"
+            " is_birthday_leap=%(is_birthday_leap)s,"
+            " birthday_timezone=%(birthday_timezone)s"
+            " WHERE discord_user.id = %(id_1)s"
+        )
+        assert params(database.only) == {
+            "birthday": None,
+            "is_birthday_leap": None,
+            "birthday_timezone": None,
+            "id_1": 7,
+        }
 
 
 class TestUpsertUsername:

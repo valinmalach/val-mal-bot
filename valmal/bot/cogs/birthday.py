@@ -119,13 +119,8 @@ class Birthday(GroupCog):
                 )
                 return
 
-            had_birthday = existing_user.birthday is not None
-            # The explicit Nones are the removal: they clear all three columns.
-            await repository.upsert_user(
-                interaction.user.id, interaction.user.name, None, None, None
-            )
-
-            if had_birthday:
+            if existing_user.birthday is not None:
+                await repository.clear_birthday(interaction.user.id)
                 await interaction.response.send_message(
                     config.template("birthday_removed")
                 )
