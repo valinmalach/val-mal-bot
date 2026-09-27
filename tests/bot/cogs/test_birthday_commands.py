@@ -24,6 +24,7 @@ class World:
 
     def __init__(self) -> None:
         self.written: list[tuple[Any, ...]] = []
+        self.cleared: list[int] = []
         self.write_error: Exception | None = None
         self.user_row: Any = None
         self.read_error: Exception | None = None
@@ -66,6 +67,11 @@ def world(monkeypatch: pytest.MonkeyPatch) -> World:
             raise world.write_error
         world.written.append(args)
 
+    async def clear_birthday(user_id: int) -> None:
+        if world.write_error is not None:
+            raise world.write_error
+        world.cleared.append(user_id)
+
     async def get_user(user_id: int) -> Any:
         if world.read_error is not None:
             raise world.read_error
@@ -79,6 +85,7 @@ def world(monkeypatch: pytest.MonkeyPatch) -> World:
         world.reported.append((context, key))
 
     monkeypatch.setattr(birthday.repository, "upsert_user", upsert_user)
+    monkeypatch.setattr(birthday.repository, "clear_birthday", clear_birthday)
     monkeypatch.setattr(birthday.repository, "get_user", get_user)
     monkeypatch.setattr(birthday, "notify", notify)
     monkeypatch.setattr(birthday, "report", report)
@@ -310,14 +317,15 @@ class TestSetFails:
 
 
 class TestRemove:
-    async def test_clears_all_three_columns_of_a_stored_birthday(
+    async def test_clears_a_stored_birthday_by_name_not_by_writing_nones(
         self, world: World
     ) -> None:
         world.user_row = SimpleNamespace(birthday=datetime(2026, 7, 4, tzinfo=UTC))
 
         await remove_birthday(world)
 
-        assert world.written == [(7, "val_mal", None, None, None)]
+        assert world.cleared == [7]
+        assert world.written == []
         assert world.texts == ["removed"]
 
     async def test_a_user_with_no_birthday_is_told_there_was_nothing_to_remove(
@@ -327,6 +335,7 @@ class TestRemove:
 
         await remove_birthday(world)
 
+        assert world.cleared == []
         assert world.texts == ["nothing to remove"]
 
     async def test_a_user_with_no_record_is_told_so_and_the_admins_are_too(
@@ -336,7 +345,7 @@ class TestRemove:
 
         await remove_birthday(world)
 
-        assert world.written == []
+        assert world.cleared == []
         assert world.texts == ["no record"]
         assert world.notified == [
             f"User val{BACKSLASH}_mal (7) attempted to remove a birthday but had "
