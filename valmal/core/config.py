@@ -177,7 +177,7 @@ class ConfigCache:
         # Placeholders resolve first: str.format reads {channel:promo} as a
         # format spec and raises KeyError on the brace it does not own.
         rendered = self.render(content, source=f"message_template:{key}")
-        return safe_format(rendered, values) if values else rendered
+        return safe_format(rendered, values)
 
     def render(self, text: str, *, source: str) -> str:
         """Turn {channel:key} and {role:key} into Discord mentions.
@@ -187,9 +187,8 @@ class ConfigCache:
         placeholder rather than raising.
 
         A doubled ``{{channel:key}}``/``{{role:key}}`` is left untouched, like
-        str.format's ``{{``/``}}`` escape. template() unescapes it through
-        safe_format only when it is given values; without them, and in embed()
-        and auto_response(), the doubled braces go out as written.
+        str.format's ``{{``/``}}`` escape: template() unescapes it through
+        safe_format; embed() and auto_response() leave the doubled braces.
         """
 
         def replace(match: re.Match[str]) -> str:

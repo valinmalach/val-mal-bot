@@ -150,6 +150,16 @@ class TestTemplate:
         assert cache.template("t", name="bob") == "oops {name"
         assert len(notices) == 1
 
+    async def test_doubled_braces_unescape_the_same_with_or_without_values(
+        self, load: Any
+    ) -> None:
+        """Only formatting when values were passed made {{role:x}} come out doubled
+        from one call and single from the next, for the same row."""
+        cache = await load(MessageTemplate(key="t", content="{{role:x}} {{y}}"))
+
+        assert cache.template("t") == "{role:x} {y}"
+        assert cache.template("t", name="bob") == "{role:x} {y}"
+
     async def test_a_value_may_carry_braces_or_mentions_without_being_reread(
         self, load: Any
     ) -> None:
