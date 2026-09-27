@@ -114,7 +114,7 @@ class TestHistory:
 
 def roots_imported_by(source: str) -> set[str]:
     """The top-level module of every import in the source, nested ones included."""
-    imported = set()
+    imported: set[str] = set()
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.ImportFrom) and node.module:
             imported.add(node.module.split(".")[0])

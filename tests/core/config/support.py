@@ -5,6 +5,9 @@ from typing import Any
 
 from valmal.db.models import AppSetting, DiscordRole, SettingValueType
 
+# What the notices fixture records: each notice's text and its repeat key.
+Notices = list[tuple[str, str | None]]
+
 
 class FakeSession:
     """Answers `select(Model)` with the rows it was given for that model."""

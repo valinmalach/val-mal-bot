@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from tests.core.config.support import role
+from tests.core.config.support import Notices, role
 from valmal.core.config import ConfigCache, RenderedEmbed, RenderedField
 from valmal.db.models import (
     DiscordChannel,
@@ -42,7 +42,7 @@ class TestRender:
         )
 
     async def test_a_slug_with_no_row_is_left_as_written_with_a_notice_naming_the_source(
-        self, cache: ConfigCache, notices: list
+        self, cache: ConfigCache, notices: Notices
     ) -> None:
         assert cache.render("x {channel:gone}", source="message_template:hello") == (
             "x {channel:gone}"
@@ -54,7 +54,7 @@ class TestRender:
         assert key == "render-missing-channel:gone:message_template:hello"
 
     async def test_one_dangling_slug_in_two_rows_is_two_notices(
-        self, cache: ConfigCache, notices: list
+        self, cache: ConfigCache, notices: Notices
     ) -> None:
         cache.render("{role:gone}", source="row one")
         cache.render("{role:gone}", source="row two")
@@ -65,7 +65,7 @@ class TestRender:
         ]
 
     async def test_a_doubled_brace_is_left_untouched(
-        self, cache: ConfigCache, notices: list
+        self, cache: ConfigCache, notices: Notices
     ) -> None:
         assert cache.render("{{channel:promo}}", source="s") == "{{channel:promo}}"
         assert cache.render("{{role:follower}}", source="s") == "{{role:follower}}"
@@ -90,7 +90,7 @@ class TestRender:
 
 class TestTemplate:
     async def test_a_missing_row_is_an_empty_string_and_a_notice_not_an_exception(
-        self, load: Any, notices: list
+        self, load: Any, notices: Notices
     ) -> None:
         cache = await load()
 
@@ -121,7 +121,7 @@ class TestTemplate:
         assert cache.template("t") == "go to <#5>"
 
     async def test_a_dangling_slug_survives_formatting_as_written(
-        self, load: Any, notices: list
+        self, load: Any, notices: Notices
     ) -> None:
         cache = await load(MessageTemplate(key="t", content="{channel:gone} {name}"))
 
@@ -129,7 +129,7 @@ class TestTemplate:
         assert len(notices) == 1
 
     async def test_the_notice_names_the_template_row_at_fault(
-        self, load: Any, notices: list
+        self, load: Any, notices: Notices
     ) -> None:
         cache = await load(MessageTemplate(key="birthday", content="{role:gone}"))
 
@@ -143,7 +143,7 @@ class TestTemplate:
         assert cache.template("t", a=1) == "1 {b}"
 
     async def test_a_malformed_template_degrades_to_its_own_text(
-        self, load: Any, notices: list
+        self, load: Any, notices: Notices
     ) -> None:
         cache = await load(MessageTemplate(key="t", content="oops {name"))
 
@@ -220,7 +220,7 @@ class TestEmbed:
             assert embed.description is None
 
     async def test_a_stale_slug_in_a_field_is_named_by_embed_and_position(
-        self, load: Any, notices: list
+        self, load: Any, notices: Notices
     ) -> None:
         cache = await load(
             DiscordEmbed(key="e"),
@@ -250,7 +250,7 @@ class TestEmbed:
         assert cache.embed_keys() == ["a", "b", "c"]
 
     async def test_embeds_for_one_channel_are_read_off_the_rows_without_rendering(
-        self, load: Any, notices: list
+        self, load: Any, notices: Notices
     ) -> None:
         cache = await load(
             DiscordEmbed(key="x", channel_key="rules", position=2, title="{role:gone}"),

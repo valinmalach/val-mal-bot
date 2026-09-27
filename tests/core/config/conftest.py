@@ -8,13 +8,13 @@ import pytest
 
 import valmal.core.config as service_config
 import valmal.core.safe_format as safe_format_module
-from tests.core.config.support import FakeSession
+from tests.core.config.support import FakeSession, Notices
 from valmal.core.config import ConfigCache
 
 
 @pytest.fixture
-def notices(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str | None]]:
-    seen: list[tuple[str, str | None]] = []
+def notices(monkeypatch: pytest.MonkeyPatch) -> Notices:
+    seen: Notices = []
 
     def notify_soon(text: str, *, key: str | None = None) -> None:
         seen.append((text, key))
@@ -30,7 +30,7 @@ def load(
 ) -> Callable[..., Any]:
     """Build a ConfigCache by running the real load() against rows given here."""
 
-    async def build(*rows: Any, cache: ConfigCache | None = None) -> ConfigCache:
+    async def build(*rows: object, cache: ConfigCache | None = None) -> ConfigCache:
         by_model: dict[type, list[Any]] = {}
         for row in rows:
             by_model.setdefault(type(row), []).append(row)

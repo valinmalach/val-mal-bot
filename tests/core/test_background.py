@@ -202,7 +202,11 @@ def test_finishing_with_no_running_loop_only_logs(
     from valmal.core import errors
 
     called: list[object] = []
-    monkeypatch.setattr(errors, "report", lambda *args: called.append(args))
+
+    def report(*args: object) -> None:
+        called.append(args)
+
+    monkeypatch.setattr(errors, "report", report)
 
     class Failed:
         def cancelled(self) -> bool:

@@ -1,7 +1,8 @@
 from types import SimpleNamespace, TracebackType
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from sqlalchemy.pool import QueuePool
 
 from valmal.core.settings import settings
 from valmal.db import session
@@ -33,16 +34,16 @@ class TestTheEngineIsLazy:
         self,
     ) -> None:
         """Railway's proxy drops idle connections."""
-        pool = session.get_engine().pool
+        pool = cast("QueuePool", session.get_engine().pool)
 
-        assert pool._pre_ping is True  # pyright: ignore[reportAttributeAccessIssue]
-        assert pool._recycle == 300  # pyright: ignore[reportAttributeAccessIssue]
+        assert pool._pre_ping is True
+        assert pool._recycle == 300
 
     def test_the_pool_is_five_with_five_overflow(self) -> None:
-        pool = session.get_engine().pool
+        pool = cast("QueuePool", session.get_engine().pool)
 
-        assert pool.size() == 5  # pyright: ignore[reportAttributeAccessIssue]
-        assert pool._max_overflow == 5  # pyright: ignore[reportAttributeAccessIssue]
+        assert pool.size() == 5
+        assert pool._max_overflow == 5
 
     @pytest.mark.parametrize("echo", [True, False])
     def test_echo_follows_the_setting(
@@ -55,7 +56,7 @@ class TestTheEngineIsLazy:
     def test_building_one_opens_no_connection(self) -> None:
         engine = session.get_engine()
 
-        assert engine.pool.checkedout() == 0  # pyright: ignore[reportAttributeAccessIssue]
+        assert cast("QueuePool", engine.pool).checkedout() == 0
 
 
 class TestTheFactory:
