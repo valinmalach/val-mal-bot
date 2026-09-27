@@ -15,3 +15,9 @@ engines:
       # Every Verity reconcile adds a blank line after its preserve marker (MD012), and
       # Codacy's markdownlint does not read .markdownlint.jsonc, where MD012 is off.
       - "CLAUDE.md"
+  pylintpython3:
+    exclude_paths:
+      # Pylint does not narrow through isinstance, so a fake raising a stored answer
+      # trips raising-bad-type, which pyright covers over tests too; and the helpers'
+      # id=/type= mirror the Twitch and Discord fields they build (redefined-builtin).
+      - "tests/**"

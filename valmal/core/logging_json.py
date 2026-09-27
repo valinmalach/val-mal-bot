@@ -93,10 +93,10 @@ def _demo() -> None:
             (),
             (type(exc), exc, exc.__traceback__),
         )
-    payload = rendered(record)
-    assert payload["level"] == "error"
-    exception = payload["exception"]
-    assert isinstance(exception, str) and "ValueError" in exception
+        payload = rendered(record)
+        assert payload["level"] == "error"
+        exception = payload["exception"]
+        assert isinstance(exception, str) and "ValueError" in exception
 
     class _Unserialisable:
         def __str__(self) -> str:
