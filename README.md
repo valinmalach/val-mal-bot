@@ -113,7 +113,7 @@ and [ad-schedule authorization](https://dev.twitch.tv/docs/api/reference/#get-ad
 ## Checks
 
 ```sh
-uv run ruff format . --exclude .venv
+uv run ruff format . --exclude .venv   # formats in place; CI runs it with --check
 uv run ruff check . --exclude .venv
 uv run pyright
 uv run pytest --cov
