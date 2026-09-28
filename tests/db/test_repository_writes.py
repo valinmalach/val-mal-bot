@@ -174,6 +174,24 @@ class TestDeletes:
             "DELETE FROM discord_message WHERE discord_message.id = %(id_1)s"
         )
 
+    async def test_delete_messages_is_one_statement_for_the_whole_batch(
+        self, database: Database
+    ) -> None:
+        await repository.delete_messages([5, 6, 7])
+
+        assert sql(database.only) == (
+            "DELETE FROM discord_message"
+            " WHERE discord_message.id IN (__[POSTCOMPILE_id_1])"
+        )
+        assert params(database.only) == {"id_1": [5, 6, 7]}
+
+    async def test_delete_messages_of_none_sends_nothing(
+        self, database: Database
+    ) -> None:
+        await repository.delete_messages([])
+
+        assert database.statements == []
+
     async def test_delete_live_alert_by_broadcaster_takes_whatever_alert_is_there(
         self, database: Database
     ) -> None:

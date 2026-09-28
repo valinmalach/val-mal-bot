@@ -336,7 +336,7 @@ class TestOnRawBulkMessageDelete:
     def payload(self, ids: set[int]) -> Any:
         return SimpleNamespace(message_ids=ids, guild_id=5, channel_id=55)
 
-    async def test_logs_one_entry_with_the_count_and_removes_every_row(
+    async def test_logs_one_entry_with_the_count_and_removes_every_row_at_once(
         self, ev: EventsWorld
     ) -> None:
         where = channel()
@@ -347,7 +347,8 @@ class TestOnRawBulkMessageDelete:
         assert ev.calls("bulk_deleted") == [
             ((), {"count": 3, "deleted_by": None, "channel": where})
         ]
-        assert sorted(ev.deleted) == [1, 2, 3]
+        assert ev.deleted_batches == [{1, 2, 3}]
+        assert ev.deleted == []
 
     async def test_asks_the_audit_log_for_a_bulk_delete_not_a_single_one(
         self, ev: EventsWorld
@@ -360,18 +361,14 @@ class TestOnRawBulkMessageDelete:
             {"limit": 1, "action": discord.AuditLogAction.message_bulk_delete}
         ]
 
-    async def test_one_row_that_will_not_delete_does_not_stop_the_rest(
+    async def test_a_batch_that_will_not_delete_is_reported_once(
         self, ev: EventsWorld
     ) -> None:
-        ev.fail.add("delete_message")
+        ev.fail.add("delete_messages")
 
         await cog(ev).on_raw_bulk_message_delete(self.payload({1, 2, 3}))
 
-        assert sorted(ev.reported) == [
-            "Failed to delete message 1",
-            "Failed to delete message 2",
-            "Failed to delete message 3",
-        ]
+        assert ev.reported == ["Failed to delete 3 bulk-deleted messages"]
 
     async def test_a_purge_of_nothing_logs_a_count_of_zero(
         self, ev: EventsWorld

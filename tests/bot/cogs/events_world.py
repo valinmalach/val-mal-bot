@@ -47,6 +47,7 @@ class EventsWorld:
         self.usernames: list[tuple[int, str]] = []
         self.removed_users: list[int] = []
         self.deleted: list[int] = []
+        self.deleted_batches: list[set[int]] = []
         self.rows: dict[int, Any] = {}
         self.fail: set[str] = set()
         self.reported: list[str] = []
@@ -81,6 +82,9 @@ class EventsWorld:
 
     def delete(self, message_id: int) -> None:
         self.deleted.append(message_id)
+
+    def delete_batch(self, message_ids: set[int]) -> None:
+        self.deleted_batches.append(message_ids)
 
     def auto_response(self, content: str) -> str | None:
         return self.reply
@@ -133,6 +137,9 @@ def install(monkeypatch: pytest.MonkeyPatch) -> EventsWorld:
     )
     monkeypatch.setattr(
         repository, "delete_message", failing("delete_message", world.delete)
+    )
+    monkeypatch.setattr(
+        repository, "delete_messages", failing("delete_messages", world.delete_batch)
     )
     monkeypatch.setattr(repository, "get_message", get_message)
     monkeypatch.setattr(events, "send_embed", send_embed)

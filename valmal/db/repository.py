@@ -4,6 +4,7 @@ Writes are immediate, not queued behind a flush interval, so a restart cannot
 lose them.
 """
 
+from collections.abc import Collection
 from datetime import datetime
 from typing import Any
 
@@ -19,6 +20,7 @@ __all__ = [
     "clear_birthday",
     "delete_live_alert",
     "delete_message",
+    "delete_messages",
     "delete_user",
     "get_live_alert",
     "get_message",
@@ -142,6 +144,16 @@ async def delete_message(message_id: int) -> None:
     async with session_scope() as session:
         await session.execute(
             delete(DiscordMessage).where(col(DiscordMessage.id) == message_id)
+        )
+
+
+async def delete_messages(message_ids: Collection[int]) -> None:
+    """One statement for a bulk deletion, which Discord sends up to 100 at a time."""
+    if not message_ids:
+        return
+    async with session_scope() as session:
+        await session.execute(
+            delete(DiscordMessage).where(col(DiscordMessage.id).in_(message_ids))
         )
 
 

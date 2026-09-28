@@ -264,11 +264,10 @@ class Events(Cog):
             channel=self.bot.get_channel(payload.channel_id),
         )
 
-        for message_id in payload.message_ids:
-            await self._safe_db_operation(
-                f"delete message {message_id}",
-                repository.delete_message(message_id),
-            )
+        await self._safe_db_operation(
+            f"delete {len(payload.message_ids)} bulk-deleted messages",
+            repository.delete_messages(payload.message_ids),
+        )
 
     @Cog.listener()
     async def on_member_ban(self, guild: Guild, user: User | Member) -> None:
