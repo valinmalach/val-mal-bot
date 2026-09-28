@@ -345,6 +345,11 @@ class TestRunningItAsAScript:
         assert how_the_server_starts["log_config"] is None
         assert "log_config" in how_the_server_starts
 
+    def test_loads_no_websocket_stack(
+        self, how_the_server_starts: dict[str, Any]
+    ) -> None:
+        assert how_the_server_starts["ws"] == "none"
+
     def test_logs_requests_at_info(self, how_the_server_starts: dict[str, Any]) -> None:
         assert how_the_server_starts["log_level"] == "info"
         assert how_the_server_starts["access_log"] is True

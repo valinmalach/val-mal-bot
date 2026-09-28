@@ -92,4 +92,6 @@ if __name__ == "__main__":
         log_level="info",
         access_log=True,
         log_config=None,
+        # Nothing here serves a websocket; "auto" imports the whole stack anyway.
+        ws="none",
     )
