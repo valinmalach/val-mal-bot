@@ -28,61 +28,68 @@ from valmal.core.errors import report
 from valmal.db import repository
 
 # Discord writes no audit entry when people delete their own messages, and folds
-# a moderator's repeat deletions into one entry by raising its count, so the
-# newest entry is usually about some earlier deletion. Only a recent entry that is
-# about this deletion, and new or counted up since it last named anyone, names the
-# deleter; otherwise the deleter is left unnamed rather than guessed.
+# a moderator's repeat deletions of one author in one channel into one entry by
+# raising its count, so the newest entry is usually about some earlier deletion.
+# A deletion is attributed only to a recent entry about it that still has a
+# counted deletion no earlier event claimed; otherwise the deleter is left
+# unnamed. Claims live in memory, so for one window after a restart an earlier
+# moderator's entry can still be claimed.
 _AUDIT_WINDOW = timedelta(minutes=5)
-_AUDIT_LOOKBACK = 10
+# One page of the audit log, which is all one request can fetch.
+_AUDIT_LOOKBACK = 100
 
 # Not a `type` statement: PEP 695 syntax blinds Sourcery to the whole file.
 _Matches = Callable[[discord.AuditLogEntry], bool]
 
 
-def _about_message(channel_id: int, author_id: int | None) -> _Matches:
-    """An entry for this channel, and for this author when the author is known."""
-
+def _about_message(channel_id: int, author_id: int) -> _Matches:
     def matches(entry: discord.AuditLogEntry) -> bool:
         channel = getattr(entry.extra, "channel", None)
         return (
             channel is not None
             and channel.id == channel_id
-            and (author_id is None or getattr(entry.target, "id", None) == author_id)
+            and getattr(entry.target, "id", None) == author_id
         )
 
     return matches
 
 
-def _about_purge(channel_id: int) -> _Matches:
-    """A bulk deletion's entry targets the channel itself."""
-    return lambda entry: getattr(entry.target, "id", None) == channel_id
+def _about_purge(channel_id: int, count: int) -> _Matches:
+    """A bulk deletion's entry targets the channel itself and counts its messages,
+    which tells two purges of one channel apart."""
+    return lambda entry: (
+        getattr(entry.target, "id", None) == channel_id
+        and getattr(entry.extra, "count", None) == count
+    )
 
 
 class Events(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
-        # Entry id -> the count it had when it last named a deleter.
+        # Entry id -> how many of its counted deletions events have claimed.
         self._attributed: dict[int, int] = {}
 
     def _deleter(
-        self, entries: Iterable[discord.AuditLogEntry], matches: _Matches
+        self, entries: Iterable[discord.AuditLogEntry], matches: _Matches, size: int
     ) -> User | Member | None:
-        """The first matching entry that records a deletion not yet attributed.
+        """The first matching entry with `size` counted deletions still unclaimed.
 
-        No await between the check and the record, so two deletions handled at
-        once cannot both claim one entry. An entry older than the window is never
-        fetched again, so its record is dropped.
+        `size` is how many this event accounts for: one message, or a whole purge.
+        No await between the check and the claim, so two deletions handled at once
+        cannot both take the same one. Records outlive the lookup window twice
+        over, so an entry a lookup can still fetch has not lost its claims.
         """
-        cutoff = pendulum.now() - _AUDIT_WINDOW
+        cutoff = pendulum.now() - 2 * _AUDIT_WINDOW
         self._attributed = {
-            entry_id: count
-            for entry_id, count in self._attributed.items()
+            entry_id: claimed
+            for entry_id, claimed in self._attributed.items()
             if discord.utils.snowflake_time(entry_id) >= cutoff
         }
         for entry in entries:
             count: int = getattr(entry.extra, "count", None) or 1
-            if matches(entry) and count > self._attributed.get(entry.id, 0):
-                self._attributed[entry.id] = count
+            claimed = self._attributed.get(entry.id, 0) + size
+            if matches(entry) and claimed <= count:
+                self._attributed[entry.id] = claimed
                 return entry.user
         return None
 
@@ -321,12 +328,12 @@ class Events(Cog):
             await audit.message_deleted_uncached(
                 content=stored.contents if stored is not None else None,
                 message_id=payload.message_id,
-                deleted_by=self._deleter(
-                    entries,
-                    _about_message(
-                        payload.channel_id,
-                        stored.author_id if stored is not None else None,
-                    ),
+                # Without an author any entry in the channel would fit, so nobody
+                # is named rather than a guess.
+                deleted_by=None
+                if stored is None
+                else self._deleter(
+                    entries, _about_message(payload.channel_id, stored.author_id), 1
                 ),
                 channel=channel,
             )
@@ -338,7 +345,7 @@ class Events(Cog):
                 message_id=payload.message_id,
                 author=message.author,
                 deleted_by=self._deleter(
-                    entries, _about_message(payload.channel_id, message.author.id)
+                    entries, _about_message(payload.channel_id, message.author.id), 1
                 ),
                 channel=channel,
             )
@@ -358,7 +365,11 @@ class Events(Cog):
 
         await audit.bulk_deleted(
             count=len(payload.message_ids),
-            deleted_by=self._deleter(entries, _about_purge(payload.channel_id)),
+            deleted_by=self._deleter(
+                entries,
+                _about_purge(payload.channel_id, len(payload.message_ids)),
+                len(payload.message_ids),
+            ),
             channel=self.bot.get_channel(payload.channel_id),
         )
 

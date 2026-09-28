@@ -64,19 +64,19 @@ class TestMatching:
         assert not matches(entry(person(id=3), channel_id=66, target_id=7))
         assert not matches(entry(person(id=3), target_id=8))
 
-    def test_with_no_known_author_the_channel_alone_decides(self) -> None:
-        assert events._about_message(55, None)(entry(person(id=3), target_id=8))
-
     def test_an_entry_with_no_channel_matches_nothing(self) -> None:
         bare: Any = SimpleNamespace(user=person(id=3), extra=None, target=None)
 
-        assert not events._about_message(55, None)(bare)
+        assert not events._about_message(55, 7)(bare)
 
-    def test_a_purge_entry_must_target_this_channel(self) -> None:
-        matches = events._about_purge(55)
+    def test_a_purge_entry_must_target_this_channel_and_count_its_messages(
+        self,
+    ) -> None:
+        matches = events._about_purge(55, 20)
 
-        assert matches(bulk_entry(person(id=3)))
-        assert not matches(bulk_entry(person(id=3), channel_id=66))
+        assert matches(bulk_entry(person(id=3), count=20))
+        assert not matches(bulk_entry(person(id=3), channel_id=66, count=20))
+        assert not matches(bulk_entry(person(id=3), count=50))
 
 
 class TestDeleter:
@@ -87,9 +87,9 @@ class TestDeleter:
         mod = person(id=3)
         entries = [entry(person(id=4), target_id=8), entry(mod, target_id=7)]
 
-        assert cog(ev)._deleter(entries, events._about_message(55, 7)) is mod
+        assert cog(ev)._deleter(entries, events._about_message(55, 7), 1) is mod
 
-    def test_an_entry_that_already_named_someone_does_not_again(
+    def test_an_entry_whose_deletions_are_claimed_names_nobody_more(
         self, ev: EventsWorld
     ) -> None:
         """A moderator deletes one of Alice's messages, then Alice deletes another
@@ -97,41 +97,49 @@ class TestDeleter:
         instance, matches = cog(ev), events._about_message(55, 7)
         entries = [entry(person(id=3), target_id=7)]
 
-        instance._deleter(entries, matches)
+        instance._deleter(entries, matches, 1)
 
-        assert instance._deleter(entries, matches) is None
+        assert instance._deleter(entries, matches, 1) is None
 
-    def test_an_entry_whose_count_rose_names_its_deleter_again(
+    def test_deletions_folded_into_one_entry_each_name_the_deleter(
+        self, ev: EventsWorld
+    ) -> None:
+        """Two quick deletions can both be looked up after Discord counted them."""
+        instance, matches, mod = cog(ev), events._about_message(55, 7), person(id=3)
+        entries = [entry(mod, target_id=7, count=2)]
+
+        named = [instance._deleter(entries, matches, 1) for _ in range(3)]
+
+        assert named == [mod, mod, None]
+
+    def test_an_entry_counted_up_later_names_its_deleter_again(
         self, ev: EventsWorld
     ) -> None:
         instance, matches, mod = cog(ev), events._about_message(55, 7), person(id=3)
         first = entry(mod, target_id=7)
-        instance._deleter([first], matches)
+        instance._deleter([first], matches, 1)
 
-        again = instance._deleter(
-            [entry(mod, target_id=7, id=first.id, count=2)], matches
-        )
+        again = entry(mod, target_id=7, id=first.id, count=2)
 
-        assert again is mod
+        assert instance._deleter([again], matches, 1) is mod
 
-    def test_an_attribution_older_than_the_window_is_dropped(
+    def test_a_purge_claims_its_whole_entry(self, ev: EventsWorld) -> None:
+        instance, matches = cog(ev), events._about_purge(55, 20)
+        entries = [bulk_entry(person(id=3), count=20)]
+
+        assert instance._deleter(entries, matches, 20) is not None
+        assert instance._deleter(entries, matches, 20) is None
+
+    def test_a_record_is_kept_while_a_lookup_could_still_fetch_its_entry(
         self, ev: EventsWorld
     ) -> None:
-        """No lookup fetches it again, so keeping it would only grow the record."""
+        """The lookup and the prune read the clock apart, so the record outlives
+        the window rather than ending with it."""
         instance = cog(ev)
-        stale = discord.utils.time_snowflake(NOW.subtract(minutes=6))
-        instance._attributed = {stale: 1}
+        edge = discord.utils.time_snowflake(NOW.subtract(minutes=6))
+        stale = discord.utils.time_snowflake(NOW.subtract(minutes=11))
+        instance._attributed = {edge: 1, stale: 1}
 
-        instance._deleter([], events._about_purge(55))
+        instance._deleter([], events._about_purge(55, 1), 1)
 
-        assert not instance._attributed
-
-    def test_a_second_deletion_takes_the_next_unclaimed_entry(
-        self, ev: EventsWorld
-    ) -> None:
-        instance, matches = cog(ev), events._about_purge(55)
-        first, second = person(id=3), person(id=4)
-        entries = [bulk_entry(first), bulk_entry(second)]
-
-        assert instance._deleter(entries, matches) is first
-        assert instance._deleter(entries, matches) is second
+        assert instance._attributed == {edge: 1}

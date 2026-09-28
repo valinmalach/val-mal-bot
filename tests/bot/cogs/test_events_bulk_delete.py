@@ -46,7 +46,7 @@ class TestOnRawBulkMessageDelete:
         assert ev.calls("bulk_deleted")[0][1]["deleted_by"] is mod
         assert ev.audit_asked == [
             {
-                "limit": 10,
+                "limit": 100,
                 "action": discord.AuditLogAction.message_bulk_delete,
                 "after": NOW.subtract(minutes=5),
                 "oldest_first": False,
