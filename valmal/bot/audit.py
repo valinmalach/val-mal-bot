@@ -247,7 +247,9 @@ async def nickname_changed(member: Member, before: str, after: str) -> None:
 async def pfp_changed(member: Member) -> None:
     embed = _templated("audit_pfp_changed", "embed_color_info", mention=member.mention)
     _by(embed, member)
-    embed.set_thumbnail(url=get_pfp(member)).set_footer(text=f"ID: {member.id}")
+    embed.set_thumbnail(url=member.display_avatar.url).set_footer(
+        text=f"ID: {member.id}"
+    )
     await _send(embed)
 
 

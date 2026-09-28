@@ -4,8 +4,10 @@ import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Response
-from fastapi.responses import PlainTextResponse
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse, Response
+from starlette.routing import Route
 
 from valmal.bot.client import bot
 from valmal.bot.cogs import COGS
@@ -59,25 +61,29 @@ async def main() -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+async def lifespan(app: Starlette) -> AsyncGenerator[None]:
     fire_and_forget(main(), name="bot")
     yield
     await http_client.aclose()
 
 
-app = FastAPI(lifespan=lifespan)
-app.include_router(twitch_router)
-app.include_router(twitch_oauth_router)
-
-
-@app.get("/")
-async def root() -> Response:
+async def root(request: Request) -> Response:
     return PlainTextResponse("Valin Malach Bot")
 
 
-@app.get("/health")
-async def health() -> Response:
+async def health(request: Request) -> Response:
     return PlainTextResponse("Healthy")
+
+
+app = Starlette(
+    routes=[
+        Route("/", root),
+        Route("/health", health),
+        *twitch_router.routes,
+        *twitch_oauth_router.routes,
+    ],
+    lifespan=lifespan,
+)
 
 
 if __name__ == "__main__":
@@ -92,4 +98,6 @@ if __name__ == "__main__":
         log_level="info",
         access_log=True,
         log_config=None,
+        # Nothing here serves a websocket; "auto" imports the whole stack anyway.
+        ws="none",
     )

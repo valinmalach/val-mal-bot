@@ -98,7 +98,21 @@ class MyBot(Bot):
         await dispose_engine()
 
 
-bot = MyBot(command_prefix="$", intents=discord.Intents.all())
+# Only what a listener or cache lookup reads. Presences are the gateway's busiest
+# event and a per-member cache nothing here uses; an avatar change still arrives
+# with the members intent, as the user update a member update dispatches.
+bot = MyBot(
+    command_prefix="$",
+    intents=discord.Intents(
+        guilds=True,
+        members=True,
+        moderation=True,
+        invites=True,
+        guild_messages=True,
+        dm_messages=True,
+        message_content=True,
+    ),
+)
 
 # CheckFailure subclasses that are not somebody being refused: the bot lacking
 # a permission is a fault to report, and a cooldown is not a permission at all.

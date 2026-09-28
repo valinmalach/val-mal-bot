@@ -2,9 +2,12 @@ import logging
 from collections.abc import Callable, Coroutine
 from typing import Any, NoReturn, cast, get_args
 
-from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ValidationError
 from starlette.datastructures import Headers
+from starlette.exceptions import HTTPException
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.routing import Router
 
 from valmal.core.background import fire_and_forget
 from valmal.core.errors import notify, report
@@ -36,7 +39,7 @@ from valmal.twitch.timestamps import parse_rfc3339
 
 logger = logging.getLogger(__name__)
 
-twitch_router = APIRouter()
+twitch_router = Router()
 
 
 # An EventSub payload is a few kilobytes. The whole body has to be read to
@@ -325,10 +328,7 @@ def _route[E: BaseModel](
         )
     WEBHOOK_PATHS[subscription_type] = path
 
-    # Applied as a call rather than as a decorator: every route's function is
-    # named "webhook", so each needs a name of its own for url_for and the
-    # OpenAPI operation ids to stay distinct.
-    twitch_router.post(path, name=path)(webhook)
+    twitch_router.add_route(path, webhook, methods=["POST"])
 
 
 _route("/webhook/twitch", StreamOnlineEventSub, events.stream_online)

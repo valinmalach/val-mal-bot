@@ -1,4 +1,6 @@
-from collections.abc import Awaitable
+import asyncio
+from collections.abc import Awaitable, Callable, Iterable
+from datetime import timedelta
 
 import discord
 import pendulum
@@ -22,13 +24,75 @@ from valmal.bot.duration import get_ordinal_suffix
 from valmal.bot.present import get_discriminator, get_pfp
 from valmal.bot.send import send_embed
 from valmal.core.config import config
-from valmal.core.errors import report
+from valmal.core.errors import notify, report
 from valmal.db import repository
+
+# Discord writes no audit entry when people delete their own messages, and folds
+# a moderator's repeat deletions of one author in one channel into one entry by
+# raising its count, so the newest entry is usually about some earlier deletion.
+# A deletion is attributed only to a recent entry about it that still has a
+# counted deletion no earlier event claimed; otherwise the deleter is left
+# unnamed. Claims live in memory, so for one window after a restart an earlier
+# moderator's entry can still be claimed.
+_AUDIT_WINDOW = timedelta(minutes=5)
+# A ceiling, not a fetch size: the lookup asks Discord only for entries inside the
+# window, which is usually none or a few.
+_AUDIT_LOOKBACK = 100
+
+# Not a `type` statement: PEP 695 syntax blinds Sourcery to the whole file.
+_Matches = Callable[[discord.AuditLogEntry], bool]
+
+
+def _about_message(channel_id: int, author_id: int) -> _Matches:
+    def matches(entry: discord.AuditLogEntry) -> bool:
+        channel = getattr(entry.extra, "channel", None)
+        return (
+            channel is not None
+            and channel.id == channel_id
+            and getattr(entry.target, "id", None) == author_id
+        )
+
+    return matches
+
+
+def _about_purge(channel_id: int, count: int) -> _Matches:
+    """A bulk deletion's entry targets the channel itself and counts its messages,
+    which usually tells two purges of one channel apart."""
+    return lambda entry: (
+        getattr(entry.target, "id", None) == channel_id
+        and getattr(entry.extra, "count", None) == count
+    )
 
 
 class Events(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
+        # Entry id -> how many of its counted deletions events have claimed.
+        self._attributed: dict[int, int] = {}
+
+    def _deleter(
+        self, entries: Iterable[discord.AuditLogEntry], matches: _Matches, size: int
+    ) -> User | Member | None:
+        """The first matching entry with `size` counted deletions still unclaimed.
+
+        `size` is how many this event accounts for: one message, or a whole purge.
+        No await between the check and the claim, so two deletions handled at once
+        cannot both take the same one. Records are kept for twice the lookup
+        window, so an entry a lookup can still fetch has not lost its claims.
+        """
+        cutoff = pendulum.now() - 2 * _AUDIT_WINDOW
+        self._attributed = {
+            entry_id: claimed
+            for entry_id, claimed in self._attributed.items()
+            if discord.utils.snowflake_time(entry_id) >= cutoff
+        }
+        for entry in entries:
+            count: int = getattr(entry.extra, "count", None) or 1
+            claimed = self._attributed.get(entry.id, 0) + size
+            if matches(entry) and claimed <= count:
+                self._attributed[entry.id] = claimed
+                return entry.user
+        return None
 
     async def _safe_db_operation(
         self, operation: str, write: Awaitable[object]
@@ -43,18 +107,36 @@ class Events(Cog):
         except Exception as e:  # noqa: BLE001
             await report(e, f"Failed to {operation}")
 
-    async def _get_audit_user(
+    async def _recent_audit_entries(
         self, guild_id: int | None, action: discord.AuditLogAction
-    ) -> User | Member | None:
-        """Fetch the first matching audit log entry user for a given action."""
+    ) -> list[discord.AuditLogEntry]:
         if guild_id is None:
-            return None
+            return []
         guild = self.bot.get_guild(guild_id)
         if guild is None:
-            return None
-        async for entry in guild.audit_logs(limit=1, action=action):
-            return entry.user
-        return None
+            return []
+        entries = [
+            entry
+            async for entry in guild.audit_logs(
+                limit=_AUDIT_LOOKBACK,
+                action=action,
+                after=pendulum.now() - _AUDIT_WINDOW,
+                # Oldest first is what sends `after` to Discord; newest first
+                # fetches a whole page and filters it here. It is also the order
+                # the deletions' events arrive in, so each claims its own entry.
+                oldest_first=True,
+            )
+        ]
+        if len(entries) >= _AUDIT_LOOKBACK:
+            # Oldest first, so what a full page leaves out is the newest entries,
+            # the one for this deletion among them.
+            await notify(
+                f"The audit log held {_AUDIT_LOOKBACK} or more {action.name} entries"
+                " from the last five minutes, so some deletions may be logged"
+                " without who deleted them.",
+                key=f"audit-lookback:{action.name}",
+            )
+        return entries
 
     async def _store_message(self, message: Message) -> None:
         guild = message.guild
@@ -75,14 +157,25 @@ class Events(Cog):
         if self._is_bot_message(message):
             return
 
-        await self._store_message(message)
-
         reply = config.auto_response(message.content)
-        if reply is not None:
+        if reply is None:
+            await self._store_message(message)
+            return
+
+        # Together: the reply does not wait on the database, and the row does not
+        # wait on Discord, where a delete handled meanwhile would find nothing to
+        # remove. A failure is raised once both have finished, the store's first.
+        results = await asyncio.gather(
+            self._store_message(message),
             # No mentions: anyone can trigger a reply, and it may hold a role mention.
-            await message.channel.send(
+            message.channel.send(
                 reply, allowed_mentions=discord.AllowedMentions.none()
-            )
+            ),
+            return_exceptions=True,
+        )
+        for result in results:
+            if isinstance(result, BaseException):
+                raise result
 
     @Cog.listener()
     async def on_member_join(self, member: Member) -> None:
@@ -138,8 +231,24 @@ class Events(Cog):
         await audit.command_failed(ctx, error)
 
     @Cog.listener()
+    async def on_user_update(self, before: User, after: User) -> None:
+        """A new global avatar, which on_member_update cannot see.
+
+        discord.py's member copy shares its User with the live member and updates
+        it in place, so both sides of a member update hold the new avatar. This
+        event's `before` is a real copy. It counts only where the guild shows it:
+        a member with a guild avatar of their own looks no different.
+        """
+        if before.avatar == after.avatar:
+            return
+        guild = self.bot.get_guild(config.setting("guild_id"))
+        member = guild.get_member(after.id) if guild is not None else None
+        if member is not None and member.guild_avatar is None:
+            await audit.pfp_changed(member)
+
+    @Cog.listener()
     async def on_member_update(self, before: Member, after: Member) -> None:
-        if get_pfp(before) != get_pfp(after):
+        if before.guild_avatar != after.guild_avatar:
             await audit.pfp_changed(after)
 
         added = [role for role in after.roles if role not in before.roles]
@@ -218,26 +327,41 @@ class Events(Cog):
         if self._is_bot_message(payload.cached_message):
             return
 
-        user_who_deleted = await self._get_audit_user(
+        lookup = self._recent_audit_entries(
             payload.guild_id, discord.AuditLogAction.message_delete
         )
         channel = self.bot.get_channel(payload.channel_id)
         message = payload.cached_message
 
         if message is None:
+            # The stored row is the only place an uncached message's author is.
+            # Neither lookup needs the other, since the entries are matched to the
+            # author afterwards, so they run together.
+            entries, stored = await asyncio.gather(
+                lookup, repository.get_message(payload.message_id)
+            )
             await audit.message_deleted_uncached(
-                content=await self._get_message_content(payload.message_id),
+                content=stored.contents if stored is not None else None,
                 message_id=payload.message_id,
-                deleted_by=user_who_deleted,
+                # Without an author any entry in the channel would fit, so nobody
+                # is named rather than a guess.
+                deleted_by=None
+                if stored is None
+                else self._deleter(
+                    entries, _about_message(payload.channel_id, stored.author_id), 1
+                ),
                 channel=channel,
             )
         else:
+            entries = await lookup
             await audit.message_deleted(
                 content=message.content,
                 attachments=message.attachments,
                 message_id=payload.message_id,
                 author=message.author,
-                deleted_by=user_who_deleted,
+                deleted_by=self._deleter(
+                    entries, _about_message(payload.channel_id, message.author.id), 1
+                ),
                 channel=channel,
             )
 
@@ -250,21 +374,24 @@ class Events(Cog):
     async def on_raw_bulk_message_delete(
         self, payload: RawBulkMessageDeleteEvent
     ) -> None:
-        user_who_deleted = await self._get_audit_user(
+        entries = await self._recent_audit_entries(
             payload.guild_id, discord.AuditLogAction.message_bulk_delete
         )
 
         await audit.bulk_deleted(
             count=len(payload.message_ids),
-            deleted_by=user_who_deleted,
+            deleted_by=self._deleter(
+                entries,
+                _about_purge(payload.channel_id, len(payload.message_ids)),
+                len(payload.message_ids),
+            ),
             channel=self.bot.get_channel(payload.channel_id),
         )
 
-        for message_id in payload.message_ids:
-            await self._safe_db_operation(
-                f"delete message {message_id}",
-                repository.delete_message(message_id),
-            )
+        await self._safe_db_operation(
+            f"delete {len(payload.message_ids)} bulk-deleted messages",
+            repository.delete_messages(payload.message_ids),
+        )
 
     @Cog.listener()
     async def on_member_ban(self, guild: Guild, user: User | Member) -> None:

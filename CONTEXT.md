@@ -1,6 +1,6 @@
 # Valin Malach Bot
 
-One process serving two faces: a Discord bot and a FastAPI app that receives
+One process serving two faces: a Discord bot and a Starlette app that receives
 Twitch EventSub webhooks. This file fixes the words used for the concepts that
 span both, so a term means one thing wherever it appears. It also fixes any term
 two modules answer differently, whichever face it belongs to.

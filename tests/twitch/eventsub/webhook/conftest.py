@@ -9,7 +9,10 @@ from typing import Any
 import httpx
 import pendulum
 import pytest
-from fastapi import FastAPI, Request, Response
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.routing import Route
 
 import valmal.twitch.eventsub.router as ctl
 from tests.twitch.eventsub.webhook.support import NOW, Hooks
@@ -61,24 +64,22 @@ async def unawaited(hooks: Hooks) -> AsyncGenerator[None]:
 
 
 @pytest.fixture
-def app(hooks: Hooks) -> FastAPI:
+def app(hooks: Hooks) -> Starlette:
     """process_webhook behind one route whose handler records what it was given."""
-    app = FastAPI()
 
     async def handler(event: StreamOnlineEventSub) -> None:
         if hooks.handler_error is not None:
             raise hooks.handler_error
         hooks.events.append(event)
 
-    @app.post("/t")
     async def route(request: Request) -> Response:
         return await ctl.process_webhook(request, "/t", StreamOnlineEventSub, handler)
 
-    return app
+    return Starlette(routes=[Route("/t", route, methods=["POST"])])
 
 
 @pytest.fixture
-async def client(app: FastAPI, unawaited: None) -> AsyncGenerator[httpx.AsyncClient]:
+async def client(app: Starlette, unawaited: None) -> AsyncGenerator[httpx.AsyncClient]:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as http:

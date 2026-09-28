@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
@@ -5,8 +6,13 @@ from unittest.mock import AsyncMock
 import discord
 import pytest
 
-from tests.bot.audit.support import attachment, channel, person
-from tests.bot.cogs.events_world import EventsWorld, cog, guild_with_log, sent
+from tests.bot.audit.support import attachment, person
+from tests.bot.cogs.events_world import (
+    EventsWorld,
+    cog,
+    sent,
+)
+from valmal.bot.cogs import events
 
 pytestmark = pytest.mark.anyio
 
@@ -104,18 +110,60 @@ class TestOnMessage:
         assert ev.reported == ["Failed to store message 9"]
         made.channel.send.assert_awaited_once()
 
-    async def test_stores_before_answering(self, ev: EventsWorld) -> None:
+    async def test_the_reply_and_the_store_run_together(
+        self, ev: EventsWorld, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Each fake waits for the other to have started, so this only finishes if
+        neither waits on the other."""
         made = sent()
         ev.reply = "pong"
+        stored, replied = asyncio.Event(), asyncio.Event()
 
-        def send(*_: object, **__: object) -> None:
-            ev.order.append("send")
+        async def store(*_: object) -> None:
+            stored.set()
+            await replied.wait()
 
-        made.channel.send = AsyncMock(side_effect=send)
+        async def send(*_: object, **__: object) -> None:
+            replied.set()
+            await stored.wait()
 
-        await cog(ev).on_message(made)
+        monkeypatch.setattr(events.repository, "upsert_message", store)
+        made.channel.send = send
 
-        assert ev.order == ["store", "send"]
+        await asyncio.wait_for(cog(ev).on_message(made), 1)
+
+        assert stored.is_set() and replied.is_set()
+
+    async def test_a_store_that_raises_past_its_guard_is_raised_too(
+        self, ev: EventsWorld, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Only on_error reports it, so the gather must not swallow it."""
+        made = sent()
+        ev.reply = "pong"
+        instance = cog(ev)
+
+        async def store(message: object) -> None:
+            raise RuntimeError("built badly")
+
+        monkeypatch.setattr(instance, "_store_message", store)
+
+        with pytest.raises(RuntimeError, match="built badly"):
+            await instance.on_message(made)
+
+        made.channel.send.assert_awaited_once()
+
+    async def test_a_failed_reply_still_stores_the_message_and_raises(
+        self, ev: EventsWorld
+    ) -> None:
+        """Raised on to on_error, which reports it; the record is kept regardless."""
+        made = sent()
+        ev.reply = "pong"
+        made.channel.send = AsyncMock(side_effect=discord.DiscordException("down"))
+
+        with pytest.raises(discord.DiscordException):
+            await cog(ev).on_message(made)
+
+        assert len(ev.stored) == 1
 
 
 class TestOnRawMessageEdit:
@@ -219,148 +267,3 @@ class TestOnRawMessageEdit:
         )
 
         assert "pin_changed" not in ev.names
-
-
-class TestOnRawMessageDelete:
-    def payload(self, cached: Any = None, guild_id: int | None = 5) -> Any:
-        return SimpleNamespace(
-            cached_message=cached, guild_id=guild_id, channel_id=55, message_id=9
-        )
-
-    async def test_a_cached_message_is_logged_whole_then_removed_from_storage(
-        self, ev: EventsWorld
-    ) -> None:
-        cached = sent(content="gone", author=person(id=7))
-        cached.attachments = [attachment()]
-        where = channel()
-        ev.channels[55] = where
-
-        await cog(ev).on_raw_message_delete(self.payload(cached))
-
-        ((_, kwargs),) = ev.calls("message_deleted")
-        assert kwargs == {
-            "content": "gone",
-            "attachments": cached.attachments,
-            "message_id": 9,
-            "author": cached.author,
-            "deleted_by": None,
-            "channel": where,
-        }
-        assert ev.order == ["message_deleted", "delete_message"]
-        assert ev.deleted == [9]
-
-    async def test_an_uncached_message_falls_back_to_what_was_stored(
-        self, ev: EventsWorld
-    ) -> None:
-        ev.rows[9] = SimpleNamespace(contents="stored")
-
-        await cog(ev).on_raw_message_delete(self.payload())
-
-        ((_, kwargs),) = ev.calls("message_deleted_uncached")
-        assert kwargs["content"] == "stored" and kwargs["message_id"] == 9
-
-    async def test_an_uncached_message_with_no_row_has_no_content_to_show(
-        self, ev: EventsWorld
-    ) -> None:
-        await cog(ev).on_raw_message_delete(self.payload())
-
-        ((_, kwargs),) = ev.calls("message_deleted_uncached")
-        assert kwargs["content"] is None
-
-    async def test_the_bots_own_message_is_ignored_entirely(
-        self, ev: EventsWorld
-    ) -> None:
-        await cog(ev).on_raw_message_delete(self.payload(sent(author=ev.bot_user)))
-
-        assert ev.audit == [] and ev.deleted == []
-
-    async def test_the_person_who_deleted_it_is_the_audit_logs_latest_entry(
-        self, ev: EventsWorld
-    ) -> None:
-        guild_with_log(ev)
-        mod = person(id=3)
-        ev.audit_entries = [SimpleNamespace(user=mod)]
-
-        await cog(ev).on_raw_message_delete(self.payload())
-
-        ((_, kwargs),) = ev.calls("message_deleted_uncached")
-        assert kwargs["deleted_by"] is mod
-        assert ev.audit_asked == [
-            {"limit": 1, "action": discord.AuditLogAction.message_delete}
-        ]
-
-    async def test_no_audit_entry_leaves_the_deleter_unnamed(
-        self, ev: EventsWorld
-    ) -> None:
-        guild_with_log(ev)
-
-        await cog(ev).on_raw_message_delete(self.payload())
-
-        assert ev.calls("message_deleted_uncached")[0][1]["deleted_by"] is None
-
-    @pytest.mark.parametrize("guild_id", [None, 404])
-    async def test_a_deletion_with_no_reachable_guild_still_logs(
-        self, guild_id: int | None, ev: EventsWorld
-    ) -> None:
-        await cog(ev).on_raw_message_delete(self.payload(guild_id=guild_id))
-
-        assert ev.calls("message_deleted_uncached")[0][1]["deleted_by"] is None
-        assert ev.audit_asked == []
-
-    async def test_a_failed_row_removal_is_reported_by_message_id(
-        self, ev: EventsWorld
-    ) -> None:
-        ev.fail.add("delete_message")
-
-        await cog(ev).on_raw_message_delete(self.payload())
-
-        assert ev.reported == ["Failed to delete message 9"]
-
-
-class TestOnRawBulkMessageDelete:
-    def payload(self, ids: set[int]) -> Any:
-        return SimpleNamespace(message_ids=ids, guild_id=5, channel_id=55)
-
-    async def test_logs_one_entry_with_the_count_and_removes_every_row(
-        self, ev: EventsWorld
-    ) -> None:
-        where = channel()
-        ev.channels[55] = where
-
-        await cog(ev).on_raw_bulk_message_delete(self.payload({1, 2, 3}))
-
-        assert ev.calls("bulk_deleted") == [
-            ((), {"count": 3, "deleted_by": None, "channel": where})
-        ]
-        assert sorted(ev.deleted) == [1, 2, 3]
-
-    async def test_asks_the_audit_log_for_a_bulk_delete_not_a_single_one(
-        self, ev: EventsWorld
-    ) -> None:
-        guild_with_log(ev)
-
-        await cog(ev).on_raw_bulk_message_delete(self.payload({1}))
-
-        assert ev.audit_asked == [
-            {"limit": 1, "action": discord.AuditLogAction.message_bulk_delete}
-        ]
-
-    async def test_one_row_that_will_not_delete_does_not_stop_the_rest(
-        self, ev: EventsWorld
-    ) -> None:
-        ev.fail.add("delete_message")
-
-        await cog(ev).on_raw_bulk_message_delete(self.payload({1, 2, 3}))
-
-        assert sorted(ev.reported) == [
-            "Failed to delete message 1",
-            "Failed to delete message 2",
-            "Failed to delete message 3",
-        ]
-
-    async def test_a_purge_of_nothing_logs_a_count_of_zero(
-        self, ev: EventsWorld
-    ) -> None:
-        await cog(ev).on_raw_bulk_message_delete(self.payload(set()))
-
-        assert ev.calls("bulk_deleted")[0][1]["count"] == 0

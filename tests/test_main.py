@@ -2,11 +2,12 @@ import json
 import logging
 from collections.abc import AsyncGenerator, Coroutine, Iterator
 from types import ModuleType
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock
 
 import httpx
 import pytest
+from starlette.routing import Route
 
 from tests.support import run_python
 from valmal.bot.cogs import COGS
@@ -237,7 +238,7 @@ class TestRoutes:
         assert (await http.get("/nope")).status_code == 404
 
     async def test_both_routers_are_mounted(self, entry: ModuleType) -> None:
-        paths = set(entry.app.openapi()["paths"])
+        paths = {cast("Route", route).path for route in entry.app.routes}
 
         assert "/twitch/oauth/start/{identity}" in paths
         assert "/twitch/oauth/callback" in paths
@@ -332,7 +333,7 @@ class TestRunningItAsAScript:
         self, how_the_server_starts: dict[str, Any]
     ) -> None:
         """Railway reaches the container on its external interface."""
-        assert how_the_server_starts["app"] == "FastAPI"
+        assert how_the_server_starts["app"] == "Starlette"
         # Asserted, not bound: the point is that main binds every interface.
         assert how_the_server_starts["host"] == "0.0.0.0"  # noqa: S104
         assert how_the_server_starts["port"] == settings.port
@@ -344,6 +345,11 @@ class TestRunningItAsAScript:
         Railway then colours a line by the stream it arrived on."""
         assert how_the_server_starts["log_config"] is None
         assert "log_config" in how_the_server_starts
+
+    def test_loads_no_websocket_stack(
+        self, how_the_server_starts: dict[str, Any]
+    ) -> None:
+        assert how_the_server_starts["ws"] == "none"
 
     def test_logs_requests_at_info(self, how_the_server_starts: dict[str, Any]) -> None:
         assert how_the_server_starts["log_level"] == "info"

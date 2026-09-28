@@ -116,6 +116,18 @@ class TestInit:
     def test_the_process_wide_bot_is_one_of_these(self) -> None:
         assert isinstance(bot_client.bot, bot_client.MyBot)
 
+    def test_asks_for_what_the_listeners_read_and_not_presences(self) -> None:
+        """Presences are the costliest intent and nothing reads them."""
+        assert bot_client.bot.intents == discord.Intents(
+            guilds=True,
+            members=True,
+            moderation=True,
+            invites=True,
+            guild_messages=True,
+            dm_messages=True,
+            message_content=True,
+        )
+
 
 class TestSetupHook:
     async def test_loads_the_configuration_before_anything_reads_it(

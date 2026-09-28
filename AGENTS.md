@@ -122,7 +122,7 @@ the command finds the global Python instead and says the SDK is not installed; c
 cover 99% of the code outside `migrations/`, branches counted; what is left is `__main__`
 guards, a demo, and lines that cannot be reached. Nothing runs against Discord, Twitch
 or Postgres, so a real database round trip and a real gateway session are untested:
-Helix and OAuth go through `httpx.MockTransport`, the FastAPI apps through
+Helix and OAuth go through `httpx.MockTransport`, the Starlette apps through
 `httpx.ASGITransport`, repository statements are compiled with the Postgres dialect and
 asserted, and `tests/test_migrations.py` renders every revision offline in a subprocess
 to check the chain, the rules in `valmal/db/README.md`, the schema against the models, and that
@@ -249,7 +249,7 @@ tables. Each sits under the concern it belongs to, so the path says which is whi
 
 ## Architecture
 
-**One process wearing two faces.** `main.py` is a FastAPI app, and the Discord bot
+**One process wearing two faces.** `main.py` is a Starlette app, and the Discord bot
 is not the entrypoint: the lifespan handler starts `main()` as a background task,
 which loads `COGS` (`valmal/bot/cogs/__init__.py`) and calls `bot.start()`. Twitch never connects to the
 bot — it delivers EventSub webhooks over HTTP to the router in `valmal/twitch/eventsub/router.py`,
@@ -273,7 +273,10 @@ been *delivered*). Anything wanted once per process belongs in `setup_hook`.
 the `bot` instance via `@bot.event`, matching `on_ready` — not a method on `MyBot`)
 is what discord.py calls when a dispatched listener — cog listeners included —
 raises past it, and it reports from `sys.exc_info()` once, so a new listener in
-`valmal/bot/cogs/events.py` needs no boilerplate to be covered. A listener that needs
+`valmal/bot/cogs/events.py` needs no boilerplate to be covered. It may need an intent,
+though: the bot asks for only the ones its listeners and cache lookups read, and not
+presences, which are the gateway's busiest event and a per-member cache nothing reads.
+A listener for an event outside that list is never called, silently. A listener that needs
 to report more than its own name keeps its own `try`/`except` and says why — none
 currently do. `_safe_db_operation`'s `try`/`except` is not this: it guards one write
 so that failure doesn't abort the rest of the listener, and names the write, not the
@@ -625,11 +628,13 @@ above for what repoints EventSub when that domain changes.
 
 **The app is traced with OpenTelemetry, configured entirely by the environment.**
 `opentelemetry-instrument` in the start command loads the SDK before `main.py` imports
-anything, which is what lets it patch FastAPI, httpx, asyncpg and aiohttp (discord.py's
+anything, which is what lets it patch Starlette, httpx, asyncpg and aiohttp (discord.py's
 REST); the migration step before it is not wrapped. Railway's tracing switch on the
 service supplies `OTEL_EXPORTER_OTLP_*` and `OTEL_SERVICE_NAME` on each deploy, so none of
 them is set in the repo or `.env`, and `.railway/railway.py` sets `OTEL_METRICS_EXPORTER`
-and `OTEL_LOGS_EXPORTER` to `none` because Railway's receiver takes traces only. An
+and `OTEL_LOGS_EXPORTER` to `none` because Railway's receiver takes traces only.
+`MALLOC_ARENA_MAX=2` beside them caps glibc's per-thread arenas, since memory is what
+the service is billed for. An
 instrumentation is a dependency in `pyproject.toml`, not `opentelemetry-bootstrap`'s pip
 install. The `logging` one is left out: it stamps four `otel*` attributes on every record, which
 `JsonFormatter` would print on every line as extras. `sqlalchemy` is left out because it

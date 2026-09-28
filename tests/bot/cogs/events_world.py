@@ -1,3 +1,4 @@
+import itertools
 from collections.abc import AsyncIterator, Callable
 from types import SimpleNamespace
 from typing import Any
@@ -47,6 +48,7 @@ class EventsWorld:
         self.usernames: list[tuple[int, str]] = []
         self.removed_users: list[int] = []
         self.deleted: list[int] = []
+        self.deleted_batches: list[set[int]] = []
         self.rows: dict[int, Any] = {}
         self.fail: set[str] = set()
         self.reported: list[str] = []
@@ -81,6 +83,9 @@ class EventsWorld:
 
     def delete(self, message_id: int) -> None:
         self.deleted.append(message_id)
+
+    def delete_batch(self, message_ids: set[int]) -> None:
+        self.deleted_batches.append(message_ids)
 
     def auto_response(self, content: str) -> str | None:
         return self.reply
@@ -134,6 +139,9 @@ def install(monkeypatch: pytest.MonkeyPatch) -> EventsWorld:
     monkeypatch.setattr(
         repository, "delete_message", failing("delete_message", world.delete)
     )
+    monkeypatch.setattr(
+        repository, "delete_messages", failing("delete_messages", world.delete_batch)
+    )
     monkeypatch.setattr(repository, "get_message", get_message)
     monkeypatch.setattr(events, "send_embed", send_embed)
     monkeypatch.setattr(events, "report", report)
@@ -171,6 +179,37 @@ def guild_with_log(world: EventsWorld, guild_id: int = 5) -> None:
     guild = MagicMock(spec=discord.Guild)
     guild.audit_logs = world.entries
     world.guilds[guild_id] = guild
+
+
+# Real snowflakes from NOW on, since an attribution is dropped by its entry's age.
+_entry_ids = itertools.count(discord.utils.time_snowflake(NOW))
+
+
+def entry(
+    user: Any,
+    *,
+    channel_id: int = 55,
+    target_id: int | None = None,
+    count: int = 1,
+    id: int | None = None,
+) -> Any:
+    """An audit entry for a deletion in a channel, of a message by target_id."""
+    return SimpleNamespace(
+        id=next(_entry_ids) if id is None else id,
+        user=user,
+        extra=SimpleNamespace(channel=SimpleNamespace(id=channel_id), count=count),
+        target=None if target_id is None else SimpleNamespace(id=target_id),
+    )
+
+
+def bulk_entry(user: Any, *, channel_id: int = 55, count: int = 1) -> Any:
+    """An audit entry for a bulk deletion, which targets the channel itself."""
+    return SimpleNamespace(
+        id=next(_entry_ids),
+        user=user,
+        extra=SimpleNamespace(count=count),
+        target=SimpleNamespace(id=channel_id),
+    )
 
 
 def sent(**kwargs: Any) -> Any:

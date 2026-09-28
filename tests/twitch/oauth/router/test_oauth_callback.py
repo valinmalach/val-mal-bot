@@ -113,7 +113,7 @@ class TestTheCodeExchange:
         replay = await http.get(path, params={"state": state, "code": "c"})
 
         assert replay.status_code == 400
-        assert replay.json()["detail"] == "Invalid or expired OAuth state"
+        assert replay.text == "Invalid or expired OAuth state"
         assert len(stored.user) + len(stored.broadcaster) == 1
 
     async def test_a_state_nobody_issued_is_refused_before_anything_is_sent(
@@ -155,7 +155,7 @@ class TestTheCodeExchange:
         assert response.status_code == 400
         assert state in oauth._pending_authorizations
 
-    async def test_a_missing_state_is_a_validation_error(
+    async def test_a_missing_state_is_refused(
         self,
         path: str,
         identity: TokenType,
@@ -163,7 +163,9 @@ class TestTheCodeExchange:
         label: str,
         http: httpx.AsyncClient,
     ) -> None:
-        assert (await http.get(path, params={"code": "c"})).status_code == 422
+        response = await http.get(path, params={"code": "c"})
+
+        assert (response.status_code, response.text) == (400, "Missing OAuth state")
 
     @pytest.mark.parametrize("code", [None, ""])
     async def test_no_code_is_refused_without_calling_twitch(
@@ -184,7 +186,7 @@ class TestTheCodeExchange:
         response = await http.get(path, params=params)
 
         assert response.status_code == 400
-        assert response.json()["detail"] == "Missing Twitch authorization code"
+        assert response.text == "Missing Twitch authorization code"
         assert script.requests == []
 
 
@@ -213,7 +215,7 @@ class TestADeniedAuthorization:
         )
 
         assert response.status_code == 400
-        assert response.json() == {"detail": "Twitch authorization denied"}
+        assert response.text == "Twitch authorization denied"
         assert script.requests == []
         ((text, key),) = said.notified
         assert text == (

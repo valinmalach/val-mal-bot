@@ -171,7 +171,7 @@ class TestTheTokenIsValidatedBeforeItIsKept:
         response = await authorize(http)
 
         assert response.status_code == 500
-        assert response.json() == {"detail": "Twitch token validation failed"}
+        assert response.text == "Twitch token validation failed"
         assert said.texts == [
             "Failed to validate the Twitch token from /twitch/oauth/callback: "
             "401 invalid access token"
@@ -199,11 +199,11 @@ class TestTheTokenIsValidatedBeforeItIsKept:
         response = await authorize(http)
 
         assert response.status_code == 400
-        assert response.json()["detail"] == (
+        assert response.text == (
             "Rejected user authorization: "
             "the token belongs to a different Twitch application"
         )
-        assert said.texts == [response.json()["detail"]]
+        assert said.texts == [response.text]
         assert stored.user == []
 
     @pytest.mark.parametrize(
@@ -231,7 +231,7 @@ class TestTheTokenIsValidatedBeforeItIsKept:
         response = await authorize(http, path)
 
         assert response.status_code == 400
-        assert response.json()["detail"] == (
+        assert response.text == (
             f"Rejected {identity_label} authorization: expected Twitch user ID "
             f"{expected}, but impostor authorized as ID 5"
         )
@@ -245,9 +245,7 @@ class TestTheTokenIsValidatedBeforeItIsKept:
         response = await authorize(http)
 
         assert response.status_code == 400
-        assert response.json()["detail"].endswith(
-            f"missing scopes: {', '.join(sorted(SCOPES))}"
-        )
+        assert response.text.endswith(f"missing scopes: {', '.join(sorted(SCOPES))}")
         assert stored.user == []
 
     async def test_extra_scopes_are_not_a_problem(
@@ -276,7 +274,7 @@ class TestTheTokenIsValidatedBeforeItIsKept:
 
         response = await authorize(http)
 
-        detail = response.json()["detail"]
+        detail = response.text
         assert detail.count("; ") == 2
         assert "different Twitch application" in detail
         assert "impostor authorized as ID 5" in detail
