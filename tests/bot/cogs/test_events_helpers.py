@@ -5,7 +5,15 @@ import discord
 import pytest
 
 from tests.bot.audit.support import person
-from tests.bot.cogs.events_world import NOW, EventsWorld, bulk_entry, cog, entry, sent
+from tests.bot.cogs.events_world import (
+    NOW,
+    EventsWorld,
+    bulk_entry,
+    cog,
+    entry,
+    guild_with_log,
+    sent,
+)
 from valmal.bot.cogs import events
 
 pytestmark = pytest.mark.anyio
@@ -54,6 +62,32 @@ class TestHelpers:
         )
 
         assert entries == []
+
+    @pytest.mark.parametrize(("found", "notices"), [(100, 1), (99, 0)])
+    async def test_a_full_page_says_that_deletions_may_go_unnamed(
+        self,
+        found: int,
+        notices: int,
+        ev: EventsWorld,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Oldest first, so the entries a full page leaves out are the newest."""
+        said: list[tuple[str, str | None]] = []
+
+        async def notify(text: str, *, key: str | None = None) -> bool:
+            said.append((text, key))
+            return True
+
+        monkeypatch.setattr(events, "notify", notify)
+        guild_with_log(ev)
+        ev.audit_entries = [entry(person(id=3)) for _ in range(found)]
+
+        entries = await cog(ev)._recent_audit_entries(
+            5, discord.AuditLogAction.message_delete
+        )
+
+        assert len(entries) == found
+        assert [key for _, key in said] == ["audit-lookback:message_delete"] * notices
 
 
 class TestMatching:

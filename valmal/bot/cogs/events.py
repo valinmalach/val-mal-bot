@@ -24,7 +24,7 @@ from valmal.bot.duration import get_ordinal_suffix
 from valmal.bot.present import get_discriminator, get_pfp
 from valmal.bot.send import send_embed
 from valmal.core.config import config
-from valmal.core.errors import report
+from valmal.core.errors import notify, report
 from valmal.db import repository
 
 # Discord writes no audit entry when people delete their own messages, and folds
@@ -115,7 +115,7 @@ class Events(Cog):
         guild = self.bot.get_guild(guild_id)
         if guild is None:
             return []
-        return [
+        entries = [
             entry
             async for entry in guild.audit_logs(
                 limit=_AUDIT_LOOKBACK,
@@ -127,6 +127,16 @@ class Events(Cog):
                 oldest_first=True,
             )
         ]
+        if len(entries) >= _AUDIT_LOOKBACK:
+            # Oldest first, so what a full page leaves out is the newest entries,
+            # the one for this deletion among them.
+            await notify(
+                f"The audit log held {_AUDIT_LOOKBACK} or more {action.name} entries"
+                " from the last five minutes, so some deletions may be logged"
+                " without who deleted them.",
+                key=f"audit-lookback:{action.name}",
+            )
+        return entries
 
     async def _store_message(self, message: Message) -> None:
         guild = message.guild
