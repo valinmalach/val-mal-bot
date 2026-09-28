@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Awaitable, Iterable
 from datetime import timedelta
 
@@ -256,7 +257,7 @@ class Events(Cog):
         if self._is_bot_message(payload.cached_message):
             return
 
-        entries = await self._recent_audit_entries(
+        lookup = self._recent_audit_entries(
             payload.guild_id, discord.AuditLogAction.message_delete
         )
         channel = self.bot.get_channel(payload.channel_id)
@@ -264,7 +265,11 @@ class Events(Cog):
 
         if message is None:
             # The stored row is the only place an uncached message's author is.
-            stored = await repository.get_message(payload.message_id)
+            # Neither lookup needs the other, since the entries are matched to the
+            # author afterwards, so they run together.
+            entries, stored = await asyncio.gather(
+                lookup, repository.get_message(payload.message_id)
+            )
             await audit.message_deleted_uncached(
                 content=stored.contents if stored is not None else None,
                 message_id=payload.message_id,
@@ -276,6 +281,7 @@ class Events(Cog):
                 channel=channel,
             )
         else:
+            entries = await lookup
             await audit.message_deleted(
                 content=message.content,
                 attachments=message.attachments,

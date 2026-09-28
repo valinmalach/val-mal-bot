@@ -1,3 +1,5 @@
+import asyncio
+from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
@@ -14,6 +16,7 @@ from tests.bot.cogs.events_world import (
     guild_with_log,
     sent,
 )
+from valmal.bot.cogs import events
 
 pytestmark = pytest.mark.anyio
 
@@ -326,6 +329,32 @@ class TestOnRawMessageDelete:
         await cog(ev).on_raw_message_delete(self.payload(sent(author=person(id=7))))
 
         assert ev.calls("message_deleted")[0][1]["deleted_by"] is None
+
+    async def test_the_audit_log_and_the_stored_copy_are_read_together(
+        self, ev: EventsWorld, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Each fake waits for the other to have started, so this only finishes if
+        both are in flight at once."""
+        audit_started, read_started = asyncio.Event(), asyncio.Event()
+
+        async def entries(**_: object) -> AsyncIterator[Any]:
+            audit_started.set()
+            await read_started.wait()
+            for found in ev.audit_entries:
+                yield found
+
+        async def get_message(message_id: int) -> Any:
+            read_started.set()
+            await audit_started.wait()
+            return ev.rows.get(message_id)
+
+        guild_with_log(ev)
+        ev.guilds[5].audit_logs = entries
+        monkeypatch.setattr(events.repository, "get_message", get_message)
+
+        await asyncio.wait_for(cog(ev).on_raw_message_delete(self.payload()), 1)
+
+        assert len(ev.calls("message_deleted_uncached")) == 1
 
     async def test_no_audit_entry_leaves_the_deleter_unnamed(
         self, ev: EventsWorld
