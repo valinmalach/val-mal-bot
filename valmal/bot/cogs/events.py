@@ -75,14 +75,18 @@ class Events(Cog):
         if self._is_bot_message(message):
             return
 
-        await self._store_message(message)
-
-        reply = config.auto_response(message.content)
-        if reply is not None:
-            # No mentions: anyone can trigger a reply, and it may hold a role mention.
-            await message.channel.send(
-                reply, allowed_mentions=discord.AllowedMentions.none()
-            )
+        # The reply goes first so it does not wait on the database, and the store
+        # sits in finally so a send that fails still records the message.
+        try:
+            reply = config.auto_response(message.content)
+            if reply is not None:
+                # No mentions: anyone can trigger a reply, and it may hold a role
+                # mention.
+                await message.channel.send(
+                    reply, allowed_mentions=discord.AllowedMentions.none()
+                )
+        finally:
+            await self._store_message(message)
 
     @Cog.listener()
     async def on_member_join(self, member: Member) -> None:

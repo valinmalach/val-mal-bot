@@ -104,7 +104,9 @@ class TestOnMessage:
         assert ev.reported == ["Failed to store message 9"]
         made.channel.send.assert_awaited_once()
 
-    async def test_stores_before_answering(self, ev: EventsWorld) -> None:
+    async def test_answers_before_storing_so_the_reply_does_not_wait_on_it(
+        self, ev: EventsWorld
+    ) -> None:
         made = sent()
         ev.reply = "pong"
 
@@ -115,7 +117,20 @@ class TestOnMessage:
 
         await cog(ev).on_message(made)
 
-        assert ev.order == ["store", "send"]
+        assert ev.order == ["send", "store"]
+
+    async def test_a_failed_reply_still_stores_the_message_and_raises(
+        self, ev: EventsWorld
+    ) -> None:
+        """Raised on to on_error, which reports it; the record is kept regardless."""
+        made = sent()
+        ev.reply = "pong"
+        made.channel.send = AsyncMock(side_effect=discord.DiscordException("down"))
+
+        with pytest.raises(discord.DiscordException):
+            await cog(ev).on_message(made)
+
+        assert len(ev.stored) == 1
 
 
 class TestOnRawMessageEdit:
