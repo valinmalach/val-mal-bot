@@ -35,7 +35,8 @@ from valmal.db import repository
 # unnamed. Claims live in memory, so for one window after a restart an earlier
 # moderator's entry can still be claimed.
 _AUDIT_WINDOW = timedelta(minutes=5)
-# One page of the audit log, which is all one request can fetch.
+# A ceiling, not a fetch size: the lookup asks Discord only for entries inside the
+# window, which is usually none or a few.
 _AUDIT_LOOKBACK = 100
 
 # Not a `type` statement: PEP 695 syntax blinds Sourcery to the whole file.
@@ -120,7 +121,10 @@ class Events(Cog):
                 limit=_AUDIT_LOOKBACK,
                 action=action,
                 after=pendulum.now() - _AUDIT_WINDOW,
-                oldest_first=False,
+                # Oldest first is what sends `after` to Discord; newest first
+                # fetches a whole page and filters it here. It is also the order
+                # the deletions' events arrive in, so each claims its own entry.
+                oldest_first=True,
             )
         ]
 

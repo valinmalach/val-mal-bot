@@ -49,7 +49,7 @@ class TestOnRawBulkMessageDelete:
                 "limit": 100,
                 "action": discord.AuditLogAction.message_bulk_delete,
                 "after": NOW.subtract(minutes=5),
-                "oldest_first": False,
+                "oldest_first": True,
             }
         ]
 
