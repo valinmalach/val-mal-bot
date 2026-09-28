@@ -150,8 +150,8 @@ class Events(Cog):
 
         # Together: the reply does not wait on the database, and the row does not
         # wait on Discord, where a delete handled meanwhile would find nothing to
-        # remove. A send that fails is raised once the row is written.
-        _, sent = await asyncio.gather(
+        # remove. Whichever fails is raised once both have finished.
+        results = await asyncio.gather(
             self._store_message(message),
             # No mentions: anyone can trigger a reply, and it may hold a role mention.
             message.channel.send(
@@ -159,8 +159,9 @@ class Events(Cog):
             ),
             return_exceptions=True,
         )
-        if isinstance(sent, BaseException):
-            raise sent
+        for result in results:
+            if isinstance(result, BaseException):
+                raise result
 
     @Cog.listener()
     async def on_member_join(self, member: Member) -> None:

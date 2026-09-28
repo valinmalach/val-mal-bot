@@ -134,6 +134,24 @@ class TestOnMessage:
 
         assert stored.is_set() and replied.is_set()
 
+    async def test_a_store_that_raises_past_its_guard_is_raised_too(
+        self, ev: EventsWorld, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Only on_error reports it, so the gather must not swallow it."""
+        made = sent()
+        ev.reply = "pong"
+        instance = cog(ev)
+
+        async def store(message: object) -> None:
+            raise RuntimeError("built badly")
+
+        monkeypatch.setattr(instance, "_store_message", store)
+
+        with pytest.raises(RuntimeError, match="built badly"):
+            await instance.on_message(made)
+
+        made.channel.send.assert_awaited_once()
+
     async def test_a_failed_reply_still_stores_the_message_and_raises(
         self, ev: EventsWorld
     ) -> None:
