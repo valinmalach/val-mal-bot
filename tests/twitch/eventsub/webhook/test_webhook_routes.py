@@ -60,13 +60,6 @@ class TestWebhookPaths:
 
         assert served == set(ctl.WEBHOOK_PATHS.values())
 
-    def test_each_route_is_named_for_its_path_so_url_for_tells_them_apart(
-        self,
-    ) -> None:
-        names = [route.name for route in routes()]
-
-        assert sorted(names) == sorted(ctl.WEBHOOK_PATHS.values())
-
     def test_the_stream_routes_are_where_api_subscribes_them(self) -> None:
         """/subscribe creates stream.online and stream.offline at these callbacks, so a
         route moved without touching api.py would receive nothing."""

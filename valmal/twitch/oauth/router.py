@@ -203,14 +203,8 @@ async def twitch_oauth_callback_broadcaster(request: Request) -> Response:
     )
 
 
+twitch_oauth_router.add_route("/twitch/oauth/start/{identity}", twitch_oauth_start)
+twitch_oauth_router.add_route("/twitch/oauth/callback", twitch_oauth_callback)
 twitch_oauth_router.add_route(
-    "/twitch/oauth/start/{identity}", twitch_oauth_start, methods=["GET"]
-)
-twitch_oauth_router.add_route(
-    "/twitch/oauth/callback", twitch_oauth_callback, methods=["GET"]
-)
-twitch_oauth_router.add_route(
-    "/twitch/oauth/callback/broadcaster",
-    twitch_oauth_callback_broadcaster,
-    methods=["GET"],
+    "/twitch/oauth/callback/broadcaster", twitch_oauth_callback_broadcaster
 )

@@ -328,9 +328,7 @@ def _route[E: BaseModel](
         )
     WEBHOOK_PATHS[subscription_type] = path
 
-    # Every route's function is named "webhook", so each needs a name of its own
-    # for url_for to tell them apart.
-    twitch_router.add_route(path, webhook, methods=["POST"], name=path)
+    twitch_router.add_route(path, webhook, methods=["POST"])
 
 
 _route("/webhook/twitch", StreamOnlineEventSub, events.stream_online)

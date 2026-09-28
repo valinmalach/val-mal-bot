@@ -113,3 +113,16 @@ class TestStart:
 
         assert response.status_code == 400
         assert state not in oauth._pending_authorizations
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/twitch/oauth/start/user",
+        "/twitch/oauth/callback",
+        "/twitch/oauth/callback/broadcaster",
+    ],
+)
+async def test_every_oauth_route_is_a_get(path: str, http: httpx.AsyncClient) -> None:
+    """A browser follows each of them; nothing posts to one."""
+    assert (await http.post(f"{path}?state=s")).status_code == 405
