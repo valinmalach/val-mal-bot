@@ -94,6 +94,17 @@ class TestOnRawMessageDelete:
             }
         ]
 
+    async def test_a_cached_message_names_the_entry_about_its_author(
+        self, ev: EventsWorld
+    ) -> None:
+        guild_with_log(ev)
+        mod = person(id=3)
+        ev.audit_entries = [entry(person(id=4), target_id=8), entry(mod, target_id=7)]
+
+        await cog(ev).on_raw_message_delete(self.payload(sent(author=person(id=7))))
+
+        assert ev.calls("message_deleted")[0][1]["deleted_by"] is mod
+
     async def test_a_cached_message_is_matched_on_its_own_author(
         self, ev: EventsWorld
     ) -> None:

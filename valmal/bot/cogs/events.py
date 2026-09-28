@@ -57,7 +57,7 @@ def _about_message(channel_id: int, author_id: int) -> _Matches:
 
 def _about_purge(channel_id: int, count: int) -> _Matches:
     """A bulk deletion's entry targets the channel itself and counts its messages,
-    which tells two purges of one channel apart."""
+    which usually tells two purges of one channel apart."""
     return lambda entry: (
         getattr(entry.target, "id", None) == channel_id
         and getattr(entry.extra, "count", None) == count
@@ -77,8 +77,8 @@ class Events(Cog):
 
         `size` is how many this event accounts for: one message, or a whole purge.
         No await between the check and the claim, so two deletions handled at once
-        cannot both take the same one. Records outlive the lookup window twice
-        over, so an entry a lookup can still fetch has not lost its claims.
+        cannot both take the same one. Records are kept for twice the lookup
+        window, so an entry a lookup can still fetch has not lost its claims.
         """
         cutoff = pendulum.now() - 2 * _AUDIT_WINDOW
         self._attributed = {
@@ -154,7 +154,7 @@ class Events(Cog):
 
         # Together: the reply does not wait on the database, and the row does not
         # wait on Discord, where a delete handled meanwhile would find nothing to
-        # remove. Whichever fails is raised once both have finished.
+        # remove. A failure is raised once both have finished, the store's first.
         results = await asyncio.gather(
             self._store_message(message),
             # No mentions: anyone can trigger a reply, and it may hold a role mention.

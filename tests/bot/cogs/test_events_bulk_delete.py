@@ -39,9 +39,13 @@ class TestOnRawBulkMessageDelete:
     ) -> None:
         guild_with_log(ev)
         mod = person(id=3)
-        ev.audit_entries = [bulk_entry(person(id=4), channel_id=66), bulk_entry(mod)]
+        ev.audit_entries = [
+            bulk_entry(person(id=4), channel_id=66, count=3),
+            bulk_entry(person(id=5), count=2),
+            bulk_entry(mod, count=3),
+        ]
 
-        await cog(ev).on_raw_bulk_message_delete(self.payload({1}))
+        await cog(ev).on_raw_bulk_message_delete(self.payload({1, 2, 3}))
 
         assert ev.calls("bulk_deleted")[0][1]["deleted_by"] is mod
         assert ev.audit_asked == [
