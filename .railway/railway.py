@@ -32,6 +32,9 @@ def main(ctx: RailwayContext | None = None) -> Project:
             # Railway's OTLP receiver takes traces only.
             "OTEL_METRICS_EXPORTER": "none",
             "OTEL_LOGS_EXPORTER": "none",
+            # glibc gives each thread (DNS lookups, the span exporter) an arena of
+            # its own, which fragments and is never handed back.
+            "MALLOC_ARENA_MAX": "2",
         },
     )
     return project("val-mal-bot", resources=[val_mal_bot])

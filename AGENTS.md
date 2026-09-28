@@ -632,7 +632,9 @@ anything, which is what lets it patch FastAPI, httpx, asyncpg and aiohttp (disco
 REST); the migration step before it is not wrapped. Railway's tracing switch on the
 service supplies `OTEL_EXPORTER_OTLP_*` and `OTEL_SERVICE_NAME` on each deploy, so none of
 them is set in the repo or `.env`, and `.railway/railway.py` sets `OTEL_METRICS_EXPORTER`
-and `OTEL_LOGS_EXPORTER` to `none` because Railway's receiver takes traces only. An
+and `OTEL_LOGS_EXPORTER` to `none` because Railway's receiver takes traces only.
+`MALLOC_ARENA_MAX=2` beside them caps glibc's per-thread arenas, since memory is what
+the service is billed for. An
 instrumentation is a dependency in `pyproject.toml`, not `opentelemetry-bootstrap`'s pip
 install. The `logging` one is left out: it stamps four `otel*` attributes on every record, which
 `JsonFormatter` would print on every line as extras. `sqlalchemy` is left out because it
