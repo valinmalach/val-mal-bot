@@ -180,6 +180,20 @@ def guild_with_log(world: EventsWorld, guild_id: int = 5) -> None:
     world.guilds[guild_id] = guild
 
 
+def entry(user: Any, *, channel_id: int = 55, target_id: int | None = None) -> Any:
+    """An audit entry for a deletion in a channel, of a message by target_id."""
+    return SimpleNamespace(
+        user=user,
+        extra=SimpleNamespace(channel=SimpleNamespace(id=channel_id)),
+        target=None if target_id is None else SimpleNamespace(id=target_id),
+    )
+
+
+def bulk_entry(user: Any, *, channel_id: int = 55) -> Any:
+    """An audit entry for a bulk deletion, which targets the channel itself."""
+    return SimpleNamespace(user=user, target=SimpleNamespace(id=channel_id))
+
+
 def sent(**kwargs: Any) -> Any:
     """A message as the gateway hands it over, with a channel it can answer in."""
     made = message(**kwargs)

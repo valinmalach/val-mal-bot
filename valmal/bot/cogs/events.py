@@ -1,4 +1,5 @@
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Iterable
+from datetime import timedelta
 
 import discord
 import pendulum
@@ -25,6 +26,34 @@ from valmal.core.config import config
 from valmal.core.errors import report
 from valmal.db import repository
 
+# Discord writes no audit entry when people delete their own messages, so the
+# newest delete entry is usually about some earlier deletion. One names the
+# deleter only if it is this recent and about this channel, and this author when
+# the author is known; otherwise the deleter is left unnamed rather than guessed.
+_AUDIT_WINDOW = timedelta(minutes=5)
+_AUDIT_LOOKBACK = 10
+
+
+def _message_deleter(
+    entries: Iterable[discord.AuditLogEntry], channel_id: int, author_id: int | None
+) -> User | Member | None:
+    for entry in entries:
+        channel = getattr(entry.extra, "channel", None)
+        if channel is None or channel.id != channel_id:
+            continue
+        if author_id is None or getattr(entry.target, "id", None) == author_id:
+            return entry.user
+    return None
+
+
+def _bulk_deleter(
+    entries: Iterable[discord.AuditLogEntry], channel_id: int
+) -> User | Member | None:
+    """A bulk deletion's entry targets the channel itself."""
+    return next(
+        (e.user for e in entries if getattr(e.target, "id", None) == channel_id), None
+    )
+
 
 class Events(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -43,18 +72,23 @@ class Events(Cog):
         except Exception as e:  # noqa: BLE001
             await report(e, f"Failed to {operation}")
 
-    async def _get_audit_user(
+    async def _recent_audit_entries(
         self, guild_id: int | None, action: discord.AuditLogAction
-    ) -> User | Member | None:
-        """Fetch the first matching audit log entry user for a given action."""
+    ) -> list[discord.AuditLogEntry]:
         if guild_id is None:
-            return None
+            return []
         guild = self.bot.get_guild(guild_id)
         if guild is None:
-            return None
-        async for entry in guild.audit_logs(limit=1, action=action):
-            return entry.user
-        return None
+            return []
+        return [
+            entry
+            async for entry in guild.audit_logs(
+                limit=_AUDIT_LOOKBACK,
+                action=action,
+                after=pendulum.now() - _AUDIT_WINDOW,
+                oldest_first=False,
+            )
+        ]
 
     async def _store_message(self, message: Message) -> None:
         guild = message.guild
@@ -222,17 +256,23 @@ class Events(Cog):
         if self._is_bot_message(payload.cached_message):
             return
 
-        user_who_deleted = await self._get_audit_user(
+        entries = await self._recent_audit_entries(
             payload.guild_id, discord.AuditLogAction.message_delete
         )
         channel = self.bot.get_channel(payload.channel_id)
         message = payload.cached_message
 
         if message is None:
+            # The stored row is the only place an uncached message's author is.
+            stored = await repository.get_message(payload.message_id)
             await audit.message_deleted_uncached(
-                content=await self._get_message_content(payload.message_id),
+                content=stored.contents if stored is not None else None,
                 message_id=payload.message_id,
-                deleted_by=user_who_deleted,
+                deleted_by=_message_deleter(
+                    entries,
+                    payload.channel_id,
+                    stored.author_id if stored is not None else None,
+                ),
                 channel=channel,
             )
         else:
@@ -241,7 +281,9 @@ class Events(Cog):
                 attachments=message.attachments,
                 message_id=payload.message_id,
                 author=message.author,
-                deleted_by=user_who_deleted,
+                deleted_by=_message_deleter(
+                    entries, payload.channel_id, message.author.id
+                ),
                 channel=channel,
             )
 
@@ -254,13 +296,13 @@ class Events(Cog):
     async def on_raw_bulk_message_delete(
         self, payload: RawBulkMessageDeleteEvent
     ) -> None:
-        user_who_deleted = await self._get_audit_user(
+        entries = await self._recent_audit_entries(
             payload.guild_id, discord.AuditLogAction.message_bulk_delete
         )
 
         await audit.bulk_deleted(
             count=len(payload.message_ids),
-            deleted_by=user_who_deleted,
+            deleted_by=_bulk_deleter(entries, payload.channel_id),
             channel=self.bot.get_channel(payload.channel_id),
         )
 

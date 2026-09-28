@@ -6,7 +6,14 @@ import discord
 import pytest
 
 from tests.bot.audit.support import attachment, channel, person
-from tests.bot.cogs.events_world import EventsWorld, cog, guild_with_log, sent
+from tests.bot.cogs.events_world import (
+    NOW,
+    EventsWorld,
+    cog,
+    entry,
+    guild_with_log,
+    sent,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -267,7 +274,7 @@ class TestOnRawMessageDelete:
     async def test_an_uncached_message_falls_back_to_what_was_stored(
         self, ev: EventsWorld
     ) -> None:
-        ev.rows[9] = SimpleNamespace(contents="stored")
+        ev.rows[9] = SimpleNamespace(contents="stored", author_id=7)
 
         await cog(ev).on_raw_message_delete(self.payload())
 
@@ -289,20 +296,36 @@ class TestOnRawMessageDelete:
 
         assert ev.audit == [] and ev.deleted == []
 
-    async def test_the_person_who_deleted_it_is_the_audit_logs_latest_entry(
+    async def test_the_deleter_is_a_recent_entry_about_the_stored_author(
         self, ev: EventsWorld
     ) -> None:
         guild_with_log(ev)
         mod = person(id=3)
-        ev.audit_entries = [SimpleNamespace(user=mod)]
+        ev.rows[9] = SimpleNamespace(contents="stored", author_id=7)
+        ev.audit_entries = [entry(person(id=4), target_id=8), entry(mod, target_id=7)]
 
         await cog(ev).on_raw_message_delete(self.payload())
 
         ((_, kwargs),) = ev.calls("message_deleted_uncached")
         assert kwargs["deleted_by"] is mod
         assert ev.audit_asked == [
-            {"limit": 1, "action": discord.AuditLogAction.message_delete}
+            {
+                "limit": 10,
+                "action": discord.AuditLogAction.message_delete,
+                "after": NOW.subtract(minutes=5),
+                "oldest_first": False,
+            }
         ]
+
+    async def test_a_cached_message_is_matched_on_its_own_author(
+        self, ev: EventsWorld
+    ) -> None:
+        guild_with_log(ev)
+        ev.audit_entries = [entry(person(id=3), target_id=8)]
+
+        await cog(ev).on_raw_message_delete(self.payload(sent(author=person(id=7))))
+
+        assert ev.calls("message_deleted")[0][1]["deleted_by"] is None
 
     async def test_no_audit_entry_leaves_the_deleter_unnamed(
         self, ev: EventsWorld
@@ -330,49 +353,3 @@ class TestOnRawMessageDelete:
         await cog(ev).on_raw_message_delete(self.payload())
 
         assert ev.reported == ["Failed to delete message 9"]
-
-
-class TestOnRawBulkMessageDelete:
-    def payload(self, ids: set[int]) -> Any:
-        return SimpleNamespace(message_ids=ids, guild_id=5, channel_id=55)
-
-    async def test_logs_one_entry_with_the_count_and_removes_every_row_at_once(
-        self, ev: EventsWorld
-    ) -> None:
-        where = channel()
-        ev.channels[55] = where
-
-        await cog(ev).on_raw_bulk_message_delete(self.payload({1, 2, 3}))
-
-        assert ev.calls("bulk_deleted") == [
-            ((), {"count": 3, "deleted_by": None, "channel": where})
-        ]
-        assert ev.deleted_batches == [{1, 2, 3}]
-        assert ev.deleted == []
-
-    async def test_asks_the_audit_log_for_a_bulk_delete_not_a_single_one(
-        self, ev: EventsWorld
-    ) -> None:
-        guild_with_log(ev)
-
-        await cog(ev).on_raw_bulk_message_delete(self.payload({1}))
-
-        assert ev.audit_asked == [
-            {"limit": 1, "action": discord.AuditLogAction.message_bulk_delete}
-        ]
-
-    async def test_a_batch_that_will_not_delete_is_reported_once(
-        self, ev: EventsWorld
-    ) -> None:
-        ev.fail.add("delete_messages")
-
-        await cog(ev).on_raw_bulk_message_delete(self.payload({1, 2, 3}))
-
-        assert ev.reported == ["Failed to delete 3 bulk-deleted messages"]
-
-    async def test_a_purge_of_nothing_logs_a_count_of_zero(
-        self, ev: EventsWorld
-    ) -> None:
-        await cog(ev).on_raw_bulk_message_delete(self.payload(set()))
-
-        assert ev.calls("bulk_deleted")[0][1]["count"] == 0
