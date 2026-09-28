@@ -1,3 +1,4 @@
+import itertools
 from collections.abc import AsyncIterator, Callable
 from types import SimpleNamespace
 from typing import Any
@@ -180,18 +181,35 @@ def guild_with_log(world: EventsWorld, guild_id: int = 5) -> None:
     world.guilds[guild_id] = guild
 
 
-def entry(user: Any, *, channel_id: int = 55, target_id: int | None = None) -> Any:
+# Real snowflakes from NOW on, since an attribution is dropped by its entry's age.
+_entry_ids = itertools.count(discord.utils.time_snowflake(NOW))
+
+
+def entry(
+    user: Any,
+    *,
+    channel_id: int = 55,
+    target_id: int | None = None,
+    count: int = 1,
+    id: int | None = None,
+) -> Any:
     """An audit entry for a deletion in a channel, of a message by target_id."""
     return SimpleNamespace(
+        id=next(_entry_ids) if id is None else id,
         user=user,
-        extra=SimpleNamespace(channel=SimpleNamespace(id=channel_id)),
+        extra=SimpleNamespace(channel=SimpleNamespace(id=channel_id), count=count),
         target=None if target_id is None else SimpleNamespace(id=target_id),
     )
 
 
-def bulk_entry(user: Any, *, channel_id: int = 55) -> Any:
+def bulk_entry(user: Any, *, channel_id: int = 55, count: int = 1) -> Any:
     """An audit entry for a bulk deletion, which targets the channel itself."""
-    return SimpleNamespace(user=user, target=SimpleNamespace(id=channel_id))
+    return SimpleNamespace(
+        id=next(_entry_ids),
+        user=user,
+        extra=SimpleNamespace(count=count),
+        target=SimpleNamespace(id=channel_id),
+    )
 
 
 def sent(**kwargs: Any) -> Any:

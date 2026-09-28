@@ -4,8 +4,14 @@ from typing import Any
 import discord
 import pytest
 
-from tests.bot.audit.support import channel
-from tests.bot.cogs.events_world import EventsWorld, cog, guild_with_log
+from tests.bot.audit.support import channel, person
+from tests.bot.cogs.events_world import (
+    NOW,
+    EventsWorld,
+    bulk_entry,
+    cog,
+    guild_with_log,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -28,15 +34,23 @@ class TestOnRawBulkMessageDelete:
         assert ev.deleted_batches == [{1, 2, 3}]
         assert ev.deleted == []
 
-    async def test_asks_the_audit_log_for_a_bulk_delete_not_a_single_one(
+    async def test_the_moderator_whose_purge_entry_targets_this_channel_is_named(
         self, ev: EventsWorld
     ) -> None:
         guild_with_log(ev)
+        mod = person(id=3)
+        ev.audit_entries = [bulk_entry(person(id=4), channel_id=66), bulk_entry(mod)]
 
         await cog(ev).on_raw_bulk_message_delete(self.payload({1}))
 
-        assert [asked["action"] for asked in ev.audit_asked] == [
-            discord.AuditLogAction.message_bulk_delete
+        assert ev.calls("bulk_deleted")[0][1]["deleted_by"] is mod
+        assert ev.audit_asked == [
+            {
+                "limit": 10,
+                "action": discord.AuditLogAction.message_bulk_delete,
+                "after": NOW.subtract(minutes=5),
+                "oldest_first": False,
+            }
         ]
 
     async def test_a_batch_that_will_not_delete_is_reported_once(

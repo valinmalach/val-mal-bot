@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Awaitable, Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from datetime import timedelta
 
 import discord
@@ -27,38 +27,64 @@ from valmal.core.config import config
 from valmal.core.errors import report
 from valmal.db import repository
 
-# Discord writes no audit entry when people delete their own messages, so the
-# newest delete entry is usually about some earlier deletion. One names the
-# deleter only if it is this recent and about this channel, and this author when
-# the author is known; otherwise the deleter is left unnamed rather than guessed.
+# Discord writes no audit entry when people delete their own messages, and folds
+# a moderator's repeat deletions into one entry by raising its count, so the
+# newest entry is usually about some earlier deletion. Only a recent entry that is
+# about this deletion, and new or counted up since it last named anyone, names the
+# deleter; otherwise the deleter is left unnamed rather than guessed.
 _AUDIT_WINDOW = timedelta(minutes=5)
 _AUDIT_LOOKBACK = 10
 
+# Not a `type` statement: PEP 695 syntax blinds Sourcery to the whole file.
+_Matches = Callable[[discord.AuditLogEntry], bool]
 
-def _message_deleter(
-    entries: Iterable[discord.AuditLogEntry], channel_id: int, author_id: int | None
-) -> User | Member | None:
-    for entry in entries:
+
+def _about_message(channel_id: int, author_id: int | None) -> _Matches:
+    """An entry for this channel, and for this author when the author is known."""
+
+    def matches(entry: discord.AuditLogEntry) -> bool:
         channel = getattr(entry.extra, "channel", None)
-        if channel is None or channel.id != channel_id:
-            continue
-        if author_id is None or getattr(entry.target, "id", None) == author_id:
-            return entry.user
-    return None
+        return (
+            channel is not None
+            and channel.id == channel_id
+            and (author_id is None or getattr(entry.target, "id", None) == author_id)
+        )
+
+    return matches
 
 
-def _bulk_deleter(
-    entries: Iterable[discord.AuditLogEntry], channel_id: int
-) -> User | Member | None:
+def _about_purge(channel_id: int) -> _Matches:
     """A bulk deletion's entry targets the channel itself."""
-    return next(
-        (e.user for e in entries if getattr(e.target, "id", None) == channel_id), None
-    )
+    return lambda entry: getattr(entry.target, "id", None) == channel_id
 
 
 class Events(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
+        # Entry id -> the count it had when it last named a deleter.
+        self._attributed: dict[int, int] = {}
+
+    def _deleter(
+        self, entries: Iterable[discord.AuditLogEntry], matches: _Matches
+    ) -> User | Member | None:
+        """The first matching entry that records a deletion not yet attributed.
+
+        No await between the check and the record, so two deletions handled at
+        once cannot both claim one entry. An entry older than the window is never
+        fetched again, so its record is dropped.
+        """
+        cutoff = pendulum.now() - _AUDIT_WINDOW
+        self._attributed = {
+            entry_id: count
+            for entry_id, count in self._attributed.items()
+            if discord.utils.snowflake_time(entry_id) >= cutoff
+        }
+        for entry in entries:
+            count: int = getattr(entry.extra, "count", None) or 1
+            if matches(entry) and count > self._attributed.get(entry.id, 0):
+                self._attributed[entry.id] = count
+                return entry.user
+        return None
 
     async def _safe_db_operation(
         self, operation: str, write: Awaitable[object]
@@ -289,10 +315,12 @@ class Events(Cog):
             await audit.message_deleted_uncached(
                 content=stored.contents if stored is not None else None,
                 message_id=payload.message_id,
-                deleted_by=_message_deleter(
+                deleted_by=self._deleter(
                     entries,
-                    payload.channel_id,
-                    stored.author_id if stored is not None else None,
+                    _about_message(
+                        payload.channel_id,
+                        stored.author_id if stored is not None else None,
+                    ),
                 ),
                 channel=channel,
             )
@@ -303,8 +331,8 @@ class Events(Cog):
                 attachments=message.attachments,
                 message_id=payload.message_id,
                 author=message.author,
-                deleted_by=_message_deleter(
-                    entries, payload.channel_id, message.author.id
+                deleted_by=self._deleter(
+                    entries, _about_message(payload.channel_id, message.author.id)
                 ),
                 channel=channel,
             )
@@ -324,7 +352,7 @@ class Events(Cog):
 
         await audit.bulk_deleted(
             count=len(payload.message_ids),
-            deleted_by=_bulk_deleter(entries, payload.channel_id),
+            deleted_by=self._deleter(entries, _about_purge(payload.channel_id)),
             channel=self.bot.get_channel(payload.channel_id),
         )
 
