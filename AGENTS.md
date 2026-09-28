@@ -273,7 +273,10 @@ been *delivered*). Anything wanted once per process belongs in `setup_hook`.
 the `bot` instance via `@bot.event`, matching `on_ready` — not a method on `MyBot`)
 is what discord.py calls when a dispatched listener — cog listeners included —
 raises past it, and it reports from `sys.exc_info()` once, so a new listener in
-`valmal/bot/cogs/events.py` needs no boilerplate to be covered. A listener that needs
+`valmal/bot/cogs/events.py` needs no boilerplate to be covered. It may need an intent,
+though: the bot asks for only the ones its listeners and cache lookups read, and not
+presences, which are the gateway's busiest event and a per-member cache nothing reads.
+A listener for an event outside that list is never called, silently. A listener that needs
 to report more than its own name keeps its own `try`/`except` and says why — none
 currently do. `_safe_db_operation`'s `try`/`except` is not this: it guards one write
 so that failure doesn't abort the rest of the listener, and names the write, not the
