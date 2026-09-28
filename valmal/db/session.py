@@ -36,10 +36,10 @@ def get_engine() -> AsyncEngine:
             echo=settings.db_echo,
             pool_size=5,
             max_overflow=5,
-            # Railway's proxy drops idle connections, so verify before handing
-            # one out and retire them well before it does.
+            # The database is reached over Railway's private network, with no proxy
+            # to drop an idle connection, so none is retired on a timer: that cost a
+            # fresh login on most calls. The ping still covers a Postgres restart.
             pool_pre_ping=True,
-            pool_recycle=300,
         )
     return _engine
 

@@ -30,14 +30,15 @@ class TestTheEngineIsLazy:
         """DATABASE_URL in the test environment is a plain postgresql:// one."""
         assert session.get_engine().url.drivername == "postgresql+asyncpg"
 
-    def test_it_verifies_a_connection_before_handing_it_out_and_retires_old_ones(
+    def test_it_verifies_a_connection_before_handing_it_out_and_keeps_it(
         self,
     ) -> None:
-        """Railway's proxy drops idle connections."""
+        """The private network drops nothing idle, so a timed retirement is only a
+        fresh login; the ping is what covers a Postgres restart."""
         pool = cast("QueuePool", session.get_engine().pool)
 
         assert pool._pre_ping is True
-        assert pool._recycle == 300
+        assert pool._recycle == -1
 
     def test_the_pool_is_five_with_five_overflow(self) -> None:
         pool = cast("QueuePool", session.get_engine().pool)
