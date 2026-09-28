@@ -136,18 +136,24 @@ class Events(Cog):
         if self._is_bot_message(message):
             return
 
-        # The reply goes first so it does not wait on the database, and the store
-        # sits in finally so a send that fails still records the message.
-        try:
-            reply = config.auto_response(message.content)
-            if reply is not None:
-                # No mentions: anyone can trigger a reply, and it may hold a role
-                # mention.
-                await message.channel.send(
-                    reply, allowed_mentions=discord.AllowedMentions.none()
-                )
-        finally:
+        reply = config.auto_response(message.content)
+        if reply is None:
             await self._store_message(message)
+            return
+
+        # Together: the reply does not wait on the database, and the row does not
+        # wait on Discord, where a delete handled meanwhile would find nothing to
+        # remove. A send that fails is raised once the row is written.
+        _, sent = await asyncio.gather(
+            self._store_message(message),
+            # No mentions: anyone can trigger a reply, and it may hold a role mention.
+            message.channel.send(
+                reply, allowed_mentions=discord.AllowedMentions.none()
+            ),
+            return_exceptions=True,
+        )
+        if isinstance(sent, BaseException):
+            raise sent
 
     @Cog.listener()
     async def on_member_join(self, member: Member) -> None:

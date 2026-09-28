@@ -114,20 +114,29 @@ class TestOnMessage:
         assert ev.reported == ["Failed to store message 9"]
         made.channel.send.assert_awaited_once()
 
-    async def test_answers_before_storing_so_the_reply_does_not_wait_on_it(
-        self, ev: EventsWorld
+    async def test_the_reply_and_the_store_run_together(
+        self, ev: EventsWorld, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """Each fake waits for the other to have started, so this only finishes if
+        neither waits on the other."""
         made = sent()
         ev.reply = "pong"
+        stored, replied = asyncio.Event(), asyncio.Event()
 
-        def send(*_: object, **__: object) -> None:
-            ev.order.append("send")
+        async def store(*_: object) -> None:
+            stored.set()
+            await replied.wait()
 
-        made.channel.send = AsyncMock(side_effect=send)
+        async def send(*_: object, **__: object) -> None:
+            replied.set()
+            await stored.wait()
 
-        await cog(ev).on_message(made)
+        monkeypatch.setattr(events.repository, "upsert_message", store)
+        made.channel.send = send
 
-        assert ev.order == ["send", "store"]
+        await asyncio.wait_for(cog(ev).on_message(made), 1)
+
+        assert stored.is_set() and replied.is_set()
 
     async def test_a_failed_reply_still_stores_the_message_and_raises(
         self, ev: EventsWorld
