@@ -144,13 +144,23 @@ class TestMemberUpdate:
 
         assert ev.audit == []
 
-    async def test_a_new_avatar_is_logged(self, ev: EventsWorld) -> None:
+    async def test_a_new_guild_avatar_is_logged(self, ev: EventsWorld) -> None:
+        before, after = self.pair()
+        after.guild_avatar = SimpleNamespace(url="https://cdn.example/guild.png")
+
+        await cog(ev).on_member_update(before, after)
+
+        assert ev.calls("pfp_changed") == [((after,), {})]
+
+    async def test_a_global_avatar_is_not_read_here(self, ev: EventsWorld) -> None:
+        """discord.py hands both sides the same User, so it cannot differ here;
+        on_user_update is where it is seen."""
         before, after = self.pair()
         after.avatar = SimpleNamespace(url="https://cdn.example/new.png")
 
         await cog(ev).on_member_update(before, after)
 
-        assert ev.calls("pfp_changed") == [((after,), {})]
+        assert "pfp_changed" not in ev.names
 
     async def test_a_role_gained_is_logged_with_only_the_new_roles(
         self, ev: EventsWorld
@@ -283,7 +293,7 @@ class TestMemberUpdate:
         self, ev: EventsWorld
     ) -> None:
         before, after = self.pair()
-        after.avatar = SimpleNamespace(url="https://cdn.example/new.png")
+        after.guild_avatar = SimpleNamespace(url="https://cdn.example/guild.png")
         before.roles, after.roles = [role(1)], [role(2)]
         after.nick = "new"
         after.timed_out_until = NOW + timedelta(hours=1)

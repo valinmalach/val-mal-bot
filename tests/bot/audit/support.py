@@ -58,7 +58,9 @@ def person(
     who.mention = f"<@{id}>"
     who.avatar = SimpleNamespace(url=avatar) if avatar else None
     who.default_avatar = SimpleNamespace(url=DEFAULT_AVATAR)
+    who.display_avatar = who.avatar or who.default_avatar
     if kind is discord.Member:
+        who.guild_avatar = None
         who.roles = [role(1, "everyone")]
         who.created_at = datetime(2026, 1, 1, tzinfo=UTC)
     return who

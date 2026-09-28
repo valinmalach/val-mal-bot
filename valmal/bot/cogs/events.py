@@ -177,8 +177,24 @@ class Events(Cog):
         await audit.command_failed(ctx, error)
 
     @Cog.listener()
+    async def on_user_update(self, before: User, after: User) -> None:
+        """A new global avatar, which on_member_update cannot see.
+
+        discord.py's member copy shares its User with the live member and updates
+        it in place, so both sides of a member update hold the new avatar. This
+        event's `before` is a real copy. It counts only where the guild shows it:
+        a member with a guild avatar of their own looks no different.
+        """
+        if before.avatar == after.avatar:
+            return
+        guild = self.bot.get_guild(config.setting("guild_id"))
+        member = guild.get_member(after.id) if guild is not None else None
+        if member is not None and member.guild_avatar is None:
+            await audit.pfp_changed(member)
+
+    @Cog.listener()
     async def on_member_update(self, before: Member, after: Member) -> None:
-        if get_pfp(before) != get_pfp(after):
+        if before.guild_avatar != after.guild_avatar:
             await audit.pfp_changed(after)
 
         added = [role for role in after.roles if role not in before.roles]

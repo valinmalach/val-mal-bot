@@ -100,7 +100,7 @@ class MyBot(Bot):
 
 # Only what a listener or cache lookup reads. Presences are the gateway's busiest
 # event and a per-member cache nothing here uses; an avatar change still arrives
-# as a member update.
+# with the members intent, as the user update a member update dispatches.
 bot = MyBot(
     command_prefix="$",
     intents=discord.Intents(
