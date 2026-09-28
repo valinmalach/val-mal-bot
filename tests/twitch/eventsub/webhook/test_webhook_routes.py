@@ -4,9 +4,9 @@ from typing import Any, Literal, cast
 
 import httpx
 import pytest
-from fastapi import APIRouter, FastAPI
-from fastapi.routing import APIRoute
 from pydantic import BaseModel
+from starlette.applications import Starlette
+from starlette.routing import Route, Router
 
 import valmal.twitch.client.api as api
 import valmal.twitch.eventsub.router as ctl
@@ -21,15 +21,14 @@ from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 pytestmark = pytest.mark.anyio
 
 
-def routes() -> list[APIRoute]:
-    return cast("list[APIRoute]", ctl.twitch_router.routes)
+def routes() -> list[Route]:
+    return cast("list[Route]", ctl.twitch_router.routes)
 
 
 @pytest.fixture
 async def real(hooks: Hooks, unawaited: None) -> AsyncGenerator[httpx.AsyncClient]:
     """The real router, with dispatch recorded so no real handler runs."""
-    app = FastAPI()
-    app.include_router(ctl.twitch_router)
+    app = Starlette(routes=ctl.twitch_router.routes)
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -61,7 +60,7 @@ class TestWebhookPaths:
 
         assert served == set(ctl.WEBHOOK_PATHS.values())
 
-    def test_each_route_is_named_for_its_path_so_operation_ids_stay_distinct(
+    def test_each_route_is_named_for_its_path_so_url_for_tells_them_apart(
         self,
     ) -> None:
         names = [route.name for route in routes()]
@@ -203,7 +202,7 @@ class TestRegistering:
     def _scratch(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A throwaway router and map, so registering here leaves the real ones alone."""
         monkeypatch.setattr(ctl, "WEBHOOK_PATHS", {})
-        monkeypatch.setattr(ctl, "twitch_router", APIRouter())
+        monkeypatch.setattr(ctl, "twitch_router", Router())
 
     @staticmethod
     async def handler(event: Any) -> None:

@@ -45,7 +45,7 @@ def undeliverable(subscription: Subscription) -> str | None:
 
     The prefix has to end at a path boundary. A bare ``startswith`` also accepts
     ``/webhook/twitching`` and ``/webhook/twitch-old``, which are different paths
-    that FastAPI does not route. What is left uncovered is an unrouted segment
+    that Starlette does not route. What is left uncovered is an unrouted segment
     *under* the prefix, and that fails its deliveries until Twitch disables it,
     which the status check above then catches.
     """

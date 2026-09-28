@@ -2,7 +2,7 @@ from collections.abc import AsyncGenerator, Callable
 
 import httpx
 import pytest
-from fastapi import FastAPI
+from starlette.applications import Starlette
 
 from tests.twitch.oauth.router.support import (
     BOT_ID,
@@ -61,8 +61,7 @@ def twitch(monkeypatch: pytest.MonkeyPatch) -> Callable[..., Script]:
 
 @pytest.fixture
 async def http(stored: Stored, said: Said) -> AsyncGenerator[httpx.AsyncClient]:
-    app = FastAPI()
-    app.include_router(twitch_oauth.twitch_oauth_router)
+    app = Starlette(routes=twitch_oauth.twitch_oauth_router.routes)
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as http:

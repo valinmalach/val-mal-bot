@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from fastapi import HTTPException
+from starlette.exceptions import HTTPException
 
 import valmal.twitch.eventsub.router as ctl
 from tests.twitch.eventsub.webhook.support import Hooks

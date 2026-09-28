@@ -176,7 +176,7 @@ def callback_url(path: str) -> str:
     """The absolute callback this deployment answers one webhook path on.
 
     rstrip to match valmal/twitch/oauth/grants.py: a trailing slash in APP_URL would
-    otherwise build a //webhook/twitch that Twitch dutifully calls and FastAPI
+    otherwise build a //webhook/twitch that Twitch dutifully calls and Starlette
     does not route.
     """
     return f"{settings.app_url.rstrip('/')}{path}"

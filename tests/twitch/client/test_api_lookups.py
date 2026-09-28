@@ -38,7 +38,7 @@ class TestCallbackUrl:
     def test_a_trailing_slash_in_app_url_cannot_make_a_double_slash_path(
         self, app_url: str, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Twitch would dutifully call //webhook/twitch, and FastAPI does not route it."""
+        """Twitch would dutifully call //webhook/twitch, and Starlette does not route it."""
         monkeypatch.setattr(settings, "app_url", app_url)
 
         assert (

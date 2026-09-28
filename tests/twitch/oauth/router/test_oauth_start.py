@@ -64,7 +64,7 @@ class TestStart:
         response = await http.get("/twitch/oauth/start/user?state=forged")
 
         assert response.status_code == 400
-        assert response.json()["detail"] == "Invalid or expired OAuth state"
+        assert response.text == "Invalid or expired OAuth state"
 
     async def test_a_state_issued_for_the_other_identity_is_refused(
         self, http: httpx.AsyncClient
@@ -86,7 +86,7 @@ class TestStart:
         response = await http.get(f"/twitch/oauth/start/{identity}?state={state}")
 
         assert response.status_code == 400
-        assert "is not a valid TokenType" in response.json()["detail"]
+        assert "is not a valid TokenType" in response.text
 
     async def test_the_app_identity_has_no_authorization_flow(
         self, http: httpx.AsyncClient
@@ -94,14 +94,12 @@ class TestStart:
         response = await http.get("/twitch/oauth/start/app?state=x")
 
         assert response.status_code == 400
-        assert "not available for app" in response.json()["detail"]
+        assert "not available for app" in response.text
 
-    async def test_a_missing_state_is_a_validation_error(
-        self, http: httpx.AsyncClient
-    ) -> None:
+    async def test_a_missing_state_is_refused(self, http: httpx.AsyncClient) -> None:
         response = await http.get("/twitch/oauth/start/user")
 
-        assert response.status_code == 422
+        assert (response.status_code, response.text) == (400, "Missing OAuth state")
 
     async def test_a_state_past_its_ten_minutes_is_refused_and_forgotten(
         self, http: httpx.AsyncClient
