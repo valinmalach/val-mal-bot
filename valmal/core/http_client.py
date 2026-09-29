@@ -15,6 +15,11 @@ import aiohttp
 
 _session: aiohttp.ClientSession | None = None
 
+# Worth another attempt: the request never reached the server, or the connection
+# died mid-reply. Not the rest of aiohttp.ClientError -- an invalid URL or a
+# redirect loop of ours fails again identically.
+TRANSIENT = (TimeoutError, aiohttp.ClientConnectionError, aiohttp.ClientPayloadError)
+
 
 @dataclass(frozen=True)
 class Reply:

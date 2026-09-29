@@ -475,10 +475,11 @@ the context worth reporting. `api.py` holds the endpoints on top of it: `None`
 means Twitch has nothing, a failed call raises. Retry follows the method, not the
 call site; `docs/adr/0002-helix-posts-are-not-retried.md` says why POSTs do not.
 
-**Every outbound HTTP call goes through `http_client.request` (`valmal/core/http_client.py`).**
-One aiohttp session, since discord.py already loads aiohttp, and a `Reply` read in full
-before the connection goes back to the pool, so nothing else holds a live response or
-names aiohttp for an outbound call.
+**Every outbound HTTP call of ours goes through `http_client.request`
+(`valmal/core/http_client.py`); discord.py keeps its own session.** One aiohttp session, since
+discord.py already loads aiohttp, and a `Reply` read in full before the connection goes back
+to the pool, so nothing else holds a live response. Which failures are worth another attempt
+is `http_client.TRANSIENT`, so `helix.py` names no aiohttp type.
 
 **A stored birthday is the next occurrence, not a date of birth.** One rule answers when
 that is, in `valmal/bot/birthday.py`: `next_birthday_on` from the parts when it is being

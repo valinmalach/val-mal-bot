@@ -10,7 +10,6 @@ import asyncio
 import logging
 from typing import Any, Literal
 
-import aiohttp
 from pydantic import BaseModel
 
 from valmal.core import http_client
@@ -25,11 +24,6 @@ _MAX_ATTEMPTS = 3
 _BACKOFF_SECONDS = 1.0
 
 Method = Literal["GET", "POST", "DELETE"]
-
-# Worth another attempt: the request never reached Twitch, or the connection
-# died mid-reply. Not the rest of aiohttp.ClientError -- an invalid URL or a
-# malformed request of ours fails again identically.
-_TRANSIENT = (TimeoutError, aiohttp.ClientConnectionError, aiohttp.ClientPayloadError)
 
 # Repeating a read or a delete costs nothing; repeating a POST can send a second
 # chat message. docs/adr/0002-helix-posts-are-not-retried.md has the why.
@@ -123,7 +117,7 @@ async def request(
         try:
             response = await _send(method, url, token_type, params, json)
         except Exception as e:
-            if attempt + 1 >= attempts or not isinstance(e, _TRANSIENT):
+            if attempt + 1 >= attempts or not isinstance(e, http_client.TRANSIENT):
                 raise HelixError(f"{method} {path} failed: {e}") from e
             await asyncio.sleep(_BACKOFF_SECONDS * 2**attempt)
             continue

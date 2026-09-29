@@ -2,6 +2,8 @@ from collections.abc import Callable
 
 import aiohttp
 import pytest
+import yarl
+from multidict import CIMultiDict, CIMultiDictProxy
 
 from tests.twitch.support import Script, reply
 from valmal.core.http_client import Reply
@@ -13,6 +15,12 @@ from valmal.twitch.models.api.user import UserResponse
 pytestmark = pytest.mark.anyio
 
 HttpFactory = Callable[..., Script]
+
+REQUEST_INFO = aiohttp.RequestInfo(
+    yarl.URL("https://api.twitch.tv/helix/x"),
+    "GET",
+    CIMultiDictProxy(CIMultiDict[str]()),
+)
 
 
 class TestRetry:
@@ -126,6 +134,8 @@ class TestRetry:
         [
             aiohttp.NonHttpUrlClientError("scheme"),
             aiohttp.InvalidURL("ours"),
+            aiohttp.TooManyRedirects(REQUEST_INFO, ()),
+            aiohttp.ClientResponseError(REQUEST_INFO, (), message="malformed head"),
             RuntimeError("x"),
         ],
         ids=lambda e: type(e).__name__,
