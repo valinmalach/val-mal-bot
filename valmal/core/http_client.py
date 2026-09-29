@@ -16,8 +16,9 @@ import aiohttp
 _session: aiohttp.ClientSession | None = None
 
 # Worth another attempt: the request never reached the server, or the connection
-# died mid-reply. Not the rest of aiohttp.ClientError -- an invalid URL or a
-# redirect loop of ours fails again identically.
+# died mid-reply. Not the rest of aiohttp.ClientError: an invalid URL fails again
+# identically, and a malformed reply head or a redirect loop is the server's
+# answer, not a lost one.
 TRANSIENT = (TimeoutError, aiohttp.ClientConnectionError, aiohttp.ClientPayloadError)
 
 
