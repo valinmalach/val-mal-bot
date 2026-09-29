@@ -86,7 +86,8 @@ findings here come from its docstring mandate, which the comment convention belo
 
 **Syntax that Sourcery cannot process blinds it to the whole file, silently.** Sourcery
 gives a file it cannot load the same report as a clean one, "No issues detected", with nothing
-different in `--verbose` or `%LOCALAPPDATA%\sourcery\sourcery.log`; a genuine syntax error
+different in `--verbose` or Sourcery's log (`%LOCALAPPDATA%\sourcery\sourcery.log` on
+Windows, where this was measured); a genuine syntax error
 gets the same treatment. Here that means PEP 695 (`def f[T]`, `class C[T]` and
 `type X = ...`) and also 3.14's unparenthesised `except A, B:`, so keep the parentheses.
 3.12 nested f-strings and `match` are fine, and `python_version` in `.sourcery.yaml` changes
