@@ -84,12 +84,12 @@ config file, so moving it breaks them silently. The Google style set
 (`sourcery review --enable gpsg .`) is deliberately not enabled: 232 of its 272
 findings here come from its docstring mandate, which the comment convention below rejects.
 
-**Syntax Sourcery cannot process blinds it to the whole file, silently.** Sourcery gives
-a file it cannot load the same report as a clean one, "No issues detected", with nothing
+**Syntax that Sourcery cannot process blinds it to the whole file, silently.** Sourcery
+gives a file it cannot load the same report as a clean one, "No issues detected", with nothing
 different in `--verbose` or `%LOCALAPPDATA%\sourcery\sourcery.log`; a genuine syntax error
 gets the same treatment. Here that means PEP 695 (`def f[T]`, `class C[T]` and
 `type X = ...`) and also 3.14's unparenthesised `except A, B:`, so keep the parentheses.
-3.12 f-strings and `match` are fine, and `python_version` in `.sourcery.yaml` changes
+3.12 nested f-strings and `match` are fine, and `python_version` in `.sourcery.yaml` changes
 nothing. Every release from 1.25 to 1.46.0 behaves this way, and so does the 1.46.1b7
 pre-release; Sourcery documents none of it. `valmal/twitch/eventsub/router.py`
 (`process_webhook[E]`, `_route[E]`) and `valmal/twitch/client/helix.py` (`fetch[T]`) are
