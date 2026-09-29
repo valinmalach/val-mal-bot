@@ -12,12 +12,6 @@ dependencies = [
     "asyncpg>=0.31.0",
     "discord>=2.3.2",
     "httpx[http2]>=0.28.1",
-    "opentelemetry-distro>=0.66b0",
-    "opentelemetry-exporter-otlp-proto-http>=1.45.0",
-    "opentelemetry-instrumentation-aiohttp-client>=0.66b0",
-    "opentelemetry-instrumentation-asyncpg>=0.66b0",
-    "opentelemetry-instrumentation-httpx>=0.66b0",
-    "opentelemetry-instrumentation-starlette>=0.66b0",
     # Nothing imports it: discord.py parses every gateway event with it when it is
     # installed, and with the stdlib json when it is not.
     "orjson>=3.12.0",
