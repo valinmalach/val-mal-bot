@@ -18,7 +18,8 @@ def main(ctx: RailwayContext | None = None) -> Project:
     val_mal_bot = service(
         "val-mal-bot",
         source=github("valinmalach/val-mal-bot", branch="master"),
-        start="python -m alembic upgrade head && exec python main.py",        # A variable missing here is deleted by the next apply; preserve() keeps
+        start="python -m alembic upgrade head && exec python main.py",
+        # A variable missing here is deleted by the next apply; preserve() keeps
         # the value Railway holds without writing it into the repo.
         env={
             "APP_URL": preserve(),
