@@ -66,7 +66,10 @@ async def request(
     async with _client().request(
         method, url, headers=headers, params=params, json=json, data=data
     ) as response:
-        return Reply(response.status, response.headers, await response.text())
+        # Replaced, not raised: an error page need not be UTF-8, and raising
+        # would lose the status the caller decides a retry or a re-queue by.
+        text = await response.text(errors="replace")
+        return Reply(response.status, response.headers, text)
 
 
 async def aclose() -> None:

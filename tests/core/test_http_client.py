@@ -39,12 +39,17 @@ async def _busy(request: web.Request) -> web.Response:
     return web.Response(status=429, text="busy")
 
 
+async def _latin1(request: web.Request) -> web.Response:
+    return web.Response(status=500, body=b"caf\xe9 error")
+
+
 @pytest.fixture
 async def server() -> AsyncGenerator[TestServer]:
     """A real server on localhost. Each one costs a socket, so they stay in this file."""
     app = web.Application()
     app.router.add_route("*", "/echo", _echo)
     app.router.add_get("/busy", _busy)
+    app.router.add_get("/latin1", _latin1)
     server = TestServer(app)
     await server.start_server()
     yield server
@@ -120,6 +125,15 @@ class TestRequest:
         reply = await http_client.request("GET", url(server, "/busy"))
 
         assert (reply.status, reply.text) == (429, "busy")
+
+    async def test_a_body_that_is_not_utf8_keeps_its_status(
+        self, server: TestServer
+    ) -> None:
+        """An error page from a proxy need not be UTF-8, and raising on it would
+        lose the status a 5xx retry or a 429 re-queue is decided by."""
+        reply = await http_client.request("GET", url(server, "/latin1"))
+
+        assert (reply.status, reply.text) == (500, f"caf{chr(0xFFFD)} error")
 
     async def test_params_go_in_the_query_and_a_list_repeats_its_key(
         self, server: TestServer
