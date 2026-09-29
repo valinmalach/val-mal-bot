@@ -634,8 +634,8 @@ above for what repoints EventSub when that domain changes.
 
 **Memory is what the service is billed for.** `MALLOC_ARENA_MAX=2` in `.railway/railway.py`
 caps glibc's per-thread arenas for that reason. Nothing is traced: OpenTelemetry cost about
-10 MB, and only webhook-triggered work formed a trace, because discord.py's gateway events
-and the task loops have no span to start one. The admin channel and the JSON logs are how
+9 MB, and only HTTP-triggered work formed a trace, because discord.py's gateway events and
+the task loops have no span to start one. The admin channel and the JSON logs are how
 problems are found.
 
 Locally, EventSub cannot reach `localhost`, so stream alerts, follows, raids, ad breaks
