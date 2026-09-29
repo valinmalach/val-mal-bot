@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from typing import Any
 
-import httpx
 import pytest
 
 import valmal.twitch.client.api as api
@@ -17,6 +16,7 @@ from tests.twitch.support import (
     user_json,
 )
 from valmal.core.config import config
+from valmal.core.http_client import Reply
 
 pytestmark = pytest.mark.anyio
 
@@ -45,7 +45,7 @@ class TestConflictOnSubscribe:
     a 409 says just as readily that a subscription exists pointing somewhere
     useless as that a working one is in place."""
 
-    def outcomes(self, existing: list[dict[str, Any]]) -> tuple[httpx.Response, ...]:
+    def outcomes(self, existing: list[dict[str, Any]]) -> tuple[Reply, ...]:
         return (
             reply(200, {"data": [user_json("42")]}),  # the lookup
             reply(409, text="exists"),  # online: conflict
@@ -95,7 +95,7 @@ class TestConflictOnSubscribe:
             ("POST", "/helix/eventsub/subscriptions"),  # online again
             ("POST", "/helix/eventsub/subscriptions"),  # offline
         ]
-        assert script.requests[3].url.query == b"id=old"
+        assert script.requests[3].query == {"id": "old"}
         recreated = body(script.requests[4])
         assert (recreated["type"], recreated["transport"]["callback"]) == (
             "stream.online",
@@ -156,7 +156,7 @@ class TestConflictOnSubscribe:
 
         # Neither is the enabled online subscription for user 42, so nothing here
         # counts as already in place, and neither is what the 409 was about.
-        assert not [r.url.query for r in script.requests if r.method == "DELETE"]
+        assert not [r.query for r in script.requests if r.method == "DELETE"]
         assert not notices
 
     async def test_every_stale_one_is_deleted_and_each_is_reported(
@@ -181,6 +181,6 @@ class TestConflictOnSubscribe:
 
         await api.subscribe_to_user("alice")
 
-        deleted = [r.url.query for r in script.requests if r.method == "DELETE"]
-        assert deleted == [b"id=a", b"id=b"]
+        deleted = [r.query for r in script.requests if r.method == "DELETE"]
+        assert deleted == [{"id": "a"}, {"id": "b"}]
         assert len(notices) == 2

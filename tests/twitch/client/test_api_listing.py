@@ -29,7 +29,7 @@ class TestGetUsers:
 
         users = await api.get_users(ids)
 
-        assert [len(r.url.params.get_list("id")) for r in script.requests] == [
+        assert [len(r.query["id"]) for r in script.requests] == [
             100,
             100,
             50,
@@ -64,8 +64,8 @@ class TestGetSubscriptions:
         subscriptions = await api.get_subscriptions()
 
         assert [s.id for s in subscriptions] == ["a", "b"]
-        assert script.requests[0].url.query == b""
-        assert script.requests[1].url.query == b"after=next"
+        assert script.requests[0].query == {}
+        assert script.requests[1].query == {"after": "next"}
 
     async def test_none_at_all_is_an_empty_list(self, helix_http: HttpFactory) -> None:
         helix_http(reply(200, page([])))

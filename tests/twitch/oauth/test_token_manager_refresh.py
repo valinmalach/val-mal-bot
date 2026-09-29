@@ -1,7 +1,6 @@
 from typing import cast
-from urllib.parse import parse_qs
 
-import httpx
+import aiohttp
 import pendulum
 import pytest
 from pydantic import ValidationError
@@ -46,14 +45,14 @@ class TestRefreshApp:
         await manager.refresh_app_access_token()
 
         (sent,) = script.requests
-        assert (sent.method, str(sent.url).split("?")[0]) == ("POST", TOKEN_URL)
-        assert dict(sent.url.params) == {
+        assert (sent.method, sent.url) == ("POST", TOKEN_URL)
+        assert sent.params == {
             "client_id": CLIENT_ID,
             "client_secret": CLIENT_SECRET,
             "grant_type": "client_credentials",
             "scope": " ".join(scopes),
         }
-        assert sent.content == b""
+        assert (sent.data, sent.json) == (None, None)
 
     async def test_success_stores_the_token_and_its_expiry(
         self, manager: TwitchTokenManager, oauth_http: Http, token_db: TokenDb
@@ -139,9 +138,9 @@ class TestRefreshApp:
     async def test_a_transport_error_propagates_for_the_caller_to_report(
         self, manager: TwitchTokenManager, oauth_http: Http
     ) -> None:
-        oauth_http(httpx.ConnectError("down"))
+        oauth_http(aiohttp.ClientConnectionError("down"))
 
-        with pytest.raises(httpx.ConnectError):
+        with pytest.raises(aiohttp.ClientConnectionError):
             await manager.refresh_app_access_token()
 
 
@@ -158,9 +157,8 @@ class TestRefreshUser:
         await manager.refresh_user_access_token()
 
         (sent,) = script.requests
-        assert sent.url.query == b""
-        assert sent.headers["Content-Type"] == "application/x-www-form-urlencoded"
-        assert {k: v[0] for k, v in parse_qs(sent.content.decode()).items()} == {
+        assert (sent.url, sent.params) == (TOKEN_URL, None)
+        assert sent.data == {
             "client_id": CLIENT_ID,
             "client_secret": CLIENT_SECRET,
             "grant_type": "refresh_token",
@@ -186,7 +184,7 @@ class TestRefreshUser:
 
         await manager.refresh_user_access_token(broadcaster=True)
 
-        assert b"refresh_token=old-bc-refresh" in script.requests[0].content
+        assert (script.requests[0].data or {})["refresh_token"] == "old-bc-refresh"
         assert manager.token(TokenType.Broadcaster) == "new-access"
         assert manager.token(TokenType.User) == "old-access"
 

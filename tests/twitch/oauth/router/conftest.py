@@ -12,7 +12,9 @@ from tests.twitch.oauth.router.support import (
     Stored,
 )
 from tests.twitch.support import Script
+from valmal.core import http_client
 from valmal.core.config import config
+from valmal.core.http_client import Reply
 from valmal.twitch.oauth import grants as oauth
 from valmal.twitch.oauth import router as twitch_oauth
 
@@ -50,10 +52,9 @@ def said(monkeypatch: pytest.MonkeyPatch) -> Said:
 def twitch(monkeypatch: pytest.MonkeyPatch) -> Callable[..., Script]:
     """Point the router at a scripted id.twitch.tv: exchange first, then validate."""
 
-    def install(*outcomes: httpx.Response | Exception) -> Script:
+    def install(*outcomes: Reply | Exception) -> Script:
         script = Script(*outcomes)
-        http = script.client()
-        monkeypatch.setattr(twitch_oauth, "client", lambda: http)
+        monkeypatch.setattr(http_client, "request", script)
         return script
 
     return install

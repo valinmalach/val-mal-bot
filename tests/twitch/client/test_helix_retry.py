@@ -1,9 +1,10 @@
 from collections.abc import Callable
 
-import httpx
+import aiohttp
 import pytest
 
 from tests.twitch.support import Script, reply
+from valmal.core.http_client import Reply
 from valmal.db.models.enums import TokenType
 from valmal.twitch.client import helix
 from valmal.twitch.client.helix import HelixError, fetch, request
@@ -80,12 +81,12 @@ class TestRetry:
     @pytest.mark.parametrize(
         "error",
         [
-            httpx.ConnectTimeout("t"),
-            httpx.ReadTimeout("t"),
-            httpx.PoolTimeout("t"),
-            httpx.ConnectError("t"),
-            httpx.ReadError("t"),
-            httpx.RemoteProtocolError("t"),
+            aiohttp.ConnectionTimeoutError("t"),
+            aiohttp.SocketTimeoutError("t"),
+            TimeoutError("t"),
+            aiohttp.ClientOSError("t"),
+            aiohttp.ServerDisconnectedError(),
+            aiohttp.ClientPayloadError("t"),
         ],
         ids=lambda e: type(e).__name__,
     )
@@ -102,18 +103,18 @@ class TestRetry:
     async def test_a_transient_error_that_never_clears_is_a_helix_error_with_its_cause(
         self, helix_http: HttpFactory
     ) -> None:
-        script = helix_http(httpx.ReadTimeout("slow"))
+        script = helix_http(aiohttp.SocketTimeoutError("slow"))
 
         with pytest.raises(HelixError, match="GET /x failed") as caught:
             await request("GET", "/x")
 
         assert len(script.requests) == 3
-        assert isinstance(caught.value.__cause__, httpx.ReadTimeout)
+        assert isinstance(caught.value.__cause__, aiohttp.SocketTimeoutError)
 
     async def test_a_post_is_not_retried_on_a_transient_error(
         self, helix_http: HttpFactory
     ) -> None:
-        script = helix_http(httpx.ReadTimeout("slow"))
+        script = helix_http(aiohttp.SocketTimeoutError("slow"))
 
         with pytest.raises(HelixError):
             await request("POST", "/chat/messages", json={})
@@ -123,8 +124,8 @@ class TestRetry:
     @pytest.mark.parametrize(
         "error",
         [
-            httpx.UnsupportedProtocol("scheme"),
-            httpx.LocalProtocolError("ours"),
+            aiohttp.NonHttpUrlClientError("scheme"),
+            aiohttp.InvalidURL("ours"),
             RuntimeError("x"),
         ],
         ids=lambda e: type(e).__name__,
@@ -209,8 +210,8 @@ class TestFetch:
         )
 
         (sent,) = script.requests
-        assert sent.url.query == b"a=1"
-        assert sent.content == b'{"b":2}'
+        assert sent.query == {"a": "1"}
+        assert sent.json == {"b": 2}
         assert sent.headers["Authorization"] == "Bearer user-token"
 
 
@@ -223,7 +224,7 @@ class TestHelixError:
         assert error.response is None
 
     def test_a_status_and_response_can_be_carried(self) -> None:
-        response = httpx.Response(429)
+        response = Reply(429, {}, "")
 
         error = HelixError("busy", status=429, response=response)
 

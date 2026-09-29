@@ -3,7 +3,6 @@
 from collections.abc import Callable
 from types import SimpleNamespace
 
-import httpx
 import pendulum
 import pytest
 
@@ -14,7 +13,9 @@ from tests.twitch.support import (
     Script,
     TokenDb,
 )
+from valmal.core import http_client
 from valmal.core.config import config
+from valmal.core.http_client import Reply
 from valmal.twitch.client import helix
 from valmal.twitch.oauth.token_manager import TwitchTokenManager
 
@@ -43,12 +44,11 @@ def sleeps(monkeypatch: pytest.MonkeyPatch) -> list[float]:
 def helix_http(
     monkeypatch: pytest.MonkeyPatch, tokens: FakeTokens, sleeps: list[float]
 ) -> Callable[..., Script]:
-    """Point helix at a scripted transport: `helix_http(reply(...), reply(...))`."""
+    """Point helix at a scripted Twitch: `helix_http(reply(...), reply(...))`."""
 
-    def install(*outcomes: httpx.Response | Exception) -> Script:
+    def install(*outcomes: Reply | Exception) -> Script:
         script = Script(*outcomes)
-        client = script.client()
-        monkeypatch.setattr(helix, "client", lambda: client)
+        monkeypatch.setattr(http_client, "request", script)
         return script
 
     return install
@@ -84,12 +84,11 @@ def token_db(monkeypatch: pytest.MonkeyPatch) -> TokenDb:
 
 @pytest.fixture
 def oauth_http(monkeypatch: pytest.MonkeyPatch) -> Callable[..., Script]:
-    """Point the token manager's own client at a scripted transport."""
+    """Point the token manager's requests at a scripted Twitch."""
 
-    def install(*outcomes: httpx.Response | Exception) -> Script:
+    def install(*outcomes: Reply | Exception) -> Script:
         script = Script(*outcomes)
-        client = script.client()
-        monkeypatch.setattr(tm_module, "client", lambda: client)
+        monkeypatch.setattr(http_client, "request", script)
         return script
 
     return install

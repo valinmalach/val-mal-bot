@@ -1,9 +1,9 @@
 from types import SimpleNamespace
 
-import httpx
 import pytest
 
 from tests.twitch.stream.shoutout_queue.support import NOW, Stop, World, pending
+from valmal.core.http_client import Reply
 from valmal.twitch.client.helix import HelixError
 from valmal.twitch.stream import stream_session
 from valmal.twitch.stream.shoutout_queue import TwitchShoutoutQueue
@@ -100,7 +100,7 @@ class TestDrainOnce:
         world.shout_error = HelixError(
             "busy",
             status=429,
-            response=httpx.Response(429, headers={"Retry-After": "90"}),
+            response=Reply(429, {"Retry-After": "90"}, ""),
         )
         queue._shoutout_queue.append(("a", "1"))
 
@@ -116,7 +116,7 @@ class TestDrainOnce:
         self, queue: TwitchShoutoutQueue, world: World
     ) -> None:
         world.sleeps_before_stop = 99
-        world.shout_error = HelixError("boom", status=500, response=httpx.Response(500))
+        world.shout_error = HelixError("boom", status=500, response=Reply(500, {}, ""))
         queue._shoutout_queue.append(("a", "1"))
 
         await queue._drain_once()

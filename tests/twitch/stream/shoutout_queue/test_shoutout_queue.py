@@ -1,4 +1,3 @@
-import httpx
 import pendulum
 import pytest
 
@@ -9,6 +8,7 @@ from tests.twitch.stream.shoutout_queue.support import (
     pending,
     settle_tasks,
 )
+from valmal.core.http_client import Reply
 from valmal.twitch.stream import shoutout_queue as sq
 from valmal.twitch.stream.shoutout_queue import TwitchShoutoutQueue
 
@@ -166,8 +166,8 @@ class TestNextPair:
 
 
 class TestWaitUntilFrom429:
-    def response(self, **headers: str) -> httpx.Response:
-        return httpx.Response(429, headers=headers)
+    def response(self, **headers: str) -> Reply:
+        return Reply(429, headers, "")
 
     def test_retry_after_in_seconds(
         self, queue: TwitchShoutoutQueue, world: World

@@ -26,7 +26,6 @@ _handler = logging.StreamHandler(sys.stdout)
 _handler.setFormatter(JsonFormatter())
 logging.basicConfig(level=logging.INFO, handlers=[_handler])
 logger = logging.getLogger(__name__)
-logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 async def _report_failed_extensions(failures: list[tuple[str, Exception]]) -> None:

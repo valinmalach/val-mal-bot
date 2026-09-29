@@ -1,10 +1,8 @@
 import asyncio
 
-import httpx
 import pendulum
 import pytest
 
-import valmal.twitch.oauth.token_manager as tm_module
 from tests.twitch.support import (
     APP_OK,
     NOW,
@@ -14,7 +12,9 @@ from tests.twitch.support import (
     reply,
     stale_refresh_tokens,
 )
+from valmal.core import http_client
 from valmal.core.background import fire_and_forget
+from valmal.core.http_client import Reply
 from valmal.db.models.enums import TokenType
 from valmal.twitch.oauth.token_manager import TwitchTokenManager
 
@@ -36,19 +36,19 @@ class TestOneRefreshAtATime:
         stale_refresh_tokens(manager)
 
     def gated(
-        self, monkeypatch: pytest.MonkeyPatch, *replies: httpx.Response
-    ) -> tuple[asyncio.Event, list[httpx.Request]]:
-        """A transport that holds every request until the gate opens."""
+        self, monkeypatch: pytest.MonkeyPatch, *replies: Reply
+    ) -> tuple[asyncio.Event, list[str]]:
+        """A stand-in for http_client.request that holds every call until the
+        gate opens."""
         gate = asyncio.Event()
-        calls: list[httpx.Request] = []
+        calls: list[str] = []
 
-        async def handler(request: httpx.Request) -> httpx.Response:
-            calls.append(request)
+        async def request(method: str, url: str, **kwargs: object) -> Reply:
+            calls.append(url)
             await gate.wait()
             return replies[min(len(calls) - 1, len(replies) - 1)]
 
-        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        monkeypatch.setattr(tm_module, "client", lambda: client)
+        monkeypatch.setattr(http_client, "request", request)
         return gate, calls
 
     async def test_a_caller_that_waited_reuses_the_result_it_did_not_have_to_fetch(
