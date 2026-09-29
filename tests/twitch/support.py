@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 import pendulum
 import pytest
+from multidict import CIMultiDict, CIMultiDictProxy
 
 from valmal.core.http_client import Reply
 from valmal.db.models.enums import TokenType
@@ -76,9 +77,10 @@ def reply(
     text: str | None = None,
     headers: Mapping[str, str] | None = None,
 ) -> Reply:
-    """A canned reply: JSON when `body` is given, otherwise raw `text`."""
+    """A canned reply: JSON when `body` is given, otherwise raw `text`. Its headers
+    match a name in any case, as the real client's do."""
     content = json.dumps(body) if body is not None else text or ""
-    return Reply(status, dict(headers or {}), content)
+    return Reply(status, CIMultiDictProxy(CIMultiDict(headers or {})), content)
 
 
 @dataclass(frozen=True)
