@@ -18,8 +18,7 @@ def main(ctx: RailwayContext | None = None) -> Project:
     val_mal_bot = service(
         "val-mal-bot",
         source=github("valinmalach/val-mal-bot", branch="master"),
-        start="python -m alembic upgrade head && exec opentelemetry-instrument python main.py",
-        # A variable missing here is deleted by the next apply; preserve() keeps
+        start="python -m alembic upgrade head && exec python main.py",        # A variable missing here is deleted by the next apply; preserve() keeps
         # the value Railway holds without writing it into the repo.
         env={
             "APP_URL": preserve(),
@@ -29,11 +28,8 @@ def main(ctx: RailwayContext | None = None) -> Project:
             "TWITCH_CLIENT_ID": preserve(),
             "TWITCH_CLIENT_SECRET": preserve(),
             "TWITCH_WEBHOOK_SECRET": preserve(),
-            # Railway's OTLP receiver takes traces only.
-            "OTEL_METRICS_EXPORTER": "none",
-            "OTEL_LOGS_EXPORTER": "none",
-            # glibc gives each thread (DNS lookups, the span exporter) an arena of
-            # its own, which fragments and is never handed back.
+            # glibc gives each thread (DNS lookups, discord.py's heartbeat) an arena
+            # of its own, which fragments and is never handed back.
             "MALLOC_ARENA_MAX": "2",
         },
     )
