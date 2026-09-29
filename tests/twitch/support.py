@@ -3,6 +3,7 @@ and a recorder for notify_soon."""
 
 import json
 from collections.abc import Callable, Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, cast
@@ -126,7 +127,16 @@ class Script:
         json: Any = None,
         data: Mapping[str, str] | None = None,
     ) -> Reply:
-        self.requests.append(Sent(method, url, dict(headers or {}), params, json, data))
+        # Copied, so a caller changing a dict afterwards cannot rewrite what was sent.
+        sent = Sent(
+            method,
+            url,
+            dict(headers or {}),
+            deepcopy(params),
+            deepcopy(json),
+            deepcopy(data),
+        )
+        self.requests.append(sent)
         index = min(len(self.requests) - 1, len(self.outcomes) - 1)
         outcome = self.outcomes[index]
         if isinstance(outcome, Exception):

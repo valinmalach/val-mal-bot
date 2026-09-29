@@ -163,6 +163,18 @@ class TestRequest:
         assert parse_qs(sent["body"]) == {"grant_type": ["refresh_token"]}
         assert sent["query"] == []
 
+    async def test_a_post_can_carry_its_fields_in_the_query_with_no_body(
+        self, server: TestServer
+    ) -> None:
+        """The app-token grant sends its credentials this way."""
+        reply = await http_client.request(
+            "POST", url(server, "/echo"), params={"grant_type": "client_credentials"}
+        )
+
+        sent = reply.json()
+        assert sent["query"] == [["grant_type", "client_credentials"]]
+        assert sent["body"] == ""
+
     async def test_headers_are_sent(self, server: TestServer) -> None:
         reply = await http_client.request(
             "GET", url(server, "/echo"), headers={"Authorization": "Bearer t"}
