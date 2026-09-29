@@ -117,7 +117,9 @@ async def _oauth_callback_common(
 
     if response.status < 200 or response.status >= 300:
         logger.error(
-            f"Token exchange failed with status={response.status}, response={response.text}"
+            "Token exchange failed with status=%s, response=%s",
+            response.status,
+            response.text,
         )
         await notify(f"Failed to exchange token: {response.status} {response.text}")
         raise HTTPException(status_code=500)
@@ -126,7 +128,7 @@ async def _oauth_callback_common(
     # RFC 6749: the token type is case insensitive.
     if auth_response.token_type.lower() != "bearer":
         logger.error(
-            f"Token exchange failed: unexpected token type {auth_response.token_type}"
+            "Token exchange failed: unexpected token type %s", auth_response.token_type
         )
         await notify(
             f"Failed to exchange token: unexpected token type {auth_response.token_type}"
