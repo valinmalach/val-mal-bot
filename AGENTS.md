@@ -84,15 +84,21 @@ config file, so moving it breaks them silently. The Google style set
 (`sourcery review --enable gpsg .`) is deliberately not enabled: 232 of its 272
 findings here come from its docstring mandate, which the comment convention below rejects.
 
-**A PEP 695 parameter list blinds Sourcery to the whole file, silently.** Sourcery
-1.45 and 1.46 return no pattern-rule findings at all for a file containing `def f[T]`,
-`class C[T]` or `type X = ...` — no parse error, no warning, a clean report that reads
-like a clean file, so every custom rule above has stopped guarding it. (On 1.45
-structural rules such as `no-long-functions` still fire, so the output looks normal.)
-`valmal/twitch/eventsub/router.py` (`process_webhook[E]`, `_route[E]`) and
-`valmal/twitch/client/helix.py` (`fetch[T]`) are in this state today, because the
-generic is worth more than the coverage; nothing else should join them without knowing
-the trade. `has_configured_role` uses a module-level `TypeVar` for exactly this reason.
+**Syntax that Sourcery cannot process blinds it to the whole file, silently.** Sourcery
+gives a file it cannot load the same report as a clean one, "No issues detected", with nothing
+different in `--verbose` or Sourcery's log (`%LOCALAPPDATA%\sourcery\sourcery.log` on
+Windows, where this was measured); a genuine syntax error
+gets the same treatment. Here that means PEP 695 (`def f[T]`, `class C[T]` and
+`type X = ...`) and also 3.14's unparenthesised `except A, B:`, so keep the parentheses.
+3.12 nested f-strings and `match` are fine, and `python_version` in `.sourcery.yaml` changes
+nothing. Every release from 1.25 to 1.46.0 behaves this way, and so does the 1.46.1b7
+pre-release; Sourcery documents none of it. `valmal/twitch/eventsub/router.py`
+(`process_webhook[E]`, `_route[E]`) and `valmal/twitch/client/helix.py` (`fetch[T]`) are
+in this state on purpose, because the generic is worth more than the coverage; nothing
+else should join them without knowing the trade. The older spellings keep a file
+covered: a module-level `TypeVar` (as `has_configured_role` uses), `Generic[T]`, and
+`TypeAliasType` or a `TypeAlias` annotation in place of `type`. A skipped file and a
+clean one print the same, so check coverage by planting something a rule must catch.
 
 Migrations — see `valmal/db/README.md` for the rules:
 
