@@ -9,6 +9,7 @@ from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response
 from starlette.routing import Route
 
+from valmal.bot import gateway_log
 from valmal.bot.client import bot
 from valmal.bot.cogs import COGS
 from valmal.core import http_client
@@ -25,6 +26,7 @@ from valmal.twitch.oauth.router import twitch_oauth_router
 _handler = logging.StreamHandler(sys.stdout)
 _handler.setFormatter(JsonFormatter())
 logging.basicConfig(level=logging.INFO, handlers=[_handler])
+gateway_log.install()
 logger = logging.getLogger(__name__)
 
 

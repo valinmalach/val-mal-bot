@@ -230,7 +230,8 @@ everything for it, rather than one directory per kind of file:
   Alembic's revisions are `migrations/`, at the root.
 - `valmal/bot/` — Discord: `client` (the bot and its gateway handlers), `cogs/`, `views`,
   and what says something in a channel: `audit`, `send`, `present`, `roles`,
-  `birthday` and `duration`.
+  `birthday` and `duration`; `gateway_log` lifts discord.py's reconnect reasons into the
+  logs.
 - `valmal/twitch/` — Twitch: `models/` (Pydantic payloads), `client/` (Helix, chat and subscription health),
   `oauth/` (the grant flow, its routes and the stored tokens), `eventsub/` (the signed
   webhook route, its replay protection, what each event makes the bot do, chat
@@ -604,7 +605,10 @@ itself. An author line and a footer are plain text to Discord and are left alone
   call becomes a queryable top-level key. Nothing may call
   `logging.basicConfig` a second time, install a further handler, or `print`/
   write to stdout or stderr directly — any of those is a line Railway
-  mis-levels by the stream it came in on.
+  mis-levels by the stream it came in on. A filter is not a handler:
+  `valmal/bot/gateway_log.py` turns `discord.gateway` down to DEBUG and passes only the
+  four lines that say why a session dropped, at INFO, because a RESUME alone is logged
+  without its reason and the rest of that logger's DEBUG is every gateway payload.
 - **A new cog needs an entry in `COGS` (`valmal/bot/cogs/__init__.py`).** Nothing
   auto-discovers.
 - **Comments record a non-obvious *why*, or do not exist.** Match the density in
