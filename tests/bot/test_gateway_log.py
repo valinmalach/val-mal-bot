@@ -1,3 +1,4 @@
+import ast
 import inspect
 import logging
 from collections.abc import Iterator
@@ -63,8 +64,31 @@ def test_info_and_above_pass_unchanged(kept: Kept) -> None:
     assert [r.levelno for r in kept.records] == [logging.INFO, logging.WARNING]
 
 
+def _gateway_debug_formats() -> set[str]:
+    """The format string of every `_log.debug(...)` call in discord.gateway, read
+    from the parsed source so a string in a comment or another call does not count."""
+    formats: set[str] = set()
+    for node in ast.walk(ast.parse(inspect.getsource(discord.gateway))):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "debug"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "_log"
+            and node.args
+            and isinstance(first := node.args[0], ast.Constant)
+            and isinstance(first.value, str)
+        ):
+            formats.add(first.value)
+    return formats
+
+
 @pytest.mark.parametrize("reason", sorted(gateway_log.REASONS))
 def test_the_installed_discord_py_still_logs_each_reason(reason: str) -> None:
     """The match is on discord.py's own text; a reworded release would make the
     filter drop the line silently, so this fails instead."""
-    assert f"'{reason}'" in inspect.getsource(discord.gateway)
+    assert reason in _gateway_debug_formats()
+
+
+def test_discord_gateway_logs_on_the_logger_the_filter_sits_on() -> None:
+    assert discord.gateway._log.name == "discord.gateway"
