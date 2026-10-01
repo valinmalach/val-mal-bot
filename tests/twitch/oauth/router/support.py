@@ -1,9 +1,8 @@
 from typing import Any
 from urllib.parse import parse_qs
 
-import httpx
-
 from tests.credentials import CLIENT_ID
+from tests.twitch.support import Sent
 from valmal.db.models.enums import TokenType
 from valmal.twitch.models.auth import RefreshResponse
 from valmal.twitch.oauth import grants as oauth
@@ -45,8 +44,8 @@ def new_state(token_type: TokenType) -> str:
     return parse_qs(url.split("?", 1)[1])["state"][0]
 
 
-def form(request: httpx.Request) -> dict[str, str]:
-    return {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
+def form(request: Sent) -> dict[str, str]:
+    return dict(request.data or {})
 
 
 class Stored:

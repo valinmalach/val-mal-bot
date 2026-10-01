@@ -5,13 +5,12 @@ description = "Valin Malach's bot for Twitch/Discord"
 readme = "README.md"
 requires-python = ">=3.14.7"
 dependencies = [
-    # discord.py sends on aiohttp; live_alert names its errors directly, so it is
-    # declared here rather than leaned on transitively.
+    # discord.py sends on aiohttp, http_client sends on it too and live_alert names
+    # its errors, so it is declared here rather than leaned on transitively.
     "aiohttp>=3.14.3",
     "alembic>=1.20.0",
     "asyncpg>=0.31.0",
     "discord>=2.3.2",
-    "httpx[http2]>=0.28.1",
     # Nothing imports it: discord.py parses every gateway event with it when it is
     # installed, and with the stdlib json when it is not.
     "orjson>=3.12.0",
@@ -25,6 +24,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    # The web app tests call the Starlette apps in process through ASGITransport.
+    "httpx>=0.28.1",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",

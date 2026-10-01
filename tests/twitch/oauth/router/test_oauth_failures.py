@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from typing import Any
 
+import aiohttp
 import httpx
 import pytest
 
@@ -129,7 +130,7 @@ class TestTheExchangeFails:
     async def test_a_network_failure_reaching_twitch_is_a_reported_500(
         self, http: httpx.AsyncClient, twitch: Twitch, said: Said
     ) -> None:
-        twitch(httpx.ConnectError("no route"))
+        twitch(aiohttp.ClientConnectionError("no route"))
 
         response = await authorize(http)
 
@@ -139,7 +140,7 @@ class TestTheExchangeFails:
     async def test_the_broadcaster_route_reports_under_its_own_path(
         self, http: httpx.AsyncClient, twitch: Twitch, said: Said
     ) -> None:
-        twitch(httpx.ConnectError("no route"))
+        twitch(aiohttp.ClientConnectionError("no route"))
 
         await authorize(http, BROADCASTER_CALLBACK)
 

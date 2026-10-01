@@ -171,7 +171,7 @@ class TestSingleLookups:
         user = await api.get_user(42)
 
         assert user is not None and user.login == "alice"
-        assert script.requests[0].url.query == b"id=42"
+        assert script.requests[0].query == {"id": 42}
 
     async def test_get_user_by_username(self, helix_http: HttpFactory) -> None:
         script = helix_http(reply(200, {"data": [user_json("42", "alice")]}))
@@ -179,7 +179,7 @@ class TestSingleLookups:
         user = await api.get_user_by_username("alice")
 
         assert user is not None and user.id == "42"
-        assert script.requests[0].url.query == b"login=alice"
+        assert script.requests[0].query == {"login": "alice"}
 
     async def test_an_unknown_user_is_none_not_an_error(
         self, helix_http: HttpFactory
@@ -202,7 +202,7 @@ class TestSingleLookups:
         script = helix_http(reply(200, {"data": [], "pagination": {}}))
 
         assert await api.get_stream(7) is None
-        assert script.requests[0].url.query == b"user_id=7"
+        assert script.requests[0].query == {"user_id": 7}
 
     async def test_get_stream_returns_the_stream(self, helix_http: HttpFactory) -> None:
         helix_http(reply(200, {"data": [stream_json("99")], "pagination": {}}))
@@ -284,7 +284,7 @@ class TestSingleLookups:
         vod = await api.get_stream_vod(1, 10)
 
         assert vod is not None and vod.id == "v2"
-        assert b"type=archive" in script.requests[0].url.query
+        assert script.requests[0].query["type"] == "archive"
 
     async def test_no_vod_for_that_stream_is_none(
         self, helix_http: HttpFactory

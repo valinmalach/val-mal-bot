@@ -55,7 +55,7 @@ class TestChatAndShoutout:
         await api.send_chat_message("111", "hello chat")
 
         (sent,) = script.requests
-        assert (sent.method, sent.url.path) == ("POST", "/helix/chat/messages")
+        assert (sent.method, sent.path) == ("POST", "/helix/chat/messages")
         assert body(sent) == {
             "broadcaster_id": "111",
             "sender_id": "999",
@@ -82,7 +82,7 @@ class TestChatAndShoutout:
         await api.send_shoutout("555")
 
         (sent,) = script.requests
-        assert sent.url.path == "/helix/chat/shoutouts"
+        assert sent.path == "/helix/chat/shoutouts"
         assert body(sent) == {
             "from_broadcaster_id": "111",
             "to_broadcaster_id": "555",
@@ -135,10 +135,10 @@ class TestSubscriptionCalls:
         await api.delete_subscription("abc")
 
         (sent,) = script.requests
-        assert (sent.method, sent.url.path, sent.url.query) == (
+        assert (sent.method, sent.path, sent.query) == (
             "DELETE",
             "/helix/eventsub/subscriptions",
-            b"id=abc",
+            {"id": "abc"},
         )
 
 
@@ -264,7 +264,9 @@ class TestUnsubscribe:
 
         assert await api.unsubscribe_to_user("alice") is True
 
-        assert sorted(r.url.query for r in script.requests if r.method == "DELETE") == [
-            b"id=off",
-            b"id=on",
+        assert sorted(
+            r.query["id"] for r in script.requests if r.method == "DELETE"
+        ) == [
+            "off",
+            "on",
         ]

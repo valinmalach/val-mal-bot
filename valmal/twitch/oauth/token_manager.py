@@ -9,8 +9,8 @@ import pendulum
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
+from valmal.core import http_client
 from valmal.core.errors import notify
-from valmal.core.http_client import client
 from valmal.core.settings import settings
 from valmal.db.models import OAuthToken
 from valmal.db.models.enums import TokenType
@@ -166,14 +166,14 @@ class TwitchTokenManager:
             "grant_type": "client_credentials",
             "scope": " ".join(scopes),
         }
-        response = await client().request(
+        response = await http_client.request(
             "POST", "https://id.twitch.tv/oauth2/token", params=params
         )
 
-        if response.status_code < 200 or response.status_code >= 300:
-            logger.error(f"Token refresh failed with status={response.status_code}")
+        if response.status < 200 or response.status >= 300:
+            logger.error(f"Token refresh failed with status={response.status}")
             await notify(
-                f"Failed to refresh access token: {response.status_code} {response.text}",
+                f"Failed to refresh access token: {response.status} {response.text}",
                 key="token-refresh-failed:app",
             )
             return False
@@ -241,17 +241,15 @@ class TwitchTokenManager:
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
         }
-        response = await client().request(
+        response = await http_client.request(
             "POST", "https://id.twitch.tv/oauth2/token", data=params
         )
 
-        if response.status_code < 200 or response.status_code >= 300:
-            logger.error(
-                f"{label} token refresh failed with status={response.status_code}"
-            )
+        if response.status < 200 or response.status >= 300:
+            logger.error(f"{label} token refresh failed with status={response.status}")
             await notify(
                 f"Failed to refresh {label} access token: "
-                f"{response.status_code} {response.text}",
+                f"{response.status} {response.text}",
                 key=f"token-refresh-failed:{label}",
             )
             return False

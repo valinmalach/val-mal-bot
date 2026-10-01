@@ -19,6 +19,7 @@ from tests.twitch.oauth.router.support import (
     validation_body,
 )
 from tests.twitch.support import Script, reply
+from valmal.core.http_client import Reply
 from valmal.db.models.enums import TokenType
 from valmal.twitch.oauth import grants as oauth
 
@@ -41,7 +42,7 @@ FLOWS = [
 Twitch = Callable[..., Script]
 
 
-def happy(user_id: str) -> tuple[httpx.Response, httpx.Response]:
+def happy(user_id: str) -> tuple[Reply, Reply]:
     return reply(200, token_body()), reply(200, validation_body(user_id))
 
 

@@ -10,10 +10,9 @@ import asyncio
 import logging
 from typing import Any, Literal
 
-import httpx
 from pydantic import BaseModel
 
-from valmal.core.http_client import client
+from valmal.core import http_client
 from valmal.core.settings import settings
 from valmal.db.models.enums import TokenType
 from valmal.twitch.oauth.token_manager import token_manager
@@ -25,11 +24,6 @@ _MAX_ATTEMPTS = 3
 _BACKOFF_SECONDS = 1.0
 
 Method = Literal["GET", "POST", "DELETE"]
-
-# Worth another attempt: the request never reached Twitch, or the connection
-# died mid-reply. Not the rest of httpx.TransportError -- an unsupported scheme
-# or a malformed request of ours fails again identically.
-_TRANSIENT = (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError)
 
 # Repeating a read or a delete costs nothing; repeating a POST can send a second
 # chat message. docs/adr/0002-helix-posts-are-not-retried.md has the why.
@@ -48,7 +42,7 @@ class HelixError(Exception):
         message: str,
         *,
         status: int | None = None,
-        response: httpx.Response | None = None,
+        response: http_client.Reply | None = None,
     ) -> None:
         super().__init__(message)
         self.status = status
@@ -92,8 +86,8 @@ async def _send(
     token_type: TokenType,
     params: dict[str, Any] | None,
     json: dict[str, Any] | None,
-) -> httpx.Response:
-    return await client().request(
+) -> http_client.Reply:
+    return await http_client.request(
         method, url, headers=_headers(token_type), params=params, json=json
     )
 
@@ -106,7 +100,7 @@ async def request(
     json: dict[str, Any] | None = None,
     token_type: TokenType = TokenType.App,
     repeatable: bool | None = None,
-) -> httpx.Response:
+) -> http_client.Reply:
     """Call Helix, refreshing a rejected token once and retrying where it is safe.
 
     ``repeatable`` overrides the per-method default for a call that is provably
@@ -123,12 +117,12 @@ async def request(
         try:
             response = await _send(method, url, token_type, params, json)
         except Exception as e:
-            if attempt + 1 >= attempts or not isinstance(e, _TRANSIENT):
+            if attempt + 1 >= attempts or not isinstance(e, http_client.TRANSIENT):
                 raise HelixError(f"{method} {path} failed: {e}") from e
             await asyncio.sleep(_BACKOFF_SECONDS * 2**attempt)
             continue
 
-        if response.status_code == 401:
+        if response.status == 401:
             # Rejected, so the request cannot have taken effect: re-sending it
             # is safe for every method, POST included.
             logger.warning("Unauthorized %s %s, refreshing the token", method, path)
@@ -147,13 +141,13 @@ async def request(
                     f"{method} {path} failed after refreshing the token: {e}"
                 ) from e
 
-        if 200 <= response.status_code < 300:
+        if 200 <= response.status < 300:
             return response
 
-        if 500 <= response.status_code < 600 and attempt + 1 < attempts:
+        if 500 <= response.status < 600 and attempt + 1 < attempts:
             logger.warning(
                 "Server error %s on %s %s, attempt %d",
-                response.status_code,
+                response.status,
                 method,
                 path,
                 attempt + 1,
@@ -162,8 +156,8 @@ async def request(
             continue
 
         raise HelixError(
-            f"{method} {path} returned {response.status_code}: {response.text}",
-            status=response.status_code,
+            f"{method} {path} returned {response.status}: {response.text}",
+            status=response.status,
             response=response,
         )
 
@@ -195,6 +189,6 @@ async def fetch[T: BaseModel](
     except Exception as e:
         raise HelixError(
             f"{method} {path} answered with a body that would not parse: {e}",
-            status=response.status_code,
+            status=response.status,
             response=response,
         ) from e

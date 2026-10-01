@@ -12,8 +12,8 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 from starlette.routing import Router
 
+from valmal.core import http_client
 from valmal.core.errors import notify, report
-from valmal.core.http_client import client
 from valmal.core.settings import settings
 from valmal.db.models.enums import TokenType
 from valmal.twitch.models.auth import RefreshResponse, TokenValidationResponse
@@ -39,18 +39,16 @@ async def _validate_oauth_identity(
     token_type: TokenType,
     endpoint: str,
 ) -> TokenValidationResponse:
-    response = await client().request(
+    response = await http_client.request(
         "GET",
         "https://id.twitch.tv/oauth2/validate",
         headers={"Authorization": f"OAuth {auth_response.access_token}"},
     )
-    if response.status_code < 200 or response.status_code >= 300:
-        logger.error(
-            "OAuth token validation failed with status=%s", response.status_code
-        )
+    if response.status < 200 or response.status >= 300:
+        logger.error("OAuth token validation failed with status=%s", response.status)
         await notify(
             f"Failed to validate the Twitch token from {endpoint}: "
-            f"{response.status_code} {response.text}"
+            f"{response.status} {response.text}"
         )
         raise HTTPException(status_code=500, detail="Twitch token validation failed")
 
@@ -113,24 +111,24 @@ async def _oauth_callback_common(
         "grant_type": "authorization_code",
         "redirect_uri": callback_uri(token_type),
     }
-    response = await client().request(
+    response = await http_client.request(
         "POST", "https://id.twitch.tv/oauth2/token", data=params
     )
 
-    if response.status_code < 200 or response.status_code >= 300:
+    if response.status < 200 or response.status >= 300:
         logger.error(
-            f"Token exchange failed with status={response.status_code}, response={response.text}"
+            "Token exchange failed with status=%s, response=%s",
+            response.status,
+            response.text,
         )
-        await notify(
-            f"Failed to exchange token: {response.status_code} {response.text}"
-        )
+        await notify(f"Failed to exchange token: {response.status} {response.text}")
         raise HTTPException(status_code=500)
 
     auth_response = RefreshResponse.model_validate(response.json())
     # RFC 6749: the token type is case insensitive.
     if auth_response.token_type.lower() != "bearer":
         logger.error(
-            f"Token exchange failed: unexpected token type {auth_response.token_type}"
+            "Token exchange failed: unexpected token type %s", auth_response.token_type
         )
         await notify(
             f"Failed to exchange token: unexpected token type {auth_response.token_type}"

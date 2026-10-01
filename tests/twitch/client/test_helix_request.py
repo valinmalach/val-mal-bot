@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-import httpx
+import aiohttp
 import pytest
 
 from tests.credentials import CLIENT_ID
@@ -24,7 +24,10 @@ class TestRequest:
         assert response.json() == {"data": []}
         (sent,) = script.requests
         assert sent.method == "GET"
-        assert str(sent.url) == "https://api.twitch.tv/helix/users?login=bob"
+        assert (sent.url, sent.params) == (
+            "https://api.twitch.tv/helix/users",
+            {"login": "bob"},
+        )
 
     async def test_every_call_carries_the_client_id_and_a_bearer_token(
         self, helix_http: HttpFactory
@@ -59,8 +62,8 @@ class TestRequest:
 
         await request("POST", "/chat/messages", json={"message": "hi"})
 
-        assert script.requests[0].content == b'{"message":"hi"}'
-        assert script.requests[0].headers["Content-Type"] == "application/json"
+        assert script.requests[0].json == {"message": "hi"}
+        assert script.requests[0].data is None
 
     @pytest.mark.parametrize("status", [200, 201, 202, 204, 299])
     async def test_any_2xx_is_success(
@@ -68,7 +71,7 @@ class TestRequest:
     ) -> None:
         helix_http(reply(status))
 
-        assert (await request("GET", "/x")).status_code == status
+        assert (await request("GET", "/x")).status == status
 
     @pytest.mark.parametrize("status", [400, 403, 404, 409, 422, 429])
     async def test_a_4xx_fails_at_once_and_is_never_retried(
@@ -87,7 +90,7 @@ class TestRequest:
     async def test_a_429s_headers_stay_reachable_for_a_caller_that_cares(
         self, helix_http: HttpFactory
     ) -> None:
-        helix_http(httpx.Response(429, headers={"Ratelimit-Reset": "1700000000"}))
+        helix_http(reply(429, headers={"Ratelimit-Reset": "1700000000"}))
 
         with pytest.raises(HelixError) as caught:
             await request("GET", "/x")
@@ -184,7 +187,7 @@ class TestTokens:
         await request("POST", "/chat/messages", json={"message": "hi"})
 
         assert len(script.requests) == 2
-        assert script.requests[0].content == script.requests[1].content
+        assert script.requests[0].json == script.requests[1].json == {"message": "hi"}
 
     async def test_a_401_whose_refresh_fails_is_a_401_helix_error(
         self, helix_http: HttpFactory, tokens: FakeTokens
@@ -225,7 +228,7 @@ class TestTokens:
     async def test_a_transport_error_after_refreshing_is_a_helix_error(
         self, helix_http: HttpFactory
     ) -> None:
-        helix_http(reply(401), httpx.ConnectError("down"))
+        helix_http(reply(401), aiohttp.ClientConnectionError("down"))
 
         with pytest.raises(HelixError, match="failed after refreshing the token"):
             await request("GET", "/x")

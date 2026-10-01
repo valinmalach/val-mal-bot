@@ -3,12 +3,12 @@ import contextlib
 import logging
 from typing import ClassVar, Self, cast
 
-import httpx
 import pendulum
 
 from valmal.bot.present import quoted
 from valmal.core.background import fire_and_forget
 from valmal.core.errors import notify, report
+from valmal.core.http_client import Reply
 from valmal.twitch.client.api import get_user, send_shoutout
 from valmal.twitch.client.helix import HelixError
 from valmal.twitch.models.api.user import User
@@ -80,7 +80,7 @@ class TwitchShoutoutQueue:
             None,
         )
 
-    def _wait_until_from_429(self, response: httpx.Response) -> pendulum.DateTime:
+    def _wait_until_from_429(self, response: Reply) -> pendulum.DateTime:
         now = pendulum.now()
         if ra := response.headers.get("Retry-After"):
             with contextlib.suppress(ValueError):

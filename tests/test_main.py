@@ -27,13 +27,11 @@ def entry() -> Iterator[ModuleType]:
     """
     root = logging.getLogger()
     handlers, level = list(root.handlers), root.level
-    httpx_level = logging.getLogger("httpx").level
     import main
 
     yield main
     root.handlers[:] = handlers
     root.setLevel(level)
-    logging.getLogger("httpx").setLevel(httpx_level)
 
 
 class Process:
@@ -272,7 +270,6 @@ print(json.dumps({
         [type(h).__name__, type(h.formatter).__name__, h.stream is sys.stdout]
         for h in root.handlers
     ],
-    "httpx": logging.getLogger("httpx").level,
 }))
 """
 
@@ -318,11 +315,6 @@ class TestLogging:
         self, logging_of_a_fresh_process: dict[str, Any]
     ) -> None:
         assert logging_of_a_fresh_process["level"] == logging.INFO
-
-    def test_httpx_is_quietened_because_it_logs_every_request_at_info(
-        self, logging_of_a_fresh_process: dict[str, Any]
-    ) -> None:
-        assert logging_of_a_fresh_process["httpx"] == logging.WARNING
 
     def test_the_formatter_is_the_shared_one(self, entry: ModuleType) -> None:
         assert isinstance(entry._handler.formatter, JsonFormatter)

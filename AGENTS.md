@@ -128,7 +128,8 @@ the command finds the global Python instead and says the SDK is not installed; c
 cover 99% of the code outside `migrations/`, branches counted; what is left is `__main__`
 guards, a demo, and lines that cannot be reached. Nothing runs against Discord, Twitch
 or Postgres, so a real database round trip and a real gateway session are untested:
-Helix and OAuth go through `httpx.MockTransport`, the Starlette apps through
+Helix and OAuth are faked at `http_client.request`, whose own aiohttp code runs against a
+local `aiohttp.test_utils.TestServer`, the Starlette apps go through
 `httpx.ASGITransport`, repository statements are compiled with the Postgres dialect and
 asserted, and `tests/test_migrations.py` renders every revision offline in a subprocess
 to check the chain, the rules in `valmal/db/README.md`, the schema against the models, and that
@@ -473,6 +474,12 @@ parsing, and it raises `HelixError` rather than reporting — whoever catches ha
 the context worth reporting. `api.py` holds the endpoints on top of it: `None`
 means Twitch has nothing, a failed call raises. Retry follows the method, not the
 call site; `docs/adr/0002-helix-posts-are-not-retried.md` says why POSTs do not.
+
+**Every outbound HTTP call of ours goes through `http_client.request`
+(`valmal/core/http_client.py`); discord.py keeps its own session.** One aiohttp session, since
+discord.py already loads aiohttp, and a `Reply` read in full before the connection goes back
+to the pool, so nothing else holds a live response. Which failures are worth another attempt
+is `http_client.TRANSIENT`, so `helix.py` names no aiohttp type.
 
 **A stored birthday is the next occurrence, not a date of birth.** One rule answers when
 that is, in `valmal/bot/birthday.py`: `next_birthday_on` from the parts when it is being

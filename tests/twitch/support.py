@@ -1,15 +1,19 @@
-"""Fakes for the Twitch layer: a token manager, a scripted HTTP transport, and a
-recorder for notify_soon."""
+"""Fakes for the Twitch layer: a token manager, a scripted http_client.request,
+and a recorder for notify_soon."""
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from copy import deepcopy
+from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
+from urllib.parse import urlsplit
 
-import httpx
 import pendulum
 import pytest
+from multidict import CIMultiDict, CIMultiDictProxy
 
+from valmal.core.http_client import Reply
 from valmal.db.models.enums import TokenType
 from valmal.twitch.oauth.token_manager import TwitchTokenManager
 
@@ -68,48 +72,87 @@ class FakeTokens:
 
 
 def reply(
-    status: int = 200, body: Any = None, text: str | None = None
-) -> httpx.Response:
-    """A canned response: JSON when `body` is given, otherwise raw `text`."""
-    if body is not None:
-        return httpx.Response(status, json=body)
-    return httpx.Response(status, text=text or "")
+    status: int = 200,
+    body: Any = None,
+    text: str | None = None,
+    headers: Mapping[str, str] | None = None,
+) -> Reply:
+    """A canned reply: JSON when `body` is given, otherwise raw `text`. Its headers
+    match a name in any case, as the real client's do."""
+    content = json.dumps(body) if body is not None else text or ""
+    return Reply(status, CIMultiDictProxy(CIMultiDict(headers or {})), content)
+
+
+@dataclass(frozen=True)
+class Sent:
+    """One call to http_client.request, as the code under test made it."""
+
+    method: str
+    url: str
+    headers: Mapping[str, str]
+    params: Mapping[str, Any] | None
+    json: Any
+    data: Mapping[str, str] | None
+
+    @property
+    def path(self) -> str:
+        return urlsplit(self.url).path
+
+    @property
+    def query(self) -> Mapping[str, Any]:
+        return self.params or {}
 
 
 class Script:
-    """A transport handler that plays back outcomes in order, then repeats the last.
+    """A stand-in for http_client.request that plays back outcomes in order, then
+    repeats the last.
 
-    An outcome is a Response, or an Exception to raise. Every request it saw is
-    kept, so a test can say what was sent as well as what came back.
+    An outcome is a Reply, or an Exception to raise. Every call it saw is kept, so
+    a test can say what was sent as well as what came back.
     """
 
-    def __init__(self, *outcomes: httpx.Response | Exception) -> None:
-        # Refused here: an empty script would raise inside the transport, where the
+    def __init__(self, *outcomes: Reply | Exception) -> None:
+        # Refused here: an empty script would raise inside the fake, where the
         # code under test can catch it as a network failure and pass the test anyway.
         if not outcomes:
             raise ValueError("A Script needs at least one outcome")
         self.outcomes = list(outcomes)
-        self.requests: list[httpx.Request] = []
+        self.requests: list[Sent] = []
 
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
+    async def __call__(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Mapping[str, str] | None = None,
+        params: Mapping[str, Any] | None = None,
+        json: Any = None,
+        data: Mapping[str, str] | None = None,
+    ) -> Reply:
+        # Copied, so a caller changing a dict afterwards cannot rewrite what was sent.
+        sent = Sent(
+            method,
+            url,
+            dict(headers or {}),
+            deepcopy(params),
+            deepcopy(json),
+            deepcopy(data),
+        )
+        self.requests.append(sent)
         index = min(len(self.requests) - 1, len(self.outcomes) - 1)
         outcome = self.outcomes[index]
         if isinstance(outcome, Exception):
             raise outcome
         return outcome
 
-    def client(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(transport=httpx.MockTransport(self))
-
 
 def steps(script: Script) -> list[tuple[str, str]]:
     """Every request a Script saw, as (method, path) in order."""
-    return [(r.method, r.url.path) for r in script.requests]
+    return [(r.method, r.path) for r in script.requests]
 
 
-def body(request: httpx.Request) -> dict[str, Any]:
-    return json.loads(request.content)
+def body(request: Sent) -> dict[str, Any]:
+    return cast("dict[str, Any]", request.json)
 
 
 def user_json(id: str = "1", login: str = "bob", **overrides: Any) -> dict[str, Any]:
