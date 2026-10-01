@@ -25,13 +25,16 @@ def entry() -> Iterator[ModuleType]:
     Importing it points the root logger at stdout through the JSON formatter, which
     is right for the process and would leak into every other test.
     """
-    root = logging.getLogger()
+    root, gateway = logging.getLogger(), logging.getLogger("discord.gateway")
     handlers, level = list(root.handlers), root.level
+    gateway_filters, gateway_level = list(gateway.filters), gateway.level
     import main
 
     yield main
     root.handlers[:] = handlers
     root.setLevel(level)
+    gateway.filters[:] = gateway_filters
+    gateway.setLevel(gateway_level)
 
 
 class Process:
@@ -270,6 +273,7 @@ print(json.dumps({
         [type(h).__name__, type(h.formatter).__name__, h.stream is sys.stdout]
         for h in root.handlers
     ],
+    "gateway": [logging.getLogger("discord.gateway").level, len(logging.getLogger("discord.gateway").filters)],
 }))
 """
 
@@ -315,6 +319,11 @@ class TestLogging:
         self, logging_of_a_fresh_process: dict[str, Any]
     ) -> None:
         assert logging_of_a_fresh_process["level"] == logging.INFO
+
+    def test_the_gateway_reconnect_reasons_are_let_through(
+        self, logging_of_a_fresh_process: dict[str, Any]
+    ) -> None:
+        assert logging_of_a_fresh_process["gateway"] == [logging.DEBUG, 1]
 
     def test_the_formatter_is_the_shared_one(self, entry: ModuleType) -> None:
         assert isinstance(entry._handler.formatter, JsonFormatter)
