@@ -32,7 +32,8 @@ So the change removes no threads and costs:
 
 - about +1.1 MB resident, because aiohttp imports `aiodns` and `pycares` at
   import time (measured in the project environment on 2026-09-28);
-- three more packages: `pycares`, `cffi` and `pycparser`;
+- four more packages: `aiodns` itself, and `pycares`, `cffi` and `pycparser`
+  beneath it;
 - a third Python 3.15 blocker: `pycares` 5.0.1 has no cp315 or abi3 wheel.
 
 Revisit only if aiohttp becomes the only thing in the process that resolves
