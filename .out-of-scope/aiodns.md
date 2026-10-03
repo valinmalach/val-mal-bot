@@ -12,8 +12,9 @@ process and saves memory.
 It cannot, because those threads are not aiohttp's. `uvicorn[standard]`
 installs uvloop, and `main.py` leaves uvicorn's `loop` at its default, so the
 bot runs on uvloop. Under uvloop, `loop.getaddrinfo` runs on libuv's thread
-pool: four threads, started together on first use, alive for the life of the
-process. Production showed exactly that on 2026-10-02:
+pool: four threads by default (`UV_THREADPOOL_SIZE`, which nothing here sets),
+started together on first use, alive for the life of the process. Production
+showed exactly that on 2026-10-02:
 
 ```text
 python main.py   Threads: 6   VmRSS: 105840 kB
@@ -24,8 +25,8 @@ python main.py   Threads: 6   VmRSS: 105840 kB
 
 aiohttp is not the pool's only user. asyncpg connects with
 `loop.create_connection(host, ...)` and the database host is a name, so its
-lookup goes through the same pool. With `aiodns` the four threads would still
-start on the first database connection and stay.
+lookup goes through the same pool. With `aiodns` the pool would still start on
+the first database connection and stay, whatever its size.
 
 So the change removes no threads and costs:
 
