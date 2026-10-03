@@ -78,6 +78,7 @@ class MyBot(Bot):
         if isinstance(tasks_cog, Tasks):
             tasks_cog.check_birthdays.start()
             tasks_cog.recheck_subscriptions.start()
+            tasks_cog.log_memory.start()
 
         self.command_prefix = config.setting("command_prefix", "$")
         guild = discord.Object(id=config.setting("guild_id"))

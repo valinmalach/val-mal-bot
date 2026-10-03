@@ -225,7 +225,7 @@ everything for it, rather than one directory per kind of file:
 
 - `valmal/core/` — plumbing the rest leans on: `settings` (the `.env`), `config` (the
   database-backed configuration) and the `safe_format` it renders with, `errors`,
-  `background`, `logging_json` and `http_client`.
+  `background`, `logging_json`, `http_client` and `memory`.
 - `valmal/db/` — Postgres: `models/` (the tables), `session` and `repository`.
   Alembic's revisions are `migrations/`, at the root.
 - `valmal/bot/` — Discord: `client` (the bot and its gateway handlers), `cogs/`, `views`,
@@ -266,8 +266,8 @@ Stop the web server and the bot goes with it.
 
 **Startup order is spread across three files.** lifespan (`main.py`) → cog loading →
 `MyBot.setup_hook()` (`valmal/bot/client.py`: `config.load()`, `token_manager.load()`,
-the shoutout drainer, the `check_birthdays`/`recheck_subscriptions` loops on the `Tasks`
-cog, command prefix, guild command-tree sync, persistent view registration) →
+the shoutout drainer, the `check_birthdays`/`recheck_subscriptions`/`log_memory` loops on
+the `Tasks` cog, command prefix, guild command-tree sync, persistent view registration) →
 `on_ready`, the one gateway-connection handler left. The loops start from
 `setup_hook`, not `Tasks.cog_load()`: `cog_load` runs before `login()`, when
 `Client._ready` does not exist, so their `wait_until_ready()` would raise and kill them
@@ -644,7 +644,12 @@ Railway domain itself now, not a tunnel in front of it — see `/migrate-subscri
 above for what repoints EventSub when that domain changes.
 
 **Memory is what the service is billed for.** `MALLOC_ARENA_MAX=2` in `.railway/railway.py`
-caps glibc's per-thread arenas for that reason. Nothing is traced: OpenTelemetry cost about
+caps glibc's per-thread arenas for that reason, and `MALLOC_MMAP_THRESHOLD_` and
+`MALLOC_TRIM_THRESHOLD_` fix glibc's two thresholds at their starting values, so a large
+free does not raise them and leave the heap keeping what it frees (#104). The `log_memory`
+loop logs a `Memory` line at startup and every 30 minutes with the split as keys:
+`rss_anon_kb` is what grows, `heap_free_bytes` is freed memory glibc has kept, and
+`heap_in_use_bytes` and `python_blocks` are live data. Nothing is traced: OpenTelemetry cost about
 9 MB, and only HTTP-triggered work formed a trace, because discord.py's gateway events and
 the task loops have no span to start one. The admin channel and the JSON logs are how
 problems are found.

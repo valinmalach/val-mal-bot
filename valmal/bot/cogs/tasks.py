@@ -10,6 +10,7 @@ from discord.utils import escape_markdown
 
 from valmal.bot.birthday import next_birthday
 from valmal.bot.send import send_message
+from valmal.core import memory
 from valmal.core.config import config
 from valmal.core.errors import notify, report
 from valmal.db import repository
@@ -49,8 +50,8 @@ class Tasks(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
 
-    # check_birthdays and recheck_subscriptions are started from
-    # MyBot.setup_hook() (valmal/bot/client.py), not cog_load(): see the comment there.
+    # The loops are started from MyBot.setup_hook() (valmal/bot/client.py), not
+    # cog_load(): see the comment there.
 
     # What was undeliverable last time this looked. A broken subscription stays
     # broken until somebody fixes it, so a loop that reported every pass would
@@ -88,6 +89,19 @@ class Tasks(Cog):
     @recheck_subscriptions.before_loop
     async def _before_recheck_subscriptions(self) -> None:
         await self.bot.wait_until_ready()
+
+    @tasks.loop(minutes=30)
+    async def log_memory(self) -> None:
+        """Log where the process's memory is, now and every half hour.
+
+        Railway graphs only the total; this line says whether growth is data or
+        glibc keeping what was freed (#104). An interval loop's first pass runs
+        at once, so every process logs its starting point.
+        """
+        try:
+            logger.info("Memory", extra=memory.snapshot())
+        except Exception as e:  # noqa: BLE001
+            await report(e, "Could not read the bot's memory")
 
     _quarter_hours: ClassVar[list[pendulum.Time]] = [
         pendulum.Time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)

@@ -147,7 +147,7 @@ class TestSetupHook:
         await coro
         assert startup.order.count("drain") == 1
 
-    async def test_starts_both_task_loops_once_the_gateway_setup_they_wait_on_exists(
+    async def test_starts_every_task_loop_once_the_gateway_setup_they_wait_on_exists(
         self, instance: bot_client.MyBot, startup: Startup
     ) -> None:
         """From here rather than cog_load, where wait_until_ready() raises at once."""
@@ -155,6 +155,7 @@ class TestSetupHook:
 
         startup.tasks.check_birthdays.start.assert_called_once_with()
         startup.tasks.recheck_subscriptions.start.assert_called_once_with()
+        startup.tasks.log_memory.start.assert_called_once_with()
 
     async def test_a_missing_tasks_cog_starts_nothing_and_does_not_fail(
         self,
