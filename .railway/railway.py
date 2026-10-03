@@ -32,6 +32,10 @@ def main(ctx: RailwayContext | None = None) -> Project:
             # glibc gives each thread (DNS lookups, discord.py's heartbeat) an arena
             # of its own, which fragments and is never handed back.
             "MALLOC_ARENA_MAX": "2",
+            # glibc's starting values, fixed: left alone it raises both after a
+            # large free, and the heap then keeps what it frees (#104).
+            "MALLOC_MMAP_THRESHOLD_": "131072",
+            "MALLOC_TRIM_THRESHOLD_": "262144",
         },
     )
     return project("val-mal-bot", resources=[val_mal_bot])
