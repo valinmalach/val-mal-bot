@@ -39,9 +39,10 @@ jobs:
       # Not retried: a trigger Codacy accepted whose reply was lost would be sent
       # twice, and each one is a review. The first real run answered 2xx within a
       # second, before Codacy had started analysing the commit.
+      # --fail-with-body, not -f: a refusal's reply says why, and -f discards it.
       - if: ${{ env.HAS_CODACY_TOKEN == 'true' }}
         run: >
-          curl -fsS -X POST -H "api-token: $CODACY_API_TOKEN"
+          curl -sS --fail-with-body -X POST -H "api-token: $CODACY_API_TOKEN"
           "https://api.codacy.com/api/v3/analysis/organizations/gh/$OWNER/repositories/$NAME/pull-requests/$PR/ai-reviewer/trigger"
         env:
           CODACY_API_TOKEN: ${{ secrets.CODACY_API_TOKEN }}
