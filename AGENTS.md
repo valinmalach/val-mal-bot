@@ -646,7 +646,9 @@ above for what repoints EventSub when that domain changes.
 **Memory is what the service is billed for.** `MALLOC_ARENA_MAX=2` in `.railway/railway.py`
 caps glibc's per-thread arenas for that reason, and `MALLOC_MMAP_THRESHOLD_` and
 `MALLOC_TRIM_THRESHOLD_` fix glibc's two thresholds at their starting values, so a large
-free does not raise them and leave the heap keeping what it frees (#104). The `log_memory`
+free does not raise them and leave the heap keeping what it frees. Measured over 24 h on
+the same code (#104), `heap_free_bytes` peaked at 0.7 MiB with them against 7.3 without,
+and resident memory ended 8.3 MiB lower, with no CPU cost visible. The `log_memory`
 loop logs a `Memory` line at startup and every 30 minutes with the split as keys:
 `rss_anon_kb` is what grows, `heap_free_bytes` is freed memory glibc has kept, and
 `heap_in_use_bytes` and `python_blocks` are live data. Nothing is traced: OpenTelemetry cost about
