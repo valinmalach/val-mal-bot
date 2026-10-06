@@ -290,6 +290,17 @@ print(json.dumps(captured))
 """
 
 
+# What the running bot loads of the database layer it does not use (ADR 0005).
+# Alembic and the tests keep SQLAlchemy; the bot reads rows over asyncpg.
+LOADED = """
+import json, sys
+{before}
+import main
+print(json.dumps(sorted({{m.split(".")[0] for m in sys.modules}} & {packages!r})))
+"""
+UNUSED = {"sqlalchemy", "sqlmodel", "alembic", "greenlet"}
+
+
 def run_in_a_fresh_process(script: str) -> dict[str, Any]:
     """The last line the script prints, as JSON, from a process of its own."""
     done = run_python("-c", script)
@@ -355,3 +366,16 @@ class TestRunningItAsAScript:
     def test_logs_requests_at_info(self, how_the_server_starts: dict[str, Any]) -> None:
         assert how_the_server_starts["log_level"] == "info"
         assert how_the_server_starts["access_log"] is True
+
+
+class TestWhatTheBotLoads:
+    def test_importing_main_loads_no_sqlalchemy_or_sqlmodel(self) -> None:
+        """About 20 MiB the bot only paid for at import; Alembic runs apart."""
+        script = LOADED.format(before="", packages=UNUSED)
+
+        assert run_in_a_fresh_process(script) == []
+
+    def test_the_check_would_see_them_if_they_were_loaded(self) -> None:
+        script = LOADED.format(before="import sqlalchemy", packages=UNUSED)
+
+        assert "sqlalchemy" in run_in_a_fresh_process(script)
