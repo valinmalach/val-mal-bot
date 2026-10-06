@@ -130,8 +130,9 @@ guards, a demo, and lines that cannot be reached. Nothing runs against Discord, 
 or Postgres, so a real database round trip and a real gateway session are untested:
 Helix and OAuth are faked at `http_client.request`, whose own aiohttp code runs against a
 local `aiohttp.test_utils.TestServer`, the Starlette apps go through
-`httpx.ASGITransport`, repository statements are compiled with the Postgres dialect and
-asserted, and `tests/test_migrations.py` renders every revision offline in a subprocess
+`httpx.ASGITransport`, the repository's statements run on a fake connection that records
+each statement and its arguments (CI `prepare()`s every one against real Postgres), and
+`tests/test_migrations.py` renders every revision offline in a subprocess
 to check the chain, the rules in `valmal/db/README.md`, the schema against the models, and that
 every configuration key the code reads is seeded. Do not describe a change as tested
 unless a test exercises it, and a bug a test finds is fixed with a regression test that
@@ -173,8 +174,9 @@ backslash then `n`) into the literal character, which leaves an invisible one be
 when the `CODACY_PROJECT_TOKEN` secret is set. `.github/workflows/checks.yml` adds `lint`
 (ruff format, ruff check and pyright) and `migrations`, which applies every revision to
 a real Postgres, the major version production runs (18), checks the result against the
-models with `alembic check`, downgrades to base and upgrades again: the one thing the suite,
-which only renders SQL, cannot do. The database is `compose.yaml`'s, pinned there by digest,
+models with `alembic check`, `prepare()`s every statement the bot runs against it
+(`tests/db/test_statements_prepare.py`, skipped elsewhere), downgrades to base and upgrades
+again: the one thing the suite, which never connects, cannot do. The database is `compose.yaml`'s, pinned there by digest,
 so local development and CI cannot disagree about the version; taking a newer 18.x is a new
 digest in that one file.
 Verity's `test_coverage` threshold is 95 and `test_quality` judges whether a test can fail;
@@ -226,8 +228,9 @@ everything for it, rather than one directory per kind of file:
 - `valmal/core/` — plumbing the rest leans on: `settings` (the `.env`), `config` (the
   database-backed configuration) and the `safe_format` it renders with, `errors`,
   `background`, `logging_json`, `http_client` and `memory`.
-- `valmal/db/` — Postgres: `models/` (the tables), `session` and `repository`.
-  Alembic's revisions are `migrations/`, at the root.
+- `valmal/db/` — Postgres: `pool` (asyncpg), `repository` and `configuration` (every
+  statement the bot runs), `rows` (what they return), `enums`, and `models/` (the schema,
+  for Alembic and the tests only). Alembic's revisions are `migrations/`, at the root.
 - `valmal/bot/` — Discord: `client` (the bot and its gateway handlers), `cogs/`, `views`,
   and what says something in a channel: `audit`, `send`, `present`, `roles`,
   `birthday` and `duration`; `gateway_log` lifts discord.py's reconnect reasons into the
@@ -253,7 +256,15 @@ registers the tables on the metadata Alembic reads.
 
 **Two model packages, both called `models`.** `valmal/twitch/models/` is Pydantic:
 Twitch API responses and EventSub payloads. `valmal/db/models/` is SQLModel: the
-tables. Each sits under the concern it belongs to, so the path says which is which.
+tables, as Alembic and the tests see them. Each sits under the concern it belongs to, so
+the path says which is which.
+
+**The bot never imports SQLAlchemy or SQLModel** (ADR 0005, about 20 MiB). It reads rows
+from `valmal/db/rows.py`, frozen dataclasses with the models' names and columns, through
+statement constants in `repository.py` and `configuration.py` on the asyncpg pool. A
+test holds each row to its model and each read to its row, every UPDATE sets
+`updated_at = now()` itself (SQLAlchemy's `onupdate` is gone with it), and a test fails
+if `import main` loads either package. Nothing outside `valmal/db/` holds a connection.
 
 ## Architecture
 
@@ -310,7 +321,7 @@ live in revisions. `valmal/db/README.md` has the three rules that matter — nev
 models or read a data file from a revision, make inserts tolerate a conflict, and
 guard an UPDATE with the value it replaces — read it before touching `migrations/`.
 
-**Nothing connects at import time.** `valmal/db/session.py` builds the engine lazily, so
+**Nothing connects at import time.** `valmal/db/pool.py` creates the pool on first use, so
 importing any module is safe without a reachable `DATABASE_URL`.
 
 **Twitch user grants start in Discord.** The owner-only `/twitch-auth` command

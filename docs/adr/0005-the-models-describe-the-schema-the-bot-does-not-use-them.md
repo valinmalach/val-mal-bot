@@ -1,5 +1,5 @@
 ---
-status: proposed (accepted when #98 lands)
+status: accepted
 ---
 
 # The models describe the schema; the bot does not use them
@@ -7,11 +7,13 @@ status: proposed (accepted when #98 lands)
 The SQLModel classes in `valmal/db/models/` stay, but only as the schema's definition: Alembic's
 autogenerate and `alembic check`, and `tests/test_migrations.py`, compare the database against
 them, and nothing the running bot imports touches them. The bot talks to Postgres through an
-asyncpg pool, with every statement in `valmal/db/repository.py`, and reads rows into frozen,
+asyncpg pool, with every statement in `valmal/db/repository.py` or
+`valmal/db/configuration.py`, and reads rows into frozen,
 slotted dataclasses in `valmal/db/rows.py` that carry the models' names. The reason is memory,
 which is what the service is billed for: measured on 3.14.8, importing SQLAlchemy and SQLModel on
 top of everything else the bot loads costs about 23 MiB and 151,000 Python blocks (161 modules),
-a third of what all the bot's imports cost. Alembic runs in its own process before the bot
+a third of what all the bot's imports cost; with them gone, `import main` measured 20.5 MiB
+and 144,000 blocks lighter. Alembic runs in its own process before the bot
 starts, so keeping SQLAlchemy installed for it costs the bot nothing.
 
 ## Considered options

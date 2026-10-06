@@ -1,24 +1,42 @@
 # Database
 
 Postgres (Railway), described with [SQLModel](https://sqlmodel.tiangolo.com/) and
-migrated with [Alembic](https://alembic.sqlalchemy.org/). The bot reads its records
-through `valmal/db/repository.py` and its configuration through
-`valmal/core/config.py`; the few facts that cannot be edited, such as the header names
+migrated with [Alembic](https://alembic.sqlalchemy.org/). The models are the schema's
+definition for Alembic and the tests only: the running bot never imports them, nor
+SQLAlchemy (ADR 0005). It reaches Postgres through one asyncpg pool, with every
+statement in `repository.py` or `configuration.py`, and reads rows into the frozen
+dataclasses in `rows.py`. The few facts that cannot be edited, such as the header names
 Twitch signs a delivery with, live in code beside what uses them.
 
 ## Layout
 
 | Path | What it is |
 | --- | --- |
-| `valmal/db/config.py` | Resolves `DATABASE_URL`, rewrites it onto the asyncpg driver |
-| `valmal/db/session.py` | Lazily created async engine, session factory, `session_scope()` |
+| `valmal/db/config.py` | Resolves `DATABASE_URL`: `get_dsn()` for the bot's pool, `get_database_url()` for Alembic |
+| `valmal/db/pool.py` | The asyncpg pool, created on first use, and `transaction()` |
+| `valmal/db/repository.py` | Every statement for the records the bot keeps at runtime |
+| `valmal/db/configuration.py` | The configuration tables, read whole once at startup |
+| `valmal/db/rows.py` | One frozen dataclass per table, named and shaped like its model |
+| `valmal/db/enums.py` | The enumerations stored in the database, importable without the models |
 | `valmal/db/base.py` | Constraint naming convention, `created_at`/`updated_at` mixins |
-| `valmal/db/models/` | The tables |
-| `valmal/db/repository.py` | Reads and writes the records the bot keeps at runtime |
+| `valmal/db/models/` | The tables, for Alembic and the tests |
 | `migrations/` | Alembic revisions; `env.py` reads `DATABASE_URL` |
 
 Nothing connects at import time, so importing a module cannot fail on a missing
 `DATABASE_URL`.
+
+### Reading and writing from the bot
+
+* **Every statement is a module-level constant** in `repository.py` or
+  `configuration.py`, runs inside `pool.transaction()`, and names its columns.
+  CI's `migrations` job `prepare()`s every one against the migrated schema.
+* **A row has exactly its model's columns**, which `tests/db/test_rows.py` checks,
+  and every read selects exactly its row's fields, which `tests/db/test_statements.py`
+  checks. Adding a column means the model, the row and the reads together.
+* **`updated_at` is set by the statement.** SQLAlchemy's `onupdate` no longer runs, so
+  every `UPDATE` and `DO UPDATE` says `updated_at = now()`; a test fails one that does
+  not.
+* `DB_ECHO` logs each statement's SQL and duration, never its arguments.
 
 ## Commands
 
