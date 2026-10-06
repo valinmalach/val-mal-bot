@@ -174,7 +174,8 @@ class TestTransaction:
 
         assert stale.events == ["SELECT 1", "terminate"]
         assert fresh.events == ["SELECT 1", "begin", "work", "commit"]
-        assert created.result.released == ["stale", "fresh"]
+        # terminate() itself returns a pooled connection; only the live one is released.
+        assert created.result.released == ["fresh"]
 
     async def test_a_second_dead_connection_is_raised(
         self, monkeypatch: pytest.MonkeyPatch
@@ -188,7 +189,7 @@ class TestTransaction:
         with pytest.raises(ConnectionResetError):
             await run()
 
-        assert created.result.released == ["a", "b"]
+        assert created.result.released == []
 
     async def test_a_statement_that_fails_after_the_ping_is_not_retried(
         self, monkeypatch: pytest.MonkeyPatch

@@ -76,22 +76,23 @@ async def transaction() -> AsyncGenerator[Connection]:
     run on it yet.
     """
     pool = await _pool_now()
-    for attempt in (1, 2):
+    retried = False
+    while True:
         connection = await pool.acquire()
         try:
             await connection.execute("SELECT 1")
+            break
         except _DEAD:
+            # terminate() also hands it back to the pool; no release() needed.
             connection.terminate()
-            await pool.release(connection)
-            if attempt == 2:
+            if retried:
                 raise
-            continue
-        try:
-            async with connection.transaction():
-                yield connection
-        finally:
-            await pool.release(connection)
-        return
+            retried = True
+    try:
+        async with connection.transaction():
+            yield connection
+    finally:
+        await pool.release(connection)
 
 
 async def close_pool() -> None:
