@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pendulum
@@ -94,14 +95,14 @@ class TestStoredStart:
         self,
     ) -> None:
         """parse_rfc3339 will not accept one without a zone."""
-        stored = alert()
-        stored.stream_started_at = datetime(2026, 6, 15, 11, 0)
+        stored = replace(alert(), stream_started_at=datetime(2026, 6, 15, 11, 0))
 
         assert live_alert._stored_start(stored) == "2026-06-15T11:00:00+00:00"
 
     def test_an_aware_one_keeps_its_instant(self) -> None:
-        stored = alert()
-        stored.stream_started_at = datetime(2026, 6, 15, 11, 0, tzinfo=UTC)
+        stored = replace(
+            alert(), stream_started_at=datetime(2026, 6, 15, 11, 0, tzinfo=UTC)
+        )
 
         assert live_alert._stored_start(stored) == "2026-06-15T11:00:00+00:00"
 

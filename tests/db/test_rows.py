@@ -24,7 +24,9 @@ def _nullable(annotation: Any) -> bool:
 
 
 def test_every_table_has_a_row_and_every_row_a_table() -> None:
-    assert sorted(MODELS) == sorted(rows.__all__)
+    tables = [n for n in rows.__all__ if dataclasses.is_dataclass(getattr(rows, n))]
+
+    assert sorted(MODELS) == sorted(tables)
 
 
 @pytest.mark.parametrize("name", sorted(MODELS))

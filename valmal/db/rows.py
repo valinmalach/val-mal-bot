@@ -9,6 +9,9 @@ so a row can be written as the model was; the database always supplies them.
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any, TypeVar
+
+from asyncpg import Record
 
 from valmal.db.enums import AutoResponseMatch, SettingValueType, TokenType
 
@@ -28,7 +31,18 @@ __all__ = [
     "TwitchCommand",
     "TwitchCommandComponent",
     "TwitchCommandResponse",
+    "build",
 ]
+
+
+# Not a PEP 695 parameter list, hence the UP047: Sourcery silently skips its
+# custom rules in a file that has one (see AGENTS.md).
+_R = TypeVar("_R")
+
+
+def build(row: type[_R], record: Record, **converted: Any) -> _R:  # noqa: UP047
+    """A row from a record, with ``converted`` replacing the columns that need it."""
+    return row(**{**dict(record.items()), **converted})
 
 
 def _now() -> datetime:
