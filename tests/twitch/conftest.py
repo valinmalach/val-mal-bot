@@ -9,7 +9,6 @@ import pytest
 import valmal.twitch.oauth.token_manager as tm_module
 from tests.twitch.support import (
     FakeTokens,
-    Scope,
     Script,
     TokenDb,
 )
@@ -78,7 +77,10 @@ def manager(monkeypatch: pytest.MonkeyPatch) -> TwitchTokenManager:
 @pytest.fixture
 def token_db(monkeypatch: pytest.MonkeyPatch) -> TokenDb:
     db = TokenDb()
-    monkeypatch.setattr(tm_module, "session_scope", lambda: Scope(db))
+    monkeypatch.setattr(tm_module.repository, "list_oauth_tokens", db.list_oauth_tokens)
+    monkeypatch.setattr(
+        tm_module.repository, "upsert_oauth_token", db.upsert_oauth_token
+    )
     return db
 
 

@@ -2,11 +2,10 @@ from datetime import UTC, datetime, timedelta
 
 import pendulum
 import pytest
-from sqlalchemy.dialects import postgresql
 
 from tests.twitch.support import TokenDb
-from valmal.db.models import OAuthToken
 from valmal.db.enums import TokenType
+from valmal.db.rows import OAuthToken
 from valmal.twitch.models.auth import RefreshResponse
 from valmal.twitch.oauth.token_manager import TwitchTokenManager
 
@@ -15,11 +14,10 @@ pytestmark = pytest.mark.anyio
 NOW = pendulum.datetime(2026, 6, 15, 12)
 
 
-def upsert_of(db: TokenDb) -> tuple[str, dict[str, object]]:
-    """The SQL and bound values of the one non-select statement issued."""
-    (statement,) = [s for s in db.statements if not hasattr(s, "column_descriptions")]
-    compiled = statement.compile(dialect=postgresql.dialect())
-    return str(compiled), dict(compiled.params)
+def upsert_of(db: TokenDb) -> dict[str, object]:
+    """The values of the one write issued."""
+    (write,) = db.writes
+    return write
 
 
 class TestSingleton:
@@ -181,33 +179,27 @@ class TestStore:
         assert manager._refresh[TokenType.User] == "refresh"
         assert manager._expires_at[TokenType.User] == NOW.add(seconds=3600)
 
-    async def test_writes_one_upsert_that_updates_everything_but_the_key(
+    async def test_writes_every_value_of_the_token_once(
         self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
     ) -> None:
+        """What the upsert overwrites, and the updated_at it sets, is the
+        repository's; see tests/db."""
         await manager._store(TokenType.User, "access", "refresh", 3600, ["a"])
 
-        sql, params = upsert_of(token_db)
-        assert "ON CONFLICT (key) DO UPDATE" in sql
-        for column in ("access_token", "refresh_token", "expires_at", "scopes"):
-            assert f"{column} = excluded.{column}" in sql
-        assert "key = excluded.key" not in sql
-        assert params["access_token"] == "access"
-        assert params["scopes"] == ["a"]
-
-    async def test_the_on_update_hook_does_not_fire_for_on_conflict_so_the_timestamp_is_set(
-        self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
-    ) -> None:
-        await manager._store(TokenType.User, "a", "r", 1)
-
-        sql, _ = upsert_of(token_db)
-        assert "updated_at = now()" in sql
+        assert upsert_of(token_db) == {
+            "key": TokenType.User,
+            "access_token": "access",
+            "refresh_token": "refresh",
+            "expires_at": NOW.add(seconds=3600),
+            "scopes": ["a"],
+        }
 
     async def test_no_scopes_are_stored_as_an_empty_list(
         self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
     ) -> None:
         await manager._store(TokenType.User, "a", "r", 1)
 
-        assert upsert_of(token_db)[1]["scopes"] == []
+        assert upsert_of(token_db)["scopes"] == []
 
     async def test_a_refresh_that_returns_no_new_refresh_token_keeps_the_old_one(
         self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
@@ -217,14 +209,14 @@ class TestStore:
         await manager._store(TokenType.App, "new-access", None, 60)
 
         assert manager._refresh[TokenType.App] == "old-refresh"
-        assert upsert_of(token_db)[1]["refresh_token"] == "old-refresh"
+        assert upsert_of(token_db)["refresh_token"] == "old-refresh"
 
     async def test_an_identity_with_no_refresh_token_at_all_stores_none(
         self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
     ) -> None:
         await manager._store(TokenType.App, "access", None, 60)
 
-        assert upsert_of(token_db)[1]["refresh_token"] is None
+        assert upsert_of(token_db)["refresh_token"] is None
         assert TokenType.App not in manager._refresh
 
     async def test_no_expiry_clears_a_known_one_in_memory_and_stores_null(
@@ -235,7 +227,7 @@ class TestStore:
         await manager._store(TokenType.User, "a", "r", None)
 
         assert TokenType.User not in manager._expires_at
-        assert upsert_of(token_db)[1]["expires_at"] is None
+        assert upsert_of(token_db)["expires_at"] is None
         assert manager.needs_refresh(TokenType.User) is False
 
     async def test_the_stored_expiry_is_now_plus_the_lifetime(
@@ -243,7 +235,7 @@ class TestStore:
     ) -> None:
         await manager._store(TokenType.App, "a", None, 14400)
 
-        assert upsert_of(token_db)[1]["expires_at"] == NOW + timedelta(seconds=14400)
+        assert upsert_of(token_db)["expires_at"] == NOW + timedelta(seconds=14400)
 
     async def test_memory_is_updated_even_when_the_database_write_fails(
         self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
@@ -287,11 +279,11 @@ class TestSetTokens:
 
         assert manager.token(identity) == "a"
         assert {t for t in TokenType if manager.token(t)} == {identity}
-        assert upsert_of(token_db)[1]["scopes"] == ["x", "y"]
+        assert upsert_of(token_db)["scopes"] == ["x", "y"]
 
     async def test_a_single_scope_string_is_stored_as_a_list_of_one(
         self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
     ) -> None:
         await manager.set_user_access_token(self.refresh_response("chat:read"))
 
-        assert upsert_of(token_db)[1]["scopes"] == ["chat:read"]
+        assert upsert_of(token_db)["scopes"] == ["chat:read"]

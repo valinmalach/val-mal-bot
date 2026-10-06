@@ -1,10 +1,7 @@
-from typing import cast
-
 import aiohttp
 import pendulum
 import pytest
 from pydantic import ValidationError
-from sqlalchemy.sql import ClauseElement
 
 from tests.credentials import CLIENT_ID, CLIENT_SECRET
 from tests.twitch.support import (
@@ -25,9 +22,9 @@ from valmal.twitch.oauth.token_manager import TwitchTokenManager
 pytestmark = pytest.mark.anyio
 
 
-def written(db: TokenDb) -> list[object]:
-    """The upserts issued; a select is not a write."""
-    return [s for s in db.statements if not hasattr(s, "column_descriptions")]
+def written(db: TokenDb) -> list[dict[str, object]]:
+    """The upserts issued."""
+    return db.writes
 
 
 @pytest.fixture(autouse=True)
@@ -269,19 +266,12 @@ class TestRefreshUser:
     async def test_a_scope_returned_as_one_string_is_stored_as_a_list(
         self, manager: TwitchTokenManager, oauth_http: Http, token_db: TokenDb
     ) -> None:
-        from sqlalchemy.dialects import postgresql
-
         oauth_http(reply(200, {**USER_OK, "scope": "chat:read"}))
 
         await manager.refresh_user_access_token()
 
-        (statement,) = written(token_db)
-        compiled = cast("ClauseElement", statement).compile(
-            dialect=postgresql.dialect()
-        )
-        params = compiled.params
-        assert params is not None
-        assert params["scopes"] == ["chat:read"]
+        (write,) = written(token_db)
+        assert write["scopes"] == ["chat:read"]
 
 
 class TestRefreshRouting:
