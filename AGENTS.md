@@ -264,7 +264,7 @@ from `valmal/db/rows.py`, frozen dataclasses with the models' names and columns,
 statement constants in `repository.py` and `configuration.py` on the asyncpg pool. A
 test holds each row to its model and each read to its row, every UPDATE sets
 `updated_at = now()` itself (SQLAlchemy's `onupdate` is gone with it), and a test fails
-if `import main` loads either package. Nothing outside `valmal/db/` holds a connection.
+if importing `main` or any cog loads either package. Nothing outside `valmal/db/` holds a connection.
 
 ## Architecture
 
