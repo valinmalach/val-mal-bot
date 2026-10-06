@@ -95,8 +95,10 @@ class MyBot(Bot):
     async def close(self) -> None:
         from valmal.db.pool import close_pool
 
-        await super().close()
-        await close_pool()
+        try:
+            await super().close()
+        finally:
+            await close_pool()
 
 
 # Only what a listener or cache lookup reads. Presences are the gateway's busiest

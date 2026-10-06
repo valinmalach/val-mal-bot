@@ -281,3 +281,23 @@ class TestClose:
         await bot.close()
 
         assert order == ["bot", "pool"]
+
+    async def test_the_pool_is_closed_even_when_the_bot_fails_to_close(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        closed: list[str] = []
+
+        async def close(self: commands.Bot) -> None:
+            raise RuntimeError("gateway already gone")
+
+        async def close_pool() -> None:
+            closed.append("pool")
+
+        monkeypatch.setattr(commands.Bot, "close", close)
+        monkeypatch.setattr("valmal.db.pool.close_pool", close_pool)
+        bot = bot_client.MyBot(command_prefix="$", intents=discord.Intents.none())
+
+        with pytest.raises(RuntimeError):
+            await bot.close()
+
+        assert closed == ["pool"]
