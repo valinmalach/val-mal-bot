@@ -5,7 +5,7 @@ import pytest
 
 from tests.credentials import CLIENT_ID
 from tests.twitch.support import FakeTokens, Script, reply
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.client.helix import HelixError, request
 
 pytestmark = pytest.mark.anyio

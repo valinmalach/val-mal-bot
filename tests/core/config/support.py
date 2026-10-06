@@ -3,7 +3,11 @@
 from types import SimpleNamespace
 from typing import Any
 
-from valmal.db.models import AppSetting, DiscordRole, SettingValueType
+from valmal.db.enums import SettingValueType
+from valmal.db.models import (
+    AppSetting,
+    DiscordRole,
+)
 
 # What the notices fixture records: each notice's text and its repeat key.
 Notices = list[tuple[str, str | None]]

@@ -1,4 +1,4 @@
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 
 
 def test_token_types_are_the_strings_stored_in_the_database() -> None:

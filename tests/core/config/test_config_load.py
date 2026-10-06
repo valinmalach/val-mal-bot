@@ -5,13 +5,13 @@ import pytest
 import valmal.core.config as service_config
 from tests.core.config.support import DatabaseDown, role, setting
 from valmal.core.config import ConfigCache, _coerce
+from valmal.db.enums import SettingValueType
 from valmal.db.models import (
     DiscordAutoResponse,
     DiscordChannel,
     DiscordEmbed,
     DiscordEmbedField,
     MessageTemplate,
-    SettingValueType,
     TwitchCommand,
     TwitchCommandComponent,
     TwitchCommandResponse,

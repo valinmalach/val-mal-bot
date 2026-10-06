@@ -72,7 +72,7 @@ The checks to run before committing are in [AGENTS.md](../../AGENTS.md).
 ### Twitch OAuth tokens
 
 `oauth_token` holds one row per identity (`app`, `user`, `broadcaster`), keyed to
-match `TokenType` in `valmal/db/models/enums.py`.
+match `TokenType` in `valmal/db/enums.py`.
 
 These are the one kind of secret that cannot live in `.env`: the bot mints and
 rotates them itself, so it needs somewhere it can *write*.

@@ -19,7 +19,7 @@ from tests.twitch.support import (
     stale_refresh_tokens,
 )
 from valmal.core.config import config
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.oauth.token_manager import TwitchTokenManager
 
 pytestmark = pytest.mark.anyio

@@ -13,7 +13,7 @@ from valmal.core import http_client
 from valmal.core.errors import notify
 from valmal.core.settings import settings
 from valmal.db.models import OAuthToken
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.db.session import session_scope
 from valmal.twitch.models.auth import AuthResponse, RefreshResponse
 from valmal.twitch.oauth.grants import configured_scopes

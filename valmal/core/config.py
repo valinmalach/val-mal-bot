@@ -15,16 +15,15 @@ from sqlalchemy import select
 
 from valmal.core.errors import notify_soon
 from valmal.core.safe_format import PLACEHOLDER, safe_format
+from valmal.db.enums import AutoResponseMatch, SettingValueType
 from valmal.db.models import (
     AppSetting,
-    AutoResponseMatch,
     DiscordAutoResponse,
     DiscordChannel,
     DiscordEmbed,
     DiscordEmbedField,
     DiscordRole,
     MessageTemplate,
-    SettingValueType,
     TwitchCommand,
     TwitchCommandComponent,
     TwitchCommandResponse,

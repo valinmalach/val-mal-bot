@@ -3,7 +3,7 @@ from urllib.parse import parse_qs
 
 from tests.credentials import CLIENT_ID
 from tests.twitch.support import Sent
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.models.auth import RefreshResponse
 from valmal.twitch.oauth import grants as oauth
 

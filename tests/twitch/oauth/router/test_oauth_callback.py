@@ -20,7 +20,7 @@ from tests.twitch.oauth.router.support import (
 )
 from tests.twitch.support import Script, reply
 from valmal.core.http_client import Reply
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.oauth import grants as oauth
 
 pytestmark = pytest.mark.anyio

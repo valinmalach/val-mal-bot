@@ -11,7 +11,11 @@ from typing import Any
 import pytest
 
 from tests.core.config.support import role
-from valmal.db.models import AutoResponseMatch, DiscordAutoResponse, DiscordEmbed
+from valmal.db.enums import AutoResponseMatch
+from valmal.db.models import (
+    DiscordAutoResponse,
+    DiscordEmbed,
+)
 
 pytestmark = pytest.mark.anyio
 

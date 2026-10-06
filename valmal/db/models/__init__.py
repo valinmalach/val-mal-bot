@@ -15,7 +15,6 @@ from valmal.db.models.discord_config import (
     DiscordEmbedField,
     DiscordRole,
 )
-from valmal.db.models.enums import AutoResponseMatch, SettingValueType
 from valmal.db.models.records import (
     DiscordMessage,
     DiscordUser,
@@ -34,7 +33,6 @@ metadata = SQLModel.metadata
 
 __all__ = [
     "AppSetting",
-    "AutoResponseMatch",
     "CreatedAtMixin",
     "DiscordAutoResponse",
     "DiscordChannel",
@@ -46,7 +44,6 @@ __all__ = [
     "LiveAlert",
     "MessageTemplate",
     "OAuthToken",
-    "SettingValueType",
     "TimestampMixin",
     "TwitchAutoShoutout",
     "TwitchCommand",

@@ -7,7 +7,7 @@ import pytest
 from tests.credentials import CLIENT_ID
 from valmal.core.config import config
 from valmal.core.settings import settings
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.oauth import grants as oauth
 
 SCOPES = ["chat:read", "moderator:manage:shoutouts"]

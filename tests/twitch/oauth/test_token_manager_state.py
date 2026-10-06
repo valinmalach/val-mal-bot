@@ -6,7 +6,7 @@ from sqlalchemy.dialects import postgresql
 
 from tests.twitch.support import TokenDb
 from valmal.db.models import OAuthToken
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.models.auth import RefreshResponse
 from valmal.twitch.oauth.token_manager import TwitchTokenManager
 

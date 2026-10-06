@@ -19,7 +19,7 @@ from tests.twitch.oauth.router.support import (
     validation_body,
 )
 from tests.twitch.support import Script, reply
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 
 pytestmark = pytest.mark.anyio
 

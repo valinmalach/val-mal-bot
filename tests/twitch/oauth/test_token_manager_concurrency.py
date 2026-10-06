@@ -15,7 +15,7 @@ from tests.twitch.support import (
 from valmal.core import http_client
 from valmal.core.background import fire_and_forget
 from valmal.core.http_client import Reply
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.oauth.token_manager import TwitchTokenManager
 
 pytestmark = pytest.mark.anyio

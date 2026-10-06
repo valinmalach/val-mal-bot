@@ -6,7 +6,7 @@ from discord.utils import escape_markdown
 from valmal.bot.present import quoted
 from valmal.core.config import config
 from valmal.core.errors import report
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.client.api import (
     get_subscriptions,
     get_users,

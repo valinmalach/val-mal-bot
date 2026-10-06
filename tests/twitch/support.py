@@ -14,7 +14,7 @@ import pytest
 from multidict import CIMultiDict, CIMultiDictProxy
 
 from valmal.core.http_client import Reply
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.oauth.token_manager import TwitchTokenManager
 
 # The two callbacks a subscribe/unsubscribe test cares about, shared so the

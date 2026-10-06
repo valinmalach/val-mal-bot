@@ -8,7 +8,11 @@ import pytest
 
 import valmal.core.config as service_config
 from tests.core.config.support import Notices, role
-from valmal.db.models import AutoResponseMatch, DiscordAutoResponse, DiscordChannel
+from valmal.db.enums import AutoResponseMatch
+from valmal.db.models import (
+    DiscordAutoResponse,
+    DiscordChannel,
+)
 
 pytestmark = pytest.mark.anyio
 

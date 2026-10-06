@@ -5,7 +5,7 @@ import pytest
 
 from tests.credentials import CLIENT_ID
 from tests.twitch.oauth.router.support import SCOPES, new_state
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.oauth import grants as oauth
 
 pytestmark = pytest.mark.anyio
