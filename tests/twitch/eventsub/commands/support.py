@@ -6,7 +6,7 @@ import pytest
 
 from tests.twitch.support import chat_event
 from valmal.core.config import config
-from valmal.db.models import TwitchCommand
+from valmal.db.rows import TwitchCommand
 from valmal.twitch.models.api.channel import Channel
 from valmal.twitch.models.api.user import User
 from valmal.twitch.models.eventsub.channel_chat_message import (

@@ -11,24 +11,18 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
-from sqlalchemy import select
-
 from valmal.core.errors import notify_soon
 from valmal.core.safe_format import PLACEHOLDER, safe_format
+from valmal.db.configuration import load_configuration
 from valmal.db.enums import AutoResponseMatch, SettingValueType
-from valmal.db.models import (
+from valmal.db.rows import (
     AppSetting,
     DiscordAutoResponse,
-    DiscordChannel,
     DiscordEmbed,
     DiscordEmbedField,
     DiscordRole,
-    MessageTemplate,
     TwitchCommand,
-    TwitchCommandComponent,
-    TwitchCommandResponse,
 )
-from valmal.db.session import session_scope
 
 logger = logging.getLogger(__name__)
 
@@ -81,21 +75,11 @@ class ConfigCache:
 
     async def load(self) -> None:
         """Read every configuration table into memory, replacing what is held."""
-        async with session_scope() as session:
-            channels = (await session.execute(select(DiscordChannel))).scalars().all()
-            roles = (await session.execute(select(DiscordRole))).scalars().all()
-            settings = (await session.execute(select(AppSetting))).scalars().all()
-            templates = (await session.execute(select(MessageTemplate))).scalars().all()
-            embeds = (await session.execute(select(DiscordEmbed))).scalars().all()
-            fields = (await session.execute(select(DiscordEmbedField))).scalars().all()
-            autos = (await session.execute(select(DiscordAutoResponse))).scalars().all()
-            commands = (await session.execute(select(TwitchCommand))).scalars().all()
-            responses = (
-                (await session.execute(select(TwitchCommandResponse))).scalars().all()
-            )
-            components = (
-                (await session.execute(select(TwitchCommandComponent))).scalars().all()
-            )
+        loaded = await load_configuration()
+        channels, roles, settings = loaded.channels, loaded.roles, loaded.settings
+        templates, embeds, fields = loaded.templates, loaded.embeds, loaded.embed_fields
+        autos, commands = loaded.auto_responses, loaded.commands
+        responses, components = loaded.command_responses, loaded.command_components
 
         self._channels = {c.key: c.channel_id for c in channels}
         self._roles = {r.key: r for r in roles}
@@ -111,7 +95,7 @@ class ConfigCache:
         # By id: the first match wins, and without an ORDER BY an UPDATE can move a
         # row, changing which of two overlapping replies fires.
         self._auto_responses = [
-            a for a in sorted(autos, key=lambda a: a.id or 0) if a.enabled
+            a for a in sorted(autos, key=lambda a: a.id) if a.enabled
         ]
         self._commands = {c.name: c for c in commands if c.enabled}
 

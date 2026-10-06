@@ -1,15 +1,15 @@
 """Fixtures for the ConfigCache tests."""
 
-from collections.abc import AsyncGenerator, Callable
-from contextlib import asynccontextmanager
+from collections.abc import Callable
 from typing import Any
 
 import pytest
 
 import valmal.core.config as service_config
 import valmal.core.safe_format as safe_format_module
-from tests.core.config.support import FakeSession, Notices
+from tests.core.config.support import Notices, configuration
 from valmal.core.config import ConfigCache
+from valmal.db.configuration import Configuration
 
 
 @pytest.fixture
@@ -31,19 +31,17 @@ def load(
     """Build a ConfigCache by running the real load() against rows given here."""
 
     async def build(*rows: object, cache: ConfigCache | None = None) -> ConfigCache:
-        by_model: dict[type, list[Any]] = {}
-        for row in rows:
-            by_model.setdefault(type(row), []).append(row)
-        session = FakeSession(by_model)
+        loaded = configuration(*rows)
+        calls: list[None] = []
 
-        @asynccontextmanager
-        async def scope() -> AsyncGenerator[FakeSession]:
-            yield session
+        async def load_configuration() -> Configuration:
+            calls.append(None)
+            return loaded
 
-        monkeypatch.setattr(service_config, "session_scope", scope)
+        monkeypatch.setattr(service_config, "load_configuration", load_configuration)
         cache = cache or ConfigCache()
         await cache.load()
-        cache.session = session  # pyright: ignore[reportAttributeAccessIssue]
+        cache.loads = calls  # pyright: ignore[reportAttributeAccessIssue]
         return cache
 
     return build

@@ -3,10 +3,10 @@ from typing import Any
 import pytest
 
 import valmal.core.config as service_config
-from tests.core.config.support import DatabaseDown, role, setting
+from tests.core.config.support import database_down, role, setting
 from valmal.core.config import ConfigCache, _coerce
 from valmal.db.enums import SettingValueType
-from valmal.db.models import (
+from valmal.db.rows import (
     DiscordAutoResponse,
     DiscordChannel,
     DiscordEmbed,
@@ -78,9 +78,13 @@ class TestLoad:
         cache = await load(
             DiscordEmbed(key="rules", title="Rules"),
             DiscordEmbed(key="other", title="Other"),
-            DiscordEmbedField(embed_key="rules", position=2, name="two", value="2"),
-            DiscordEmbedField(embed_key="other", position=1, name="o", value="o"),
-            DiscordEmbedField(embed_key="rules", position=1, name="one", value="1"),
+            DiscordEmbedField(
+                id=1, embed_key="rules", position=2, name="two", value="2"
+            ),
+            DiscordEmbedField(id=2, embed_key="other", position=1, name="o", value="o"),
+            DiscordEmbedField(
+                id=3, embed_key="rules", position=1, name="one", value="1"
+            ),
         )
 
         rules = cache.embed("rules")
@@ -94,8 +98,8 @@ class TestLoad:
         self, load: Any
     ) -> None:
         cache = await load(
-            DiscordAutoResponse(trigger="on", response="yes", enabled=True),
-            DiscordAutoResponse(trigger="off", response="no", enabled=False),
+            DiscordAutoResponse(id=4, trigger="on", response="yes", enabled=True),
+            DiscordAutoResponse(id=5, trigger="off", response="no", enabled=False),
             TwitchCommand(name="live", enabled=True),
             TwitchCommand(name="dead", enabled=False),
         )
@@ -109,11 +113,11 @@ class TestLoad:
         self, load: Any
     ) -> None:
         cache = await load(
-            TwitchCommandResponse(command_name="c", position=2, message="second"),
-            TwitchCommandResponse(command_name="c", position=1, message="first"),
-            TwitchCommandResponse(command_name="d", position=1, message="other"),
-            TwitchCommandComponent(parent_name="p", child_name="b", position=2),
-            TwitchCommandComponent(parent_name="p", child_name="a", position=1),
+            TwitchCommandResponse(id=6, command_name="c", position=2, message="second"),
+            TwitchCommandResponse(id=7, command_name="c", position=1, message="first"),
+            TwitchCommandResponse(id=8, command_name="d", position=1, message="other"),
+            TwitchCommandComponent(id=9, parent_name="p", child_name="b", position=2),
+            TwitchCommandComponent(id=10, parent_name="p", child_name="a", position=1),
         )
 
         assert cache.command_responses("c") == ["first", "second"]
@@ -126,8 +130,8 @@ class TestLoad:
         cache = await load(
             DiscordChannel(key="old", channel_id=1),
             DiscordEmbed(key="old_embed"),
-            DiscordEmbedField(embed_key="old_embed", name="f", value="v"),
-            TwitchCommandResponse(command_name="old_cmd", message="m"),
+            DiscordEmbedField(id=11, embed_key="old_embed", name="f", value="v"),
+            TwitchCommandResponse(id=12, command_name="old_cmd", message="m"),
         )
 
         await load(DiscordChannel(key="new", channel_id=2), cache=cache)
@@ -143,7 +147,7 @@ class TestLoad:
     ) -> None:
         cache = await load(DiscordChannel(key="kept", channel_id=1))
 
-        monkeypatch.setattr(service_config, "session_scope", DatabaseDown)
+        monkeypatch.setattr(service_config, "load_configuration", database_down)
 
         with pytest.raises(ConnectionError):
             await cache.load()
@@ -154,7 +158,7 @@ class TestLoad:
     async def test_a_failed_first_load_leaves_it_unloaded(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(service_config, "session_scope", DatabaseDown)
+        monkeypatch.setattr(service_config, "load_configuration", database_down)
         cache = ConfigCache()
 
         with pytest.raises(ConnectionError):
@@ -162,28 +166,10 @@ class TestLoad:
 
         assert cache.loaded is False
 
-    async def test_every_configuration_table_is_read_exactly_once(
-        self, load: Any
-    ) -> None:
+    async def test_one_load_reads_the_configuration_once(self, load: Any) -> None:
         cache = await load()
 
-        entities = [
-            s.column_descriptions[0]["entity"] for s in cache.session.statements
-        ]
-        assert sorted(e.__name__ for e in entities) == sorted(
-            [
-                "DiscordChannel",
-                "DiscordRole",
-                "AppSetting",
-                "MessageTemplate",
-                "DiscordEmbed",
-                "DiscordEmbedField",
-                "DiscordAutoResponse",
-                "TwitchCommand",
-                "TwitchCommandResponse",
-                "TwitchCommandComponent",
-            ]
-        )
+        assert len(cache.loads) == 1
 
 
 class TestCoerce:

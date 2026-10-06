@@ -5,7 +5,7 @@ import pytest
 from tests.twitch.stream.live_alert.support import NOW, channel, stream, user, video
 from tests.twitch.support import record_notices
 from valmal.core.config import config
-from valmal.db.models import DiscordRole
+from valmal.db.rows import DiscordRole
 from valmal.twitch.stream import live_alert_embeds as embeds
 
 pytestmark = pytest.mark.usefixtures("embed_config")

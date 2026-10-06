@@ -13,7 +13,7 @@ from tests.twitch.stream.live_alert.support import (
     CycleWorld,
 )
 from valmal.core.config import config
-from valmal.db.models import DiscordRole
+from valmal.db.rows import DiscordRole
 from valmal.twitch.stream import live_alert
 from valmal.twitch.stream import live_alert_close as close_module
 from valmal.twitch.stream import live_alert_cycle as cycle_module

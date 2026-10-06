@@ -12,7 +12,7 @@ import pytest
 
 from tests.core.config.support import role
 from valmal.db.enums import AutoResponseMatch
-from valmal.db.models import (
+from valmal.db.rows import (
     DiscordAutoResponse,
     DiscordEmbed,
 )
