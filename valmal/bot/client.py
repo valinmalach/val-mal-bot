@@ -93,10 +93,10 @@ class MyBot(Bot):
             self.add_view(view)
 
     async def close(self) -> None:
-        from valmal.db.session import dispose_engine
+        from valmal.db.pool import close_pool
 
         await super().close()
-        await dispose_engine()
+        await close_pool()
 
 
 # Only what a listener or cache lookup reads. Presences are the gateway's busiest

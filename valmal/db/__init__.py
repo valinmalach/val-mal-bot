@@ -1,6 +1,7 @@
-"""Postgres schema and session plumbing for the bot.
+"""Postgres for the bot: the schema, and the statements the bot runs against it.
 
-Tables in ``db/models``, revisions in ``migrations/``; see ``valmal/db/README.md``.
-Import from the module that owns the name -- ``valmal.db.models``, ``valmal.db.session``,
-``valmal.db.repository`` -- rather than through this one.
+The schema is ``db/models`` (for Alembic and the tests only), revisions are in
+``migrations/``; the bot reads rows through ``repository`` and ``configuration``
+on the pool in ``pool``. See ``valmal/db/README.md`` and ADR 0005. Import from
+the module that owns the name rather than through this one.
 """
