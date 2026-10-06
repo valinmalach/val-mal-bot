@@ -296,9 +296,18 @@ UNUSED = {"sqlalchemy", "sqlmodel", "alembic", "greenlet"}
 
 
 def loaded(before: str = "") -> str:
-    """A script importing main, after `before`, that prints which of UNUSED loaded."""
+    """A script importing main and every cog, after `before`, that prints which of
+    UNUSED loaded. The cogs too: main does not import them, the bot loads them by
+    name at startup, and they are where the database is used."""
     found = f"sorted({{m.split('.')[0] for m in sys.modules}} & {UNUSED!r})"
-    lines = ["import json, sys", before, "import main", f"print(json.dumps({found}))"]
+    lines = [
+        "import importlib, json, sys",
+        before,
+        "import main",
+        "from valmal.bot.cogs import COGS",
+        "for cog in COGS: importlib.import_module(cog)",
+        f"print(json.dumps({found}))",
+    ]
     return chr(10).join(lines)
 
 
