@@ -67,6 +67,8 @@ jobs:
         run: uv run pytest tests/db/test_statements_prepare.py
         env:
           PREPARE_DATABASE_URL: ${{ env.DATABASE_URL }}
+          # Without it, an empty URL would skip every test and pass having checked nothing.
+          REQUIRE_PREPARE: "1"
       - name: Downgrade to base
         run: uv run alembic downgrade base
       - name: Upgrade to head again
