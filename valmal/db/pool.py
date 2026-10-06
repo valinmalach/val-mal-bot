@@ -5,6 +5,7 @@ reaches the database, through ``transaction()``.
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 from collections.abc import AsyncGenerator
@@ -28,12 +29,7 @@ _pool: asyncpg.Pool | None = None
 _creating = asyncio.Lock()
 
 # What a dead connection raises when it is used, rather than a statement failing.
-_DEAD = (
-    OSError,
-    asyncpg.InterfaceError,
-    asyncpg.PostgresConnectionError,
-    asyncpg.ConnectionDoesNotExistError,
-)
+_DEAD = (OSError, asyncpg.InterfaceError, asyncpg.PostgresConnectionError)
 
 
 def _log_query(query: asyncpg.connection.LoggedQuery) -> None:
@@ -83,11 +79,19 @@ async def transaction() -> AsyncGenerator[Connection]:
             await connection.execute("SELECT 1")
             break
         except _DEAD:
-            # terminate() also hands it back to the pool; no release() needed.
-            connection.terminate()
+            # A connection asyncpg saw drop is already back in the pool, and its
+            # proxy refuses every call, terminate() included. Otherwise terminate()
+            # hands it back itself; either way no release() is needed.
+            with contextlib.suppress(asyncpg.InterfaceError):
+                connection.terminate()
             if retried:
                 raise
             retried = True
+        except BaseException:
+            # Cancelled, or an error that leaves the connection open: give it back,
+            # or ten of these would leave nothing to acquire.
+            await pool.release(connection)
+            raise
     try:
         async with connection.transaction():
             yield connection

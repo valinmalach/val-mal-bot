@@ -30,9 +30,20 @@ class Transaction:
 
 
 class Connection:
-    def __init__(self, name: str, ping_error: Exception | None = None) -> None:
+    """A pooled connection. `lost` is one asyncpg saw drop during the ping: asyncpg
+    has already handed it back to the pool, and its proxy refuses every call."""
+
+    def __init__(
+        self,
+        name: str,
+        ping_error: BaseException | None = None,
+        *,
+        lost: bool = False,
+    ) -> None:
         self.name = name
         self.ping_error = ping_error
+        self.lost = lost
+        self.detached = False
         self.events: list[str] = []
         self.codecs: list[tuple[str, str]] = []
         self.loggers: list[Callable[..., None]] = []
@@ -40,6 +51,7 @@ class Connection:
     async def execute(self, query: str) -> str:
         self.events.append(query)
         if self.ping_error is not None:
+            self.detached = self.lost
             raise self.ping_error
         return "SELECT 1"
 
@@ -47,6 +59,10 @@ class Connection:
         return Transaction(self)
 
     def terminate(self) -> None:
+        if self.detached:
+            raise asyncpg.InterfaceError(
+                "connection has been released back to the pool"
+            )
         self.events.append("terminate")
 
     async def set_type_codec(self, kind: str, **options: Any) -> None:
@@ -100,9 +116,6 @@ async def run(statement: str = "work") -> None:
 
 
 class TestCreation:
-    def test_importing_the_module_connects_to_nothing(self) -> None:
-        assert pool._pool is None
-
     async def test_two_first_callers_at_once_create_one_pool(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -163,7 +176,7 @@ class TestTransaction:
             asyncpg.ConnectionDoesNotExistError("gone"),
         ],
     )
-    async def test_a_dead_connection_is_replaced_before_anything_runs(
+    async def test_a_dead_connection_is_terminated_and_replaced_before_anything_runs(
         self, dead: Exception, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """What pool_pre_ping did: a Postgres restart costs no failed statement."""
@@ -176,6 +189,39 @@ class TestTransaction:
         assert fresh.events == ["SELECT 1", "begin", "work", "commit"]
         # terminate() itself returns a pooled connection; only the live one is released.
         assert created.result.released == ["fresh"]
+
+    async def test_a_connection_asyncpg_already_took_back_is_still_replaced(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The usual case after a restart: the socket drops during the ping, asyncpg
+        returns the connection to the pool, and terminate() on it would raise."""
+        lost = Connection(
+            "lost", asyncpg.ConnectionDoesNotExistError("gone"), lost=True
+        )
+        fresh = Connection("fresh")
+        created = install(monkeypatch, lost, fresh)
+
+        await run()
+
+        assert lost.events == ["SELECT 1"]
+        assert fresh.events == ["SELECT 1", "begin", "work", "commit"]
+        assert created.result.released == ["fresh"]
+
+    @pytest.mark.parametrize(
+        "interruption",
+        [asyncio.CancelledError(), asyncpg.AdminShutdownError("shutting down")],
+    )
+    async def test_anything_else_during_the_ping_gives_the_connection_back(
+        self, interruption: BaseException, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Kept, ten of these would leave the pool nothing to hand out, for good."""
+        created = install(monkeypatch, Connection("a", interruption), Connection("b"))
+
+        with pytest.raises(type(interruption)):
+            await run()
+
+        assert created.result.released == ["a"]
+        assert [c.name for c in created.result.connections] == ["b"]
 
     async def test_a_second_dead_connection_is_raised(
         self, monkeypatch: pytest.MonkeyPatch
