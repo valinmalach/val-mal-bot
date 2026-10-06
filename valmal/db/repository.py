@@ -1,7 +1,7 @@
 """Every statement the bot runs against Postgres, and the rows they return.
 
 Statements are module-level constants (ADR 0005), here and in
-``configuration.py`` for the tables read at startup,, so CI can ``prepare()`` each one
+``configuration.py`` for the tables read at startup, so CI can ``prepare()`` each one
 against the migrated schema and the tests can name the one a function ran. Each
 read lists its columns rather than ``*``, and the rows are built from them; a test
 holds every read's columns to its row's fields. Writes are immediate, not queued
