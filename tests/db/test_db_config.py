@@ -4,7 +4,7 @@ import pytest
 
 from valmal.core.settings import settings
 from valmal.db import config as db_config
-from valmal.db.config import _translate_query, get_database_url
+from valmal.db.config import _translate_query, get_database_url, get_dsn
 
 
 @pytest.fixture
@@ -129,3 +129,43 @@ class TestTranslateQuery:
         assert (
             _translate_query("application_name=my%20bot") == "application_name=my+bot"
         )
+
+
+class TestDsn:
+    """What the bot's asyncpg pool connects with; Alembic keeps get_database_url."""
+
+    @pytest.mark.parametrize(
+        "scheme", ["postgresql", "postgres", "postgresql+asyncpg", "postgresql+psycopg"]
+    )
+    def test_every_postgres_scheme_becomes_the_one_asyncpg_reads(
+        self, scheme: str, url: Callable[[str], None]
+    ) -> None:
+        url(f"{scheme}://us%40er:p%2Fw@db.internal:6543/my_db")
+
+        assert get_dsn() == "postgresql://us%40er:p%2Fw@db.internal:6543/my_db"
+
+    def test_the_options_asyncpg_reads_itself_are_kept(
+        self, url: Callable[[str], None]
+    ) -> None:
+        """Not translated to ssl=: asyncpg's own parser would send that to the
+        server as a setting."""
+        url("postgresql://h/db?sslmode=require&target_session_attrs=read-write")
+
+        assert get_dsn().endswith("?sslmode=require&target_session_attrs=read-write")
+
+    @pytest.mark.parametrize(
+        "option", ["channel_binding", "connect_timeout", "options"]
+    )
+    def test_libpq_options_asyncpg_would_send_as_settings_are_dropped(
+        self, option: str, url: Callable[[str], None]
+    ) -> None:
+        url(f"postgresql://h/db?{option}=x&application_name=bot")
+
+        assert get_dsn() == "postgresql://h/db?application_name=bot"
+
+    def test_a_scheme_that_is_not_postgres_is_returned_untouched(
+        self, url: Callable[[str], None]
+    ) -> None:
+        url("sqlite:///local.db")
+
+        assert get_dsn() == "sqlite:///local.db"

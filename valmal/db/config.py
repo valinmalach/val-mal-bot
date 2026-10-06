@@ -55,11 +55,32 @@ def _translate_query(query: str) -> str:
     return urlencode(translated)
 
 
+# asyncpg's own DSN parser reads sslmode and target_session_attrs, but sends any
+# other query parameter to the server as a setting, and these are not settings.
+_NOT_FOR_ASYNCPG = frozenset({"channel_binding", "connect_timeout", "options"})
+
+
+def get_dsn() -> str:
+    """The configured database URL in the form ``asyncpg.connect()`` reads."""
+    parts = urlsplit(settings.database_url)
+    if parts.scheme not in _POSTGRES_SCHEMES:
+        return settings.database_url
+
+    query = urlencode(
+        [
+            (key, value)
+            for key, value in parse_qsl(parts.query, keep_blank_values=True)
+            if key not in _NOT_FOR_ASYNCPG
+        ]
+    )
+    return urlunsplit(("postgresql", parts.netloc, parts.path, query, parts.fragment))
+
+
 def get_database_url() -> str:
-    """The configured database URL, pointed at asyncpg and ready for an engine.
+    """The configured database URL as Alembic's SQLAlchemy engine reads it.
 
     Railway's ``postgresql://`` names no DBAPI and carries options asyncpg
-    rejects. Alembic runs on the same async engine, so one driver serves both.
+    rejects. The bot's own pool reads ``get_dsn()`` instead.
     """
     parts = urlsplit(settings.database_url)
     if parts.scheme not in _POSTGRES_SCHEMES:
