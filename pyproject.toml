@@ -24,6 +24,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    # asyncpg ships no type information, and pyright is strict.
+    "asyncpg-stubs>=0.31.3",
     # The web app tests call the Starlette apps in process through ASGITransport.
     "httpx>=0.28.1",
     "pyright>=1.1.414",
