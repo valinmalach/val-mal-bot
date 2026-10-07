@@ -1,82 +1,70 @@
-from types import TracebackType
+"""A fake asyncpg connection, and every statement the bot can run."""
+
 from typing import Any
 
-from sqlalchemy.dialects import postgresql
-from sqlalchemy.sql import ClauseElement
+from valmal.db import configuration, repository
 
+# Every statement constant, by name: what CI prepares against the real schema.
+STATEMENTS: dict[str, str] = {
+    name: value
+    for module in (repository, configuration)
+    for name, value in vars(module).items()
+    if name.isupper() and isinstance(value, str)
+}
 
-def sql(statement: ClauseElement) -> str:
-    """The statement as Postgres would receive it, whitespace made uniform."""
-    return " ".join(str(statement.compile(dialect=postgresql.dialect())).split())
-
-
-def params(statement: ClauseElement) -> dict[str, Any]:
-    return {**(statement.compile(dialect=postgresql.dialect()).params or {})}
-
-
-class Result:
-    def __init__(self, rows: list[Any]) -> None:
-        self.rows = rows
-
-    def scalars(self) -> Result:
-        return self
-
-    def all(self) -> list[Any]:
-        return self.rows
-
-    def scalar_one_or_none(self) -> Any:
-        return self.rows[0] if self.rows else None
+Call = tuple[str, str, tuple[Any, ...]]
 
 
 class Database:
-    """What a repository function sent, and what the database would have answered."""
+    """What a repository function sent, and what the database would have answered.
+
+    Each call takes the next answer from `answers`; with none left, the method's
+    empty answer: no rows, no record, no value. `failure` makes every call raise.
+    """
 
     def __init__(self) -> None:
-        self.statements: list[ClauseElement] = []
-        self.answers: list[list[Any]] = []
-        self.rows: dict[tuple[type, int], Any] = {}
-        self.gets: list[tuple[type, int]] = []
-        self.scopes = 0
+        self.calls: list[Call] = []
+        self.answers: list[Any] = []
+        self.transactions = 0
         self.failure: Exception | None = None
 
     @property
-    def only(self) -> ClauseElement:
-        assert len(self.statements) == 1, self.statements
-        return self.statements[0]
+    def only(self) -> Call:
+        assert len(self.calls) == 1, self.calls
+        return self.calls[0]
 
-    async def execute(self, statement: ClauseElement) -> Result:
+    def _answer(self, method: str, statement: str, args: tuple[Any, ...]) -> Any:
         if self.failure is not None:
             raise self.failure
-        self.statements.append(statement)
-        return Result(self.answers.pop(0) if self.answers else [])
+        self.calls.append((method, statement, args))
+        if self.answers:
+            return self.answers.pop(0)
+        empty: dict[str, Any] = {"execute": "OK", "fetch": []}
+        return empty.get(method)
 
-    async def get(self, model: type, key: int) -> Any:
-        self.gets.append((model, key))
-        return self.rows.get((model, key))
+    async def execute(self, statement: str, *args: Any) -> Any:
+        return self._answer("execute", statement, args)
 
-    def scope(self) -> Scope:
-        self.scopes += 1
-        return Scope(self)
+    async def fetch(self, statement: str, *args: Any) -> Any:
+        return self._answer("fetch", statement, args)
+
+    async def fetchrow(self, statement: str, *args: Any) -> Any:
+        return self._answer("fetchrow", statement, args)
+
+    async def fetchval(self, statement: str, *args: Any) -> Any:
+        return self._answer("fetchval", statement, args)
 
 
-class Scope:
+class Transaction:
+    """What ``pool.transaction()`` yields, counted. A class, not a generator: a
+    tool reads a `yield` after a `raise` as unreachable and deletes it."""
+
     def __init__(self, database: Database) -> None:
         self.database = database
 
     async def __aenter__(self) -> Database:
+        self.database.transactions += 1
         return self.database
 
-    async def __aexit__(
-        self,
-        kind: type[BaseException] | None,
-        error: BaseException | None,
-        trace: TracebackType | None,
-    ) -> None:
+    async def __aexit__(self, *exc: object) -> None:
         return None
-
-
-def assigned(statement: ClauseElement) -> list[str]:
-    """The columns an ``ON CONFLICT DO UPDATE`` overwrites, in order."""
-    text = sql(statement)
-    _, _, update = text.partition("DO UPDATE SET ")
-    return [part.split(" = ")[0] for part in update.split(", ")]

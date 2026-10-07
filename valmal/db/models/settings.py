@@ -4,7 +4,7 @@ from sqlalchemy import Text
 from sqlmodel import Field
 
 from valmal.db.base import TimestampMixin, enum_column
-from valmal.db.models.enums import SettingValueType
+from valmal.db.enums import SettingValueType
 
 __all__ = ["AppSetting"]
 

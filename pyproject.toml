@@ -9,7 +9,7 @@ dependencies = [
     # its errors, so it is declared here rather than leaned on transitively.
     "aiohttp>=3.14.4",
     "alembic>=1.20.0",
-    "asyncpg>=0.31.0",
+    "asyncpg>=0.32.0",
     "discord>=2.3.2",
     # Nothing imports it: discord.py parses every gateway event with it when it is
     # installed, and with the stdlib json when it is not.
@@ -17,20 +17,25 @@ dependencies = [
     "pendulum>=3.2.0",
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
-    "sqlmodel>=0.0.47",
+    # Alembic's env.py runs on the asyncio engine, which needs greenlet, and SQLAlchemy
+    # 2.1 installs it only with this extra. The bot itself never imports SQLAlchemy.
+    "sqlalchemy[asyncio]>=2.1.3",
+    "sqlmodel>=0.0.48",
     "starlette>=1.7.0",
     "uvicorn[standard]>=0.54.0",
 ]
 
 [dependency-groups]
 dev = [
+    # asyncpg ships no type information, and pyright is strict.
+    "asyncpg-stubs>=0.32.0",
     # The web app tests call the Starlette apps in process through ASGITransport.
     "httpx>=0.28.1",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "pytest-timeout>=2.4.0",
-    "railway-sdk>=0.2.0",
+    "railway-sdk>=0.4.0",
     "ruff>=0.16.10",
 ]
 

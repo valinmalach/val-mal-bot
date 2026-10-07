@@ -1,4 +1,8 @@
-"""Enumerations backing the database tables."""
+"""Enumerations stored in the database.
+
+Outside the models package on purpose: the bot reads these, and importing the
+models would load SQLModel and every table with them.
+"""
 
 from enum import Enum
 

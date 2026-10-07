@@ -7,7 +7,7 @@ from multidict import CIMultiDict, CIMultiDictProxy
 
 from tests.twitch.support import Script, reply
 from valmal.core.http_client import Reply
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.client import helix
 from valmal.twitch.client.helix import HelixError, fetch, request
 from valmal.twitch.models.api.user import UserResponse

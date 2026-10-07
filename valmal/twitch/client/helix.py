@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from valmal.core import http_client
 from valmal.core.settings import settings
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.oauth.token_manager import token_manager
 
 logger = logging.getLogger(__name__)

@@ -15,7 +15,7 @@ from starlette.routing import Router
 from valmal.core import http_client
 from valmal.core.errors import notify, report
 from valmal.core.settings import settings
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.models.auth import RefreshResponse, TokenValidationResponse
 from valmal.twitch.oauth.grants import (
     authorization_url,

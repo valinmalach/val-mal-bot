@@ -4,7 +4,7 @@ import pytest
 
 from tests.core.config.support import Notices, role
 from valmal.core.config import ConfigCache, RenderedEmbed, RenderedField
-from valmal.db.models import (
+from valmal.db.rows import (
     DiscordChannel,
     DiscordEmbed,
     DiscordEmbedField,
@@ -186,6 +186,7 @@ class TestEmbed:
             ),
             role("mods", 77),
             DiscordEmbedField(
+                id=1,
                 embed_key="rules_embed",
                 position=1,
                 name="Where {channel:rules}",
@@ -224,7 +225,9 @@ class TestEmbed:
     ) -> None:
         cache = await load(
             DiscordEmbed(key="e"),
-            DiscordEmbedField(embed_key="e", position=4, name="n", value="{role:gone}"),
+            DiscordEmbedField(
+                id=1, embed_key="e", position=4, name="n", value="{role:gone}"
+            ),
         )
 
         cache.embed("e")

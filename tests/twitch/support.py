@@ -5,7 +5,7 @@ import json
 from collections.abc import Callable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
-from types import SimpleNamespace
+from datetime import datetime
 from typing import Any, cast
 from urllib.parse import urlsplit
 
@@ -14,7 +14,7 @@ import pytest
 from multidict import CIMultiDict, CIMultiDictProxy
 
 from valmal.core.http_client import Reply
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.oauth.token_manager import TwitchTokenManager
 
 # The two callbacks a subscribe/unsubscribe test cares about, shared so the
@@ -242,34 +242,38 @@ def page(data: list[dict[str, Any]], cursor: str | None = None) -> dict[str, Any
 
 
 class TokenDb:
-    """What the token manager asks the database: rows for a select, anything else
-    is recorded (the upsert), and `error` makes every statement raise."""
+    """The repository's two token functions: `rows` answers the load, every write
+    is recorded, and `error` makes both raise."""
 
     def __init__(self) -> None:
         self.rows: list[Any] = []
-        self.statements: list[Any] = []
+        self.writes: list[dict[str, Any]] = []
         self.error: Exception | None = None
 
-    async def execute(self, statement: Any) -> Any:
-        self.statements.append(statement)
+    async def list_oauth_tokens(self) -> list[Any]:
         if self.error is not None:
             raise self.error
-        rows = list(self.rows)
-        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: rows))
+        return list(self.rows)
 
-
-class Scope:
-    """An async context manager over a TokenDb. A class, not a generator: a tool
-    reads a `yield` after a `raise` as unreachable and deletes it."""
-
-    def __init__(self, db: TokenDb) -> None:
-        self.db = db
-
-    async def __aenter__(self) -> TokenDb:
-        return self.db
-
-    async def __aexit__(self, *exc: object) -> None:
-        return None
+    async def upsert_oauth_token(
+        self,
+        key: TokenType,
+        access_token: str,
+        refresh_token: str | None,
+        expires_at: datetime | None,
+        scopes: list[str],
+    ) -> None:
+        if self.error is not None:
+            raise self.error
+        self.writes.append(
+            {
+                "key": key,
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "expires_at": expires_at,
+                "scopes": scopes,
+            }
+        )
 
 
 # Shared by the token manager's refresh and concurrency tests.

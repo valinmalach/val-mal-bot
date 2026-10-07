@@ -12,7 +12,7 @@ from valmal.bot.present import quoted
 from valmal.core.config import config
 from valmal.core.errors import notify
 from valmal.core.settings import settings
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.client import helix
 from valmal.twitch.client.helix import HelixError
 from valmal.twitch.models.api.ad_schedule import AdSchedule, AdScheduleResponse

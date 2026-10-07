@@ -6,15 +6,12 @@ from collections.abc import Awaitable, Callable
 from typing import Self, cast
 
 import pendulum
-from sqlalchemy import func, select
-from sqlalchemy.dialects.postgresql import insert
 
 from valmal.core import http_client
 from valmal.core.errors import notify
 from valmal.core.settings import settings
-from valmal.db.models import OAuthToken
-from valmal.db.models.enums import TokenType
-from valmal.db.session import session_scope
+from valmal.db import repository
+from valmal.db.enums import TokenType
 from valmal.twitch.models.auth import AuthResponse, RefreshResponse
 from valmal.twitch.oauth.grants import configured_scopes
 
@@ -44,8 +41,7 @@ class TwitchTokenManager:
 
     async def load(self) -> None:
         """Read every stored token into memory, replacing what is held."""
-        async with session_scope() as session:
-            rows = (await session.execute(select(OAuthToken))).scalars().all()
+        rows = await repository.list_oauth_tokens()
 
         access: dict[TokenType, str] = {}
         refresh: dict[TokenType, str] = {}
@@ -86,21 +82,13 @@ class TwitchTokenManager:
             expires_at = pendulum.now("UTC").add(seconds=expires_in)
             self._expires_at[token_type] = expires_at
 
-        values = {
-            "key": token_type,
-            "access_token": access_token,
-            "refresh_token": refresh_token or self._refresh.get(token_type),
-            "expires_at": expires_at,
-            "scopes": scopes or [],
-        }
-        statement = insert(OAuthToken).values(**values)
-        updates = {k: getattr(statement.excluded, k) for k in values if k != "key"}
-        # The column's onupdate does not fire for ON CONFLICT DO UPDATE.
-        updates["updated_at"] = func.now()
-        async with session_scope() as session:
-            await session.execute(
-                statement.on_conflict_do_update(index_elements=["key"], set_=updates)
-            )
+        await repository.upsert_oauth_token(
+            token_type,
+            access_token,
+            refresh_token or self._refresh.get(token_type),
+            expires_at,
+            scopes or [],
+        )
 
     def needs_refresh(self, token_type: TokenType) -> bool:
         """Whether the token should be refreshed before it is used again.

@@ -22,7 +22,7 @@ from valmal.bot.duration import get_age
 from valmal.bot.send import edit_embed
 from valmal.core.errors import notify, report
 from valmal.db import repository
-from valmal.db.models import LiveAlert
+from valmal.db.rows import LiveAlert
 from valmal.twitch.client.api import (
     get_stream,
     get_user,

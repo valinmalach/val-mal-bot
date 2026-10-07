@@ -8,7 +8,7 @@ from tests.twitch.eventsub.migrate.support import sub
 from valmal.bot.cogs import twitch_admin
 from valmal.bot.cogs.twitch_admin import TwitchAdmin
 from valmal.core.config import config
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 from valmal.twitch.client.helix import HelixError
 from valmal.twitch.eventsub.migrate_plan import Outcome
 from valmal.twitch.models.api.subscription import Subscription

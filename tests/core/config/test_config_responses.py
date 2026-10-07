@@ -1,3 +1,4 @@
+import itertools
 from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any
@@ -8,12 +9,19 @@ import pytest
 
 import valmal.core.config as service_config
 from tests.core.config.support import Notices, role
-from valmal.db.models import AutoResponseMatch, DiscordAutoResponse, DiscordChannel
+from valmal.db.enums import AutoResponseMatch
+from valmal.db.rows import (
+    DiscordAutoResponse,
+    DiscordChannel,
+)
 
 pytestmark = pytest.mark.anyio
 
 
 class TestAutoResponse:
+    # Ascending in creation order, as Postgres would number the rows.
+    _ids = itertools.count(1)
+
     def row(
         self,
         trigger: str,
@@ -22,6 +30,7 @@ class TestAutoResponse:
         case_sensitive: bool = False,
     ) -> DiscordAutoResponse:
         return DiscordAutoResponse(
+            id=next(self._ids),
             trigger=trigger,
             response=response,
             match_type=match,

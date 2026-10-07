@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field
 
 from valmal.db.base import UTC_TIMESTAMP, TimestampMixin, enum_column
-from valmal.db.models.enums import TokenType
+from valmal.db.enums import TokenType
 
 __all__ = ["OAuthToken"]
 

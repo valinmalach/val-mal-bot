@@ -14,7 +14,7 @@ from valmal.core import memory
 from valmal.core.config import config
 from valmal.core.errors import notify, report
 from valmal.db import repository
-from valmal.db.models import DiscordUser
+from valmal.db.rows import DiscordUser
 from valmal.twitch.client.helix import HelixError
 from valmal.twitch.client.subscription_health import broken_subscriptions
 

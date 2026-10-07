@@ -7,7 +7,7 @@ from sqlalchemy import BigInteger, Text, UniqueConstraint
 from sqlmodel import Field
 
 from valmal.db.base import TimestampMixin, enum_column
-from valmal.db.models.enums import AutoResponseMatch
+from valmal.db.enums import AutoResponseMatch
 
 __all__ = [
     "DiscordAutoResponse",

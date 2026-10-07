@@ -61,6 +61,14 @@ jobs:
       # creates something the models do not declare.
       - name: The models match the migrated schema
         run: uv run alembic check
+      # The bot writes its own SQL against that schema (ADR 0005). prepare() makes
+      # Postgres resolve every table, column and parameter in it without running it.
+      - name: The bot's statements match the migrated schema
+        run: uv run pytest tests/db/test_statements_prepare.py
+        env:
+          PREPARE_DATABASE_URL: ${{ env.DATABASE_URL }}
+          # Without it, an empty URL would skip every test and pass having checked nothing.
+          REQUIRE_PREPARE: "1"
       - name: Downgrade to base
         run: uv run alembic downgrade base
       - name: Upgrade to head again

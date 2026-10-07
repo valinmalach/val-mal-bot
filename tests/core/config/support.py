@@ -1,38 +1,41 @@
 """Fakes and row builders shared by the ConfigCache tests."""
 
-from types import SimpleNamespace
 from typing import Any
 
-from valmal.db.models import AppSetting, DiscordRole, SettingValueType
+from valmal.db import rows
+from valmal.db.configuration import Configuration
+from valmal.db.enums import SettingValueType
+from valmal.db.rows import AppSetting, DiscordRole
 
 # What the notices fixture records: each notice's text and its repeat key.
 Notices = list[tuple[str, str | None]]
 
 
-class FakeSession:
-    """Answers `select(Model)` with the rows it was given for that model."""
+# Which Configuration field each row type is loaded into.
+_FIELDS: dict[type, str] = {
+    rows.DiscordChannel: "channels",
+    rows.DiscordRole: "roles",
+    rows.AppSetting: "settings",
+    rows.MessageTemplate: "templates",
+    rows.DiscordEmbed: "embeds",
+    rows.DiscordEmbedField: "embed_fields",
+    rows.DiscordAutoResponse: "auto_responses",
+    rows.TwitchCommand: "commands",
+    rows.TwitchCommandResponse: "command_responses",
+    rows.TwitchCommandComponent: "command_components",
+}
 
-    def __init__(self, rows: dict[type, list[Any]]) -> None:
-        self.rows = rows
-        self.statements: list[Any] = []
 
-    async def execute(self, statement: Any) -> Any:
-        self.statements.append(statement)
-        model = statement.column_descriptions[0]["entity"]
-        rows = list(self.rows.get(model, []))
-        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: rows))
+def configuration(*given: object) -> Configuration:
+    """What load_configuration() would return for these rows."""
+    grouped: dict[str, list[Any]] = {name: [] for name in _FIELDS.values()}
+    for row in given:
+        grouped[_FIELDS[type(row)]].append(row)
+    return Configuration(**{name: tuple(found) for name, found in grouped.items()})
 
 
-class DatabaseDown:
-    """A session scope that cannot be entered. A class, not a generator: a tool
-    reads the `yield` after the `raise` as unreachable and removes it, and the
-    function then stops being an async context manager at all."""
-
-    async def __aenter__(self) -> None:
-        raise ConnectionError("database is down")
-
-    async def __aexit__(self, *exc: object) -> None:
-        return None
+async def database_down() -> Configuration:
+    raise ConnectionError("database is down")
 
 
 def role(key: str, role_id: int, **fields: Any) -> DiscordRole:

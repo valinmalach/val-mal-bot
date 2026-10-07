@@ -16,7 +16,7 @@ from valmal.bot.send import send_embed
 from valmal.core.background import fire_and_forget
 from valmal.core.errors import notify, report
 from valmal.db import repository
-from valmal.db.models import LiveAlert
+from valmal.db.rows import LiveAlert
 from valmal.twitch.models.api.stream import Stream
 from valmal.twitch.models.api.user import User
 from valmal.twitch.stream.live_alert_cycle import Action, cycle
