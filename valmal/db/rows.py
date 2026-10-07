@@ -42,7 +42,7 @@ _R = TypeVar("_R")
 
 def build(row: type[_R], record: Record, **converted: Any) -> _R:  # noqa: UP047
     """A row from a record, with ``converted`` replacing the columns that need it."""
-    return row(**{**dict(record.items()), **converted})
+    return row(**(dict(record) | converted))
 
 
 def _now() -> datetime:
