@@ -111,6 +111,13 @@ async def close_pool() -> None:
         # close() waits for every connection to come back, so one stuck in a
         # stalled call would hold shutdown forever. Cancelled by the timeout, it
         # terminates the pool itself.
-        with contextlib.suppress(TimeoutError):
+        try:
             await asyncio.wait_for(_pool.close(), _CLOSE_TIMEOUT)
+        except TimeoutError:
+            # The bot has closed its Discord connection by now, so only the log can say.
+            logger.warning(
+                "Terminated the database pool: a connection was not released "
+                "within %s seconds of shutdown",
+                _CLOSE_TIMEOUT,
+            )
         _pool = None

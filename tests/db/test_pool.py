@@ -316,16 +316,18 @@ class TestClosing:
         assert pool._pool is None
 
     async def test_a_connection_that_never_comes_back_cannot_hold_shutdown(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
         stuck = Stuck([])
         monkeypatch.setattr(pool, "_pool", stuck)
         monkeypatch.setattr(pool, "_CLOSE_TIMEOUT", 0.01)
 
-        await pool.close_pool()
+        with caplog.at_level(logging.WARNING, logger=pool.__name__):
+            await pool.close_pool()
 
         assert stuck.terminated
         assert pool._pool is None
+        assert "Terminated the database pool" in caplog.text
 
 
 class Stuck(Pool):
