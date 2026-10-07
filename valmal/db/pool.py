@@ -27,6 +27,8 @@ Connection: TypeAlias = "PoolConnectionProxy[asyncpg.Record]"  # noqa: UP040
 
 _pool: asyncpg.Pool | None = None
 _creating = asyncio.Lock()
+# Far longer than any statement here takes.
+_CLOSE_TIMEOUT = 5
 
 # What a dead connection raises when it is used, rather than a statement failing.
 _DEAD = (OSError, asyncpg.InterfaceError, asyncpg.PostgresConnectionError)
@@ -60,7 +62,7 @@ async def _pool_now() -> asyncpg.Pool:
                 max_inactive_connection_lifetime=0,
                 init=_init,
             )
-    return _pool
+        return _pool
 
 
 @asynccontextmanager
@@ -102,6 +104,13 @@ async def transaction() -> AsyncGenerator[Connection]:
 async def close_pool() -> None:
     """Close every pooled connection. Call this on shutdown."""
     global _pool
-    if _pool is not None:
-        await _pool.close()
-    _pool = None
+    # Under the lock, so a pool still being created is closed rather than left open.
+    async with _creating:
+        if _pool is None:
+            return
+        # close() waits for every connection to come back, so one stuck in a
+        # stalled call would hold shutdown forever. Cancelled by the timeout, it
+        # terminates the pool itself.
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(_pool.close(), _CLOSE_TIMEOUT)
+        _pool = None

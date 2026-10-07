@@ -304,3 +304,39 @@ class TestClosing:
         await pool.close_pool()
 
         assert pool._pool is None
+
+    async def test_a_pool_still_being_created_is_closed_not_left_open(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        created = install(monkeypatch, Connection("a"))
+
+        await asyncio.gather(pool._pool_now(), pool.close_pool())
+
+        assert created.result.closed
+        assert pool._pool is None
+
+    async def test_a_connection_that_never_comes_back_cannot_hold_shutdown(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        stuck = Stuck([])
+        monkeypatch.setattr(pool, "_pool", stuck)
+        monkeypatch.setattr(pool, "_CLOSE_TIMEOUT", 0.01)
+
+        await pool.close_pool()
+
+        assert stuck.terminated
+        assert pool._pool is None
+
+
+class Stuck(Pool):
+    """A pool whose close() waits on a connection that is never released."""
+
+    terminated = False
+
+    async def close(self) -> None:
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            # What asyncpg's Pool.close() does when it is cancelled.
+            self.terminated = True
+            raise
