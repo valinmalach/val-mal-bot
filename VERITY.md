@@ -91,6 +91,7 @@ DROP = {"Ruff_F821_undefined-name"}
 # A tool has patterns or a local config file, never both. Verity's list replaces the
 # Cloud entry, flag off, for these even when Cloud sets nothing.
 VERITY_WINS = {"Ruff"}
+RUFF_CONFIG = ".codacy/ruff.toml"
 
 
 def load(path: str) -> dict:
@@ -104,8 +105,7 @@ for theirs in verity["tools"]:
     mine = tools.get(theirs["toolId"])
     uses_local_file = mine is not None and mine.get("useLocalConfigurationFile")
     if theirs["toolId"] in VERITY_WINS or uses_local_file:
-        # With a local config file every pattern is ignored, and for Ruff the CLI
-        # (0.23.1) finds pyproject.toml even when the flag is unset.
+        # With a local config file every pattern is ignored.
         tools[theirs["toolId"]] = {**theirs, "useLocalConfigurationFile": False}
     elif mine is None:
         tools[theirs["toolId"]] = theirs
@@ -116,6 +116,14 @@ for theirs in verity["tools"]:
         ]
 for tool in tools.values():
     tool["patterns"] = [p for p in tool["patterns"] if p["patternId"] not in DROP]
+# The CLI hands Ruff a generated config holding only `select`, which hides
+# pyproject.toml. This one selects Verity's rules and extends pyproject.toml, so the
+# gate keeps CI's per-file-ignores (the tests' asserts and made-up credentials).
+ruff = tools["Ruff"]
+codes = sorted({p["patternId"].split("_")[1] for p in ruff["patterns"]})
+with open(RUFF_CONFIG, "w", encoding="utf-8") as f:
+    f.write(f'extend = "../pyproject.toml"\n\n[lint]\nselect = {json.dumps(codes)}\n')
+ruff |= {"useLocalConfigurationFile": True, "localConfigurationFile": RUFF_CONFIG}
 excludes = set(cloud.get("exclude", [])) | set(verity.get("exclude", []))
 # Anything but "remote" and the VS Code extension regenerates the file on activation.
 json.dump(
@@ -132,15 +140,17 @@ json.dump(
 
 Two things the merge cannot keep at once. **Ruff:** Cloud's entry says "use `pyproject.toml`",
 whose `[tool.ruff]` carries the same families and more (see AGENTS.md); Verity's is a
-19-pattern list including `ANN001`/`ANN201`. Verity's wins in the merged file (as does Verity's
-list for any merged tool whose Cloud entry uses a local config file, which would otherwise ignore
-every pattern), and a tool has patterns or a local config file, never both, so the gate's Ruff does
-not read `pyproject.toml`: its `E4`/`E7`/`E9` rules and the per-file `S101` ignore for
-`valmal/core/logging_json.py` do not apply there. `S104` on `main.py`'s bind address is silenced
-inline (`# noqa: S104  # nosec B104`), which every mode honours, and `S105` no longer fires on the
-token-type comparison, which lower-cases the token type first. `S101` still fires 19 times in
-`valmal/core/logging_json.py` when that file is touched. **Semgrep:** Cloud analyses with it (649
-patterns) and the merged file cannot.
+19-pattern list including `ANN001`/`ANN201`. Verity's list wins in the merged file (as it does for
+any merged tool whose Cloud entry uses a local config file, which would otherwise ignore every
+pattern). Given patterns alone, the CLI hands Ruff a generated config holding only `select`, so
+`pyproject.toml` goes unread and its per-file ignores with it: the gate reported 702 `S101` asserts
+and 18 made-up credentials in `tests/` on one PR that CI's Ruff passes. So the merge writes
+`.codacy/ruff.toml`, which `extend`s `pyproject.toml` and `select`s exactly Verity's codes, and
+points the Ruff entry at it. The gate checks Verity's rules and nothing more, with CI's per-file
+ignores and `target-version`; `pyproject.toml`'s wider `select` does not apply there. A planted
+test with an assert, a made-up token, an unused import and an `exec` reports the last two, and an
+assert under `valmal/` still reports `S101`. **Semgrep:** Cloud analyses with it (649 patterns)
+and the merged file cannot.
 
 The gate enforces the Standard version uploaded to the service, so it runs without a
 local copy; `.verity/standard.yaml` is only the source you edit and push from, and
@@ -288,7 +298,9 @@ whole repo is clean; with `ruff check --select F821 --target-version py313` it r
 (this case) and three more of the same shape in `tests/db/support.py` and
 `tests/db/test_session.py`. F821 was therefore removed from the list rather than
 suppressed: the project's own Ruff and pyright both enforce it correctly, so nothing is lost,
-and the recurring false positive no longer invites another suppression.
+and the recurring false positive no longer invites another suppression. The gate now inherits
+`target-version` through `.codacy/ruff.toml` (above), so F821 would be correct there again; the
+drop stays because CI's Ruff and pyright already enforce it.
 
 `verity config get` still returns it, so the merge script drops it. It returns because
 `verity init` pushes the analysis config to the service as part of its own run: after the
