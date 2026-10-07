@@ -5,11 +5,10 @@ reaches the database, through ``transaction()``.
 """
 
 import asyncio
-import contextlib
 import json
 import logging
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import TypeAlias
 
 import asyncpg
@@ -57,8 +56,8 @@ async def _pool_now() -> asyncpg.Pool:
                 min_size=1,
                 max_size=10,
                 # The database is on Railway's private network, which drops
-                # nothing idle; retiring idle connections only cost a fresh login
-                # on most calls. The ping below covers a Postgres restart.
+                # nothing idle; retiring idle connections would only cost a fresh
+                # login on most calls. The ping below covers a Postgres restart.
                 max_inactive_connection_lifetime=0,
                 init=_init,
             )
@@ -84,7 +83,7 @@ async def transaction() -> AsyncGenerator[Connection]:
             # A connection asyncpg saw drop is already back in the pool, and its
             # proxy refuses every call, terminate() included. Otherwise terminate()
             # hands it back itself; either way no release() is needed.
-            with contextlib.suppress(asyncpg.InterfaceError):
+            with suppress(asyncpg.InterfaceError):
                 connection.terminate()
             if retried:
                 raise
