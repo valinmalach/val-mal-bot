@@ -141,9 +141,9 @@ fails without the fix.
 `tests/` mirrors `valmal/`, and an area with fixtures or fakes of its own has a
 `conftest.py` and a `support.py`, imported by path as `tests.twitch.stream.live_alert.support`
 — which is why Sourcery's `dont-import-test-modules` is disabled by id in
-`.sourcery.yaml`. Keep a test file under 400 lines, which is Verity's `file_length`
-signal; past about 470 a review also drops the middle of a file and says it is
-unchecked. `tests/conftest.py` fills the environment `valmal.core.settings` validates at
+`.sourcery.yaml`. Keep a file, tests included, under 400 lines, which is Verity's
+`file_length` signal and the one size limit kept anywhere: past about 470 a review drops
+the middle of a file and says it is unchecked. `tests/conftest.py` fills the environment `valmal.core.settings` validates at
 import, so it must run before a test module imports anything that reaches `settings`.
 Anything that walks the repo (the seeded-key scan) skips `.claude/`, where agent worktrees
 hold whole copies of it; coverage names the `valmal` package and `main` instead of walking the
@@ -193,7 +193,19 @@ bypasses it, force-pushes or deletes the branch.
 Codacy's quality gate fails a PR on any *new* issue, at any severity, so `.codacy.yaml`
 keeps every analyser that misreads test code (fake credentials, a subprocess helper,
 `import_module`) out of `tests/`; a new analyser that does the same needs the same
-exclusion before it blocks a PR. Deliberately *not* required: `CodeQL`, which does not report on every PR and would
+exclusion before it blocks a PR. Some patterns are disabled in Codacy's settings, not the
+tree, so this is their record:
+
+- Opengrep's `Semgrep_codacy.yaml.security.hard-coded-tokens`, which matches a key's name
+  rather than its value, so it flagged `access_token: str` annotations, token budgets and
+  CI's `DISCORD_TOKEN: unused` and never a secret; Trivy, Checkov, dodgy and the
+  value-matching gitleaks rules still look for real ones.
+- Lizard's file length, function length and parameter count, Medium and Critical. A count
+  of lines or arguments is not worth blocking a merge on, and what it stands in for, a
+  function doing too much, is Verity's `single_responsibility` to judge. Cyclomatic
+  complexity stays, at 15, in Lizard, Ruff's `C90` and Verity alike.
+
+Deliberately *not* required: `CodeQL`, which does not report on every PR and would
 sit at "Expected"; `Sourcery review`, skipped on most; and the two `Request reviews` jobs,
 which only ask for reviews. A required check has to be produced by the branch, so a job
 renamed here has to be renamed in the ruleset too, or every PR sits at "Expected".
@@ -659,7 +671,11 @@ caps glibc's per-thread arenas for that reason, and `MALLOC_MMAP_THRESHOLD_` and
 `MALLOC_TRIM_THRESHOLD_` fix glibc's two thresholds at their starting values, so a large
 free does not raise them and leave the heap keeping what it frees. Measured over 24 h on
 the same code (#104), `heap_free_bytes` peaked at 0.7 MiB with them against 7.3 without,
-and resident memory ended 8.3 MiB lower, with no CPU cost visible. The `log_memory`
+and resident memory ended 8.3 MiB lower, with no CPU cost visible. Taking SQLAlchemy and
+SQLModel out of the bot (#98) cut `rss_anon_kb` at 36 h from 81.3 MiB to 57.2 and
+`python_blocks` from 550k to 380k; that is the baseline the next memory change is measured
+against. Compare `rss_anon_kb`, not `rss_kb`: the file-backed part is page cache the kernel
+trims on its own schedule, 26 MiB to 14 in the first day of that deploy. The `log_memory`
 loop logs a `Memory` line at startup and every 30 minutes with the split as keys:
 `rss_anon_kb` is what grows, `heap_free_bytes` is freed memory glibc has kept, and
 `heap_in_use_bytes` and `python_blocks` are live data. Nothing is traced: OpenTelemetry cost about
