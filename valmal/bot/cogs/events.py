@@ -1,5 +1,6 @@
 import asyncio
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Iterable
+from datetime import timedelta
 
 import discord
 import pendulum
@@ -27,11 +28,24 @@ from valmal.core.config import config
 from valmal.core.errors import report
 from valmal.db import repository
 
+# How long a deleted id is remembered: longer than a store can be in flight.
+_DELETED_MEMORY = timedelta(minutes=5)
+
 
 class Events(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
         self._claims = Claims()
+        # Message id -> when it was deleted, so a store that lands after the
+        # delete's own write can take its row back out.
+        self._deleted: dict[int, DateTime] = {}
+
+    def _mark_deleted(self, message_ids: Iterable[int]) -> None:
+        """Before the delete's first await, so a store checking after its own sees it."""
+        now = pendulum.now()
+        cutoff = now - _DELETED_MEMORY
+        self._deleted = {i: at for i, at in self._deleted.items() if at >= cutoff}
+        self._deleted |= dict.fromkeys(message_ids, now)
 
     async def _safe_db_operation(
         self, operation: str, write: Awaitable[object]
@@ -59,6 +73,11 @@ class Events(Cog):
                 [attachment.url for attachment in message.attachments],
             ),
         )
+        if message.id in self._deleted:
+            await self._safe_db_operation(
+                f"delete message {message.id}",
+                repository.delete_message(message.id),
+            )
 
     @Cog.listener()
     async def on_message(self, message: Message) -> None:
@@ -234,6 +253,7 @@ class Events(Cog):
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent) -> None:
         if self._is_bot_message(payload.cached_message):
             return
+        self._mark_deleted([payload.message_id])
 
         lookup = recent_entries(
             self.bot, payload.guild_id, discord.AuditLogAction.message_delete
@@ -282,6 +302,7 @@ class Events(Cog):
     async def on_raw_bulk_message_delete(
         self, payload: RawBulkMessageDeleteEvent
     ) -> None:
+        self._mark_deleted(payload.message_ids)
         entries = await recent_entries(
             self.bot, payload.guild_id, discord.AuditLogAction.message_bulk_delete
         )
