@@ -245,8 +245,8 @@ everything for it, rather than one directory per kind of file:
   for Alembic and the tests only). Alembic's revisions are `migrations/`, at the root.
 - `valmal/bot/` — Discord: `client` (the bot and its gateway handlers), `cogs/`, `views`,
   and what says something in a channel: `audit`, `send`, `present`, `roles`,
-  `birthday` and `duration`; `gateway_log` lifts discord.py's reconnect reasons into the
-  logs.
+  `birthday` and `duration`; `deleters` reads who deleted a message back from the audit
+  log; `gateway_log` lifts discord.py's reconnect reasons into the logs.
 - `valmal/twitch/` — Twitch: `models/` (Pydantic payloads), `client/` (Helix, chat and subscription health),
   `oauth/` (the grant flow, its routes and the stored tokens), `eventsub/` (the signed
   webhook route, its replay protection, what each event makes the bot do, chat
