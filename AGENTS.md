@@ -141,9 +141,9 @@ fails without the fix.
 `tests/` mirrors `valmal/`, and an area with fixtures or fakes of its own has a
 `conftest.py` and a `support.py`, imported by path as `tests.twitch.stream.live_alert.support`
 — which is why Sourcery's `dont-import-test-modules` is disabled by id in
-`.sourcery.yaml`. Keep a test file under 400 lines, which is Verity's `file_length`
-signal; past about 470 a review also drops the middle of a file and says it is
-unchecked. `tests/conftest.py` fills the environment `valmal.core.settings` validates at
+`.sourcery.yaml`. Keep a file, tests included, under 400 lines, which is Verity's
+`file_length` signal and the one size limit kept anywhere: past about 470 a review drops
+the middle of a file and says it is unchecked. `tests/conftest.py` fills the environment `valmal.core.settings` validates at
 import, so it must run before a test module imports anything that reaches `settings`.
 Anything that walks the repo (the seeded-key scan) skips `.claude/`, where agent worktrees
 hold whole copies of it; coverage names the `valmal` package and `main` instead of walking the
@@ -193,11 +193,17 @@ bypasses it, force-pushes or deletes the branch.
 Codacy's quality gate fails a PR on any *new* issue, at any severity, so `.codacy.yaml`
 keeps every analyser that misreads test code (fake credentials, a subprocess helper,
 `import_module`) out of `tests/`; a new analyser that does the same needs the same
-exclusion before it blocks a PR. One pattern is disabled in Codacy's settings, not the tree:
-Opengrep's `Semgrep_codacy.yaml.security.hard-coded-tokens`, which matches a key's name
-rather than its value, so it flagged `access_token: str` annotations, token budgets and
-CI's `DISCORD_TOKEN: unused` and never a secret; Trivy, Checkov, dodgy and the
-value-matching gitleaks rules still look for real ones.
+exclusion before it blocks a PR. Some patterns are disabled in Codacy's settings, not the
+tree, so this is their record:
+
+- Opengrep's `Semgrep_codacy.yaml.security.hard-coded-tokens`, which matches a key's name
+  rather than its value, so it flagged `access_token: str` annotations, token budgets and
+  CI's `DISCORD_TOKEN: unused` and never a secret; Trivy, Checkov, dodgy and the
+  value-matching gitleaks rules still look for real ones.
+- Lizard's file length, function length and parameter count, Medium and Critical. A count
+  of lines or arguments is not worth blocking a merge on, and what it stands in for, a
+  function doing too much, is Verity's `single_responsibility` to judge. Cyclomatic
+  complexity stays, at 15, in Lizard, Ruff's `C90` and Verity alike.
 
 Deliberately *not* required: `CodeQL`, which does not report on every PR and would
 sit at "Expected"; `Sourcery review`, skipped on most; and the two `Request reviews` jobs,

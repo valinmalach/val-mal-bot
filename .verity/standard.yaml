@@ -21,10 +21,6 @@ quality_dimensions:
         threshold: 15
         unit: per_function
         rationale: "Complexity-aware feedback improves AI performance by 35.71%"
-      - metric: function_length
-        threshold: 50
-        unit: lines
-        rationale: "Short functions are easier for agents to modify safely"
       - metric: naming_quality
         tool: ai
         rationale: "Descriptive names improve AI comprehension by 2x"
