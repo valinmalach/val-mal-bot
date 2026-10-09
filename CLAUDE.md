@@ -40,8 +40,15 @@ because nothing reviews the reflection before it lands.
 Then record it straight away. There is no confirm step, in any environment:
 
 ```bash
-verity reflect --user-input "<your draft>" --kind <kind>
+verity reflect --user-input - --kind <kind> <<'VERITY_EOF_<random>'
+<your draft>
+VERITY_EOF_<random>
 ```
+
+The draft goes through the quoted heredoc, never inside `"…"` on the command
+line, where a `"` or `$(…)` in it would run in the shell. Replace `<random>`
+with 8 random letters and digits that you pick for this call, the same at both
+ends. Text written before you picked them cannot end the heredoc early.
 
 Add `--confirmed` ONLY when the user authored or dictated the words. Without
 it the node is stored as `source: agent` — Verity thought this, nobody checked
@@ -51,7 +58,7 @@ Never claim the second for your own draft, however good it is.
 **Name the files in the text.** Verity scopes the reflection to the paths it
 cites, and a reflection that names no file in this repo is never retrieved for
 a later review — it is recorded and then invisible. The command says so when it
-happens; `--file-globs "<path or glob>"` is the fix when the prose cannot carry
+happens; `--file-globs '<path or glob>'` is the fix when the prose cannot carry
 the paths.
 
 Then tell the user, in one line, what you recorded and where: the command
