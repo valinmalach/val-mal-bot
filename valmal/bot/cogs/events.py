@@ -1,6 +1,7 @@
 import asyncio
-from collections.abc import Awaitable, Iterable
-from datetime import timedelta
+from collections import Counter
+from collections.abc import Awaitable, Generator, Iterable
+from contextlib import contextmanager
 
 import discord
 import pendulum
@@ -28,24 +29,31 @@ from valmal.core.config import config
 from valmal.core.errors import report
 from valmal.db import repository
 
-# How long a deleted id is remembered: longer than a store can be in flight.
-_DELETED_MEMORY = timedelta(minutes=5)
-
 
 class Events(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
         self._claims = Claims()
-        # Message id -> when it was deleted, so a store that lands after the
-        # delete's own write can take its row back out.
-        self._deleted: dict[int, DateTime] = {}
+        # A store can land after its message's delete, so a delete marks the ids
+        # with a handler in flight that may still store them, and the store takes
+        # its row back out. Kept only while that handler runs.
+        self._storing: Counter[int] = Counter()
+        self._deleted: set[int] = set()
+
+    @contextmanager
+    def _may_store(self, message_id: int) -> Generator[None]:
+        """Entered before the handler's first await, so a later delete sees it."""
+        self._storing[message_id] += 1
+        try:
+            yield
+        finally:
+            self._storing[message_id] -= 1
+            if not self._storing[message_id]:
+                del self._storing[message_id]
+                self._deleted.discard(message_id)
 
     def _mark_deleted(self, message_ids: Iterable[int]) -> None:
-        """Before the delete's first await, so a store checking after its own sees it."""
-        now = pendulum.now()
-        cutoff = now - _DELETED_MEMORY
-        self._deleted = {i: at for i, at in self._deleted.items() if at >= cutoff}
-        self._deleted |= dict.fromkeys(message_ids, now)
+        self._deleted.update(i for i in message_ids if i in self._storing)
 
     async def _safe_db_operation(
         self, operation: str, write: Awaitable[object]
@@ -84,25 +92,26 @@ class Events(Cog):
         if self._is_bot_message(message):
             return
 
-        reply = config.auto_response(message.content)
-        if reply is None:
-            await self._store_message(message)
-            return
+        with self._may_store(message.id):
+            reply = config.auto_response(message.content)
+            if reply is None:
+                await self._store_message(message)
+                return
 
-        # Together: the reply does not wait on the database, and the row does not
-        # wait on Discord, where a delete handled meanwhile would find nothing to
-        # remove. A failure is raised once both have finished, the store's first.
-        results = await asyncio.gather(
-            self._store_message(message),
-            # No mentions: anyone can trigger a reply, and it may hold a role mention.
-            message.channel.send(
-                reply, allowed_mentions=discord.AllowedMentions.none()
-            ),
-            return_exceptions=True,
-        )
-        for result in results:
-            if isinstance(result, BaseException):
-                raise result
+            # Together: the reply does not wait on the database, and the row does not
+            # wait on Discord, where a delete handled meanwhile would find nothing to
+            # remove. A failure is raised once both have finished, the store's first.
+            results = await asyncio.gather(
+                self._store_message(message),
+                # No mentions: anyone can trigger a reply, and it may hold a role mention.
+                message.channel.send(
+                    reply, allowed_mentions=discord.AllowedMentions.none()
+                ),
+                return_exceptions=True,
+            )
+            for result in results:
+                if isinstance(result, BaseException):
+                    raise result
 
     @Cog.listener()
     async def on_member_join(self, member: Member) -> None:
@@ -231,23 +240,24 @@ class Events(Cog):
         if self._is_bot_message(payload.message, payload.cached_message):
             return
 
-        before = payload.cached_message
-        after = payload.message
+        with self._may_store(payload.message.id):
+            before = payload.cached_message
+            after = payload.message
 
-        if before and before.pinned != after.pinned:
-            await audit.pin_changed(after)
+            if before and before.pinned != after.pinned:
+                await audit.pin_changed(after)
 
-        # Message.content is a slot set in __init__, so reading it cannot
-        # raise; a payload without it fails inside discord.py before dispatch.
-        before_content = (
-            before.content if before else await self._get_message_content(after.id)
-        )
+            # Message.content is a slot set in __init__, so reading it cannot
+            # raise; a payload without it fails inside discord.py before dispatch.
+            before_content = (
+                before.content if before else await self._get_message_content(after.id)
+            )
 
-        if before_content == after.content:
-            return
+            if before_content == after.content:
+                return
 
-        await audit.message_edited(after, before_content)
-        await self._store_message(after)
+            await audit.message_edited(after, before_content)
+            await self._store_message(after)
 
     @Cog.listener()
     async def on_raw_message_delete(self, payload: RawMessageDeleteEvent) -> None:
