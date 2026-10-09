@@ -186,14 +186,14 @@ Verity's `test_coverage` threshold is 95 and `test_quality` judges whether a tes
 and nowhere in the tree, so this is its record. A pull request is required, with no
 approval count because a sole maintainer cannot approve their own. Every review thread,
 including one a bot opened, must be resolved. The branch must be up to date with `master`,
-so what CI tested is what merges. And `coverage`, `lint`, `migrations`, `Codacy Diff
-Coverage` and `Codacy Coverage Variation` must pass. Nobody bypasses it, force-pushes or
-deletes the branch.
+so what CI tested is what merges. And `coverage`, `lint`, `migrations`, `Codacy Static
+Code Analysis`, `Codacy Diff Coverage` and `Codacy Coverage Variation` must pass. Nobody
+bypasses it, force-pushes or deletes the branch.
 
-Deliberately *not* required: `Codacy Static Code Analysis`, whose every finding is in test
-code (the fake credentials in `tests/credentials.py`, a subprocess helper, `import_module`),
-so requiring it would block each PR until dismissed by hand — exclude tests from those tools
-in `.codacy.yaml` and it can be added; `CodeQL`, which does not report on every PR and would
+Codacy's quality gate fails a PR on any *new* issue, at any severity, so `.codacy.yaml`
+keeps every analyser that misreads test code (fake credentials, a subprocess helper,
+`import_module`) out of `tests/`; a new analyser that does the same needs the same
+exclusion before it blocks a PR. Deliberately *not* required: `CodeQL`, which does not report on every PR and would
 sit at "Expected"; `Sourcery review`, skipped on most; and the two `Request reviews` jobs,
 which only ask for reviews. A required check has to be produced by the branch, so a job
 renamed here has to be renamed in the ruleset too, or every PR sits at "Expected".
