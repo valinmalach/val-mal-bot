@@ -15,6 +15,17 @@ engines:
       # Every Verity reconcile adds a blank line after its preserve marker (MD012), and
       # Codacy's markdownlint does not read .markdownlint.jsonc, where MD012 is off.
       - "CLAUDE.md"
+  prospector:
+    exclude_paths:
+      # dodgy reads the fake credentials in tests/credentials.py as secrets; Ruff's F and
+      # C90 cover pyflakes and mccabe over tests.
+      - "tests/**"
+  opengrep:
+    exclude_paths:
+      # A test imports every cog by name and runs the interpreter in a subprocess, which
+      # the security audit rules cannot tell from untrusted input. The key is opengrep,
+      # not the tool id Semgrep, per Codacy's configuration-file docs.
+      - "tests/**"
   pylintpython3:
     exclude_paths:
       # Pylint does not narrow through isinstance, so a fake raising a stored answer
