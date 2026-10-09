@@ -193,7 +193,13 @@ bypasses it, force-pushes or deletes the branch.
 Codacy's quality gate fails a PR on any *new* issue, at any severity, so `.codacy.yaml`
 keeps every analyser that misreads test code (fake credentials, a subprocess helper,
 `import_module`) out of `tests/`; a new analyser that does the same needs the same
-exclusion before it blocks a PR. Deliberately *not* required: `CodeQL`, which does not report on every PR and would
+exclusion before it blocks a PR. One pattern is disabled in Codacy's settings, not the tree:
+Opengrep's `Semgrep_codacy.yaml.security.hard-coded-tokens`, which matches a key's name
+rather than its value, so it flagged `access_token: str` annotations, token budgets and
+CI's `DISCORD_TOKEN: unused` and never a secret; Trivy, Checkov, dodgy and the
+value-matching gitleaks rules still look for real ones.
+
+Deliberately *not* required: `CodeQL`, which does not report on every PR and would
 sit at "Expected"; `Sourcery review`, skipped on most; and the two `Request reviews` jobs,
 which only ask for reviews. A required check has to be produced by the branch, so a job
 renamed here has to be renamed in the ruleset too, or every PR sits at "Expected".
