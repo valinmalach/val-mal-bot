@@ -9,8 +9,8 @@ With `aiodns` installed, aiohttp's `DefaultResolver` becomes `AsyncResolver`
 `loop.getaddrinfo`. The idea was that this takes the DNS threads out of the
 process and saves memory.
 
-It cannot, because those threads are not aiohttp's. `uvicorn[standard]`
-installs uvloop, and `main.py` leaves uvicorn's `loop` at its default, so the
+It cannot, because those threads are not aiohttp's. `pyproject.toml`
+installs uvloop on Linux, and `main.py` leaves uvicorn's `loop` at its default, so the
 bot runs on uvloop. Under uvloop, `loop.getaddrinfo` runs on libuv's thread
 pool: four threads by default (`UV_THREADPOOL_SIZE`, which nothing here sets),
 started together on first use, alive for the life of the process. Production
