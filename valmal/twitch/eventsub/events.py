@@ -154,6 +154,8 @@ async def channel_chat_message(event_sub: ChannelChatMessageEventSub) -> None:
         # people turn up by saying something ordinary.
         await autoshoutout.chatted(event_sub)
 
+        # The raw text, on purpose: stripping invisible characters first would make
+        # a disguised line a command. Arguments are cleaned where they reach chat.
         if not event_sub.event.message.text.startswith("!"):
             return
         text_without_prefix = event_sub.event.message.text[1:]
