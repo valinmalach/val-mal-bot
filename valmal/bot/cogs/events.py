@@ -93,7 +93,11 @@ class Events(Cog):
             return
 
         with self._may_store(message.id):
-            reply = config.auto_response(message.content)
+            # Not to another bot: two with overlapping triggers would answer each
+            # other for ever. Its message is still stored, as anyone's is.
+            reply = (
+                None if message.author.bot else config.auto_response(message.content)
+            )
             if reply is None:
                 await self._store_message(message)
                 return

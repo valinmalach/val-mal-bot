@@ -47,12 +47,16 @@ class TestOnMessage:
         assert ev.stored == []
         made.channel.send.assert_not_awaited()
 
-    async def test_another_bots_message_is_treated_like_anyones(
+    async def test_another_bots_message_is_stored_but_never_answered(
         self, ev: EventsWorld
     ) -> None:
-        await cog(ev).on_message(sent(author=person(id=2)))
+        made = sent(author=person(id=2, bot=True))
+        ev.reply = "pong"
+
+        await cog(ev).on_message(made)
 
         assert len(ev.stored) == 1
+        made.channel.send.assert_not_awaited()
 
     async def test_a_matching_auto_response_is_sent_to_the_same_channel(
         self, ev: EventsWorld
