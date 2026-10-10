@@ -117,6 +117,35 @@ class TestSendMessage:
     ) -> None:
         assert await send.send_message("hello", 99) is None
 
+    @pytest.mark.parametrize("content", ["", "  "])
+    async def test_blank_text_sends_nothing_and_looks_nothing_up(
+        self, content: str, world: Discord, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A missing template renders as "", which Discord would refuse."""
+        channel = world.text_channel()
+        looked_up: list[int] = []
+
+        def get_channel(channel_id: int) -> Any:
+            looked_up.append(channel_id)
+            return world.channels.get(channel_id)
+
+        monkeypatch.setattr(send.bot, "get_channel", get_channel)
+
+        assert await send.send_message(content, 10) is None
+
+        channel.send.assert_not_awaited()
+        assert not looked_up
+        assert world.notified == []
+
+    async def test_blank_text_with_a_file_still_sends_the_file(
+        self, world: Discord
+    ) -> None:
+        channel = world.text_channel()
+
+        await send.send_message("", 10, file=MagicMock(spec=discord.File))
+
+        channel.send.assert_awaited_once()
+
     async def test_a_file_goes_with_it(self, world: Discord) -> None:
         channel = world.text_channel()
         attachment = MagicMock(spec=discord.File)
@@ -141,6 +170,14 @@ class TestSendMessage:
         await send.send_message("hello", 10, allowed_mentions=none)
 
         assert channel.send.await_args.kwargs["allowed_mentions"] is none
+
+    async def test_pings_nobody_unless_told_who(self, world: Discord) -> None:
+        channel = world.text_channel()
+
+        await send.send_message("<@1> <@&2> @everyone", 10)
+
+        mentions = channel.send.await_args.kwargs["allowed_mentions"]
+        assert mentions.to_dict() == {"parse": []}
 
     async def test_quiet_reaches_the_lookup(self, world: Discord) -> None:
         await send.send_message("hello", 99, quiet=True)
@@ -167,7 +204,29 @@ class TestSendEmbed:
 
         assert await send.send_embed(embed, 10, content="hi") == 555
 
-        assert channel.send.await_args.kwargs == {"content": "hi", "embed": embed}
+        assert channel.send.await_args.kwargs["content"] == "hi"
+        assert channel.send.await_args.kwargs["embed"] is embed
+
+    @pytest.mark.parametrize("view", [None, discord.ui.View()])
+    async def test_pings_nobody_unless_told_who(
+        self, view: discord.ui.View | None, world: Discord
+    ) -> None:
+        channel = world.text_channel()
+
+        await send.send_embed(discord.Embed(), 10, view=view, content="<@&1>")
+
+        mentions = channel.send.await_args.kwargs["allowed_mentions"]
+        assert mentions.to_dict() == {"parse": []}
+
+    async def test_is_given_the_mentions_its_caller_allows(
+        self, world: Discord
+    ) -> None:
+        channel = world.text_channel()
+        allowed = discord.AllowedMentions(roles=True)
+
+        await send.send_embed(discord.Embed(), 10, allowed_mentions=allowed)
+
+        assert channel.send.await_args.kwargs["allowed_mentions"] is allowed
 
     async def test_a_view_is_included_only_when_given(self, world: Discord) -> None:
         channel = world.text_channel()

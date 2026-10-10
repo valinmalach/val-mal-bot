@@ -76,7 +76,7 @@ class Moderation(Cog):
     @app_commands.commands.default_permissions(administrator=True)
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.describe(
-        count="How many messages to delete (max 500; bulk deletes use batches of up to 100; messages older than 14 days are skipped)",
+        count="How many messages to delete (max 500); any older than 14 days go one at a time, which is slower",
     )
     async def purge(
         self,

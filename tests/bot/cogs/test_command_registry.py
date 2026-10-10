@@ -102,7 +102,8 @@ class TestEveryCommand:
     ) -> None:
         assert re.fullmatch(r"[-_a-z0-9]{1,32}", command.name), command.name
         assert 1 <= len(command.description) <= 100
-        assert command.description != "…"
+        # discord.py cuts a longer one to 100 and ends it with this.
+        assert not command.description.endswith("…")
 
     @pytest.mark.parametrize(
         ("cog", "command"), commands(), ids=lambda v: getattr(v, "name", v)
@@ -111,7 +112,10 @@ class TestEveryCommand:
         self, cog: str, command: app_commands.Command[Any, ..., Any]
     ) -> None:
         for parameter in command.parameters:
-            assert parameter.description != "…", (command.name, parameter.name)
+            assert not parameter.description.endswith("…"), (
+                command.name,
+                parameter.name,
+            )
 
 
 class TestAdminCommandsAreEnforcedNotJustHinted:

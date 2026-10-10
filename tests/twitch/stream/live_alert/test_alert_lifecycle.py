@@ -28,6 +28,11 @@ class TestAnnounce:
         (sent,) = alert_world.sent
         assert sent["channel_id"] == 5001
         assert sent["content"] == "<@&777>"
+        # The role ping, and nothing a template could add beside it.
+        assert sent["allowed_mentions"].to_dict() == {
+            "parse": ["roles"],
+            "replied_user": True,
+        }
         assert sent["embed"].description.endswith("(https://www.twitch.tv/valinmalach)")
         (button,) = sent["view"].children
         assert button.url == "https://www.twitch.tv/valinmalach"

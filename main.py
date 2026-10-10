@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import signal
 import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -29,6 +30,9 @@ logging.basicConfig(level=logging.INFO, handlers=[_handler])
 gateway_log.install()
 logger = logging.getLogger(__name__)
 
+# Set once the bot has stopped by itself, so the script exits as failed.
+_bot_stopped = False
+
 
 async def _report_failed_extensions(failures: list[tuple[str, Exception]]) -> None:
     """Report a cog that would not load, once the admin channel can be reached.
@@ -42,6 +46,7 @@ async def _report_failed_extensions(failures: list[tuple[str, Exception]]) -> No
 
 
 async def main() -> None:
+    global _bot_stopped
     try:
         bot.remove_command("help")
         results = await asyncio.gather(
@@ -59,6 +64,14 @@ async def main() -> None:
         await bot.start(settings.active_discord_token)
     except Exception as e:  # noqa: BLE001
         await report(e, "Unhandled exception in main")
+    else:
+        # The one way out with nothing reported yet.
+        logger.error("The Discord bot stopped, so the process is stopping")
+    # A shutdown cancels this task, so here the bot has stopped by itself. The
+    # signal stops the server too, and the script then exits as failed, which
+    # Railway restarts, rather than serving on with no bot.
+    _bot_stopped = True
+    signal.raise_signal(signal.SIGTERM)
 
 
 @asynccontextmanager
@@ -87,7 +100,8 @@ app = Starlette(
 )
 
 
-if __name__ == "__main__":
+def _serve() -> None:
+    """Run the server, and exit as failed if the bot stopped by itself meanwhile."""
     import uvicorn
 
     uvicorn.run(
@@ -102,3 +116,11 @@ if __name__ == "__main__":
         # Nothing here serves a websocket; "auto" imports the whole stack anyway.
         ws="none",
     )
+    # uvicorn re-raises the SIGTERM after shutting down, but as PID 1 in a container
+    # a signal left at its default does nothing, and the script would end with 0.
+    if _bot_stopped:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    _serve()

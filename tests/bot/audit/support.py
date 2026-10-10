@@ -50,9 +50,11 @@ def person(
     name: str = "val_mal",
     discriminator: str = "0",
     avatar: str | None = AVATAR,
+    bot: bool = False,
 ) -> Any:
     who = MagicMock(spec=kind)
     who.id = id
+    who.bot = bot
     who.name = name
     who.discriminator = discriminator
     who.mention = f"<@{id}>"

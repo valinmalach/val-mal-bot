@@ -44,10 +44,15 @@ async def send_message(
 ) -> int | None:
     # quiet is for valmal/core/errors.py alone: announcing an unreachable admin channel
     # through the admin channel does not terminate.
+    if not content.strip() and file is None:
+        # A missing message_template renders as "". config.template has already
+        # named the row; sending it would only add a 400 from Discord on top.
+        return None
     channel = await _sendable(channel_id, quiet)
     if channel is None:
         return None
-    mentions = allowed_mentions or discord.AllowedMentions()
+    # Nobody unless the caller names who: a ping is the one thing a send cannot take back.
+    mentions = allowed_mentions or discord.AllowedMentions.none()
     if file:
         return (await channel.send(content, file=file, allowed_mentions=mentions)).id
     return (await channel.send(content, allowed_mentions=mentions)).id
@@ -58,13 +63,21 @@ async def send_embed(
     channel_id: int,
     view: View | None = None,
     content: str | None = None,
+    allowed_mentions: discord.AllowedMentions | None = None,
 ) -> int | None:
     channel = await _sendable(channel_id, quiet=False)
     if channel is None:
         return None
+    mentions = allowed_mentions or discord.AllowedMentions.none()
     if view:
-        return (await channel.send(content=content, embed=embed, view=view)).id
-    return (await channel.send(content=content, embed=embed)).id
+        return (
+            await channel.send(
+                content=content, embed=embed, view=view, allowed_mentions=mentions
+            )
+        ).id
+    return (
+        await channel.send(content=content, embed=embed, allowed_mentions=mentions)
+    ).id
 
 
 async def edit_embed(

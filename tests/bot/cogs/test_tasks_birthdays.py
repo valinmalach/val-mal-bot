@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
+import discord
 import pendulum
 import pytest
 
@@ -42,7 +43,8 @@ class World:
         self.notified: list[tuple[str, str | None]] = []
         self.reported: list[str] = []
         self.sent: list[tuple[str, int]] = []
-        self.users: dict[int, Any] = {7: SimpleNamespace(mention="<@7>")}
+        self.mentions: list[discord.AllowedMentions] = []
+        self.users: dict[int, Any] = {7: SimpleNamespace(id=7, mention="<@7>")}
 
 
 @pytest.fixture
@@ -69,9 +71,12 @@ def world(monkeypatch: pytest.MonkeyPatch) -> World:
     async def report(exc: Exception, context: str, **_: object) -> None:
         world.reported.append(context)
 
-    async def send_message(text: str, channel_id: int) -> int:
+    async def send_message(
+        text: str, channel_id: int, *, allowed_mentions: discord.AllowedMentions
+    ) -> int:
         world.order.append("send")
         world.sent.append((text, channel_id))
+        world.mentions.append(allowed_mentions)
         return 1
 
     monkeypatch.setattr(tasks.repository, "users_due_birthday", users_due_birthday)
@@ -107,6 +112,12 @@ class TestAnnouncing:
         await cog(world)._announce_birthday(record())
 
         assert world.sent == [("Happy birthday <@7>!", 8080)]
+
+    async def test_pings_only_the_person_it_greets(self, world: World) -> None:
+        await cog(world)._announce_birthday(record())
+
+        (mentions,) = world.mentions
+        assert mentions.to_dict() == {"parse": [], "users": [7], "replied_user": True}
 
     async def test_someone_the_cache_does_not_hold_is_logged_and_told_to_the_admins(
         self, world: World, caplog: pytest.LogCaptureFixture
@@ -290,7 +301,7 @@ class TestProcessingEveryDueBirthday:
     async def test_one_that_fails_does_not_stop_the_rest(
         self, world: World, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        world.users |= {n: SimpleNamespace(mention=f"<@{n}>") for n in (1, 2, 3)}
+        world.users |= {n: SimpleNamespace(id=n, mention=f"<@{n}>") for n in (1, 2, 3)}
         original = tasks.repository.upsert_user
 
         async def flaky(user_id: int, *args: Any) -> None:

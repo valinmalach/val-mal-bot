@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable, Coroutine
 from types import SimpleNamespace
 from typing import Any
@@ -34,6 +35,8 @@ class Guild:
         self.me = MagicMock(spec=discord.Member)
         self.me.guild_permissions.manage_roles = True
         self.guild.me = self.me
+        self.guild.fetch_member = AsyncMock(return_value=self.member)
+        self.member.guild = self.guild
         self.members: dict[int, Any] = {USER: self.member}
         self.roles: dict[int, Any] = {ROLE: self.role}
         self.fired: list[Coroutine[Any, Any, None]] = []
@@ -213,6 +216,50 @@ class TestToggleRole:
 
         world.member.remove_roles.assert_awaited_once_with(world.role)
         world.member.add_roles.assert_not_awaited()
+
+    async def test_a_quick_second_press_undoes_the_first(self, world: Guild) -> None:
+        """The cached member still shows the role as it was before the first press."""
+        fresh = MagicMock(spec=discord.Member, id=USER)
+        fresh.get_role = world.held_role
+
+        async def add_roles(role: object) -> None:
+            await asyncio.sleep(0)
+            world.holds = True
+
+        async def remove_roles(role: object) -> None:
+            await asyncio.sleep(0)
+            world.holds = False
+
+        async def fetch_member(user_id: int) -> Any:
+            await asyncio.sleep(0)
+            return fresh
+
+        def stale(role_id: int) -> None:
+            return None
+
+        fresh.add_roles, fresh.remove_roles = add_roles, remove_roles
+        world.member.get_role = stale
+        assert world.guild is not None
+        world.guild.fetch_member = fetch_member
+
+        first, second = await asyncio.gather(
+            roles.toggle_role(GUILD, USER, "role_member"),
+            roles.toggle_role(GUILD, USER, "role_member"),
+        )
+
+        assert (first, second) == ((True, world.role), (False, world.role))
+        assert world.holds is False
+
+    async def test_a_member_who_left_meanwhile_is_reported(self, world: Guild) -> None:
+        gone = discord.NotFound(MagicMock(status=404, reason="x"), "Unknown Member")
+        assert world.guild is not None
+        world.guild.fetch_member.side_effect = gone
+
+        assert await roles.toggle_role(GUILD, USER, "role_member") is None
+
+        (pending,) = world.fired
+        await pending
+        assert world.reported == [(gone, f"Failed to toggle role id {ROLE}")]
 
     async def test_nothing_resolvable_is_none_and_touches_no_roles(
         self, world: Guild

@@ -245,8 +245,8 @@ everything for it, rather than one directory per kind of file:
   for Alembic and the tests only). Alembic's revisions are `migrations/`, at the root.
 - `valmal/bot/` — Discord: `client` (the bot and its gateway handlers), `cogs/`, `views`,
   and what says something in a channel: `audit`, `send`, `present`, `roles`,
-  `birthday` and `duration`; `gateway_log` lifts discord.py's reconnect reasons into the
-  logs.
+  `birthday` and `duration`; `deleters` reads who deleted a message back from the audit
+  log; `gateway_log` lifts discord.py's reconnect reasons into the logs.
 - `valmal/twitch/` — Twitch: `models/` (Pydantic payloads), `client/` (Helix, chat and subscription health),
   `oauth/` (the grant flow, its routes and the stored tokens), `eventsub/` (the signed
   webhook route, its replay protection, what each event makes the bot do, chat
@@ -285,7 +285,10 @@ is not the entrypoint: the lifespan handler starts `main()` as a background task
 which loads `COGS` (`valmal/bot/cogs/__init__.py`) and calls `bot.start()`. Twitch never connects to the
 bot — it delivers EventSub webhooks over HTTP to the router in `valmal/twitch/eventsub/router.py`,
 which verifies and parses them and hands each to `valmal/twitch/eventsub/events.py`.
-Stop the web server and the bot goes with it.
+Stop the web server and the bot goes with it, and the other way round: a bot that
+stops by itself raises SIGTERM to stop the server, and the script then exits 1 for
+Railway to restart. The explicit exit matters: as PID 1 in a container, the SIGTERM
+uvicorn re-raises after shutting down is ignored, and the script would end with 0.
 
 **Startup order is spread across three files.** lifespan (`main.py`) → cog loading →
 `MyBot.setup_hook()` (`valmal/bot/client.py`: `config.load()`, `token_manager.load()`,
@@ -613,6 +616,10 @@ itself. An author line and a footer are plain text to Discord and are left alone
   new accessor over stored text must render before it returns, as these do. An
   auto-response goes out with `AllowedMentions.none()`, because anyone can trigger
   one and a rendered `{role:key}` in a message would otherwise ping the role.
+- **`send_message` and `send_embed` ping nobody unless the caller says who.** The
+  birthday greeting allows its one user and the live alert roles. An
+  `AllowedMentions` turns on every field it is not given, so switch off the rest:
+  `AllowedMentions(users=[user])` still pings `@everyone`.
 - **Twitch chat never carries those two placeholders, on purpose.** It cannot show
   a Discord mention, so no Twitch row may hold `{channel:key}` or `{role:key}`; the
   values a chat line does fill are `{chatter}`, `{target}` and `{broadcaster}`. A

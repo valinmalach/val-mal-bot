@@ -201,10 +201,21 @@ class AlertWorld:
         return list(self.rows)
 
     async def send_embed(
-        self, embed: Any, channel_id: int, view: Any = None, content: str | None = None
+        self,
+        embed: Any,
+        channel_id: int,
+        view: Any = None,
+        content: str | None = None,
+        allowed_mentions: Any = None,
     ) -> int | None:
         self.sent.append(
-            {"embed": embed, "channel_id": channel_id, "view": view, "content": content}
+            {
+                "embed": embed,
+                "channel_id": channel_id,
+                "view": view,
+                "content": content,
+                "allowed_mentions": allowed_mentions,
+            }
         )
         return self.message_id
 
