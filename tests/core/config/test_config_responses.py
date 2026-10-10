@@ -45,6 +45,16 @@ class TestAutoResponse:
         assert cache.auto_response("a ping") is None
         assert cache.auto_response("") is None
 
+    @pytest.mark.parametrize("response", ["", "  "])
+    async def test_a_blank_response_is_no_reply_and_says_so(
+        self, response: str, load: Any, notices: Notices
+    ) -> None:
+        """Discord refuses a blank message, so sending it would only fail."""
+        cache = await load(self.row("ping", response))
+
+        assert cache.auto_response("ping") is None
+        assert [key for _, key in notices] == ["auto-response-blank:ping"]
+
     async def test_prefix_matches_the_start(self, load: Any) -> None:
         cache = await load(self.row("!rules", "the rules", AutoResponseMatch.PREFIX))
 

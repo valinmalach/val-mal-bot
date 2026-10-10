@@ -261,9 +261,18 @@ class ConfigCache:
                 )
                 or (row.match_type is AutoResponseMatch.CONTAINS and trigger in subject)
             ):
-                return self.render(
+                text = self.render(
                     row.response, source=f"discord_auto_response:{row.trigger}"
                 )
+                if text.strip():
+                    return text
+                # Discord refuses a blank message, so the reply would only fail.
+                notify_soon(
+                    f"discord_auto_response {row.trigger!r} has a blank response,"
+                    " so nothing was sent.",
+                    key=f"auto-response-blank:{row.trigger}",
+                )
+                return None
         return None
 
     def command(self, name: str) -> TwitchCommand | None:
