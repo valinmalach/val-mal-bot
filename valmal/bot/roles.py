@@ -1,5 +1,8 @@
 """Giving and taking a Discord role from the roles panel."""
 
+import asyncio
+from weakref import WeakValueDictionary
+
 import discord
 from discord import Guild, Interaction, Member, Role
 from discord.ui import Button, View
@@ -8,6 +11,11 @@ from valmal.bot.client import bot
 from valmal.core.background import fire_and_forget
 from valmal.core.config import config
 from valmal.core.errors import notify, report
+
+# One change at a time per member and role, read fresh: the cached member catches up
+# only when the gateway's update arrives, so a quick second press saw the role as it
+# was and toggled it the same way again.
+_toggling: WeakValueDictionary[tuple[int, int], asyncio.Lock] = WeakValueDictionary()
 
 
 def _unmanageable(guild: Guild, role: Role) -> str | None:
@@ -75,12 +83,15 @@ async def toggle_role(
     if not member or not role:
         return None
 
+    lock = _toggling.setdefault((member.id, role.id), asyncio.Lock())
     try:
-        if member.get_role(role.id) is None:
-            await member.add_roles(role)
-            return True, role
-        await member.remove_roles(role)
-        return False, role
+        async with lock:
+            current = await member.guild.fetch_member(member.id)
+            if current.get_role(role.id) is None:
+                await current.add_roles(role)
+                return True, role
+            await current.remove_roles(role)
+            return False, role
     except discord.HTTPException as e:
         # Fired for the same reason as the notices above.
         fire_and_forget(
