@@ -6,9 +6,10 @@ import pendulum
 from pendulum import DateTime
 
 # Exactly what gets through: pendulum takes a space for the T and would accept
-# it, and rejects a lowercase t or z, so neither belongs in the shape.
+# it, and rejects a lowercase t or z, so neither belongs in the shape. ASCII,
+# because pendulum's pure-Python parser (3.15 has no Rust wheel) takes any digit.
 _RFC3339 = re.compile(
-    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})"
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})", re.ASCII
 )
 
 
