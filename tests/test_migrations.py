@@ -22,7 +22,7 @@ REVISIONS = sorted((ROOT / "migrations" / "versions").glob("*.py"))
 # .claude (each a whole copy of the repo), none of which read configuration.
 NOT_SOURCE = {".venv", "tests", "migrations", ".verity", ".codacy", ".claude", "docs"}
 # Keys are these shapes; a literal of another shape is not a configuration row.
-KEY_SHAPE = re.compile(r"^(audit|admin|birthday|discord|stream|twitch|embed)_[a-z_]+$")
+KEY_SHAPE = re.compile(r"(audit|admin|birthday|discord|stream|twitch|embed)_[a-z_]+")
 # Table and column names have the same shape and are seeded by nothing.
 SCHEMA_NAMES = set(metadata.tables) | {
     column.name for table in metadata.tables.values() for column in table.columns
@@ -39,7 +39,7 @@ def keys_read_by(root: Path) -> dict[str, set[str]]:
             if (
                 isinstance(node, ast.Constant)
                 and isinstance(node.value, str)
-                and KEY_SHAPE.match(node.value)
+                and KEY_SHAPE.fullmatch(node.value)
                 and node.value not in SCHEMA_NAMES
                 and not node.value.endswith("_router")
             ):
