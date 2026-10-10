@@ -169,7 +169,7 @@ class TestPurge:
     async def test_the_count_reported_is_what_was_deleted_not_what_was_asked(
         self,
     ) -> None:
-        """Messages older than 14 days are skipped by bulk delete."""
+        """A channel can hold fewer messages than were asked for."""
         channel = Channel()
         channel.deleted = [object()]
         said = Said(channel)
