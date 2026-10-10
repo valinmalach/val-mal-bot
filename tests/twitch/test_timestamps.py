@@ -5,8 +5,8 @@ from valmal.twitch.timestamps import parse_rfc3339
 
 
 def _arabic_indic(text: str) -> str:
-    """The same text in non-ASCII digits: the shape regex's digit class matches
-    them, so only pendulum stands between them and a parsed timestamp."""
+    """The same text in non-ASCII digits, which pendulum's pure-Python parser
+    accepts, so only the shape regex stands between them and a parsed timestamp."""
     return "".join(chr(0x0660 + int(c)) if c.isdigit() else c for c in text)
 
 
