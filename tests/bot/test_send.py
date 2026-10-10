@@ -117,6 +117,27 @@ class TestSendMessage:
     ) -> None:
         assert await send.send_message("hello", 99) is None
 
+    @pytest.mark.parametrize("content", ["", "  "])
+    async def test_blank_text_sends_nothing_and_looks_nothing_up(
+        self, content: str, world: Discord
+    ) -> None:
+        """A missing template renders as "", which Discord would refuse."""
+        channel = world.text_channel()
+
+        assert await send.send_message(content, 10) is None
+
+        channel.send.assert_not_awaited()
+        assert world.notified == []
+
+    async def test_blank_text_with_a_file_still_sends_the_file(
+        self, world: Discord
+    ) -> None:
+        channel = world.text_channel()
+
+        await send.send_message("", 10, file=MagicMock(spec=discord.File))
+
+        channel.send.assert_awaited_once()
+
     async def test_a_file_goes_with_it(self, world: Discord) -> None:
         channel = world.text_channel()
         attachment = MagicMock(spec=discord.File)

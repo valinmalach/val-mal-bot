@@ -44,6 +44,10 @@ async def send_message(
 ) -> int | None:
     # quiet is for valmal/core/errors.py alone: announcing an unreachable admin channel
     # through the admin channel does not terminate.
+    if not content.strip() and file is None:
+        # A missing message_template renders as "". config.template has already
+        # named the row; sending it would only add a 400 from Discord on top.
+        return None
     channel = await _sendable(channel_id, quiet)
     if channel is None:
         return None
