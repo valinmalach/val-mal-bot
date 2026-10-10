@@ -100,7 +100,8 @@ app = Starlette(
 )
 
 
-if __name__ == "__main__":
+def _serve() -> None:
+    """Run the server, and exit as failed if the bot stopped by itself meanwhile."""
     import uvicorn
 
     uvicorn.run(
@@ -119,3 +120,7 @@ if __name__ == "__main__":
     # a signal left at its default does nothing, and the script would end with 0.
     if _bot_stopped:
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    _serve()

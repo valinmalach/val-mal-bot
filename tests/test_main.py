@@ -314,6 +314,40 @@ class TestRoutes:
         assert entry.app.router.lifespan_context is not None
 
 
+class TestServe:
+    @pytest.fixture
+    def served(self, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+        import uvicorn
+
+        ran: list[str] = []
+
+        def run(app: object, **kwargs: object) -> None:
+            ran.append(type(app).__name__)
+
+        monkeypatch.setattr(uvicorn, "run", run)
+        return ran
+
+    def test_a_stopped_bot_exits_as_failed_once_the_server_is_down(
+        self, entry: ModuleType, served: list[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """As PID 1 the re-raised SIGTERM does nothing, so this is the failed exit."""
+        monkeypatch.setattr(entry, "_bot_stopped", True)
+
+        with pytest.raises(SystemExit) as exited:
+            entry._serve()
+
+        assert (served, exited.value.code) == (["Starlette"], 1)
+
+    def test_a_server_stopped_for_any_other_reason_just_returns(
+        self, entry: ModuleType, served: list[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(entry, "_bot_stopped", False)
+
+        entry._serve()
+
+        assert served == ["Starlette"]
+
+
 class TestTheLogHandler:
     def test_the_formatter_is_the_shared_one(self, entry: ModuleType) -> None:
         assert isinstance(entry._handler.formatter, JsonFormatter)
