@@ -104,9 +104,11 @@ async def stream_online(event_sub: StreamOnlineEventSub) -> None:
             )
             user_info = None
 
-        is_main = stream_info.user_login == config.setting("broadcaster_username")
+        # By id, as the session decides it: a login changes when they rename.
         channel = (
-            config.channel("stream_alerts") if is_main else config.channel("promo")
+            config.channel("stream_alerts")
+            if stream_session.is_main_broadcaster(broadcaster_id)
+            else config.channel("promo")
         )
 
         # began does not raise: it guards each of its own chat lines, because

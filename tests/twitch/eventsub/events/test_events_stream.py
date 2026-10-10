@@ -132,6 +132,15 @@ class TestStreamOnline:
         assert args[0] == 111
         assert args[3] == 5001
 
+    async def test_the_main_broadcaster_is_known_by_id_after_a_rename(
+        self, world: EventWorld
+    ) -> None:
+        world.stream_answers = [live("renamed")]
+
+        await events.stream_online(online())
+
+        assert world.calls[1][1][3] == 5001
+
     async def test_anyone_elses_stream_is_announced_in_the_promo_channel(
         self, world: EventWorld
     ) -> None:
