@@ -7,7 +7,7 @@ the next restart. Accessors are synchronous because most call sites are not asyn
 import json
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
@@ -55,18 +55,20 @@ class RenderedEmbed:
 
 
 class ConfigCache:
+    # Read-only once loaded: a snapshot, and command_responses() hands its
+    # sequences straight to callers.
     def __init__(self) -> None:
-        self._channels: dict[str, int] = {}
-        self._roles: dict[str, DiscordRole] = {}
-        self._roles_by_custom_id: dict[str, DiscordRole] = {}
-        self._settings: dict[str, Any] = {}
-        self._templates: dict[str, str] = {}
-        self._embeds: dict[str, DiscordEmbed] = {}
-        self._embed_fields: dict[str, list[DiscordEmbedField]] = {}
-        self._auto_responses: list[DiscordAutoResponse] = []
-        self._commands: dict[str, TwitchCommand] = {}
-        self._command_responses: dict[str, list[str]] = {}
-        self._command_components: dict[str, list[str]] = {}
+        self._channels: Mapping[str, int] = frozendict()
+        self._roles: Mapping[str, DiscordRole] = frozendict()
+        self._roles_by_custom_id: Mapping[str, DiscordRole] = frozendict()
+        self._settings: Mapping[str, Any] = frozendict()
+        self._templates: Mapping[str, str] = frozendict()
+        self._embeds: Mapping[str, DiscordEmbed] = frozendict()
+        self._embed_fields: Mapping[str, tuple[DiscordEmbedField, ...]] = frozendict()
+        self._auto_responses: tuple[DiscordAutoResponse, ...] = ()
+        self._commands: Mapping[str, TwitchCommand] = frozendict()
+        self._command_responses: Mapping[str, tuple[str, ...]] = frozendict()
+        self._command_components: Mapping[str, tuple[str, ...]] = frozendict()
         self._loaded = False
 
     @property
@@ -81,35 +83,32 @@ class ConfigCache:
         autos, commands = loaded.auto_responses, loaded.commands
         responses, components = loaded.command_responses, loaded.command_components
 
-        self._channels = {c.key: c.channel_id for c in channels}
-        self._roles = {r.key: r for r in roles}
-        self._roles_by_custom_id = {r.custom_id: r for r in roles if r.custom_id}
-        self._settings = {s.key: _coerce(s) for s in settings}
-        self._templates = {t.key: t.content for t in templates}
-        self._embeds = {e.key: e for e in embeds}
-
-        self._embed_fields = {}
-        for field in sorted(fields, key=lambda f: f.position):
-            self._embed_fields.setdefault(field.embed_key, []).append(field)
+        self._channels = _frozen({c.key: c.channel_id for c in channels})
+        self._roles = _frozen({r.key: r for r in roles})
+        self._roles_by_custom_id = _frozen(
+            {r.custom_id: r for r in roles if r.custom_id}
+        )
+        self._settings = _frozen({s.key: _coerce(s) for s in settings})
+        self._templates = _frozen({t.key: t.content for t in templates})
+        self._embeds = _frozen({e.key: e for e in embeds})
+        self._embed_fields = _grouped(
+            (f.embed_key, f) for f in sorted(fields, key=lambda f: f.position)
+        )
 
         # By id: the first match wins, and without an ORDER BY an UPDATE can move a
         # row, changing which of two overlapping replies fires.
-        self._auto_responses = [
+        self._auto_responses = tuple(
             a for a in sorted(autos, key=lambda a: a.id) if a.enabled
-        ]
-        self._commands = {c.name: c for c in commands if c.enabled}
-
-        self._command_responses = {}
-        for response in sorted(responses, key=lambda r: r.position):
-            self._command_responses.setdefault(response.command_name, []).append(
-                response.message
-            )
-
-        self._command_components = {}
-        for component in sorted(components, key=lambda c: c.position):
-            self._command_components.setdefault(component.parent_name, []).append(
-                component.child_name
-            )
+        )
+        self._commands = _frozen({c.name: c for c in commands if c.enabled})
+        self._command_responses = _grouped(
+            (r.command_name, r.message)
+            for r in sorted(responses, key=lambda r: r.position)
+        )
+        self._command_components = _grouped(
+            (c.parent_name, c.child_name)
+            for c in sorted(components, key=lambda c: c.position)
+        )
 
         self._loaded = True
         logger.info(
@@ -204,7 +203,7 @@ class ConfigCache:
             return None
         source = f"discord_embed:{key}"
         fields: list[RenderedField] = []
-        for field in self._embed_fields.get(key, []):
+        for field in self._embed_fields.get(key, ()):
             field_source = f"discord_embed_field:{key}:{field.position}"
             fields.append(
                 RenderedField(
@@ -278,11 +277,32 @@ class ConfigCache:
     def command(self, name: str) -> TwitchCommand | None:
         return self._commands.get(name)
 
-    def command_responses(self, name: str) -> list[str]:
-        return self._command_responses.get(name, [])
+    def command_responses(self, name: str) -> tuple[str, ...]:
+        return self._command_responses.get(name, ())
 
-    def command_components(self, name: str) -> list[str]:
-        return self._command_components.get(name, [])
+    def command_components(self, name: str) -> tuple[str, ...]:
+        return self._command_components.get(name, ())
+
+
+# Not PEP 695 parameter lists, hence the UP047s below: Sourcery silently skips its
+# custom rules in a file that has one (see AGENTS.md).
+_K = TypeVar("_K")
+_V = TypeVar("_V")
+
+
+def _grouped(pairs: Iterable[tuple[_K, _V]]) -> Mapping[_K, tuple[_V, ...]]:  # noqa: UP047
+    """Each value under its key, in the order the pairs arrive."""
+    grouped: dict[_K, list[_V]] = {}
+    for key, value in pairs:
+        grouped.setdefault(key, []).append(value)
+    return _frozen({key: tuple(values) for key, values in grouped.items()})
+
+
+def _frozen(entries: Mapping[_K, _V]) -> Mapping[_K, _V]:  # noqa: UP047
+    # pyright 1.1.414's bundled stub gives frozendict an __init__ that takes
+    # nothing, so any argument is refused; typeshed has since dropped it.
+    # shortcut: one ignore, here; delete it once a pyright release ships the fix.
+    return frozendict(entries)  # pyright: ignore[reportCallIssue]
 
 
 def _coerce(setting: AppSetting) -> Any:
