@@ -698,6 +698,21 @@ imports every module in a lazy process and touches every name on it; pytest cann
 lazily itself. Leave the `lazy` keyword out of the code: Sourcery is blind to a file that
 holds it. Turning the mode off is the start command without the flag.
 
+**The live bot can be profiled without a restart**, with 3.15's sampling profiler
+(PEP 799), now that nothing is traced. The bot is PID 1 in the container, and the #104
+probe proved the container lets a process attach to it. `railway ssh` needs an SSH key
+registered with Railway (`railway ssh keys add`):
+
+```sh
+railway ssh -- python -m profiling.sampling dump --async-aware 1     # every task's stack, once: a hung bot
+railway ssh -- python -m profiling.sampling attach --async-aware -d 60 1   # 60 s, top functions as text
+railway ssh -- python -m profiling.sampling attach --async-aware -d 300 --flamegraph -o /tmp/flame.html 1
+railway ssh -- cat /tmp/flame.html > flame.html                      # piped, so no PTY mangles it
+```
+
+`--mode wall`, the default, counts time spent awaiting; `--mode cpu` only time on the CPU.
+`--gecko` writes a file for the Firefox Profiler instead. The profiler reads the bot's memory
+from outside, and nothing runs until someone attaches.
 Locally, EventSub cannot reach `localhost`, so stream alerts, follows, raids, ad breaks
 and chat commands never fire without a tunnel in front of it. Outbound Helix calls
 still work.
