@@ -286,7 +286,9 @@ which loads `COGS` (`valmal/bot/cogs/__init__.py`) and calls `bot.start()`. Twit
 bot — it delivers EventSub webhooks over HTTP to the router in `valmal/twitch/eventsub/router.py`,
 which verifies and parses them and hands each to `valmal/twitch/eventsub/events.py`.
 Stop the web server and the bot goes with it, and the other way round: a bot that
-stops by itself raises SIGTERM, so the process exits as failed and Railway restarts it.
+stops by itself raises SIGTERM to stop the server, and the script then exits 1 for
+Railway to restart. The explicit exit matters: as PID 1 in a container, the SIGTERM
+uvicorn re-raises after shutting down is ignored, and the script would end with 0.
 
 **Startup order is spread across three files.** lifespan (`main.py`) → cog loading →
 `MyBot.setup_hook()` (`valmal/bot/client.py`: `config.load()`, `token_manager.load()`,

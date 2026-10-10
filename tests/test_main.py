@@ -91,6 +91,7 @@ def process(entry: ModuleType, monkeypatch: pytest.MonkeyPatch) -> Iterator[Proc
     monkeypatch.setattr(entry, "report", report)
     monkeypatch.setattr(entry, "fire_and_forget", fire_and_forget)
     monkeypatch.setattr(entry.http_client, "aclose", aclose)
+    monkeypatch.setattr(entry, "_bot_stopped", False)
     monkeypatch.setattr(
         entry,
         "signal",
@@ -198,6 +199,7 @@ class TestMain:
 
         assert process.raised == [signal.SIGTERM]
         assert process.order[-2:] == ["start", "signal"]
+        assert entry._bot_stopped is True
 
     @pytest.mark.parametrize(("error", "logged"), [(None, 1), (RuntimeError("x"), 0)])
     async def test_says_it_is_stopping_only_when_nothing_was_reported(
@@ -227,6 +229,7 @@ class TestMain:
             await entry.main()
 
         assert process.raised == []
+        assert entry._bot_stopped is False
 
 
 class TestLifespan:

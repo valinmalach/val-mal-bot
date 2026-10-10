@@ -76,6 +76,22 @@ def how_the_server_starts() -> dict[str, Any]:
     return run_in_a_fresh_process(SERVE)
 
 
+# As SERVE, with the bot having stopped by itself while the server ran.
+STOPPED = """
+import json, runpy, sys
+import uvicorn
+def run(app, **kwargs):
+    sys.modules["__main__"]._bot_stopped = True
+uvicorn.run = run
+try:
+    runpy.run_path("main.py", run_name="__main__")
+except SystemExit as e:
+    print(json.dumps({"exit": e.code}))
+else:
+    print(json.dumps({"exit": None}))
+"""
+
+
 class TestLogging:
     def test_the_root_logger_has_one_handler_writing_json_to_stdout(
         self, logging_of_a_fresh_process: dict[str, Any]
@@ -97,6 +113,11 @@ class TestLogging:
 
 
 class TestRunningItAsAScript:
+    def test_exits_as_failed_once_the_bot_has_stopped_by_itself(self) -> None:
+        """As PID 1 in a container the re-raised SIGTERM does nothing, so this is
+        what makes Railway restart it."""
+        assert run_in_a_fresh_process(STOPPED) == {"exit": 1}
+
     def test_serves_the_app_on_every_interface_at_the_configured_port(
         self, how_the_server_starts: dict[str, Any]
     ) -> None:
