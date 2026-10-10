@@ -544,7 +544,8 @@ itself. An author line and a footer are plain text to Discord and are left alone
   `try` that calls `report`, as `check_birthdays` does.
 - **Deferred imports inside functions** are load-order management, not style:
   `valmal/bot/client.py` and `valmal/bot/views.py` import their collaborators lazily to
-  break cycles. Leave them.
+  break cycles. Leave them: the bot's lazy imports (Deployment) do not reach the tests or
+  Alembic, which import eagerly.
 - **`token_manager` and `shoutout_queue` are singletons** (`__new__`). Import the
   instance; do not construct another.
 - **Everything in the audit channel goes through `valmal/bot/audit.py`.** One entry
@@ -687,6 +688,15 @@ loop logs a `Memory` line at startup and every 30 minutes with the split as keys
 9 MB, and only HTTP-triggered work formed a trace, because discord.py's gateway events and
 the task loops have no span to start one. The admin channel and the JSON logs are how
 problems are found.
+
+**The bot runs with `-X lazy_imports=all` (PEP 810)**, in the start command and nowhere
+else, so a module nothing touches is never loaded: 731 modules at startup became 469 when
+measured locally. Alembic, the first half of that command, stays eager, because importing
+the models is what registers them, and SQLAlchemy's ORM fails lazily anyway. A lazy import
+fails where the name is first used, not at the import, so `tests/test_lazy_imports.py`
+imports every module in a lazy process and touches every name on it; pytest cannot run
+lazily itself. Leave the `lazy` keyword out of the code: Sourcery is blind to a file that
+holds it. Turning the mode off is the start command without the flag.
 
 Locally, EventSub cannot reach `localhost`, so stream alerts, follows, raids, ad breaks
 and chat commands never fire without a tunnel in front of it. Outbound Helix calls

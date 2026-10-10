@@ -18,7 +18,9 @@ def main(ctx: RailwayContext | None = None) -> Project:
     val_mal_bot = service(
         "val-mal-bot",
         source=github("valinmalach/val-mal-bot", branch="master"),
-        start="python -m alembic upgrade head && exec python main.py",
+        # Lazy imports for the bot alone: a module nothing touches is never loaded.
+        # Alembic stays eager, since importing the models is what registers them.
+        start="python -m alembic upgrade head && exec python -X lazy_imports=all main.py",
         # A variable missing here is deleted by the next apply; preserve() keeps
         # the value Railway holds without writing it into the repo.
         env={
