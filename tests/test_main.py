@@ -199,6 +199,22 @@ class TestMain:
         assert process.raised == [signal.SIGTERM]
         assert process.order[-2:] == ["start", "signal"]
 
+    @pytest.mark.parametrize(("error", "logged"), [(None, 1), (RuntimeError("x"), 0)])
+    async def test_says_it_is_stopping_only_when_nothing_was_reported(
+        self,
+        error: Exception | None,
+        logged: int,
+        entry: ModuleType,
+        process: Process,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        process.start_error = error
+
+        await entry.main()
+
+        stopping = [r for r in caplog.records if "process is stopping" in r.message]
+        assert len(stopping) == logged
+
     async def test_a_shutdown_cancelling_the_bot_leaves_the_process_to_it(
         self, entry: ModuleType, monkeypatch: pytest.MonkeyPatch, process: Process
     ) -> None:

@@ -60,10 +60,12 @@ async def main() -> None:
         await bot.start(settings.active_discord_token)
     except Exception as e:  # noqa: BLE001
         await report(e, "Unhandled exception in main")
+    else:
+        # The one way out with nothing reported yet.
+        logger.error("The Discord bot stopped, so the process is stopping")
     # A shutdown cancels this task, so here the bot has stopped by itself. The
     # server stops too, and uvicorn re-raises the signal so the process exits as
     # failed, which Railway restarts, rather than serving on with no bot.
-    logger.error("The Discord bot stopped, so the process is stopping")
     signal.raise_signal(signal.SIGTERM)
 
 
