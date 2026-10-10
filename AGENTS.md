@@ -110,8 +110,6 @@ uv run alembic downgrade -1
 uv run alembic current
 ```
 
-On Windows `--sql` needs `PYTHONIOENCODING=utf-8`: some seeded text is emoji.
-
 Railway service settings — see Deployment below:
 
 ```sh
