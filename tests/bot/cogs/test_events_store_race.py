@@ -175,3 +175,24 @@ class TestTheMarks:
             assert instance._deleted == {9}  # pyright: ignore[reportPrivateUsage]
 
         assert instance._deleted == set()  # pyright: ignore[reportPrivateUsage]
+
+
+class TestAnEditAfterTheDelete:
+    async def test_is_neither_logged_nor_stored(self, ev: EventsWorld) -> None:
+        """A link preview can land after its message is gone."""
+        instance = cog(ev)
+        payload: Any = SimpleNamespace(message=sent(content="new"), cached_message=None)
+
+        await instance.on_raw_message_delete(deletion())
+        await instance.on_raw_message_edit(payload)
+
+        assert ev.stored == [] and ev.calls("message_edited") == []
+
+    async def test_after_a_bulk_delete_too(self, ev: EventsWorld) -> None:
+        instance = cog(ev)
+        payload: Any = SimpleNamespace(message=sent(content="new"), cached_message=None)
+
+        await instance.on_raw_bulk_message_delete(bulk_deletion(9))
+        await instance.on_raw_message_edit(payload)
+
+        assert ev.stored == []

@@ -1,5 +1,5 @@
 import asyncio
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Awaitable, Generator, Iterable
 from contextlib import contextmanager
 
@@ -39,6 +39,10 @@ class Events(Cog):
         # its row back out. Kept only while that handler runs.
         self._storing: Counter[int] = Counter()
         self._deleted: set[int] = set()
+        # An edit can arrive after its message's delete (a link preview landing
+        # late), with no store in flight to mark, so recent deletions are kept too.
+        # shortcut: only the last 1000, so a later edit than that stores it again.
+        self._gone: deque[int] = deque(maxlen=1000)
 
     @contextmanager
     def _may_store(self, message_id: int) -> Generator[None]:
@@ -53,7 +57,9 @@ class Events(Cog):
                 self._deleted.discard(message_id)
 
     def _mark_deleted(self, message_ids: Iterable[int]) -> None:
-        self._deleted.update(i for i in message_ids if i in self._storing)
+        ids = list(message_ids)
+        self._gone.extend(ids)
+        self._deleted.update(i for i in ids if i in self._storing)
 
     async def _safe_db_operation(
         self, operation: str, write: Awaitable[object]
@@ -241,7 +247,9 @@ class Events(Cog):
 
     @Cog.listener()
     async def on_raw_message_edit(self, payload: RawMessageUpdateEvent) -> None:
-        if self._is_bot_message(payload.message, payload.cached_message):
+        if payload.message.id in self._gone or self._is_bot_message(
+            payload.message, payload.cached_message
+        ):
             return
 
         with self._may_store(payload.message.id):
