@@ -142,6 +142,14 @@ class TestSendMessage:
 
         assert channel.send.await_args.kwargs["allowed_mentions"] is none
 
+    async def test_pings_nobody_unless_told_who(self, world: Discord) -> None:
+        channel = world.text_channel()
+
+        await send.send_message("<@1> <@&2> @everyone", 10)
+
+        mentions = channel.send.await_args.kwargs["allowed_mentions"]
+        assert mentions.to_dict() == {"parse": []}
+
     async def test_quiet_reaches_the_lookup(self, world: Discord) -> None:
         await send.send_message("hello", 99, quiet=True)
 
@@ -167,7 +175,29 @@ class TestSendEmbed:
 
         assert await send.send_embed(embed, 10, content="hi") == 555
 
-        assert channel.send.await_args.kwargs == {"content": "hi", "embed": embed}
+        assert channel.send.await_args.kwargs["content"] == "hi"
+        assert channel.send.await_args.kwargs["embed"] is embed
+
+    @pytest.mark.parametrize("view", [None, discord.ui.View()])
+    async def test_pings_nobody_unless_told_who(
+        self, view: discord.ui.View | None, world: Discord
+    ) -> None:
+        channel = world.text_channel()
+
+        await send.send_embed(discord.Embed(), 10, view=view, content="<@&1>")
+
+        mentions = channel.send.await_args.kwargs["allowed_mentions"]
+        assert mentions.to_dict() == {"parse": []}
+
+    async def test_is_given_the_mentions_its_caller_allows(
+        self, world: Discord
+    ) -> None:
+        channel = world.text_channel()
+        allowed = discord.AllowedMentions(roles=True)
+
+        await send.send_embed(discord.Embed(), 10, allowed_mentions=allowed)
+
+        assert channel.send.await_args.kwargs["allowed_mentions"] is allowed
 
     async def test_a_view_is_included_only_when_given(self, world: Discord) -> None:
         channel = world.text_channel()

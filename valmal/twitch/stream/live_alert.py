@@ -10,6 +10,7 @@ import asyncio
 import contextlib
 import logging
 
+import discord
 import pendulum
 
 from valmal.bot.send import send_embed
@@ -195,6 +196,9 @@ async def announce(
         channel_id,
         watch_button(url),
         content=mention(channel_id),
+        allowed_mentions=discord.AllowedMentions(
+            everyone=False, users=False, roles=True
+        ),
     )
     if message_id is None:
         logger.error(f"Failed to send embed for broadcaster {broadcaster_id}")

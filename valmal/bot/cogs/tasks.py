@@ -3,6 +3,7 @@ from collections import Counter
 from datetime import datetime
 from typing import ClassVar
 
+import discord
 import pendulum
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
@@ -198,6 +199,9 @@ class Tasks(Cog):
         await send_message(
             config.template("discord_birthday", mention=user.mention),
             config.channel("shoutouts"),
+            allowed_mentions=discord.AllowedMentions(
+                everyone=False, roles=False, users=[user]
+            ),
         )
 
 

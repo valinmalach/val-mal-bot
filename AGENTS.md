@@ -614,6 +614,10 @@ itself. An author line and a footer are plain text to Discord and are left alone
   new accessor over stored text must render before it returns, as these do. An
   auto-response goes out with `AllowedMentions.none()`, because anyone can trigger
   one and a rendered `{role:key}` in a message would otherwise ping the role.
+- **`send_message` and `send_embed` ping nobody unless the caller says who.** The
+  birthday greeting allows its one user and the live alert roles. An
+  `AllowedMentions` turns on every field it is not given, so switch off the rest:
+  `AllowedMentions(users=[user])` still pings `@everyone`.
 - **Twitch chat never carries those two placeholders, on purpose.** It cannot show
   a Discord mention, so no Twitch row may hold `{channel:key}` or `{role:key}`; the
   values a chat line does fill are `{chatter}`, `{target}` and `{broadcaster}`. A
