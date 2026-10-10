@@ -119,14 +119,22 @@ class TestSendMessage:
 
     @pytest.mark.parametrize("content", ["", "  "])
     async def test_blank_text_sends_nothing_and_looks_nothing_up(
-        self, content: str, world: Discord
+        self, content: str, world: Discord, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A missing template renders as "", which Discord would refuse."""
         channel = world.text_channel()
+        looked_up: list[int] = []
+
+        def get_channel(channel_id: int) -> Any:
+            looked_up.append(channel_id)
+            return world.channels.get(channel_id)
+
+        monkeypatch.setattr(send.bot, "get_channel", get_channel)
 
         assert await send.send_message(content, 10) is None
 
         channel.send.assert_not_awaited()
+        assert not looked_up
         assert world.notified == []
 
     async def test_blank_text_with_a_file_still_sends_the_file(
