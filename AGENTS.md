@@ -285,7 +285,8 @@ is not the entrypoint: the lifespan handler starts `main()` as a background task
 which loads `COGS` (`valmal/bot/cogs/__init__.py`) and calls `bot.start()`. Twitch never connects to the
 bot — it delivers EventSub webhooks over HTTP to the router in `valmal/twitch/eventsub/router.py`,
 which verifies and parses them and hands each to `valmal/twitch/eventsub/events.py`.
-Stop the web server and the bot goes with it.
+Stop the web server and the bot goes with it, and the other way round: a bot that
+stops by itself raises SIGTERM, so the process exits as failed and Railway restarts it.
 
 **Startup order is spread across three files.** lifespan (`main.py`) → cog loading →
 `MyBot.setup_hook()` (`valmal/bot/client.py`: `config.load()`, `token_manager.load()`,

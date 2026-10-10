@@ -1,6 +1,8 @@
+import asyncio
 import logging
+import signal
 from collections.abc import AsyncGenerator, Coroutine, Iterator
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -46,6 +48,7 @@ class Process:
         self.started_with: list[str] = []
         self.removed: list[str] = []
         self.closed = 0
+        self.raised: list[int] = []
 
 
 @pytest.fixture
@@ -78,12 +81,21 @@ def process(entry: ModuleType, monkeypatch: pytest.MonkeyPatch) -> Iterator[Proc
     async def aclose() -> None:
         process.closed += 1
 
+    def raise_signal(signum: int) -> None:
+        process.order.append("signal")
+        process.raised.append(signum)
+
     monkeypatch.setattr(entry.bot, "load_extension", load_extension)
     monkeypatch.setattr(entry.bot, "start", start)
     monkeypatch.setattr(entry.bot, "remove_command", remove_command)
     monkeypatch.setattr(entry, "report", report)
     monkeypatch.setattr(entry, "fire_and_forget", fire_and_forget)
     monkeypatch.setattr(entry.http_client, "aclose", aclose)
+    monkeypatch.setattr(
+        entry,
+        "signal",
+        SimpleNamespace(SIGTERM=signal.SIGTERM, raise_signal=raise_signal),
+    )
     yield process
     for _, coro in process.fired:
         coro.close()
@@ -103,7 +115,7 @@ class TestMain:
         await entry.main()
 
         assert sorted(process.loaded) == sorted(COGS)
-        assert process.order[-1] == "start"
+        assert process.order[len(COGS)] == "start"
         assert process.started_with == [settings.active_discord_token]
 
     async def test_every_cog_is_attempted_before_the_bot_starts(
@@ -174,6 +186,31 @@ class TestMain:
         await entry.main()
 
         assert process.reported == ["Unhandled exception in main"]
+
+    @pytest.mark.parametrize("error", [None, RuntimeError("bad token")])
+    async def test_a_bot_that_stops_by_itself_stops_the_process(
+        self, error: Exception | None, entry: ModuleType, process: Process
+    ) -> None:
+        """Otherwise the server serves on with no bot behind it, and nothing restarts it."""
+        process.start_error = error
+
+        await entry.main()
+
+        assert process.raised == [signal.SIGTERM]
+        assert process.order[-2:] == ["start", "signal"]
+
+    async def test_a_shutdown_cancelling_the_bot_leaves_the_process_to_it(
+        self, entry: ModuleType, monkeypatch: pytest.MonkeyPatch, process: Process
+    ) -> None:
+        async def cancelled(token: str) -> None:
+            raise asyncio.CancelledError
+
+        monkeypatch.setattr(entry.bot, "start", cancelled)
+
+        with pytest.raises(asyncio.CancelledError):
+            await entry.main()
+
+        assert process.raised == []
 
 
 class TestLifespan:
