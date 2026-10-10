@@ -14,7 +14,7 @@ a test suite.
 ## Commands
 
 ```sh
-uv sync                                            # dependencies; Python 3.14.8, pinned in .python-version
+uv sync                                            # dependencies; Python 3.15.0, pinned in .python-version
 docker compose up -d                               # local Postgres on :5432
 uv run alembic upgrade head                        # schema and the configuration in it
 uv run main.py                                     # run the bot (uvicorn on PORT, default 8000)

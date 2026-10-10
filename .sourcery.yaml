@@ -40,7 +40,7 @@ rule_settings:
   - refactoring
   - suggestion
   - comment
-  python_version: '3.14'
+  python_version: '3.15'
 
 # The four conventions in AGENTS.md that neither ruff nor pyright can express.
 # Each is a single choke point the codebase already routes through, and each has
