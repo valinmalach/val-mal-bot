@@ -213,7 +213,7 @@ Thirteen tools, from the merge in "One config file, two owners": Verity's `Ruff`
 `shellcheck` and `Hadolint`, plus the Cloud repo config's Bandit, Checkov, Pylint,
 Prospector, Lizard, markdownlint, Agentlinter, Spectral and Jackson Linter (Semgrep left
 out). Every one has explicitly enumerated pattern IDs (never `patterns: []`, which would
-enable thousands of default rules). The Python tools run on 3.14 from `uv tool` installs
+enable thousands of default rules). The Python tools run on 3.15 from `uv tool` installs
 (`uv tool install <name>`; Checkov also needs a `~/.local/bin/checkov.exe` forwarder, as
 its wheel ships no `.exe` and Node cannot spawn a `.cmd`), and every analyser is `global`
 in the Install column of a run.
@@ -291,8 +291,8 @@ class annotating itself in its own body —
 compiles annotations into a lazy `__annotate__` thunk, so the class body never
 evaluates the name.
 
-`pyproject.toml` states `target-version = "py314"`, so a Ruff that reads it has no such
-problem; only the gate's pattern mode, which exposes no target version, does. At py314 the
+`pyproject.toml` states `target-version = "py315"`, so a Ruff that reads it has no such
+problem; only the gate's pattern mode, which exposes no target version, does. At py315 the
 whole repo is clean; with `ruff check --select F821 --target-version py313` it reports
 `valmal/twitch/stream/shoutout_queue.py:28` and `valmal/twitch/oauth/token_manager.py:29`
 (this case) and three more of the same shape in `tests/db/support.py` and
