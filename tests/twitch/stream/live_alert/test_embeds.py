@@ -199,7 +199,7 @@ class TestLiveEmbed:
     def test_the_thumbnail_is_cache_busted_with_the_passed_now_not_the_wall_clock(
         self,
     ) -> None:
-        """embed_config patches datetime.now(UTC) to NOW for every test in this file;
+        """embed_config patches clock.now to NOW for every test in this file;
         passing a different value here is what tells the cache-buster apart from
         an independent wall-clock read that would pass just as well against NOW."""
         later = NOW + timedelta(hours=1)
