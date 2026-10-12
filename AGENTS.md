@@ -110,8 +110,6 @@ uv run alembic downgrade -1
 uv run alembic current
 ```
 
-On Windows `--sql` needs `PYTHONIOENCODING=utf-8`: some seeded text is emoji.
-
 Railway service settings — see Deployment below:
 
 ```sh
@@ -546,7 +544,8 @@ itself. An author line and a footer are plain text to Discord and are left alone
   `try` that calls `report`, as `check_birthdays` does.
 - **Deferred imports inside functions** are load-order management, not style:
   `valmal/bot/client.py` and `valmal/bot/views.py` import their collaborators lazily to
-  break cycles. Leave them.
+  break cycles. Leave them: the bot's lazy imports (Deployment) do not reach the tests or
+  Alembic, which import eagerly.
 - **`token_manager` and `shoutout_queue` are singletons** (`__new__`). Import the
   instance; do not construct another.
 - **Everything in the audit channel goes through `valmal/bot/audit.py`.** One entry
@@ -680,8 +679,9 @@ free does not raise them and leave the heap keeping what it frees. Measured over
 the same code (#104), `heap_free_bytes` peaked at 0.7 MiB with them against 7.3 without,
 and resident memory ended 8.3 MiB lower, with no CPU cost visible. Taking SQLAlchemy and
 SQLModel out of the bot (#98) cut `rss_anon_kb` at 36 h from 81.3 MiB to 57.2 and
-`python_blocks` from 550k to 380k; that is the baseline the next memory change is measured
-against. Compare `rss_anon_kb`, not `rss_kb`: the file-backed part is page cache the kernel
+`python_blocks` from 550k to 380k. Python 3.15 (#119) then settled at 57.1 MiB and about 376k
+at 24 h, flat to 46 h: that is the baseline the next memory change is measured against.
+Compare `rss_anon_kb`, not `rss_kb`: the file-backed part is page cache the kernel
 trims on its own schedule, 26 MiB to 14 in the first day of that deploy. The `log_memory`
 loop logs a `Memory` line at startup and every 30 minutes with the split as keys:
 `rss_anon_kb` is what grows, `heap_free_bytes` is freed memory glibc has kept, and
@@ -690,6 +690,30 @@ loop logs a `Memory` line at startup and every 30 minutes with the split as keys
 the task loops have no span to start one. The admin channel and the JSON logs are how
 problems are found.
 
+**The bot runs with `-X lazy_imports=all` (PEP 810)**, in the start command and nowhere
+else, so a module nothing touches is never loaded: 731 modules at startup became 469 when
+measured locally. Alembic, the first half of that command, stays eager, because importing
+the models is what registers them, and SQLAlchemy's ORM fails lazily anyway. A lazy import
+fails where the name is first used, not at the import, so `tests/test_lazy_imports.py`
+imports every module in a lazy process and touches every name on it; pytest cannot run
+lazily itself. Leave the `lazy` keyword out of the code: Sourcery is blind to a file that
+holds it. Turning the mode off is the start command without the flag.
+
+**The live bot can be profiled without a restart**, with 3.15's sampling profiler
+(PEP 799), now that nothing is traced. The bot is PID 1 in the container, and the #104
+probe proved the container lets a process attach to it. `railway ssh` needs an SSH key
+registered with Railway (`railway ssh keys add`):
+
+```sh
+railway ssh -- python -m profiling.sampling dump --async-aware 1     # every task's stack, once: a hung bot
+railway ssh -- python -m profiling.sampling attach --async-aware -d 60 1   # 60 s, top functions as text
+railway ssh -- python -m profiling.sampling attach --async-aware -d 300 --flamegraph -o /tmp/flame.html 1
+railway ssh -- cat /tmp/flame.html > flame.html                      # piped, so no PTY mangles it
+```
+
+`--mode wall`, the default, counts time spent awaiting; `--mode cpu` only time on the CPU.
+`--gecko` writes a file for the Firefox Profiler instead. The profiler reads the bot's memory
+from outside, and nothing runs until someone attaches.
 Locally, EventSub cannot reach `localhost`, so stream alerts, follows, raids, ad breaks
 and chat commands never fire without a tunnel in front of it. Outbound Helix calls
 still work.

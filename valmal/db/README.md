@@ -49,9 +49,6 @@ uv run alembic downgrade -1                        # roll back one revision
 uv run alembic current                             # what is applied
 ```
 
-On Windows, `--sql` needs `PYTHONIOENCODING=utf-8`: some seeded text is emoji and
-the console encoding is not.
-
 ### Changing configuration
 
 Configuration lives in migrations, so adding, editing or removing a row is a new

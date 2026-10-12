@@ -38,7 +38,7 @@ COMPOSITE_HANDLER = "composite"
 # drop the shoutout for a raid from that channel, since the raid handler posts
 # `!so <login>` and it arrives back through here. The charset and the maximum
 # are what make the value safe for Helix; a minimum only adds false rejections.
-_TWITCH_LOGIN = re.compile(r"\A[a-zA-Z0-9_]{1,25}\Z")
+_TWITCH_LOGIN = re.compile(r"[a-zA-Z0-9_]{1,25}")
 
 # A target is echoed into chat by `!hug` and by any stored response naming
 # {target}, so it is bounded. Not the login alphabet: a target is a person as
@@ -56,7 +56,7 @@ def is_twitch_login(value: str) -> bool:
     posted to chat and arrives back through the webhook, so a value that cannot
     name a channel should never be built into a command in the first place.
     """
-    return _TWITCH_LOGIN.match(value) is not None
+    return _TWITCH_LOGIN.fullmatch(value) is not None
 
 
 def _target(args: str) -> str:

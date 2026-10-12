@@ -64,7 +64,7 @@ class TestLoad:
         assert cache.setting("guild_id") == 123
         assert cache.setting("command_prefix") == "!"
         assert cache.setting("feature") is True
-        assert cache.setting("list") == ["a", "b"]
+        assert cache.setting("list") == ("a", "b")
         assert cache.setting("empty") is None
 
     async def test_templates_are_read_by_key(self, load: Any) -> None:
@@ -120,9 +120,9 @@ class TestLoad:
             TwitchCommandComponent(id=10, parent_name="p", child_name="a", position=1),
         )
 
-        assert cache.command_responses("c") == ["first", "second"]
-        assert cache.command_responses("d") == ["other"]
-        assert cache.command_components("p") == ["a", "b"]
+        assert cache.command_responses("c") == ("first", "second")
+        assert cache.command_responses("d") == ("other",)
+        assert cache.command_components("p") == ("a", "b")
 
     async def test_loading_again_replaces_what_was_held_rather_than_merging(
         self, load: Any
@@ -140,7 +140,22 @@ class TestLoad:
         with pytest.raises(KeyError):
             cache.channel("old")
         assert cache.embed("old_embed") is None
-        assert cache.command_responses("old_cmd") == []
+        assert cache.command_responses("old_cmd") == ()
+
+    async def test_what_was_loaded_cannot_be_changed_afterwards(
+        self, load: Any
+    ) -> None:
+        cache = await load(
+            DiscordChannel(key="kept", channel_id=1),
+            TwitchCommandResponse(id=13, command_name="c", message="m"),
+        )
+
+        with pytest.raises(TypeError):
+            cache._channels["kept"] = 2  # pyright: ignore[reportIndexIssue]
+        with pytest.raises(AttributeError):
+            cache.command_responses("c").append("x")  # pyright: ignore[reportAttributeAccessIssue]
+        assert cache.channel("kept") == 1
+        assert cache.command_responses("c") == ("m",)
 
     async def test_a_read_that_fails_leaves_the_cache_as_it_was(
         self, load: Any, monkeypatch: pytest.MonkeyPatch
@@ -189,7 +204,7 @@ class TestCoerce:
             ("", SettingValueType.BOOLEAN, False),
             ("anything else", SettingValueType.BOOLEAN, False),
             ('{"a": 1}', SettingValueType.JSON, {"a": 1}),
-            ("[1, 2]", SettingValueType.JSON, [1, 2]),
+            ("[1, 2]", SettingValueType.JSON, (1, 2)),
             ("null", SettingValueType.JSON, None),
         ],
     )
@@ -197,6 +212,16 @@ class TestCoerce:
         self, value: str, kind: SettingValueType, expected: object
     ) -> None:
         assert _coerce(setting("k", value, kind)) == expected
+
+    def test_json_cannot_be_changed_at_any_depth(self) -> None:
+        """setting() hands every caller the cached value itself."""
+        value = _coerce(setting("k", '{"a": [1, {"b": [2]}]}', SettingValueType.JSON))
+
+        assert value == {"a": (1, {"b": (2,)})}
+        with pytest.raises(TypeError):
+            value["a"] = 0
+        with pytest.raises(TypeError):
+            value["a"][1]["b"] = 0
 
     @pytest.mark.parametrize("kind", list(SettingValueType))
     def test_a_null_value_is_none_whatever_the_type(
@@ -267,5 +292,5 @@ class TestAccessors:
         cache = ConfigCache()
 
         assert cache.command("none") is None
-        assert cache.command_responses("none") == []
-        assert cache.command_components("none") == []
+        assert cache.command_responses("none") == ()
+        assert cache.command_components("none") == ()

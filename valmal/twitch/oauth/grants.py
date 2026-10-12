@@ -41,9 +41,9 @@ def _prune_expired_authorizations() -> None:
 
 def configured_scopes() -> list[str]:
     scopes = config.setting("twitch_app_scopes")
-    if not isinstance(scopes, list) or not scopes:
+    if not isinstance(scopes, tuple) or not scopes:
         raise RuntimeError("twitch_app_scopes must be a non-empty JSON list")
-    listed = cast("list[object]", scopes)
+    listed = cast("tuple[object, ...]", scopes)
     valid = [scope for scope in listed if isinstance(scope, str) and scope]
     if len(valid) != len(listed):
         raise RuntimeError("twitch_app_scopes contains an invalid scope")
