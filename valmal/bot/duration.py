@@ -62,7 +62,8 @@ def get_age(date_time: datetime, limit_units: int = -1) -> str:
     never leads with "0 hours" -- except when everything is zero, which is
     "0 seconds".
     """
-    start, end = sorted((date_time.astimezone(UTC), clock.now().astimezone(UTC)))
+    moment = clock.as_utc_if_naive(date_time)
+    start, end = sorted((moment.astimezone(UTC), clock.now().astimezone(UTC)))
     years, months, days, hours, minutes, seconds = _precise_diff(start, end)
     weeks, days = divmod(days, 7)
 

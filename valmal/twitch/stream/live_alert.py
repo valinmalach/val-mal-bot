@@ -9,11 +9,12 @@ tell which stream ended and can only wake the updater. See
 import asyncio
 import contextlib
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 
 import discord
 
 from valmal.bot.send import send_embed
+from valmal.core import clock
 from valmal.core.background import fire_and_forget
 from valmal.core.errors import notify, report
 from valmal.db import repository
@@ -226,11 +227,9 @@ async def announce(
 def _stored_start(alert: LiveAlert) -> str:
     """The stored start as an aware timestamp, whatever the driver handed back.
 
-    A naive datetime is read as UTC, which is what the column
-    means; parse_rfc3339 will not accept one without a zone.
+    parse_rfc3339 will not accept one without a zone.
     """
-    started = alert.stream_started_at
-    return (started if started.tzinfo else started.replace(tzinfo=UTC)).isoformat()
+    return clock.as_utc_if_naive(alert.stream_started_at).isoformat()
 
 
 async def wake(broadcaster_id: int) -> None:

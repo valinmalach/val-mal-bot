@@ -184,7 +184,7 @@ class Tasks(Cog):
 
     @staticmethod
     def _within_announce_grace(birthday: datetime, now: datetime) -> bool:
-        late = (now - birthday).total_seconds()
+        late = (now - clock.as_utc_if_naive(birthday)).total_seconds()
         return late <= _ANNOUNCE_GRACE_SECONDS
 
     async def _announce_birthday(self, record: DiscordUser) -> None:

@@ -249,6 +249,11 @@ class TestHowLateIsTooLate:
     ) -> None:
         assert Tasks._within_announce_grace(moment, NOW) is within
 
+    def test_a_naive_birthday_is_read_as_utc(self) -> None:
+        naive = (NOW - timedelta(hours=23)).replace(tzinfo=None)
+
+        assert Tasks._within_announce_grace(naive, NOW) is True
+
 
 class TestATimezoneThatWentAway:
     async def test_none_and_a_real_zone_are_kept_without_comment(

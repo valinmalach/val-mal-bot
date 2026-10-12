@@ -12,6 +12,8 @@ from enum import Enum
 from functools import cache
 from zoneinfo import ZoneInfo, available_timezones
 
+from valmal.core import clock
+
 
 class Months(Enum):
     January = 1
@@ -67,7 +69,7 @@ def next_birthday(
     year bump on the UTC instant, which preserves neither the local day nor local
     midnight across a zone's transitions.
     """
-    moment = birthday
+    moment = clock.as_utc_if_naive(birthday)
     if moment > after:
         return moment
 

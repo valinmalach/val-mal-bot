@@ -60,6 +60,10 @@ def test_a_future_moment_reads_the_same_as_the_past_one() -> None:
     assert get_age(NOW + timedelta(days=2)) == "2 days"
 
 
+def test_a_naive_moment_is_read_as_utc() -> None:
+    assert get_age(datetime(2026, 6, 15, 7)) == "5 hours"
+
+
 def test_hours_and_below_are_dropped_once_a_month_has_passed() -> None:
     """Documented: past a month it is said in years, months, weeks and days."""
     assert get_age(datetime(2025, 6, 15, 7, tzinfo=UTC)) == "1 year"

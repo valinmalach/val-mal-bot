@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Self, cast
 
 from valmal.core import clock, http_client
@@ -55,11 +55,7 @@ class TwitchTokenManager:
             if row.refresh_token:
                 refresh[token_type] = row.refresh_token
             if row.expires_at:
-                # A naive value is read as UTC, which is what the column means.
-                expires = row.expires_at
-                expires_at[token_type] = (
-                    expires if expires.tzinfo else expires.replace(tzinfo=UTC)
-                )
+                expires_at[token_type] = clock.as_utc_if_naive(row.expires_at)
 
         # Swapped rather than updated in place: a row deleted or an expiry
         # cleared in the database has to disappear from memory too.

@@ -161,6 +161,13 @@ class TestNextBirthdayOn:
 
 
 class TestNextBirthdayFromTheStoredInstant:
+    def test_a_naive_stored_instant_is_read_as_utc(self) -> None:
+        naive = datetime(2025, 7, 4, 4)
+
+        assert next_birthday(naive, False, AFTER, "America/New_York") == utc(
+            2026, 7, 4, 4
+        )
+
     def test_a_stored_instant_still_ahead_is_kept_whatever_the_flags(self) -> None:
         stored = utc(2027, 6, 1)
 
