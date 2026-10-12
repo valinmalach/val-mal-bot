@@ -26,7 +26,7 @@ def _configuration(monkeypatch: pytest.MonkeyPatch) -> None:
         config,
         "_settings",
         {
-            "twitch_app_scopes": list(SCOPES),
+            "twitch_app_scopes": tuple(SCOPES),
             "twitch_bot_user_id": BOT_ID,
             "twitch_broadcaster_id": BROADCASTER_ID,
         },

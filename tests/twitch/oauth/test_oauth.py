@@ -34,7 +34,7 @@ def _state(monkeypatch: pytest.MonkeyPatch) -> None:
         config,
         "_settings",
         {
-            "twitch_app_scopes": list(SCOPES),
+            "twitch_app_scopes": tuple(SCOPES),
             "twitch_bot_user_id": "999",
             "twitch_broadcaster_id": "111",
         },
@@ -45,7 +45,9 @@ class TestConfiguredScopes:
     def test_a_valid_list(self) -> None:
         assert oauth.configured_scopes() == SCOPES
 
-    @pytest.mark.parametrize("value", [None, [], "chat:read", {"a": 1}, 5])
+    @pytest.mark.parametrize(
+        "value", [None, (), ["chat:read"], "chat:read", {"a": 1}, 5]
+    )
     def test_anything_but_a_non_empty_list_is_refused(
         self, value: object, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -63,9 +65,9 @@ class TestConfiguredScopes:
         with pytest.raises(RuntimeError, match="non-empty JSON list"):
             oauth.configured_scopes()
 
-    @pytest.mark.parametrize("scopes", [["ok", ""], ["ok", 3], ["ok", None], [""]])
+    @pytest.mark.parametrize("scopes", [("ok", ""), ("ok", 3), ("ok", None), ("",)])
     def test_a_list_with_a_blank_or_non_string_scope_is_refused(
-        self, scopes: list[object], monkeypatch: pytest.MonkeyPatch
+        self, scopes: tuple[object, ...], monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setitem(config._settings, "twitch_app_scopes", scopes)
 

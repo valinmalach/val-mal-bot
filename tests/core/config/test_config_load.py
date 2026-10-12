@@ -64,7 +64,7 @@ class TestLoad:
         assert cache.setting("guild_id") == 123
         assert cache.setting("command_prefix") == "!"
         assert cache.setting("feature") is True
-        assert cache.setting("list") == ["a", "b"]
+        assert cache.setting("list") == ("a", "b")
         assert cache.setting("empty") is None
 
     async def test_templates_are_read_by_key(self, load: Any) -> None:
@@ -204,7 +204,7 @@ class TestCoerce:
             ("", SettingValueType.BOOLEAN, False),
             ("anything else", SettingValueType.BOOLEAN, False),
             ('{"a": 1}', SettingValueType.JSON, {"a": 1}),
-            ("[1, 2]", SettingValueType.JSON, [1, 2]),
+            ("[1, 2]", SettingValueType.JSON, (1, 2)),
             ("null", SettingValueType.JSON, None),
         ],
     )
@@ -212,6 +212,16 @@ class TestCoerce:
         self, value: str, kind: SettingValueType, expected: object
     ) -> None:
         assert _coerce(setting("k", value, kind)) == expected
+
+    def test_json_cannot_be_changed_at_any_depth(self) -> None:
+        """setting() hands every caller the cached value itself."""
+        value = _coerce(setting("k", '{"a": [1, {"b": [2]}]}', SettingValueType.JSON))
+
+        assert value == {"a": (1, {"b": (2,)})}
+        with pytest.raises(TypeError):
+            value["a"] = 0
+        with pytest.raises(TypeError):
+            value["a"][1]["b"] = 0
 
     @pytest.mark.parametrize("kind", list(SettingValueType))
     def test_a_null_value_is_none_whatever_the_type(

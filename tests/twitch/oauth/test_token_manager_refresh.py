@@ -107,7 +107,7 @@ class TestRefreshApp:
             ("Unexpected token type: mac", "token-type-unexpected:app")
         ]
 
-    @pytest.mark.parametrize("value", [None, [], "chat:read", ["ok", ""]])
+    @pytest.mark.parametrize("value", [None, (), "chat:read", ("ok", "")])
     async def test_bad_scopes_are_refused_before_any_request(
         self,
         value: object,

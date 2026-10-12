@@ -12,7 +12,7 @@ import re
 from builtins import frozendict
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from valmal.core.errors import notify_soon
 from valmal.core.safe_format import PLACEHOLDER, safe_format
@@ -316,8 +316,19 @@ def _coerce(setting: AppSetting) -> Any:
     if setting.value_type is SettingValueType.BOOLEAN:
         return setting.value.strip().lower() in {"1", "true", "yes"}
     if setting.value_type is SettingValueType.JSON:
-        return json.loads(setting.value)
+        return _frozen_json(json.loads(setting.value))
     return setting.value
+
+
+def _frozen_json(value: Any) -> Any:
+    """A JSON array as a tuple and an object as a frozendict, all the way down:
+    setting() hands the value itself to every caller."""
+    if isinstance(value, list):
+        return tuple(_frozen_json(item) for item in cast("list[Any]", value))
+    if isinstance(value, dict):
+        entries = cast("dict[str, Any]", value)
+        return _frozen({key: _frozen_json(item) for key, item in entries.items()})
+    return value
 
 
 config = ConfigCache()

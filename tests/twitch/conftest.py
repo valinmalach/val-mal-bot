@@ -111,5 +111,5 @@ def token_notices(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str | None
 @pytest.fixture
 def scopes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     configured = ["chat:read", "moderator:manage:shoutouts"]
-    monkeypatch.setattr(config, "_settings", {"twitch_app_scopes": configured})
+    monkeypatch.setattr(config, "_settings", {"twitch_app_scopes": tuple(configured)})
     return configured
