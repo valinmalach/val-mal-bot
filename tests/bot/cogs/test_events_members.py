@@ -286,7 +286,7 @@ class TestMemberUpdate:
 
     async def test_a_timeout_ending_exactly_now_is_over(self, ev: EventsWorld) -> None:
         assert cog(ev)._is_currently_timed_out(NOW) is False
-        assert cog(ev)._is_currently_timed_out(NOW.add(microseconds=1)) is True
+        assert cog(ev)._is_currently_timed_out(NOW + timedelta(microseconds=1)) is True
         assert cog(ev)._is_currently_timed_out(None) is False
 
     async def test_everything_changing_at_once_is_logged_in_a_fixed_order(

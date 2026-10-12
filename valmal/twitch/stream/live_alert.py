@@ -9,9 +9,9 @@ tell which stream ended and can only wake the updater. See
 import asyncio
 import contextlib
 import logging
+from datetime import UTC, datetime
 
 import discord
-import pendulum
 
 from valmal.bot.send import send_embed
 from valmal.core.background import fire_and_forget
@@ -48,7 +48,7 @@ async def _cycle_or_retry(
     channel_id: int,
     message_id: int,
     stream_id: int,
-    started_at: pendulum.DateTime,
+    started_at: datetime,
     started_at_timestamp: str,
     content: str | None,
 ) -> Action:
@@ -226,10 +226,11 @@ async def announce(
 def _stored_start(alert: LiveAlert) -> str:
     """The stored start as an aware timestamp, whatever the driver handed back.
 
-    pendulum.instance reads a naive datetime as UTC, which is what the column
+    A naive datetime is read as UTC, which is what the column
     means; parse_rfc3339 will not accept one without a zone.
     """
-    return pendulum.instance(alert.stream_started_at).isoformat()
+    started = alert.stream_started_at
+    return (started if started.tzinfo else started.replace(tzinfo=UTC)).isoformat()
 
 
 async def wake(broadcaster_id: int) -> None:

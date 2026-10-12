@@ -1,5 +1,6 @@
+from datetime import UTC, datetime, timedelta
+
 import discord
-import pendulum
 import pytest
 
 from tests.twitch.stream.live_alert.support import NOW, channel, stream, user, video
@@ -128,7 +129,7 @@ class TestAnnouncement:
             stream(started_at="2026-06-15T11:00:00Z"), user(), URL
         )
 
-        assert embed.timestamp == pendulum.datetime(2026, 6, 15, 11)
+        assert embed.timestamp == datetime(2026, 6, 15, 11, tzinfo=UTC)
 
     def test_the_author_is_the_title_template_with_the_display_name_and_the_avatar(
         self,
@@ -180,7 +181,7 @@ class TestAnnouncement:
 
 
 class TestLiveEmbed:
-    def build(self, now: pendulum.DateTime = NOW, **overrides: object) -> discord.Embed:
+    def build(self, now: datetime = NOW, **overrides: object) -> discord.Embed:
         return embeds.live_embed(
             stream(**overrides), user(), URL, "2 hours", "<t:1:f>", now
         )
@@ -198,10 +199,10 @@ class TestLiveEmbed:
     def test_the_thumbnail_is_cache_busted_with_the_passed_now_not_the_wall_clock(
         self,
     ) -> None:
-        """embed_config patches pendulum.now() to NOW for every test in this file;
+        """embed_config patches datetime.now(UTC) to NOW for every test in this file;
         passing a different value here is what tells the cache-buster apart from
         an independent wall-clock read that would pass just as well against NOW."""
-        later = NOW.add(hours=1)
+        later = NOW + timedelta(hours=1)
 
         embed = self.build(
             now=later, thumbnail_url="https://cdn/live_{width}x{height}.jpg"

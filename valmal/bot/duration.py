@@ -1,42 +1,56 @@
 """How long ago something was, in words."""
 
-import pendulum
-from pendulum import DateTime
+from calendar import monthrange
+from datetime import datetime
+
+from valmal.core import clock
 
 
 def _unit(value: int, name: str) -> str:
     return f"{value} {name}{'' if value == 1 else 's'}"
 
 
-def get_age(date_time: DateTime, limit_units: int = -1) -> str:
+def _add_months(moment: datetime, months: int) -> datetime:
+    """Calendar months later, on the same day or the month's last when it is shorter."""
+    year, month = divmod(moment.month - 1 + months, 12)
+    year += moment.year
+    day = min(moment.day, monthrange(year, month + 1)[1])
+    return moment.replace(year=year, month=month + 1, day=day)
+
+
+def _whole_months(start: datetime, end: datetime) -> int:
+    months = (end.year - start.year) * 12 + end.month - start.month
+    return months - 1 if _add_months(start, months) > end else months
+
+
+def get_age(date_time: datetime, limit_units: int = -1) -> str:
     """The distance from now, largest unit first, e.g. "2 months, 3 days".
 
     Anything a year or a month old is said in years, months, weeks and days;
     below that, weeks down to seconds. Zero of a unit is dropped, so the string
     never leads with "0 hours" -- except when everything is zero, which is
     "0 seconds".
-
-    weeks is asked for explicitly because remaining_days is the remainder after
-    them: a three-week-old thing has remaining_days == 0, and reading only that
-    called it "0 seconds".
     """
-    now = pendulum.now("UTC")
-    age = now - date_time if date_time <= now else date_time - now
+    start, end = sorted((date_time, clock.now()))
+    months = _whole_months(start, end)
+    rest = end - _add_months(start, months)
+    weeks, days = divmod(rest.days, 7)
 
-    if age.years or age.months:
+    if months:
         units = [
-            (age.years, "year"),
-            (age.months, "month"),
-            (age.weeks, "week"),
-            (age.remaining_days, "day"),
+            (months // 12, "year"),
+            (months % 12, "month"),
+            (weeks, "week"),
+            (days, "day"),
         ]
     else:
+        hours, seconds = divmod(rest.seconds, 3600)
         units = [
-            (age.weeks, "week"),
-            (age.remaining_days, "day"),
-            (age.hours, "hour"),
-            (age.minutes, "minute"),
-            (age.remaining_seconds, "second"),
+            (weeks, "week"),
+            (days, "day"),
+            (hours, "hour"),
+            (seconds // 60, "minute"),
+            (seconds % 60, "second"),
         ]
 
     parts = [_unit(value, name) for value, name in units if value]

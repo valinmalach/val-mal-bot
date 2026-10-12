@@ -12,14 +12,15 @@ not in the I/O around it.
 
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from enum import Enum, auto
 
 import aiohttp
 import discord
-import pendulum
 
 from valmal.bot.duration import get_age
 from valmal.bot.send import edit_embed
+from valmal.core import clock
 from valmal.core.errors import notify, report
 from valmal.db import repository
 from valmal.db.rows import LiveAlert
@@ -171,9 +172,7 @@ async def _refresh(
         )
         return Action.RETRY
 
-    embed = live_embed(
-        stream, user_info, url, age, started_at_timestamp, pendulum.now()
-    )
+    embed = live_embed(stream, user_info, url, age, started_at_timestamp, clock.now())
 
     def _report_context(e: Exception) -> str:
         return (
@@ -219,7 +218,7 @@ async def _close(
         user_info,
         url,
         age,
-        pendulum.now(),
+        clock.now(),
     )
 
     # The stream is over: forgetting the row on success is what keeps a
@@ -305,7 +304,7 @@ async def cycle(
     channel_id: int,
     message_id: int,
     stream_id: int,
-    started_at: pendulum.DateTime,
+    started_at: datetime,
     started_at_timestamp: str,
     content: str | None,
 ) -> Action:

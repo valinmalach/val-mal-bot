@@ -1,5 +1,6 @@
+from datetime import datetime, timedelta
+
 import aiohttp
-import pendulum
 import pytest
 from pydantic import ValidationError
 
@@ -28,7 +29,7 @@ def written(db: TokenDb) -> list[dict[str, object]]:
 
 
 @pytest.fixture(autouse=True)
-def _env(scopes: list[str], token_db: TokenDb, now: pendulum.DateTime) -> None:
+def _env(scopes: list[str], token_db: TokenDb, now: datetime) -> None:
     """Every refresh reads the configured scopes, stores to the database and
     stamps an expiry."""
 
@@ -59,7 +60,7 @@ class TestRefreshApp:
         assert await manager.refresh_app_access_token() is True
 
         assert manager.token(TokenType.App) == "new-app"
-        assert manager._expires_at[TokenType.App] == NOW.add(seconds=3600)
+        assert manager._expires_at[TokenType.App] == NOW + timedelta(seconds=3600)
         assert len(written(token_db)) == 1
 
     @pytest.mark.parametrize("status", [400, 401, 403, 500, 503])
@@ -171,7 +172,7 @@ class TestRefreshUser:
 
         assert manager.token(TokenType.User) == "new-access"
         assert manager._refresh[TokenType.User] == "new-refresh"
-        assert manager._expires_at[TokenType.User] == NOW.add(seconds=14000)
+        assert manager._expires_at[TokenType.User] == NOW + timedelta(seconds=14000)
         assert len(written(token_db)) == 1
 
     async def test_the_broadcaster_flow_uses_and_updates_the_broadcasters_tokens(
@@ -256,7 +257,7 @@ class TestRefreshUser:
     async def test_a_reply_with_no_expiry_clears_the_known_one(
         self, manager: TwitchTokenManager, oauth_http: Http
     ) -> None:
-        manager._expires_at[TokenType.User] = NOW.add(hours=1)
+        manager._expires_at[TokenType.User] = NOW + timedelta(hours=1)
         oauth_http(reply(200, {**USER_OK, "expires_in": None}))
 
         await manager.refresh_user_access_token()

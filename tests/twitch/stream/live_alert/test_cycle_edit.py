@@ -1,9 +1,9 @@
 import inspect
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import aiohttp
 import discord
-import pendulum
 import pytest
 
 from tests.twitch.stream.live_alert.support import (
@@ -20,7 +20,7 @@ from valmal.twitch.stream.live_alert_cycle import Action
 
 pytestmark = pytest.mark.anyio
 
-STARTED = pendulum.datetime(2026, 6, 15, 11)
+STARTED = datetime(2026, 6, 15, 11, tzinfo=UTC)
 
 
 def not_found() -> discord.NotFound:

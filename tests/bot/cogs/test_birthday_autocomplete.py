@@ -1,8 +1,8 @@
 from typing import Any
 
-import pendulum
 import pytest
 
+from valmal.bot.birthday import known_timezones
 from valmal.bot.cogs.birthday import Birthday
 
 pytestmark = pytest.mark.anyio
@@ -35,17 +35,17 @@ class TestTimezoneAutocomplete:
         assert await suggest("no-such-zone-anywhere") == []
 
     async def test_every_suggestion_is_a_zone_the_command_will_accept(self) -> None:
-        known = pendulum.timezones()
+        known = known_timezones()
 
         assert all(zone in known for zone in await suggest("america"))
 
     async def test_a_broad_match_is_the_alphabetical_start_not_an_arbitrary_25(
         self,
     ) -> None:
-        """pendulum.timezones() is a set, so its order differs between processes."""
+        """known_timezones() is a set, so its order differs between processes."""
         found = await suggest("america")
 
-        expected = sorted(z for z in pendulum.timezones() if "america" in z.lower())
+        expected = sorted(z for z in known_timezones() if "america" in z.lower())
         assert found == expected[:25]
 
     async def test_the_same_input_gives_the_same_answer_every_time(self) -> None:
@@ -55,7 +55,7 @@ class TestTimezoneAutocomplete:
             assert await suggest("a") == first
 
     async def test_an_empty_input_starts_at_the_top_of_the_alphabet(self) -> None:
-        assert await suggest("") == sorted(pendulum.timezones())[:25]
+        assert await suggest("") == sorted(known_timezones())[:25]
 
     async def test_a_hostile_input_is_only_ever_compared_never_echoed(self) -> None:
         assert await suggest("@everyone" * 20) == []

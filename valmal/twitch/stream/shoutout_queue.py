@@ -1,11 +1,11 @@
 import asyncio
 import contextlib
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import ClassVar, Self, cast
 
-import pendulum
-
 from valmal.bot.present import quoted
+from valmal.core import clock
 from valmal.core.background import fire_and_forget
 from valmal.core.errors import notify, report
 from valmal.core.http_client import Reply
@@ -27,8 +27,8 @@ _LOOKUP_RETRY_BACKOFF_SECONDS = 300
 class TwitchShoutoutQueue:
     _instance: ClassVar[TwitchShoutoutQueue | None] = None
     _shoutout_queue: ClassVar[list[tuple[str, str]]] = []
-    _last_shoutout_by_target_id: ClassVar[dict[str, pendulum.DateTime]] = {}
-    _next_attempt_allowed_by_target_id: ClassVar[dict[str, pendulum.DateTime]] = {}
+    _last_shoutout_by_target_id: ClassVar[dict[str, datetime]] = {}
+    _next_attempt_allowed_by_target_id: ClassVar[dict[str, datetime]] = {}
 
     def __new__(cls) -> Self:
         if cls._instance is None:
@@ -61,7 +61,7 @@ class TwitchShoutoutQueue:
             self._shoutout_queue.append((login, user_id))
 
     def _can_shoutout_target(self, user_id: str) -> bool:
-        now = pendulum.now()
+        now = clock.now()
         next_ok = self._next_attempt_allowed_by_target_id.get(user_id)
         if next_ok is not None and now < next_ok:
             return False
@@ -80,17 +80,17 @@ class TwitchShoutoutQueue:
             None,
         )
 
-    def _wait_until_from_429(self, response: Reply) -> pendulum.DateTime:
-        now = pendulum.now()
+    def _wait_until_from_429(self, response: Reply) -> datetime:
+        now = clock.now()
         if ra := response.headers.get("Retry-After"):
             with contextlib.suppress(ValueError):
-                return now.add(seconds=int(ra))
+                return now + timedelta(seconds=int(ra))
         if rr := response.headers.get("Ratelimit-Reset"):
             with contextlib.suppress(ValueError):
-                reset = pendulum.from_timestamp(int(rr), tz=pendulum.UTC)
+                reset = datetime.fromtimestamp(int(rr), UTC)
                 if reset > now:
                     return reset
-        return now.add(seconds=_MIN_SAME_TARGET_COOLDOWN_SECONDS)
+        return now + timedelta(seconds=_MIN_SAME_TARGET_COOLDOWN_SECONDS)
 
     async def drain(self) -> None:
         """Send queued shoutouts for as long as the process runs.
@@ -153,8 +153,8 @@ class TwitchShoutoutQueue:
                 f"Could not look up {login} for a shoutout: {e}",
                 key=f"shoutout-lookup:{user_id_str}",
             )
-            self._next_attempt_allowed_by_target_id[user_id_str] = pendulum.now().add(
-                seconds=_LOOKUP_RETRY_BACKOFF_SECONDS
+            self._next_attempt_allowed_by_target_id[user_id_str] = (
+                clock.now() + timedelta(seconds=_LOOKUP_RETRY_BACKOFF_SECONDS)
             )
             self.add_to_queue(login, user_id_str)
             return None
@@ -188,7 +188,7 @@ class TwitchShoutoutQueue:
             else:
                 await report(e, f"Failed to send shoutout to {login}")
         else:
-            self._last_shoutout_by_target_id[user_id_str] = pendulum.now()
+            self._last_shoutout_by_target_id[user_id_str] = clock.now()
             self._next_attempt_allowed_by_target_id.pop(user_id_str, None)
 
         await asyncio.sleep(_GLOBAL_SHOUTOUT_INTERVAL_SECONDS)

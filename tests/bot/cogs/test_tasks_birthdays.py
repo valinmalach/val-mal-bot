@@ -5,17 +5,17 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import discord
-import pendulum
 import pytest
 
 from valmal.bot.cogs import tasks
 from valmal.bot.cogs.tasks import Tasks
+from valmal.core import clock
 from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio
 
 BACKSLASH = chr(92)
-NOW = pendulum.datetime(2026, 6, 15, 12, 15, 3)
+NOW = datetime(2026, 6, 15, 12, 15, 3, tzinfo=UTC)
 DUE = datetime(2026, 6, 15, 12, 15, tzinfo=UTC)
 
 
@@ -85,10 +85,10 @@ def world(monkeypatch: pytest.MonkeyPatch) -> World:
     monkeypatch.setattr(tasks, "report", report)
     monkeypatch.setattr(tasks, "send_message", send_message)
 
-    def now(tz: object = None) -> pendulum.DateTime:
+    def now() -> datetime:
         return NOW
 
-    monkeypatch.setattr(pendulum, "now", now)
+    monkeypatch.setattr(clock, "now", now)
     monkeypatch.setattr(config, "_channels", {"shoutouts": 8080})
     monkeypatch.setattr(
         config, "_templates", {"discord_birthday": "Happy birthday {mention}!"}
@@ -152,7 +152,7 @@ class TestProcessingOneBirthday:
         await cog(world)._process_birthday(record(), NOW)
 
         assert world.written == [
-            (7, "val_mal", pendulum.datetime(2027, 6, 15, 12, 15), False, None)
+            (7, "val_mal", datetime(2027, 6, 15, 12, 15, tzinfo=UTC), False, None)
         ]
 
     async def test_a_missing_leap_flag_is_stored_as_false_not_none(
@@ -164,24 +164,24 @@ class TestProcessingOneBirthday:
 
     async def test_a_leap_day_moves_to_the_next_leap_year(self, world: World) -> None:
         leap = datetime(2028, 2, 29, tzinfo=UTC)
-        now = pendulum.datetime(2028, 2, 29, 0, 3)
+        now = datetime(2028, 2, 29, 0, 3, tzinfo=UTC)
 
         await cog(world)._process_birthday(
             record(birthday=leap, is_birthday_leap=True), now
         )
 
-        assert world.written[0][2] == pendulum.datetime(2032, 2, 29)
+        assert world.written[0][2] == datetime(2032, 2, 29, tzinfo=UTC)
         assert world.written[0][3] is True
 
     async def test_a_zone_is_used_to_keep_the_local_day(self, world: World) -> None:
         stored = datetime(2026, 6, 14, 15, tzinfo=UTC)  # midnight 15 June in Tokyo
-        now = pendulum.datetime(2026, 6, 14, 15, 3)
+        now = datetime(2026, 6, 14, 15, 3, tzinfo=UTC)
 
         await cog(world)._process_birthday(
             record(birthday=stored, birthday_timezone="Asia/Tokyo"), now
         )
 
-        assert world.written[0][2] == pendulum.datetime(2027, 6, 14, 15)
+        assert world.written[0][2] == datetime(2027, 6, 14, 15, tzinfo=UTC)
         assert world.written[0][4] == "Asia/Tokyo"
 
     async def test_a_failed_write_means_no_greeting(self, world: World) -> None:
@@ -285,7 +285,7 @@ class TestATimezoneThatWentAway:
         await cog(world)._process_birthday(record(birthday_timezone="Gone/Away"), NOW)
 
         assert world.written == [
-            (7, "val_mal", pendulum.datetime(2027, 6, 15, 12, 15), False, None)
+            (7, "val_mal", datetime(2027, 6, 15, 12, 15, tzinfo=UTC), False, None)
         ]
         assert world.sent == [("Happy birthday <@7>!", 8080)]
 
@@ -335,7 +335,7 @@ class TestTheLoop:
         loop: Any = Tasks.check_birthdays
         await loop.coro(cog(world))
 
-        assert world.queried == [pendulum.datetime(2026, 6, 15, 12, 15)]
+        assert world.queried == [datetime(2026, 6, 15, 12, 15, tzinfo=UTC)]
 
     async def test_processes_what_it_found(self, world: World) -> None:
         world.due = [record()]

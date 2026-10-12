@@ -6,13 +6,14 @@ what Helix returned and gives back something Discord can post.
 """
 
 import re
+from datetime import datetime
 
 import discord
-import pendulum
 from discord.ui import View
 from discord.utils import escape_markdown
 
 from valmal.bot.present import quoted
+from valmal.core import clock
 from valmal.core.config import config
 from valmal.core.errors import notify_soon
 from valmal.twitch.eventsub.commands import is_twitch_login
@@ -125,7 +126,7 @@ def announcement_embed(
             value=f"{stream.viewer_count}",
             inline=True,
         )
-        .set_image(url=f"{raw_thumb_url}?cb={int(pendulum.now().timestamp())}")
+        .set_image(url=f"{raw_thumb_url}?cb={int(clock.now().timestamp())}")
     )
 
 
@@ -135,7 +136,7 @@ def live_embed(
     url: str,
     age: str,
     started_at_timestamp: str,
-    now: pendulum.DateTime,
+    now: datetime,
 ) -> discord.Embed:
     """The alert as refreshed, carrying how long the stream has been up."""
     raw_thumb_url = stream.thumbnail_url.replace("{width}x{height}", "400x225")
@@ -166,7 +167,7 @@ def live_embed(
             value=started_at_timestamp,
             inline=True,
         )
-        # now, not an independent pendulum.now(): the caller already took "now" to stamp
+        # now, not an independent clock.now(): the caller already took "now" to stamp
         # the embed with, and a second wall-clock read would make the cache-buster
         # nondeterministic against the rest of the embed, and untestable.
         .set_image(url=f"{raw_thumb_url}?cb={int(now.timestamp())}")
@@ -201,7 +202,7 @@ def offline_embed(
     user_info: User | None,
     url: str,
     age: str,
-    now: pendulum.DateTime,
+    now: datetime,
 ) -> discord.Embed:
     """The alert as left behind once the stream is over."""
     embed = (

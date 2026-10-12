@@ -1,7 +1,6 @@
 from datetime import UTC, datetime
 
 import discord
-import pendulum
 import pytest
 
 from tests.bot.audit.support import (
@@ -254,7 +253,7 @@ class TestProfileChanges:
         assert log.embed.footer.text == "ID: 7"
 
     async def test_a_timeout_says_when_it_ends(self, log: Audit) -> None:
-        until = pendulum.datetime(2026, 6, 15, 11, 0)
+        until = datetime(2026, 6, 15, 11, 0, tzinfo=UTC)
 
         await audit.timed_out(person(), until)
 
@@ -282,7 +281,7 @@ class TestEveryEntryLandsInTheAuditChannel:
             audit.role_removed(member, [role(2)]),
             audit.nickname_changed(member, "a", "b"),
             audit.pfp_changed(member),
-            audit.timed_out(member, pendulum.now()),
+            audit.timed_out(member, datetime.now(UTC)),
             audit.timeout_lifted(member),
             audit.message_edited(message(), "before"),
             audit.pin_changed(message()),

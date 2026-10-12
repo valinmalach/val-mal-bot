@@ -237,7 +237,8 @@ everything for it, rather than one directory per kind of file:
 
 - `valmal/core/` — plumbing the rest leans on: `settings` (the `.env`), `config` (the
   database-backed configuration) and the `safe_format` it renders with, `errors`,
-  `background`, `logging_json`, `http_client` and `memory`.
+  `background`, `logging_json`, `http_client`, `memory`, and `clock`, the one place the
+  bot reads the time, so a test freezes it by patching `clock.now`.
 - `valmal/db/` — Postgres: `pool` (asyncpg), `repository` and `configuration` (every
   statement the bot runs), `rows` (what they return), `enums`, and `models/` (the schema,
   for Alembic and the tests only). Alembic's revisions are `migrations/`, at the root.

@@ -1,5 +1,6 @@
+from datetime import UTC, datetime, timedelta
+
 import discord
-import pendulum
 import pytest
 
 from tests.bot.audit.support import (
@@ -203,7 +204,7 @@ class TestEmbed:
         assert embed.colour is not None and embed.colour.value == 0x337FD5
 
     def test_is_stamped_with_now(self, log: object) -> None:
-        before = pendulum.now().subtract(seconds=1)
+        before = datetime.now(UTC) - timedelta(seconds=1)
 
         embed = audit._embed("text", "embed_color_info")
 

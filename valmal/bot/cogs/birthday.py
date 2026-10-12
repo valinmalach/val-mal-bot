@@ -1,13 +1,19 @@
 import logging
 from typing import Literal
 
-import pendulum
 from discord import AllowedMentions, Interaction, app_commands
 from discord.app_commands import Choice, Range
 from discord.ext.commands import Bot, GroupCog
 from discord.utils import escape_markdown
 
-from valmal.bot.birthday import MAX_DAYS, Months, is_leap_day, next_birthday_on
+from valmal.bot.birthday import (
+    MAX_DAYS,
+    Months,
+    is_leap_day,
+    known_timezones,
+    next_birthday_on,
+)
+from valmal.core import clock
 from valmal.core.config import config, has_configured_role
 from valmal.core.errors import notify, report
 from valmal.db import repository
@@ -16,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Sorted once at import: the set itself is fixed for the process's lifetime,
 # and autocomplete re-runs on every keystroke.
-_SORTED_TIMEZONES = sorted(pendulum.timezones())
+_SORTED_TIMEZONES = sorted(known_timezones())
 
 
 class Birthday(GroupCog):
@@ -48,7 +54,7 @@ class Birthday(GroupCog):
             await repository.upsert_user(
                 interaction.user.id,
                 interaction.user.name,
-                next_birthday_on(month, day, timezone, pendulum.now("UTC")),
+                next_birthday_on(month, day, timezone, clock.now()),
                 is_leap,
                 timezone,
             )
@@ -64,7 +70,7 @@ class Birthday(GroupCog):
         self, interaction: Interaction, month: Months, day: int, timezone: str
     ) -> bool:
         """Validate timezone and day inputs. Returns True if there was an error."""
-        if timezone not in pendulum.timezones():
+        if timezone not in known_timezones():
             # The value is whatever the user typed and it is echoed back, so it
             # is escaped for Discord and stripped of the power to mention; !r for
             # the log, where a bare newline would forge a line instead.

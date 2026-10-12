@@ -13,9 +13,9 @@ different transition, and resets rather than tears down; see
 
 import asyncio
 import logging
+from datetime import UTC, datetime, timedelta
 
-import pendulum
-
+from valmal.core import clock
 from valmal.core.background import fire_and_forget
 from valmal.core.config import config
 from valmal.core.errors import notify, report
@@ -248,10 +248,10 @@ async def _warn_before_next_ad(broadcaster_id: str) -> None:
         if not ad_schedule:
             return
 
-        notify_time = pendulum.from_timestamp(ad_schedule.next_ad_at).subtract(
+        notify_time = datetime.fromtimestamp(ad_schedule.next_ad_at, UTC) - timedelta(
             minutes=5
         )
-        wait_seconds = (notify_time - pendulum.now(tz=pendulum.UTC)).total_seconds()
+        wait_seconds = (notify_time - clock.now()).total_seconds()
         if wait_seconds > 0:
             await asyncio.sleep(wait_seconds)
             if not is_live():

@@ -1,4 +1,5 @@
-import pendulum
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from tests.twitch.stream.shoutout_queue.support import (
@@ -102,16 +103,16 @@ class TestCanShoutout:
         self, queue: TwitchShoutoutQueue, world: World
     ) -> None:
         queue._last_shoutout_by_target_id["42"] = NOW
-        world.now = NOW.add(seconds=COOLDOWN - 1)
+        world.now = NOW + timedelta(seconds=COOLDOWN - 1)
         assert queue._can_shoutout_target("42") is False
 
-        world.now = NOW.add(seconds=COOLDOWN)
+        world.now = NOW + timedelta(seconds=COOLDOWN)
         assert queue._can_shoutout_target("42") is True
 
     def test_a_backoff_still_running_blocks_even_a_target_never_shouted_out(
         self, queue: TwitchShoutoutQueue, world: World
     ) -> None:
-        queue._next_attempt_allowed_by_target_id["42"] = NOW.add(minutes=5)
+        queue._next_attempt_allowed_by_target_id["42"] = NOW + timedelta(minutes=5)
 
         assert queue._can_shoutout_target("42") is False
 
@@ -119,18 +120,18 @@ class TestCanShoutout:
         self, queue: TwitchShoutoutQueue, world: World
     ) -> None:
         """It is allowed to try again at the moment it names, not a tick after."""
-        queue._next_attempt_allowed_by_target_id["42"] = NOW.add(seconds=30)
+        queue._next_attempt_allowed_by_target_id["42"] = NOW + timedelta(seconds=30)
 
-        world.now = NOW.add(seconds=29)
+        world.now = NOW + timedelta(seconds=29)
         assert queue._can_shoutout_target("42") is False
-        world.now = NOW.add(seconds=30)
+        world.now = NOW + timedelta(seconds=30)
         assert queue._can_shoutout_target("42") is True
 
     def test_an_expired_backoff_falls_through_to_the_cooldown_check(
         self, queue: TwitchShoutoutQueue, world: World
     ) -> None:
-        queue._next_attempt_allowed_by_target_id["42"] = NOW.subtract(seconds=1)
-        queue._last_shoutout_by_target_id["42"] = NOW.subtract(seconds=10)
+        queue._next_attempt_allowed_by_target_id["42"] = NOW - timedelta(seconds=1)
+        queue._last_shoutout_by_target_id["42"] = NOW - timedelta(seconds=10)
 
         assert queue._can_shoutout_target("42") is False
 
@@ -161,7 +162,7 @@ class TestNextPair:
         self, queue: TwitchShoutoutQueue, world: World
     ) -> None:
         queue._shoutout_queue.append(("a", "1"))
-        queue._next_attempt_allowed_by_target_id["1"] = NOW.add(hours=1)
+        queue._next_attempt_allowed_by_target_id["1"] = NOW + timedelta(hours=1)
 
         assert queue._get_next_available_pair() is None
 
@@ -174,22 +175,22 @@ class TestWaitUntilFrom429:
         self, queue: TwitchShoutoutQueue, world: World
     ) -> None:
         assert queue._wait_until_from_429(self.response(**{"Retry-After": "30"})) == (
-            NOW.add(seconds=30)
+            NOW + timedelta(seconds=30)
         )
 
     def test_retry_after_wins_over_the_reset_header(
         self, queue: TwitchShoutoutQueue, world: World
     ) -> None:
-        reset = str(int(NOW.add(hours=2).timestamp()))
+        reset = str(int((NOW + timedelta(hours=2)).timestamp()))
 
         assert queue._wait_until_from_429(
             self.response(**{"Retry-After": "30", "Ratelimit-Reset": reset})
-        ) == NOW.add(seconds=30)
+        ) == NOW + timedelta(seconds=30)
 
     def test_an_http_date_retry_after_is_skipped_for_the_reset_header(
         self, queue: TwitchShoutoutQueue, world: World
     ) -> None:
-        reset = int(NOW.add(minutes=10).timestamp())
+        reset = int((NOW + timedelta(minutes=10)).timestamp())
 
         wait = queue._wait_until_from_429(
             self.response(
@@ -200,16 +201,16 @@ class TestWaitUntilFrom429:
             )
         )
 
-        assert wait == pendulum.from_timestamp(reset, tz=pendulum.UTC)
+        assert wait == datetime.fromtimestamp(reset, UTC)
 
     def test_a_reset_in_the_past_is_ignored(
         self, queue: TwitchShoutoutQueue, world: World
     ) -> None:
-        past = str(int(NOW.subtract(minutes=10).timestamp()))
+        past = str(int((NOW - timedelta(minutes=10)).timestamp()))
 
         assert queue._wait_until_from_429(
             self.response(**{"Ratelimit-Reset": past})
-        ) == (NOW.add(seconds=COOLDOWN))
+        ) == (NOW + timedelta(seconds=COOLDOWN))
 
     @pytest.mark.parametrize(
         "headers",
@@ -224,5 +225,5 @@ class TestWaitUntilFrom429:
         self, headers: dict[str, str], queue: TwitchShoutoutQueue, world: World
     ) -> None:
         assert queue._wait_until_from_429(self.response(**headers)) == (
-            NOW.add(seconds=COOLDOWN)
+            NOW + timedelta(seconds=COOLDOWN)
         )

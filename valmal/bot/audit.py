@@ -7,9 +7,9 @@ looks is a change to one file.
 """
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 
-import pendulum
 from discord import (
     Attachment,
     Embed,
@@ -22,7 +22,6 @@ from discord import (
 )
 from discord.ext.commands import Bot, CommandError, Context
 from discord.utils import escape_markdown
-from pendulum import DateTime
 
 from valmal.bot.duration import get_age
 from valmal.bot.present import (
@@ -32,6 +31,7 @@ from valmal.bot.present import (
     get_pfp,
 )
 from valmal.bot.send import send_embed
+from valmal.core import clock
 from valmal.core.config import config
 
 UNKNOWN_USER = "Unknown User"
@@ -91,7 +91,7 @@ def _embed(description: str, color: str) -> Embed:
     return Embed(
         description=_cap(description, _DESCRIPTION_LIMIT),
         color=config.color(color),
-        timestamp=pendulum.now(),
+        timestamp=clock.now(),
     )
 
 
@@ -132,7 +132,7 @@ async def member_joined(member: Member) -> None:
     _captioned(embed, config.template("audit_member_joined"), url)
     embed.set_thumbnail(url=url).add_field(
         name="**Account Age**",
-        value=_field(get_age(pendulum.instance(member.created_at))),
+        value=_field(get_age(member.created_at)),
         inline=False,
     ).set_footer(text=f"ID: {member.id}")
     await _send(embed)
@@ -253,7 +253,7 @@ async def pfp_changed(member: Member) -> None:
     await _send(embed)
 
 
-async def timed_out(member: Member, until: DateTime) -> None:
+async def timed_out(member: Member, until: datetime) -> None:
     embed = _templated(
         "audit_timed_out",
         "embed_color_info",

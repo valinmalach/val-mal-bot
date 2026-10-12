@@ -1,12 +1,12 @@
-import pendulum
+from datetime import datetime
+
 import pytest
 
 from valmal.twitch.timestamps import parse_rfc3339
 
 
 def _arabic_indic(text: str) -> str:
-    """The same text in non-ASCII digits, which pendulum's pure-Python parser
-    accepts, so only the shape regex stands between them and a parsed timestamp."""
+    """The same text in non-ASCII digits, which RFC3339 does not allow."""
     return "".join(chr(0x0660 + int(c)) if c.isdigit() else c for c in text)
 
 
@@ -16,7 +16,7 @@ def _arabic_indic(text: str) -> str:
         ("2025-05-31T12:34:56Z", "2025-05-31T12:34:56+00:00"),
         ("2025-05-31T12:34:56.5Z", "2025-05-31T12:34:56.500000+00:00"),
         ("2025-05-31T12:34:56.123456Z", "2025-05-31T12:34:56.123456+00:00"),
-        # Twitch sends nanoseconds; pendulum keeps microseconds.
+        # Twitch sends nanoseconds; datetime keeps microseconds.
         ("2025-05-31T12:34:56.123456789Z", "2025-05-31T12:34:56.123456+00:00"),
         ("2025-05-31T12:34:56+05:30", "2025-05-31T12:34:56+05:30"),
         ("2025-05-31T12:34:56-08:00", "2025-05-31T12:34:56-08:00"),
@@ -26,7 +26,7 @@ def _arabic_indic(text: str) -> str:
 def test_accepts_rfc3339(text: str, iso: str) -> None:
     parsed = parse_rfc3339(text)
 
-    assert isinstance(parsed, pendulum.DateTime)
+    assert isinstance(parsed, datetime)
     assert parsed.tzinfo is not None
     assert parsed.isoformat() == iso
 
@@ -43,7 +43,8 @@ def test_the_offset_is_kept_but_the_instant_is_the_same() -> None:
         "",
         " ",
         "not a date",
-        # Shape: everything pendulum would take that RFC3339 does not.
+        # Shape: what RFC3339 as Twitch sends it does not allow, some of which
+        # fromisoformat would take.
         "2025-05-31 12:34:56Z",
         "2025-05-31t12:34:56Z",
         "2025-05-31T12:34:56z",
@@ -86,35 +87,6 @@ def test_the_error_echoes_at_most_forty_characters_of_the_input() -> None:
 
 def test_an_unparseable_value_chains_the_underlying_error() -> None:
     with pytest.raises(ValueError) as caught:
-        parse_rfc3339("2025-13-45T99:99:99Z")
+        parse_rfc3339("2025-02-30T12:34:56Z")
 
     assert caught.value.__cause__ is not None
-
-
-@pytest.mark.parametrize(
-    "parsed", [pendulum.date(2026, 6, 15), pendulum.duration(days=1)]
-)
-def test_a_parse_that_is_not_a_datetime_is_refused_as_the_same_error(
-    parsed: object, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Pendulum can return other types; the shape check alone cannot rule them out."""
-
-    def parse(text: str) -> object:
-        return parsed
-
-    monkeypatch.setattr(pendulum, "parse", parse)
-
-    with pytest.raises(ValueError, match="Not an RFC3339 timestamp"):
-        parse_rfc3339("2026-06-15T11:00:00Z")
-
-
-def test_a_naive_parse_is_refused_because_it_would_be_read_as_local_time(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def parse(text: str) -> pendulum.DateTime:
-        return pendulum.naive(2026, 6, 15)
-
-    monkeypatch.setattr(pendulum, "parse", parse)
-
-    with pytest.raises(ValueError, match="Not an RFC3339 timestamp"):
-        parse_rfc3339("2026-06-15T11:00:00Z")

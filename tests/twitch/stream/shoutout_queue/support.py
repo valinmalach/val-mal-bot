@@ -1,13 +1,12 @@
 """Shared by the shoutout queue tests."""
 
 import asyncio
-
-import pendulum
+from datetime import UTC, datetime
 
 from valmal.twitch.models.api.user import User
 from valmal.twitch.stream.shoutout_queue import TwitchShoutoutQueue
 
-NOW = pendulum.datetime(2026, 6, 15, 12)
+NOW = datetime(2026, 6, 15, 12, tzinfo=UTC)
 COOLDOWN = 61 * 60
 
 
