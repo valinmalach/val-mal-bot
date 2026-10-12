@@ -144,10 +144,16 @@ async def _admit(headers: Headers, endpoint: str) -> None:
     """
     try:
         sent = parse_rfc3339(headers.get(TWITCH_MESSAGE_TIMESTAMP, ""))
-    except ValueError:
-        logger.warning("403: Unreadable message timestamp on %s", endpoint)
-        await notify(f"403: Forbidden request on {endpoint}. Unreadable timestamp.")
-        raise HTTPException(status_code=403) from None
+    except ValueError as e:
+        # Past the shape check the parser's own error is the only thing that says
+        # whether Twitch sent a bad date or the parser broke, so it is kept.
+        logger.warning("403: Unreadable message timestamp on %s", endpoint, exc_info=e)
+        await notify(
+            f"403: Forbidden request on {endpoint}. Unreadable timestamp:"
+            f" {e.__cause__ or e}",
+            key=f"unreadable-timestamp:{endpoint}",
+        )
+        raise HTTPException(status_code=403) from e
 
     if replay.is_stale(sent):
         logger.warning("403: Stale delivery on %s, sent %s", endpoint, sent)

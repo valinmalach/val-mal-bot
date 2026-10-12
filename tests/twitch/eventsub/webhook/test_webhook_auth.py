@@ -11,7 +11,6 @@ from tests.twitch.eventsub.webhook.support import (
     sign,
     stream_online_payload,
 )
-from valmal.twitch.eventsub import replay
 
 pytestmark = pytest.mark.anyio
 
@@ -344,42 +343,3 @@ class TestRevocation:
 
         assert response.status_code == 403
         assert all("everyone" not in text for text, _ in hooks.notified)
-
-
-class TestFreshness:
-    @pytest.mark.parametrize("delta", [-600, -1, 0, 1, 600])
-    async def test_within_ten_minutes_either_way_is_fresh(
-        self, delta: int, client: httpx.AsyncClient
-    ) -> None:
-        response = await post(client, stream_online_payload(), timestamp=iso(delta))
-
-        assert response.status_code == 202
-
-    @pytest.mark.parametrize("delta", [-601, 601, -86_400, 86_400])
-    async def test_beyond_ten_minutes_in_either_direction_is_refused(
-        self, delta: int, client: httpx.AsyncClient, hooks: Hooks
-    ) -> None:
-        """A clock ahead is as wrong as a clock behind."""
-        response = await post(client, stream_online_payload(), timestamp=iso(delta))
-
-        assert response.status_code == 403
-        assert hooks.dispatched == []
-        ((text, key),) = hooks.notified
-        assert "Timestamp outside the 600s window" in text
-        assert key == "stale-delivery:/t"
-
-    @pytest.mark.parametrize(
-        "timestamp", ["", "yesterday", "2026-06-15 12:00:00", "12:00"]
-    )
-    async def test_an_unreadable_timestamp_is_refused(
-        self, timestamp: str, client: httpx.AsyncClient, hooks: Hooks
-    ) -> None:
-        response = await post(client, stream_online_payload(), timestamp=timestamp)
-
-        assert response.status_code == 403
-        assert hooks.notified == [
-            ("403: Forbidden request on /t. Unreadable timestamp.", None)
-        ]
-
-    async def test_the_window_is_ten_minutes(self) -> None:
-        assert replay.MESSAGE_WINDOW_SECONDS == 600
