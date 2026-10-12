@@ -7,6 +7,9 @@ the next restart. Accessors are synchronous because most call sites are not asyn
 import json
 import logging
 import re
+
+# A builtin, imported anyway: Codacy's pyflakes predates 3.15 and calls it undefined.
+from builtins import frozendict
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, TypeVar
