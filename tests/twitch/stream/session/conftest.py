@@ -1,13 +1,14 @@
 """Fixtures for the stream session tests."""
 
 import asyncio
+from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
 
-import pendulum
 import pytest
 
 from tests.twitch.stream.session.support import NOW, Calls
+from valmal.core import clock
 from valmal.core.config import config
 from valmal.twitch.models.api.ad_schedule import AdSchedule
 from valmal.twitch.models.api.stream import Stream
@@ -59,10 +60,10 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> Calls:
         lambda: setattr(calls, "cleared", calls.cleared + 1),
     )
 
-    def now(tz: object = None) -> pendulum.DateTime:
+    def now() -> datetime:
         return NOW
 
-    monkeypatch.setattr(pendulum, "now", now)
+    monkeypatch.setattr(clock, "now", now)
     return calls
 
 

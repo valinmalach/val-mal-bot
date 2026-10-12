@@ -4,19 +4,19 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
-import pendulum
 import pytest
 from discord import AllowedMentions
 
 from valmal.bot.birthday import MAX_DAYS, Months
 from valmal.bot.cogs import birthday
 from valmal.bot.cogs.birthday import Birthday
+from valmal.core import clock
 from valmal.core.config import config
 
 pytestmark = pytest.mark.anyio
 
 BACKSLASH = chr(92)
-NOW = pendulum.datetime(2026, 6, 15, 12)
+NOW = datetime(2026, 6, 15, 12, tzinfo=UTC)
 
 
 class World:
@@ -90,10 +90,10 @@ def world(monkeypatch: pytest.MonkeyPatch) -> World:
     monkeypatch.setattr(birthday, "notify", notify)
     monkeypatch.setattr(birthday, "report", report)
 
-    def now(tz: object = None) -> pendulum.DateTime:
+    def now() -> datetime:
         return NOW
 
-    monkeypatch.setattr(pendulum, "now", now)
+    monkeypatch.setattr(clock, "now", now)
     monkeypatch.setattr(
         config,
         "_templates",
@@ -136,21 +136,21 @@ class TestSet:
 
         ((user_id, name, moment, leap, zone),) = world.written
         assert (user_id, name, leap, zone) == (7, "val_mal", False, "Asia/Tokyo")
-        assert moment == pendulum.datetime(2026, 7, 3, 15)
+        assert moment == datetime(2026, 7, 3, 15, tzinfo=UTC)
         assert world.texts == ["set"]
 
     async def test_the_zone_defaults_to_utc(self, world: World) -> None:
         await set_birthday(world, Months.July, 4)
 
         assert world.written[0][4] == "UTC"
-        assert world.written[0][2] == pendulum.datetime(2026, 7, 4)
+        assert world.written[0][2] == datetime(2026, 7, 4, tzinfo=UTC)
 
     async def test_a_birthday_already_gone_this_year_is_stored_for_next_year(
         self, world: World
     ) -> None:
         await set_birthday(world, Months.January, 4)
 
-        assert world.written[0][2] == pendulum.datetime(2027, 1, 4)
+        assert world.written[0][2] == datetime(2027, 1, 4, tzinfo=UTC)
 
     async def test_a_leap_day_is_flagged_and_stored_in_a_leap_year(
         self, world: World
@@ -159,7 +159,7 @@ class TestSet:
 
         ((_, _, moment, leap, _),) = world.written
         assert leap is True
-        assert moment == pendulum.datetime(2028, 2, 29)
+        assert moment == datetime(2028, 2, 29, tzinfo=UTC)
         assert world.texts == ["set leap"]
 
     async def test_no_other_date_is_flagged_as_a_leap_day(self, world: World) -> None:

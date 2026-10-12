@@ -4,10 +4,10 @@ from collections.abc import Callable, Iterable
 from datetime import timedelta
 
 import discord
-import pendulum
 from discord import Member, User
 from discord.ext.commands import Bot
 
+from valmal.core import clock
 from valmal.core.errors import notify
 
 # Discord writes no audit entry when people delete their own messages, and folds
@@ -60,7 +60,7 @@ async def recent_entries(
         async for entry in guild.audit_logs(
             limit=_AUDIT_LOOKBACK,
             action=action,
-            after=pendulum.now() - _AUDIT_WINDOW,
+            after=clock.now() - _AUDIT_WINDOW,
             # Oldest first is what sends `after` to Discord; newest first
             # fetches a whole page and filters it here. It is also the order
             # the deletions' events arrive in, so each claims its own entry.
@@ -94,7 +94,7 @@ class Claims:
         cannot both take the same one. Records are kept for twice the lookup
         window, so an entry a lookup can still fetch has not lost its claims.
         """
-        cutoff = pendulum.now() - 2 * _AUDIT_WINDOW
+        cutoff = clock.now() - 2 * _AUDIT_WINDOW
         self._attributed = {
             entry_id: claimed
             for entry_id, claimed in self._attributed.items()

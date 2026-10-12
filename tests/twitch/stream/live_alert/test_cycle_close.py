@@ -1,4 +1,5 @@
-import pendulum
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from tests.twitch.stream.live_alert.support import (
@@ -20,7 +21,7 @@ from valmal.twitch.stream.live_alert_cycle import Action
 
 pytestmark = pytest.mark.anyio
 
-STARTED = pendulum.datetime(2026, 6, 15, 11)
+STARTED = datetime(2026, 6, 15, 11, tzinfo=UTC)
 
 
 class TestGatherCloseInfo:
@@ -221,7 +222,7 @@ class TestCycle:
             5001,
             900,
             10,
-            NOW.subtract(hours=2, minutes=30, seconds=5),
+            NOW - timedelta(hours=2, minutes=30, seconds=5),
             "<t:1:f>",
             None,
         )

@@ -4,10 +4,13 @@ Nothing here is importable state: an embed or view is constructed on demand, so
 editing a row changes what the next /rules or /roles posts without a redeploy.
 """
 
+from typing import Any
+
 from discord import Colour, Embed, Interaction
-from discord.ui import Button, View
+from discord.ui import Button, Item, View
 
 from valmal.core.config import config
+from valmal.core.errors import report
 
 __all__ = ["RolePickerView", "build_embed", "persistent_views", "role_panels"]
 
@@ -25,6 +28,13 @@ class RolePickerView(View):
             button: Button[View] = Button(emoji=role.emoji, custom_id=role.custom_id)
             button.callback = _toggle(button)
             self.add_item(button)
+
+    async def on_error(
+        self, interaction: Interaction, error: Exception, item: Item[Any], /
+    ) -> None:
+        # The bot's floor stops at dispatch, and View's own on_error only logs: a
+        # broken button would show the member "This interaction failed" and no more.
+        await report(error, f"Role button failed for user {interaction.user.id}")
 
 
 # Unannotated on purpose: Callable[[Interaction], ...] drops the parameter's name,

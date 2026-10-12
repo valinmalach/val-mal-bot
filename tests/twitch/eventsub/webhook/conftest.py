@@ -3,11 +3,11 @@
 import asyncio
 from collections import OrderedDict
 from collections.abc import AsyncGenerator, Callable, Coroutine
+from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
 
 import httpx
-import pendulum
 import pytest
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -16,6 +16,7 @@ from starlette.routing import Route
 
 import valmal.twitch.eventsub.router as ctl
 from tests.twitch.eventsub.webhook.support import NOW, Hooks
+from valmal.core import clock
 from valmal.twitch.eventsub import replay
 from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
@@ -46,10 +47,10 @@ def hooks(monkeypatch: pytest.MonkeyPatch) -> Hooks:
     monkeypatch.setattr(ctl, "fire_and_forget", fire_and_forget)
     monkeypatch.setattr(replay, "time", SimpleNamespace(monotonic=lambda: hooks.clock))
 
-    def now(tz: object = None) -> pendulum.DateTime:
+    def now() -> datetime:
         return NOW
 
-    monkeypatch.setattr(pendulum, "now", now)
+    monkeypatch.setattr(clock, "now", now)
     monkeypatch.setattr(replay, "_handled", OrderedDict[str, float]())
     monkeypatch.setattr(replay, "_forgotten_early", 0)
     return hooks

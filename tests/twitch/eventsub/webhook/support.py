@@ -9,20 +9,19 @@ import hashlib
 import hmac
 import json
 from collections.abc import Coroutine
+from datetime import UTC, datetime, timedelta
 from typing import Any
-
-import pendulum
 
 from tests.credentials import WEBHOOK_SECRET
 from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
 SECRET = WEBHOOK_SECRET
-NOW = pendulum.datetime(2026, 6, 15, 12)
+NOW = datetime(2026, 6, 15, 12, tzinfo=UTC)
 NOW_ISO = "2026-06-15T12:00:00Z"
 
 
 def iso(delta_seconds: int = 0) -> str:
-    return NOW.add(seconds=delta_seconds).to_iso8601_string()
+    return (NOW + timedelta(seconds=delta_seconds)).isoformat()
 
 
 def sign(message_id: str, timestamp: str, body: str | bytes) -> str:

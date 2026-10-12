@@ -1,3 +1,4 @@
+from datetime import timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -140,8 +141,8 @@ class TestDeleter:
         """The lookup and the prune read the clock apart, so the record outlives
         the window rather than ending with it."""
         instance = Claims()
-        edge = discord.utils.time_snowflake(NOW.subtract(minutes=6))
-        stale = discord.utils.time_snowflake(NOW.subtract(minutes=11))
+        edge = discord.utils.time_snowflake(NOW - timedelta(minutes=6))
+        stale = discord.utils.time_snowflake(NOW - timedelta(minutes=11))
         instance._attributed = {edge: 1, stale: 1}
 
         instance.deleter([], deleters.about_purge(55, 1), 1)

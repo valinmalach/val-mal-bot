@@ -2,9 +2,9 @@ import asyncio
 from collections import Counter, deque
 from collections.abc import Awaitable, Generator, Iterable
 from contextlib import contextmanager
+from datetime import datetime
 
 import discord
-import pendulum
 from discord import (
     Embed,
     Guild,
@@ -18,13 +18,13 @@ from discord import (
     User,
 )
 from discord.ext.commands import Bot, Cog, CommandError, Context
-from pendulum import DateTime
 
 from valmal.bot import audit
 from valmal.bot.deleters import Claims, about_message, about_purge, recent_entries
 from valmal.bot.duration import get_ordinal_suffix
 from valmal.bot.present import get_discriminator, get_pfp
 from valmal.bot.send import send_embed
+from valmal.core import clock
 from valmal.core.config import config
 from valmal.core.errors import report
 from valmal.db import repository
@@ -129,7 +129,7 @@ class Events(Cog):
         embed = Embed(
             description=config.template("discord_welcome", mention=member.mention),
             color=config.color("embed_color_welcome"),
-            timestamp=pendulum.now(),
+            timestamp=clock.now(),
         ).set_author(name=f"{member.name}{get_discriminator(member)}", icon_url=url)
         embed = embed.set_image(url=url)
         # None for a guild the gateway sent without one, which no ordinal
@@ -157,7 +157,7 @@ class Events(Cog):
         embed = Embed(
             description=config.template("discord_goodbye", mention=member.mention),
             color=config.color("embed_color_goodbye"),
-            timestamp=pendulum.now(),
+            timestamp=clock.now(),
         ).set_author(name=f"{member.name}{get_discriminator(member)}", icon_url=url)
         embed = embed.set_image(url=url)
         await send_embed(
@@ -215,14 +215,8 @@ class Events(Cog):
 
     async def _handle_timeout_changes(self, before: Member, after: Member) -> None:
         """A timeout that has already expired is not one, so both ends are compared."""
-        before_until = (
-            pendulum.instance(before.timed_out_until)
-            if before.timed_out_until
-            else None
-        )
-        after_until = (
-            pendulum.instance(after.timed_out_until) if after.timed_out_until else None
-        )
+        before_until = before.timed_out_until
+        after_until = after.timed_out_until
         was_timed_out = self._is_currently_timed_out(before_until)
         is_timed_out = self._is_currently_timed_out(after_until)
 
@@ -231,9 +225,9 @@ class Events(Cog):
         elif was_timed_out and not is_timed_out:
             await audit.timeout_lifted(after)
 
-    def _is_currently_timed_out(self, timeout_until: DateTime | None) -> bool:
+    def _is_currently_timed_out(self, timeout_until: datetime | None) -> bool:
         """Check if a member is currently timed out."""
-        return timeout_until is not None and timeout_until > pendulum.now()
+        return timeout_until is not None and timeout_until > clock.now()
 
     def _is_bot_message(self, *messages: Message | None) -> bool:
         """Whether any of these is a message the bot itself sent.

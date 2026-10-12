@@ -14,7 +14,6 @@ dependencies = [
     # Nothing imports it: discord.py parses every gateway event with it when it is
     # installed, and with the stdlib json when it is not.
     "orjson>=3.13.0",
-    "pendulum>=3.2.0",
     "pydantic>=2.14.1",
     "pydantic-settings>=2.15.0",
     # Alembic's env.py runs on the asyncio engine, which needs greenlet, and SQLAlchemy
@@ -22,6 +21,9 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.1.4",
     "sqlmodel>=0.0.48",
     "starlette>=1.7.0",
+    # zoneinfo reads the system's tz database, which a slim image may not have, and
+    # falls back to this package.
+    "tzdata>=2026.5",
     # Not uvicorn[standard]: of what it adds, only uvloop is used. httptools and pyyaml
     # have no 3.15 wheel (#109), and watchfiles and websockets serve reload and ws, both off.
     "uvicorn>=0.54.0",

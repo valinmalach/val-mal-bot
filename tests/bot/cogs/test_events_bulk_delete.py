@@ -1,3 +1,4 @@
+from datetime import timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -52,7 +53,7 @@ class TestOnRawBulkMessageDelete:
             {
                 "limit": 100,
                 "action": discord.AuditLogAction.message_bulk_delete,
-                "after": NOW.subtract(minutes=5),
+                "after": NOW - timedelta(minutes=5),
                 "oldest_first": True,
             }
         ]

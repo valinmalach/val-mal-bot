@@ -87,6 +87,24 @@ class TestRolePickerView:
     ) -> None:
         assert RolePickerView("pronouns").timeout is None
 
+    async def test_a_button_that_fails_is_reported_not_only_logged(
+        self, stored: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """View's own on_error only logs, and the logs are not watched."""
+        reported: list[tuple[Exception, str]] = []
+
+        async def report(exc: Exception, context: str) -> None:
+            reported.append((exc, context))
+
+        monkeypatch.setattr(views, "report", report)
+        view = RolePickerView("pronouns")
+        error = TypeError("broken")
+        interaction: Any = SimpleNamespace(user=SimpleNamespace(id=42))
+
+        await view.on_error(interaction, error, button_of(view, 0))
+
+        assert reported == [(error, "Role button failed for user 42")]
+
     async def test_is_persistent_so_discord_accepts_it_for_add_view(
         self, stored: dict[str, Any]
     ) -> None:

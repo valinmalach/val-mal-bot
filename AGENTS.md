@@ -237,7 +237,8 @@ everything for it, rather than one directory per kind of file:
 
 - `valmal/core/` — plumbing the rest leans on: `settings` (the `.env`), `config` (the
   database-backed configuration) and the `safe_format` it renders with, `errors`,
-  `background`, `logging_json`, `http_client` and `memory`.
+  `background`, `logging_json`, `http_client`, `memory`, and `clock`, the one place the
+  bot reads the time, so a test freezes it by patching `clock.now`.
 - `valmal/db/` — Postgres: `pool` (asyncpg), `repository` and `configuration` (every
   statement the bot runs), `rows` (what they return), `enums`, and `models/` (the schema,
   for Alembic and the tests only). Alembic's revisions are `migrations/`, at the root.
@@ -313,7 +314,8 @@ to report more than its own name keeps its own `try`/`except` and says why — n
 currently do. `_safe_db_operation`'s `try`/`except` is not this: it guards one write
 so that failure doesn't abort the rest of the listener, and names the write, not the
 event. The floor is dispatch-only: a `discord.ui.View`/button callback that raises
-reaches `View.on_error`, which just logs.
+reaches `View.on_error`, which discord.py only logs, so `RolePickerView` overrides it
+to `report`, and a new view with callbacks needs the same.
 
 **Two configuration sources, one hard line.** `.env` → `valmal/core/settings.py` answers *how
 this instance authenticates and where it runs*, validated once at import and failing

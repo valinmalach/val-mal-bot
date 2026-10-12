@@ -3,11 +3,10 @@
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from datetime import datetime, timedelta
 from typing import Self, cast
 
-import pendulum
-
-from valmal.core import http_client
+from valmal.core import clock, http_client
 from valmal.core.errors import notify
 from valmal.core.settings import settings
 from valmal.db import repository
@@ -26,7 +25,7 @@ class TwitchTokenManager:
     _instance: TwitchTokenManager | None = None
     _access: dict[TokenType, str]
     _refresh: dict[TokenType, str]
-    _expires_at: dict[TokenType, pendulum.DateTime]
+    _expires_at: dict[TokenType, datetime]
     _locks: dict[TokenType, asyncio.Lock]
 
     def __new__(cls) -> Self:
@@ -45,7 +44,7 @@ class TwitchTokenManager:
 
         access: dict[TokenType, str] = {}
         refresh: dict[TokenType, str] = {}
-        expires_at: dict[TokenType, pendulum.DateTime] = {}
+        expires_at: dict[TokenType, datetime] = {}
 
         by_key = {row.key: row for row in rows}
         for token_type in TokenType:
@@ -56,7 +55,7 @@ class TwitchTokenManager:
             if row.refresh_token:
                 refresh[token_type] = row.refresh_token
             if row.expires_at:
-                expires_at[token_type] = pendulum.instance(row.expires_at)
+                expires_at[token_type] = clock.as_utc_if_naive(row.expires_at)
 
         # Swapped rather than updated in place: a row deleted or an expiry
         # cleared in the database has to disappear from memory too.
@@ -79,7 +78,7 @@ class TwitchTokenManager:
         if expires_in is None:
             _ = self._expires_at.pop(token_type, None)
         else:
-            expires_at = pendulum.now("UTC").add(seconds=expires_in)
+            expires_at = clock.now() + timedelta(seconds=expires_in)
             self._expires_at[token_type] = expires_at
 
         await repository.upsert_oauth_token(
@@ -98,9 +97,7 @@ class TwitchTokenManager:
         expires_at = self._expires_at.get(token_type)
         if expires_at is None:
             return False
-        return pendulum.now("UTC") >= expires_at.subtract(
-            seconds=_EXPIRY_MARGIN_SECONDS
-        )
+        return clock.now() >= expires_at - timedelta(seconds=_EXPIRY_MARGIN_SECONDS)
 
     def token(self, token_type: TokenType) -> str:
         return self._access.get(token_type, "")

@@ -1,6 +1,6 @@
 import asyncio
+from datetime import datetime, timedelta
 
-import pendulum
 import pytest
 
 from tests.twitch.support import (
@@ -22,7 +22,7 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture(autouse=True)
-def _env(scopes: list[str], token_db: TokenDb, now: pendulum.DateTime) -> None:
+def _env(scopes: list[str], token_db: TokenDb, now: datetime) -> None:
     """Every refresh reads the configured scopes, stores to the database and
     stamps an expiry."""
 
@@ -102,7 +102,7 @@ class TestOneRefreshAtATime:
         """Testing the expiry instead made a 401 unrecoverable: a revoked token still
         looks current, so the refresh never ran. Only a token that changed while
         this caller waited proves someone else refreshed."""
-        manager._expires_at[TokenType.User] = NOW.add(hours=5)
+        manager._expires_at[TokenType.User] = NOW + timedelta(hours=5)
         script = oauth_http(reply(200, USER_OK))
 
         assert await manager.refresh(TokenType.User) is True

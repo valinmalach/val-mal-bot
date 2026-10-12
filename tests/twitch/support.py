@@ -5,11 +5,10 @@ import json
 from collections.abc import Callable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, cast
 from urllib.parse import urlsplit
 
-import pendulum
 import pytest
 from multidict import CIMultiDict, CIMultiDictProxy
 
@@ -277,7 +276,7 @@ class TokenDb:
 
 
 # Shared by the token manager's refresh and concurrency tests.
-NOW = pendulum.datetime(2026, 6, 15, 12)
+NOW = datetime(2026, 6, 15, 12, tzinfo=UTC)
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 Http = Callable[..., Script]
 Notices = list[tuple[str, str | None]]

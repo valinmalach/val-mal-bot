@@ -1,13 +1,14 @@
 """Fixtures for the shoutout queue tests."""
 
 import asyncio
+from datetime import datetime
 from types import SimpleNamespace
 
-import pendulum
 import pytest
 
 from tests.twitch.stream.shoutout_queue.support import Stop, World
 from tests.twitch.support import user_json
+from valmal.core import clock
 from valmal.twitch.models.api.user import User
 from valmal.twitch.stream import shoutout_queue as sq
 from valmal.twitch.stream.shoutout_queue import TwitchShoutoutQueue
@@ -49,10 +50,10 @@ def world(monkeypatch: pytest.MonkeyPatch) -> World:
         sq, "asyncio", SimpleNamespace(**{**vars(asyncio), "sleep": sleep})
     )
 
-    def now(tz: object = None) -> pendulum.DateTime:
+    def now() -> datetime:
         return world.now
 
-    monkeypatch.setattr(pendulum, "now", now)
+    monkeypatch.setattr(clock, "now", now)
     return world
 
 

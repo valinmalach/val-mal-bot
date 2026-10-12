@@ -1,9 +1,9 @@
 """Fixtures for the Twitch layer."""
 
 from collections.abc import Callable
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
-import pendulum
 import pytest
 
 import valmal.twitch.oauth.token_manager as tm_module
@@ -12,7 +12,7 @@ from tests.twitch.support import (
     Script,
     TokenDb,
 )
-from valmal.core import http_client
+from valmal.core import clock, http_client
 from valmal.core.config import config
 from valmal.core.http_client import Reply
 from valmal.twitch.client import helix
@@ -53,17 +53,17 @@ def helix_http(
     return install
 
 
-NOW = pendulum.datetime(2026, 6, 15, 12)
+NOW = datetime(2026, 6, 15, 12, tzinfo=UTC)
 
 
 @pytest.fixture
-def now(monkeypatch: pytest.MonkeyPatch) -> pendulum.DateTime:
-    """The token manager stamps and compares expiries against pendulum.now."""
+def now(monkeypatch: pytest.MonkeyPatch) -> datetime:
+    """The token manager stamps and compares expiries against clock.now."""
 
-    def now(tz: object = None) -> pendulum.DateTime:
+    def now() -> datetime:
         return NOW
 
-    monkeypatch.setattr(pendulum, "now", now)
+    monkeypatch.setattr(clock, "now", now)
     return NOW
 
 

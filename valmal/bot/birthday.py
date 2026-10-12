@@ -7,12 +7,12 @@ that had already passed, so the second asks the first wherever it can.
 """
 
 from calendar import isleap, monthrange
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from functools import cache
+from zoneinfo import ZoneInfo, available_timezones
 
-import pendulum
-from pendulum import DateTime
+from valmal.core import clock
 
 
 class Months(Enum):
@@ -37,6 +37,12 @@ MAX_DAYS = {month: monthrange(2024, month.value)[1] for month in Months}
 
 
 @cache
+def known_timezones() -> frozenset[str]:
+    """Every zone name ZoneInfo can load, read once: listing them walks the tz database."""
+    return frozenset(available_timezones())
+
+
+@cache
 def _next_leap_year(year: int) -> int:
     while not isleap(year):
         year += 1
@@ -53,8 +59,8 @@ def is_leap_day(month: Months, day: int) -> bool:
 
 
 def next_birthday(
-    birthday: datetime, is_leap: bool, after: DateTime, timezone: str | None = None
-) -> DateTime:
+    birthday: datetime, is_leap: bool, after: datetime, timezone: str | None = None
+) -> datetime:
     """The next occurrence of a stored birthday, strictly after ``after``.
 
     With the zone it was set in, the local date is read back off the instant and
@@ -63,12 +69,12 @@ def next_birthday(
     year bump on the UTC instant, which preserves neither the local day nor local
     midnight across a zone's transitions.
     """
-    moment = pendulum.instance(birthday)
+    moment = clock.as_utc_if_naive(birthday)
     if moment > after:
         return moment
 
     if timezone is not None:
-        local = moment.in_tz(timezone)
+        local = moment.astimezone(ZoneInfo(timezone))
         return next_birthday_on(Months(local.month), local.day, timezone, after)
 
     # The flag is the authority, but a 29 February instant cannot be replaced
@@ -84,22 +90,24 @@ def next_birthday(
 
 
 def next_birthday_on(
-    month: Months, day: int, timezone: str, after: DateTime
-) -> DateTime:
+    month: Months, day: int, timezone: str, after: datetime
+) -> datetime:
     """The start of the next ``month``/``day`` in ``timezone``, after ``after``.
 
     Local midnight, or the first instant of that day in the zones that spring
     forward across it and have no midnight on that date.
     """
-    zone = pendulum.timezone(timezone)
+    zone = ZoneInfo(timezone)
     leap = is_leap_day(month, day)
     # Their year, not UTC's: east of UTC the two disagree for part of every day,
     # and starting from UTC's leaves both candidates in the past.
-    local_year = after.in_tz(zone).year
+    local_year = after.astimezone(zone).year
     year = _next_leap_year(local_year) if leap else local_year
-    midnight = DateTime(year, month.value, day, tzinfo=zone).in_tz("UTC")
+    # A midnight a spring-forward skips reads at the offset before the jump, which is
+    # the instant of the jump itself: fold=0, zoneinfo's default.
+    midnight = datetime(year, month.value, day, tzinfo=zone).astimezone(UTC)
     if midnight > after:
         return midnight
 
     year = _next_leap_year(year + 1) if leap else year + 1
-    return DateTime(year, month.value, day, tzinfo=zone).in_tz("UTC")
+    return datetime(year, month.value, day, tzinfo=zone).astimezone(UTC)

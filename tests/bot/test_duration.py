@@ -1,63 +1,130 @@
-import pendulum
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from valmal.bot.duration import get_age, get_ordinal_suffix
+from valmal.core import clock
 
-NOW = pendulum.datetime(2026, 6, 15, 12)
+NOW = datetime(2026, 6, 15, 12, tzinfo=UTC)
+TWO_YEARS_THREE_MONTHS_FOUR_DAYS = datetime(2024, 3, 11, 12, tzinfo=UTC)
 
 
 @pytest.fixture(autouse=True)
 def _frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     """get_age reads the clock itself; a real one makes every expectation drift."""
 
-    def now(tz: object = None) -> pendulum.DateTime:
+    def now() -> datetime:
         return NOW
 
-    monkeypatch.setattr(pendulum, "now", now)
+    monkeypatch.setattr(clock, "now", now)
 
 
 @pytest.mark.parametrize(
-    ("delta", "expected"),
+    ("then", "expected"),
     [
-        ({}, "0 seconds"),
-        ({"seconds": 1}, "1 second"),
-        ({"seconds": 2}, "2 seconds"),
-        ({"seconds": 61}, "1 minute, 1 second"),
-        ({"minutes": 59, "seconds": 59}, "59 minutes, 59 seconds"),
-        ({"hours": 1}, "1 hour"),
-        ({"hours": 3, "minutes": 2}, "3 hours, 2 minutes"),
-        ({"days": 1}, "1 day"),
-        ({"days": 6, "hours": 23}, "6 days, 23 hours"),
-        ({"days": 29}, "4 weeks, 1 day"),
-        ({"days": 40}, "1 month, 1 week, 2 days"),
-        ({"years": 1}, "1 year"),
-        ({"years": 1, "days": 2}, "1 year, 2 days"),
-        ({"years": 2, "months": 3, "days": 4}, "2 years, 3 months, 4 days"),
+        (NOW, "0 seconds"),
+        (NOW - timedelta(seconds=1), "1 second"),
+        (NOW - timedelta(seconds=2), "2 seconds"),
+        (NOW - timedelta(seconds=61), "1 minute, 1 second"),
+        (NOW - timedelta(minutes=59, seconds=59), "59 minutes, 59 seconds"),
+        (NOW - timedelta(hours=1), "1 hour"),
+        (NOW - timedelta(hours=3, minutes=2), "3 hours, 2 minutes"),
+        (NOW - timedelta(days=1), "1 day"),
+        (NOW - timedelta(days=6, hours=23), "6 days, 23 hours"),
+        (NOW - timedelta(days=29), "4 weeks, 1 day"),
+        (NOW - timedelta(days=40), "1 month, 1 week, 2 days"),
+        (datetime(2025, 6, 15, 12, tzinfo=UTC), "1 year"),
+        (datetime(2025, 6, 13, 12, tzinfo=UTC), "1 year, 2 days"),
+        (TWO_YEARS_THREE_MONTHS_FOUR_DAYS, "2 years, 3 months, 4 days"),
     ],
 )
-def test_age_names_the_units_largest_first(
-    delta: dict[str, int], expected: str
-) -> None:
-    assert get_age(NOW.subtract(**delta)) == expected
+def test_age_names_the_units_largest_first(then: datetime, expected: str) -> None:
+    assert get_age(then) == expected
 
 
 @pytest.mark.parametrize("weeks", [1, 2, 3])
 def test_a_whole_number_of_weeks_is_not_zero_seconds(weeks: int) -> None:
-    """remaining_days is the remainder after the weeks, so reading only that
+    """The days are what is left after the weeks, so reading only those once
     called a three-week-old thing "0 seconds"."""
     expected = f"{weeks} week" + ("" if weeks == 1 else "s")
 
-    assert get_age(NOW.subtract(weeks=weeks)) == expected
+    assert get_age(NOW - timedelta(weeks=weeks)) == expected
 
 
 def test_a_future_moment_reads_the_same_as_the_past_one() -> None:
-    assert get_age(NOW.add(hours=5)) == get_age(NOW.subtract(hours=5)) == "5 hours"
-    assert get_age(NOW.add(days=2)) == "2 days"
+    assert (
+        get_age(NOW + timedelta(hours=5))
+        == get_age(NOW - timedelta(hours=5))
+        == "5 hours"
+    )
+    assert get_age(NOW + timedelta(days=2)) == "2 days"
+
+
+def test_a_naive_moment_is_read_as_utc() -> None:
+    assert get_age(datetime(2026, 6, 15, 7)) == "5 hours"
 
 
 def test_hours_and_below_are_dropped_once_a_month_has_passed() -> None:
     """Documented: past a month it is said in years, months, weeks and days."""
-    assert get_age(NOW.subtract(years=1, hours=5)) == "1 year"
+    assert get_age(datetime(2025, 6, 15, 7, tzinfo=UTC)) == "1 year"
+
+
+def test_a_month_from_the_31st_ends_on_a_shorter_months_last_day(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """31 January plus a month is 28 February, not 3 March, so 1 March is a day on."""
+
+    def now() -> datetime:
+        return datetime(2026, 3, 1, 12, tzinfo=UTC)
+
+    monkeypatch.setattr(clock, "now", now)
+
+    assert get_age(datetime(2026, 1, 31, 12, tzinfo=UTC)) == "1 month, 1 day"
+
+
+@pytest.mark.parametrize(
+    ("now", "then", "expected"),
+    [
+        (
+            datetime(2020, 9, 9, 19, 17, 40, tzinfo=UTC),
+            datetime(2020, 6, 9, 19, 17, 41, tzinfo=UTC),
+            "3 months",
+        ),
+        (
+            datetime(2021, 8, 22, 20, 7, 32, tzinfo=UTC),
+            datetime(2021, 9, 22, 17, 38, 40, tzinfo=UTC),
+            "1 month",
+        ),
+        (
+            datetime(2025, 12, 28, 15, 48, 13, tzinfo=UTC),
+            datetime(2026, 2, 25, 20, 16, 38, tzinfo=UTC),
+            "2 months",
+        ),
+        (
+            datetime(2026, 9, 27, 7, 5, 56, tzinfo=UTC),
+            datetime(2025, 1, 27, 11, 31, 53, tzinfo=UTC),
+            "1 year, 8 months",
+        ),
+        # February is shorter than January, so the borrow adds January's 31.
+        (
+            datetime(2026, 2, 28, 12, tzinfo=UTC),
+            datetime(2026, 1, 30, 12, tzinfo=UTC),
+            "4 weeks, 1 day",
+        ),
+    ],
+)
+def test_just_short_of_a_month_boundary_reads_as_pendulum_said_it(
+    now: datetime, then: datetime, expected: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """pendulum's day borrow rounds these up a month; counting calendar months
+    would say e.g. "2 months, 4 weeks, 2 days". Pinned so the wording stays."""
+
+    def frozen() -> datetime:
+        return now
+
+    monkeypatch.setattr(clock, "now", frozen)
+
+    assert get_age(then) == expected
 
 
 @pytest.mark.parametrize(
@@ -74,9 +141,7 @@ def test_hours_and_below_are_dropped_once_a_month_has_passed() -> None:
 def test_limit_units_keeps_the_leading_units_and_zero_means_all(
     limit: int, expected: str
 ) -> None:
-    then = NOW.subtract(years=2, months=3, days=4)
-
-    assert get_age(then, limit) == expected
+    assert get_age(TWO_YEARS_THREE_MONTHS_FOUR_DAYS, limit) == expected
 
 
 def test_limiting_to_one_unit_still_says_zero_seconds_for_now() -> None:

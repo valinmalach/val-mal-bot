@@ -1,9 +1,9 @@
 """Fixtures for the live alert tests."""
 
 import asyncio
+from datetime import datetime
 from types import SimpleNamespace
 
-import pendulum
 import pytest
 
 from tests.twitch.stream.live_alert.support import (
@@ -12,6 +12,7 @@ from tests.twitch.stream.live_alert.support import (
     AlertWorld,
     CycleWorld,
 )
+from valmal.core import clock
 from valmal.core.config import config
 from valmal.db.rows import DiscordRole
 from valmal.twitch.stream import live_alert
@@ -31,10 +32,10 @@ def embed_config(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "_channels", {"stream_alerts": 5001, "promo": 5002})
     monkeypatch.setattr(config, "_roles", {})
 
-    def now(tz: object = None) -> pendulum.DateTime:
+    def now() -> datetime:
         return NOW
 
-    monkeypatch.setattr(pendulum, "now", now)
+    monkeypatch.setattr(clock, "now", now)
 
 
 @pytest.fixture

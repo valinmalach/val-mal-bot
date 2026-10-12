@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -110,7 +111,7 @@ def schedule(next_ad_in_seconds: int) -> AdSchedule:
     return AdSchedule(
         snooze_count=0,
         snooze_refresh_at=0,
-        next_ad_at=int(NOW.add(seconds=next_ad_in_seconds).timestamp()),
+        next_ad_at=int((NOW + timedelta(seconds=next_ad_in_seconds)).timestamp()),
         duration=60,
         last_ad_at=0,
         preroll_free_time=0,

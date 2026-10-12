@@ -1,3 +1,4 @@
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -52,7 +53,7 @@ class TestDrainOnce:
     ) -> None:
         world.sleeps_before_stop = 99
         queue._shoutout_queue.append(("a", "1"))
-        queue._next_attempt_allowed_by_target_id["1"] = NOW.subtract(minutes=1)
+        queue._next_attempt_allowed_by_target_id["1"] = NOW - timedelta(minutes=1)
 
         await queue._drain_once()
 
@@ -71,7 +72,9 @@ class TestDrainOnce:
 
         assert world.shouted == []
         assert pending(queue) == [("b", "2"), ("a", "1")]
-        assert queue._next_attempt_allowed_by_target_id["1"] == NOW.add(seconds=300)
+        assert queue._next_attempt_allowed_by_target_id["1"] == NOW + timedelta(
+            seconds=300
+        )
         ((text, key),) = world.notified
         assert "Could not look up a for a shoutout" in text
         assert key == "shoutout-lookup:1"
@@ -107,7 +110,9 @@ class TestDrainOnce:
         await queue._drain_once()
 
         assert pending(queue) == [("a", "1")]
-        assert queue._next_attempt_allowed_by_target_id["1"] == NOW.add(seconds=90)
+        assert queue._next_attempt_allowed_by_target_id["1"] == NOW + timedelta(
+            seconds=90
+        )
         assert world.reported == []
         assert "1" not in queue._last_shoutout_by_target_id
         assert world.slept == [125]

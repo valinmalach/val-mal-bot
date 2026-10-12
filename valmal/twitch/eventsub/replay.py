@@ -3,9 +3,9 @@ has its id already reached a handler."""
 
 import time
 from collections import OrderedDict
+from datetime import datetime
 
-import pendulum
-
+from valmal.core import clock
 from valmal.core.errors import notify
 
 # Twitch's own guidance for replay: a delivery whose timestamp is far from now
@@ -36,8 +36,8 @@ _handled: OrderedDict[str, float] = OrderedDict()
 _forgotten_early = 0
 
 
-def is_stale(sent: pendulum.DateTime) -> bool:
-    return abs((pendulum.now("UTC") - sent).total_seconds()) > MESSAGE_WINDOW_SECONDS
+def is_stale(sent: datetime) -> bool:
+    return abs((clock.now() - sent).total_seconds()) > MESSAGE_WINDOW_SECONDS
 
 
 def claim(message_id: str) -> bool:

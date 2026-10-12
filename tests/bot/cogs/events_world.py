@@ -1,20 +1,21 @@
 import itertools
 from collections.abc import AsyncIterator, Callable
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
-import pendulum
 import pytest
 
 from tests.bot.audit.support import message
 from valmal.bot import audit
 from valmal.bot.cogs import events
 from valmal.bot.cogs.events import Events
+from valmal.core import clock
 from valmal.core.config import config
 
-NOW = pendulum.datetime(2026, 6, 15, 12)
+NOW = datetime(2026, 6, 15, 12, tzinfo=UTC)
 
 AUDIT_FUNCTIONS = (
     "member_joined",
@@ -91,7 +92,7 @@ class EventsWorld:
         return self.reply
 
 
-def now(tz: object = None) -> pendulum.DateTime:
+def now() -> datetime:
     return NOW
 
 
@@ -145,7 +146,7 @@ def install(monkeypatch: pytest.MonkeyPatch) -> EventsWorld:
     monkeypatch.setattr(repository, "get_message", get_message)
     monkeypatch.setattr(events, "send_embed", send_embed)
     monkeypatch.setattr(events, "report", report)
-    monkeypatch.setattr(pendulum, "now", now)
+    monkeypatch.setattr(clock, "now", now)
     monkeypatch.setattr(config, "auto_response", world.auto_response)
     monkeypatch.setattr(config, "_channels", {"welcome": 900})
     monkeypatch.setattr(

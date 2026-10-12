@@ -1,7 +1,7 @@
+from datetime import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-import pendulum
 import pytest
 
 from valmal.bot.cogs import tasks
@@ -238,7 +238,7 @@ class TestTheSchedule:
     def test_the_quarter_hours_are_in_order_from_midnight(self) -> None:
         times = Tasks._quarter_hours
 
-        assert times[0] == pendulum.Time(0, 0) and times[-1] == pendulum.Time(23, 45)
+        assert times[0] == time(0, 0) and times[-1] == time(23, 45)
         assert times == sorted(times)
 
     def test_the_times_are_utc_because_they_carry_no_zone(self) -> None:

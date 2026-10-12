@@ -2,7 +2,6 @@ import asyncio
 from dataclasses import replace
 from datetime import UTC, datetime
 
-import pendulum
 import pytest
 
 from tests.twitch.stream.live_alert.support import AlertWorld, alert, stream, user
@@ -37,7 +36,7 @@ class TestAnnounce:
         (button,) = sent["view"].children
         assert button.url == "https://www.twitch.tv/valinmalach"
         assert alert_world.stored == [
-            (111, 5001, 900, 10, pendulum.datetime(2026, 1, 1))
+            (111, 5001, 900, 10, datetime(2026, 1, 1, tzinfo=UTC))
         ]
         assert alert_world.started == [(111, 5001, 900, 10, "2026-01-01T00:00:00Z")]
 
@@ -114,8 +113,8 @@ class TestStoredStart:
     def test_what_it_returns_is_something_parse_rfc3339_accepts(self) -> None:
         from valmal.twitch.timestamps import parse_rfc3339
 
-        assert parse_rfc3339(live_alert._stored_start(alert())) == pendulum.datetime(
-            2026, 6, 15, 11
+        assert parse_rfc3339(live_alert._stored_start(alert())) == datetime(
+            2026, 6, 15, 11, tzinfo=UTC
         )
 
 

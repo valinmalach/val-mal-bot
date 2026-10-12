@@ -1,17 +1,16 @@
 import logging
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, time
 from typing import ClassVar
 
 import discord
-import pendulum
 from discord.ext import tasks
 from discord.ext.commands import Bot, Cog
 from discord.utils import escape_markdown
 
-from valmal.bot.birthday import next_birthday
+from valmal.bot.birthday import known_timezones, next_birthday
 from valmal.bot.send import send_message
-from valmal.core import memory
+from valmal.core import clock, memory
 from valmal.core.config import config
 from valmal.core.errors import notify, report
 from valmal.db import repository
@@ -104,14 +103,14 @@ class Tasks(Cog):
         except Exception as e:  # noqa: BLE001
             await report(e, "Could not read the bot's memory")
 
-    _quarter_hours: ClassVar[list[pendulum.Time]] = [
-        pendulum.Time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
+    _quarter_hours: ClassVar[list[time]] = [
+        time(hour, minute) for hour in range(24) for minute in (0, 15, 30, 45)
     ]
 
     @tasks.loop(time=_quarter_hours)
     async def check_birthdays(self) -> None:
         try:
-            now = pendulum.now("UTC").replace(second=0, microsecond=0)
+            now = clock.now().replace(second=0, microsecond=0)
             due = await repository.users_due_birthday(now)
             await self._process_birthday_records(due)
         except Exception as e:  # noqa: BLE001
@@ -122,7 +121,7 @@ class Tasks(Cog):
         await self.bot.wait_until_ready()
 
     async def _process_birthday_records(self, due: list[DiscordUser]) -> None:
-        now = pendulum.now("UTC")
+        now = clock.now()
         for record in due:
             try:
                 await self._process_birthday(record, now)
@@ -133,9 +132,7 @@ class Tasks(Cog):
                     f" (ID: {record.id})",
                 )
 
-    async def _process_birthday(
-        self, record: DiscordUser, now: pendulum.DateTime
-    ) -> None:
+    async def _process_birthday(self, record: DiscordUser, now: datetime) -> None:
         if record.birthday is None:
             return
 
@@ -165,14 +162,14 @@ class Tasks(Cog):
     async def _usable_timezone(record: DiscordUser) -> str | None:
         """The record's timezone, or None if it is not one any more.
 
-        next_birthday raises on a name pendulum cannot resolve, and it is called
+        next_birthday raises on a name zoneinfo cannot resolve, and it is called
         before the write above, so a raise there is a birthday that never moves,
         comes due on every tick and is never greeted. The tz database does drop
         names (US/Pacific-New went in 2020). Clearing the column degrades that
         row to the UTC roll, wrong by a day at worst, and stops the repeat notice.
         """
         zone = record.birthday_timezone
-        if zone is None or zone in pendulum.timezones():
+        if zone is None or zone in known_timezones():
             return zone
 
         await notify(
@@ -186,8 +183,8 @@ class Tasks(Cog):
         return None
 
     @staticmethod
-    def _within_announce_grace(birthday: datetime, now: pendulum.DateTime) -> bool:
-        late = (now - pendulum.instance(birthday)).total_seconds()
+    def _within_announce_grace(birthday: datetime, now: datetime) -> bool:
+        late = (now - clock.as_utc_if_naive(birthday)).total_seconds()
         return late <= _ANNOUNCE_GRACE_SECONDS
 
     async def _announce_birthday(self, record: DiscordUser) -> None:

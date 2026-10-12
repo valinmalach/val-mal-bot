@@ -1,6 +1,5 @@
 from datetime import UTC, datetime, timedelta
 
-import pendulum
 import pytest
 
 from tests.twitch.support import TokenDb
@@ -11,7 +10,7 @@ from valmal.twitch.oauth.token_manager import TwitchTokenManager
 
 pytestmark = pytest.mark.anyio
 
-NOW = pendulum.datetime(2026, 6, 15, 12)
+NOW = datetime(2026, 6, 15, 12, tzinfo=UTC)
 
 
 def upsert_of(db: TokenDb) -> dict[str, object]:
@@ -56,7 +55,7 @@ class TestLoad:
         assert manager.token(TokenType.App) == "a-access"
         assert manager.token(TokenType.Broadcaster) == ""
         assert manager._refresh == {TokenType.User: "u-refresh"}
-        assert manager._expires_at == {TokenType.User: pendulum.datetime(2026, 7, 1)}
+        assert manager._expires_at == {TokenType.User: datetime(2026, 7, 1, tzinfo=UTC)}
 
     async def test_a_row_without_a_refresh_token_or_expiry_records_neither(
         self, manager: TwitchTokenManager, token_db: TokenDb
@@ -123,46 +122,48 @@ class TestLoad:
 
         await manager.load()
 
-        assert manager._expires_at[TokenType.App].timezone_name == "UTC"
+        assert manager._expires_at[TokenType.App] == datetime(
+            2026, 7, 1, 12, tzinfo=UTC
+        )
 
 
 class TestNeedsRefresh:
-    def expires(self, manager: TwitchTokenManager, when: pendulum.DateTime) -> None:
+    def expires(self, manager: TwitchTokenManager, when: datetime) -> None:
         manager._expires_at[TokenType.App] = when
 
     def test_an_unknown_expiry_never_asks_for_a_refresh_it_reacts_to_a_401_instead(
-        self, manager: TwitchTokenManager, now: pendulum.DateTime
+        self, manager: TwitchTokenManager, now: datetime
     ) -> None:
         assert manager.needs_refresh(TokenType.App) is False
 
     def test_a_token_with_plenty_of_time_left_is_fine(
-        self, manager: TwitchTokenManager, now: pendulum.DateTime
+        self, manager: TwitchTokenManager, now: datetime
     ) -> None:
-        self.expires(manager, NOW.add(hours=1))
+        self.expires(manager, NOW + timedelta(hours=1))
 
         assert manager.needs_refresh(TokenType.App) is False
 
     def test_a_token_already_expired_is_due(
-        self, manager: TwitchTokenManager, now: pendulum.DateTime
+        self, manager: TwitchTokenManager, now: datetime
     ) -> None:
-        self.expires(manager, NOW.subtract(seconds=1))
+        self.expires(manager, NOW - timedelta(seconds=1))
 
         assert manager.needs_refresh(TokenType.App) is True
 
     def test_it_is_due_a_minute_early_so_a_request_in_flight_cannot_cross_the_edge(
-        self, manager: TwitchTokenManager, now: pendulum.DateTime
+        self, manager: TwitchTokenManager, now: datetime
     ) -> None:
-        self.expires(manager, NOW.add(seconds=60))
+        self.expires(manager, NOW + timedelta(seconds=60))
         assert manager.needs_refresh(TokenType.App) is True
 
-        self.expires(manager, NOW.add(seconds=61))
+        self.expires(manager, NOW + timedelta(seconds=61))
         assert manager.needs_refresh(TokenType.App) is False
 
     def test_each_identity_is_judged_on_its_own_expiry(
-        self, manager: TwitchTokenManager, now: pendulum.DateTime
+        self, manager: TwitchTokenManager, now: datetime
     ) -> None:
-        manager._expires_at[TokenType.User] = NOW.subtract(minutes=5)
-        manager._expires_at[TokenType.Broadcaster] = NOW.add(hours=2)
+        manager._expires_at[TokenType.User] = NOW - timedelta(minutes=5)
+        manager._expires_at[TokenType.Broadcaster] = NOW + timedelta(hours=2)
 
         assert manager.needs_refresh(TokenType.User) is True
         assert manager.needs_refresh(TokenType.Broadcaster) is False
@@ -171,16 +172,16 @@ class TestNeedsRefresh:
 
 class TestStore:
     async def test_keeps_the_token_in_memory_and_stamps_an_expiry(
-        self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
+        self, manager: TwitchTokenManager, token_db: TokenDb, now: datetime
     ) -> None:
         await manager._store(TokenType.User, "access", "refresh", 3600, ["a", "b"])
 
         assert manager.token(TokenType.User) == "access"
         assert manager._refresh[TokenType.User] == "refresh"
-        assert manager._expires_at[TokenType.User] == NOW.add(seconds=3600)
+        assert manager._expires_at[TokenType.User] == NOW + timedelta(seconds=3600)
 
     async def test_writes_every_value_of_the_token_once(
-        self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
+        self, manager: TwitchTokenManager, token_db: TokenDb, now: datetime
     ) -> None:
         """What the upsert overwrites, and the updated_at it sets, is the
         repository's; see tests/db."""
@@ -190,19 +191,19 @@ class TestStore:
             "key": TokenType.User,
             "access_token": "access",
             "refresh_token": "refresh",
-            "expires_at": NOW.add(seconds=3600),
+            "expires_at": NOW + timedelta(seconds=3600),
             "scopes": ["a"],
         }
 
     async def test_no_scopes_are_stored_as_an_empty_list(
-        self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
+        self, manager: TwitchTokenManager, token_db: TokenDb, now: datetime
     ) -> None:
         await manager._store(TokenType.User, "a", "r", 1)
 
         assert upsert_of(token_db)["scopes"] == []
 
     async def test_a_refresh_that_returns_no_new_refresh_token_keeps_the_old_one(
-        self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
+        self, manager: TwitchTokenManager, token_db: TokenDb, now: datetime
     ) -> None:
         manager._refresh[TokenType.App] = "old-refresh"
 
@@ -212,7 +213,7 @@ class TestStore:
         assert upsert_of(token_db)["refresh_token"] == "old-refresh"
 
     async def test_an_identity_with_no_refresh_token_at_all_stores_none(
-        self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
+        self, manager: TwitchTokenManager, token_db: TokenDb, now: datetime
     ) -> None:
         await manager._store(TokenType.App, "access", None, 60)
 
@@ -220,9 +221,9 @@ class TestStore:
         assert TokenType.App not in manager._refresh
 
     async def test_no_expiry_clears_a_known_one_in_memory_and_stores_null(
-        self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
+        self, manager: TwitchTokenManager, token_db: TokenDb, now: datetime
     ) -> None:
-        manager._expires_at[TokenType.User] = NOW.add(hours=1)
+        manager._expires_at[TokenType.User] = NOW + timedelta(hours=1)
 
         await manager._store(TokenType.User, "a", "r", None)
 
@@ -231,14 +232,14 @@ class TestStore:
         assert manager.needs_refresh(TokenType.User) is False
 
     async def test_the_stored_expiry_is_now_plus_the_lifetime(
-        self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
+        self, manager: TwitchTokenManager, token_db: TokenDb, now: datetime
     ) -> None:
         await manager._store(TokenType.App, "a", None, 14400)
 
         assert upsert_of(token_db)["expires_at"] == NOW + timedelta(seconds=14400)
 
     async def test_memory_is_updated_even_when_the_database_write_fails(
-        self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
+        self, manager: TwitchTokenManager, token_db: TokenDb, now: datetime
     ) -> None:
         """Documented by the order in _store: the new token is usable at once, and the
         failure surfaces to the caller, who reports it."""
@@ -273,7 +274,7 @@ class TestSetTokens:
         identity: TokenType,
         manager: TwitchTokenManager,
         token_db: TokenDb,
-        now: pendulum.DateTime,
+        now: datetime,
     ) -> None:
         await getattr(manager, setter)(self.refresh_response(["x", "y"]))
 
@@ -282,7 +283,7 @@ class TestSetTokens:
         assert upsert_of(token_db)["scopes"] == ["x", "y"]
 
     async def test_a_single_scope_string_is_stored_as_a_list_of_one(
-        self, manager: TwitchTokenManager, token_db: TokenDb, now: pendulum.DateTime
+        self, manager: TwitchTokenManager, token_db: TokenDb, now: datetime
     ) -> None:
         await manager.set_user_access_token(self.refresh_response("chat:read"))
 

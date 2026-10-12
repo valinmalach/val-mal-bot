@@ -5,7 +5,6 @@ from types import SimpleNamespace
 from typing import Any
 
 import discord
-import pendulum
 
 from tests.twitch.support import channel_json, stream_json, user_json, video_json
 from valmal.db.rows import LiveAlert
@@ -14,7 +13,7 @@ from valmal.twitch.models.api.stream import Stream
 from valmal.twitch.models.api.user import User
 from valmal.twitch.models.api.video import Video
 
-NOW = pendulum.datetime(2026, 6, 15, 12)
+NOW = datetime(2026, 6, 15, 12, tzinfo=UTC)
 
 
 def http_error(status: int) -> discord.HTTPException:

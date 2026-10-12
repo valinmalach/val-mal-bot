@@ -1,4 +1,5 @@
 import asyncio
+from datetime import UTC, datetime
 
 import pytest
 
@@ -23,7 +24,7 @@ class TestCycleOrRetry:
         alert_world.actions = [Action.REFRESH]
 
         result = await live_alert._cycle_or_retry(
-            111, 5001, 900, 10, live_alert.pendulum.now(), "<t:1:f>", None
+            111, 5001, 900, 10, datetime.now(UTC), "<t:1:f>", None
         )
 
         assert result is Action.REFRESH
@@ -34,7 +35,7 @@ class TestCycleOrRetry:
         alert_world.actions = [HelixError("down")]
 
         result = await live_alert._cycle_or_retry(
-            111, 5001, 900, 10, live_alert.pendulum.now(), "<t:1:f>", None
+            111, 5001, 900, 10, datetime.now(UTC), "<t:1:f>", None
         )
 
         assert result is Action.RETRY
