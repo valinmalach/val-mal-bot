@@ -25,6 +25,16 @@ for name in names:
     module = importlib.import_module(name)
     for attribute in dir(module):
         getattr(module, attribute)
+# Resolving a name is not using it: pendulum broke on its second parse, not its
+# import, so the time handling the bot leans on is run twice too.
+from datetime import UTC, datetime
+from valmal.bot.birthday import Months, next_birthday_on
+from valmal.bot.duration import get_age
+from valmal.twitch.timestamps import parse_rfc3339
+for _ in range(2):
+    parse_rfc3339("2026-10-12T13:01:52+00:00")
+    next_birthday_on(Months.March, 8, "America/Havana", datetime(2026, 1, 1, tzinfo=UTC))
+    get_age(datetime(2025, 1, 1, tzinfo=UTC))
 print(len(names))
 """
 
