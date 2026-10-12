@@ -1,7 +1,7 @@
 """How long ago something was, in words."""
 
 from calendar import monthrange
-from datetime import datetime
+from datetime import UTC, datetime
 
 from valmal.core import clock
 
@@ -10,17 +10,48 @@ def _unit(value: int, name: str) -> str:
     return f"{value} {name}{'' if value == 1 else 's'}"
 
 
-def _add_months(moment: datetime, months: int) -> datetime:
-    """Calendar months later, on the same day or the month's last when it is shorter."""
-    year, month = divmod(moment.month - 1 + months, 12)
-    year += moment.year
-    day = min(moment.day, monthrange(year, month + 1)[1])
-    return moment.replace(year=year, month=month + 1, day=day)
+def _precise_diff(
+    start: datetime, end: datetime
+) -> tuple[int, int, int, int, int, int]:
+    """Years, months, days, hours, minutes and seconds from start to end.
 
+    pendulum's precise_diff to the letter, because every age the bot has said was
+    worded by it. Its day borrow counts a shortfall equal to the gap between two
+    month lengths as a whole month, so a second short of three months is "3
+    months", where counting calendar months says "2 months, 4 weeks, 2 days".
+    """
+    seconds = end.second - start.second - (end.microsecond < start.microsecond)
+    minutes = end.minute - start.minute
+    hours = end.hour - start.hour
+    days = end.day - start.day
+    if seconds < 0:
+        seconds += 60
+        minutes -= 1
+    if minutes < 0:
+        minutes += 60
+        hours -= 1
+    if hours < 0:
+        hours += 24
+        days -= 1
 
-def _whole_months(start: datetime, end: datetime) -> int:
-    months = (end.year - start.year) * 12 + end.month - start.month
-    return months - 1 if _add_months(start, months) > end else months
+    years = end.year - start.year
+    months = end.month - start.month
+    if days < 0:
+        previous = (end.year, end.month - 1) if end.month > 1 else (end.year - 1, 12)
+        last_month_days = monthrange(*previous)[1]
+        shortfall = monthrange(end.year, end.month)[1] - last_month_days
+        if days < shortfall:
+            days += max(start.day, last_month_days)
+        elif days == shortfall:
+            days = 0
+            months += 1
+        else:
+            days += last_month_days
+        months -= 1
+    if months < 0:
+        months += 12
+        years -= 1
+    return years, months, days, hours, minutes, seconds
 
 
 def get_age(date_time: datetime, limit_units: int = -1) -> str:
@@ -31,26 +62,19 @@ def get_age(date_time: datetime, limit_units: int = -1) -> str:
     never leads with "0 hours" -- except when everything is zero, which is
     "0 seconds".
     """
-    start, end = sorted((date_time, clock.now()))
-    months = _whole_months(start, end)
-    rest = end - _add_months(start, months)
-    weeks, days = divmod(rest.days, 7)
+    start, end = sorted((date_time.astimezone(UTC), clock.now().astimezone(UTC)))
+    years, months, days, hours, minutes, seconds = _precise_diff(start, end)
+    weeks, days = divmod(days, 7)
 
-    if months:
-        units = [
-            (months // 12, "year"),
-            (months % 12, "month"),
-            (weeks, "week"),
-            (days, "day"),
-        ]
+    if years or months:
+        units = [(years, "year"), (months, "month"), (weeks, "week"), (days, "day")]
     else:
-        hours, seconds = divmod(rest.seconds, 3600)
         units = [
             (weeks, "week"),
             (days, "day"),
             (hours, "hour"),
-            (seconds // 60, "minute"),
-            (seconds % 60, "second"),
+            (minutes, "minute"),
+            (seconds, "second"),
         ]
 
     parts = [_unit(value, name) for value, name in units if value]

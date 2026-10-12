@@ -79,6 +79,51 @@ def test_a_month_from_the_31st_ends_on_a_shorter_months_last_day(
 
 
 @pytest.mark.parametrize(
+    ("now", "then", "expected"),
+    [
+        (
+            datetime(2020, 9, 9, 19, 17, 40, tzinfo=UTC),
+            datetime(2020, 6, 9, 19, 17, 41, tzinfo=UTC),
+            "3 months",
+        ),
+        (
+            datetime(2021, 8, 22, 20, 7, 32, tzinfo=UTC),
+            datetime(2021, 9, 22, 17, 38, 40, tzinfo=UTC),
+            "1 month",
+        ),
+        (
+            datetime(2025, 12, 28, 15, 48, 13, tzinfo=UTC),
+            datetime(2026, 2, 25, 20, 16, 38, tzinfo=UTC),
+            "2 months",
+        ),
+        (
+            datetime(2026, 9, 27, 7, 5, 56, tzinfo=UTC),
+            datetime(2025, 1, 27, 11, 31, 53, tzinfo=UTC),
+            "1 year, 8 months",
+        ),
+        # February is shorter than January, so the borrow adds January's 31.
+        (
+            datetime(2026, 2, 28, 12, tzinfo=UTC),
+            datetime(2026, 1, 30, 12, tzinfo=UTC),
+            "4 weeks, 1 day",
+        ),
+    ],
+)
+def test_just_short_of_a_month_boundary_reads_as_pendulum_said_it(
+    now: datetime, then: datetime, expected: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """pendulum's day borrow rounds these up a month; counting calendar months
+    would say e.g. "2 months, 4 weeks, 2 days". Pinned so the wording stays."""
+
+    def frozen() -> datetime:
+        return now
+
+    monkeypatch.setattr(clock, "now", frozen)
+
+    assert get_age(then) == expected
+
+
+@pytest.mark.parametrize(
     ("limit", "expected"),
     [
         (1, "2 years"),
