@@ -256,18 +256,6 @@ wheels = [
 ]
 
 [[package]]
-name = "discord"
-version = "2.3.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "discord-py" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/7e/9f/0763429949416aeff9c6f33051270831b72e5582273acd28053b9b949462/discord-2.3.2.tar.gz", hash = "sha256:cc1ee2dbe6df218ca51519af355b97e87309f8230f58c7f34885feb8e8a76145", size = 1137, upload-time = "2023-08-10T21:45:07.93Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/38/d91ac49e8169b6c0f724f7aad26704eec07c4ecf31e067ca3d46a87e33d6/discord-2.3.2-py3-none-any.whl", hash = "sha256:d7959418799dd3b1e896685812d880169c193468b061b3431fa2a4664febd3da", size = 1132, upload-time = "2023-08-10T21:45:06.334Z" },
-]
-
-[[package]]
 name = "discord-py"
 version = "2.7.1"
 source = { registry = "https://pypi.org/simple" }
@@ -711,15 +699,6 @@ wheels = [
 ]
 
 [[package]]
-name = "railway-sdk"
-version = "0.5.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/da/13/5e8ed1d05942cb546eb70f84df6738c859b8aa29e0add23920db004aefb6/railway_sdk-0.5.0.tar.gz", hash = "sha256:bc875bf0f4a247aa8ff62b2a90cd7c5d51132c2e0bbaddea410820199a6e44a3", size = 12198, upload-time = "2026-10-12T10:41:14.36Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f5/bf/27df0b774fe791e09c803aeca643b8c968a6ff11141486b71f58f67644bf/railway_sdk-0.5.0-py3-none-any.whl", hash = "sha256:9b6fe2281e0bcd2bef878a026fe33e246ef921e13a91084c6e344db0ecaed478", size = 8997, upload-time = "2026-10-12T10:41:12.968Z" },
-]
-
-[[package]]
 name = "ruff"
 version = "0.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -878,7 +857,7 @@ dependencies = [
     { name = "aiohttp" },
     { name = "alembic" },
     { name = "asyncpg" },
-    { name = "discord" },
+    { name = "discord-py" },
     { name = "orjson" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -898,7 +877,6 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-timeout" },
-    { name = "railway-sdk" },
     { name = "ruff" },
 ]
 
@@ -907,7 +885,7 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.14.5" },
     { name = "alembic", specifier = ">=1.20.0" },
     { name = "asyncpg", specifier = ">=0.32.0" },
-    { name = "discord", specifier = ">=2.3.2" },
+    { name = "discord-py", specifier = ">=2.7.1" },
     { name = "orjson", specifier = ">=3.13.0" },
     { name = "pydantic", specifier = ">=2.14.1" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
@@ -927,7 +905,6 @@ dev = [
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },
-    { name = "railway-sdk", specifier = ">=0.5.0" },
     { name = "ruff", specifier = ">=0.17.0" },
 ]
 
