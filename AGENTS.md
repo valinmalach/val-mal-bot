@@ -117,12 +117,14 @@ railway config plan                                # diff .railway/railway.py ag
 railway config apply                               # only after reading that plan
 ```
 
-The CLI evaluates the file with whatever `python3` is on `PATH`, so `railway-sdk` goes
-into that interpreter, not the project: `python3 -m pip install railway-sdk`. Not through
-`uv run` or an activated venv, which comes first on `PATH`: on Linux or macOS its `python3`
-would win and lack the SDK. A uv venv on Windows has no `python3.exe`, so there `python3` is
-the global Python even with the venv active, and a new global Python needs the SDK again.
-Only `python3` is affected; the other commands here run the venv's interpreter.
+The `railway` CLI is a program of its own, not a Python package, installed as
+<https://docs.railway.com/cli> describes. It evaluates the file with whatever
+`python3` is on `PATH`, so `railway-sdk` goes into that interpreter, not the project:
+`python3 -m pip install railway-sdk`. Not through `uv run` or an activated venv, which
+comes first on `PATH`: on Linux or macOS its `python3` would win and lack the SDK. A
+uv venv on Windows has no `python3.exe`, so there `python3` is the global Python even
+with the venv active, and a new global Python needs the SDK again. Only `python3` is
+affected; the other commands here run the venv's interpreter.
 
 **The suite covers everything that does not need a live service.** About 2,400 tests
 cover 99% of the code outside `migrations/`, branches counted; what is left is `__main__`
