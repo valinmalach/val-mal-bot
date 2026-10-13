@@ -27,8 +27,11 @@ package for another; it does not remove one:
 The one real gain would be deleting the asyncpg URL translation in
 `valmal/db/config.py` (`_translate_query` and the two tables it uses), since psycopg
 reads libpq parameters as written. That is not worth a new runtime dependency and
-a larger image. `pg8000`, the only pure-Python option, does not read libpq
-parameters either, so it would keep the translation and have nothing left to gain.
+a larger image. Plain `psycopg`, without `[binary]`, keeps the libpq parameters and
+ships no compiled wheel of its own, but loads the system's libpq, so the Railpack image
+would have to install it: a system package in place of a wheel. `pg8000`, the one
+option with no compiled code at all, does not read libpq parameters, so it would keep
+the translation and have nothing left to gain.
 
 Revisit if `greenlet` is late with wheels for a Python release the project wants,
 while a synchronous driver is not.
