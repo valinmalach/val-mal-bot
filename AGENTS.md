@@ -118,9 +118,10 @@ uv run railway config apply                        # only after reading that pla
 ```
 
 The CLI evaluates the file with whatever `python3` is on `PATH`, which must import
-`railway-sdk` (the dev group has it). A uv venv on Windows has no `python3.exe`, so there
-the command finds the global Python instead and says the SDK is not installed; copying
-`.venv\Scripts\python.exe` to `python3.exe` beside it for the run is the workaround.
+`railway-sdk`. A uv venv on Windows has no `python3.exe`, so `python3` is always the
+global Python, and the SDK is installed there rather than in the project
+(`py -V:3.15 -m pip install railway-sdk`; `-V` skips an active venv). A new global
+Python needs it installed again.
 
 **The suite covers everything that does not need a live service.** About 2,400 tests
 cover 99% of the code outside `migrations/`, branches counted; what is left is `__main__`
