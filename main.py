@@ -1,9 +1,9 @@
 import asyncio
+import contextlib
 import logging
 import signal
 import sys
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
 
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -74,7 +74,7 @@ async def main() -> None:
     signal.raise_signal(signal.SIGTERM)
 
 
-@asynccontextmanager
+@contextlib.asynccontextmanager
 async def lifespan(app: Starlette) -> AsyncGenerator[None]:
     fire_and_forget(main(), name="bot")
     yield
@@ -101,21 +101,32 @@ app = Starlette(
 
 
 def _serve() -> None:
-    """Run the server, and exit as failed if the bot stopped by itself meanwhile."""
-    import uvicorn
+    """Run the server, and exit as failed if it never started or the bot stopped by
+    itself meanwhile."""
+    # Not uvicorn.run: it lives in uvicorn.main beside the CLI, which loads click
+    # (about 1 MiB, #123) for a command line nothing here uses.
+    from uvicorn.config import STARTUP_FAILURE, Config
+    from uvicorn.server import Server
 
-    uvicorn.run(
-        app,
-        # Railway reaches the container on its external interface, so binding all of
-        # them is the point.
-        host="0.0.0.0",  # noqa: S104  # nosec B104
-        port=settings.port,
-        log_level="info",
-        access_log=True,
-        log_config=None,
-        # Nothing here serves a websocket; "auto" imports the whole stack anyway.
-        ws="none",
+    server = Server(
+        Config(
+            app,
+            # Railway reaches the container on its external interface, so binding all
+            # of them is the point.
+            host="0.0.0.0",  # noqa: S104  # nosec B104
+            port=settings.port,
+            log_level="info",
+            access_log=True,
+            log_config=None,
+            # Nothing here serves a websocket; "auto" imports the whole stack anyway.
+            ws="none",
+        )
     )
+    # What uvicorn.run does around the same call.
+    with contextlib.suppress(KeyboardInterrupt):
+        server.run()
+    if not server.started:
+        sys.exit(STARTUP_FAILURE)
     # uvicorn re-raises the SIGTERM after shutting down, but as PID 1 in a container
     # a signal left at its default does nothing, and the script would end with 0.
     if _bot_stopped:

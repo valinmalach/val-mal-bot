@@ -27,16 +27,37 @@ print(json.dumps({
 """
 
 
-# uvicorn.run replaced, so running main as a script only records how it would have
+# Server.run replaced, so running main as a script only records how it would have
 # started the server.
 SERVE = """
 import json, runpy
-import uvicorn
+from uvicorn.server import Server
 captured = {}
-uvicorn.run = lambda app, **kwargs: captured.update(kwargs, app=type(app).__name__)
+def run(self, sockets=None):
+    c = self.config
+    captured.update(app=type(c.app).__name__, host=c.host, port=c.port,
+                    log_level=c.log_level, access_log=c.access_log,
+                    log_config=c.log_config, ws=c.ws)
+    self.started = True
+Server.run = run
 runpy.run_path("main.py", run_name="__main__")
 print(json.dumps(captured))
 """
+
+
+# As SERVE, in the lazy mode production runs in, after `before`, printing whether
+# uvicorn's CLI and the click it is built on were loaded (#123).
+def started_lazily(before: str = "") -> str:
+    lines = [
+        "import json, runpy, sys",
+        "from uvicorn.server import Server",
+        "def run(self, sockets=None): self.started = True",
+        "Server.run = run",
+        before,
+        'runpy.run_path("main.py", run_name="__main__")',
+        'print(json.dumps(sorted({"click", "uvicorn.main"} & set(sys.modules))))',
+    ]
+    return chr(10).join(lines)
 
 
 # What the running bot loads of the database layer it does not use (ADR 0005).
@@ -60,9 +81,9 @@ def loaded(before: str = "") -> str:
     return chr(10).join(lines)
 
 
-def run_in_a_fresh_process(script: str) -> dict[str, Any]:
+def run_in_a_fresh_process(script: str, *flags: str) -> Any:
     """The last line the script prints, as JSON, from a process of its own."""
-    done = run_python("-c", script)
+    done = run_python(*flags, "-c", script)
     return json.loads(done.stdout.strip().splitlines()[-1])
 
 
@@ -79,10 +100,11 @@ def how_the_server_starts() -> dict[str, Any]:
 # As SERVE, with the bot having stopped by itself while the server ran.
 STOPPED = """
 import json, runpy, sys
-import uvicorn
-def run(app, **kwargs):
+from uvicorn.server import Server
+def run(self, sockets=None):
+    self.started = True
     sys.modules["__main__"]._bot_stopped = True
-uvicorn.run = run
+Server.run = run
 try:
     runpy.run_path("main.py", run_name="__main__")
 except SystemExit as e:
@@ -143,6 +165,18 @@ class TestRunningItAsAScript:
     def test_logs_requests_at_info(self, how_the_server_starts: dict[str, Any]) -> None:
         assert how_the_server_starts["log_level"] == "info"
         assert how_the_server_starts["access_log"] is True
+
+    def test_starting_the_server_loads_no_click_under_lazy_imports(self) -> None:
+        """uvicorn.run would: it lives beside the CLI, about 1 MiB for nothing."""
+        lazy = ("-X", "lazy_imports=all")
+
+        assert run_in_a_fresh_process(started_lazily(), *lazy) == []
+
+    def test_the_check_would_see_click_if_uvicorn_run_were_touched(self) -> None:
+        lazy = ("-X", "lazy_imports=all")
+        touched = started_lazily("import uvicorn; uvicorn.run")
+
+        assert run_in_a_fresh_process(touched, *lazy) == ["click", "uvicorn.main"]
 
 
 class TestWhatTheBotLoads:

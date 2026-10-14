@@ -20,14 +20,14 @@ dependencies = [
     # 2.1 installs it only with this extra. The bot itself never imports SQLAlchemy.
     "sqlalchemy[asyncio]>=2.1.4",
     "sqlmodel>=0.0.48",
-    "starlette>=1.7.0",
+    "starlette>=1.8.0",
     # zoneinfo reads the system's tz database, which a slim image may not have, and
     # falls back to this package.
     "tzdata>=2026.5",
-    # Not uvicorn[standard]: of what it adds, only uvloop is used. httptools and pyyaml
-    # have no 3.15 wheel (#109), and watchfiles and websockets serve reload and ws, both off.
+    # Not uvicorn[standard]: none of what it adds is used. httptools and pyyaml have no
+    # 3.15 wheel (#109), watchfiles and websockets serve reload and ws, both off, and
+    # uvloop cost about 1.2 MiB for a loop speed a bot at 0.002 vCPU never needs (#125).
     "uvicorn>=0.54.0",
-    "uvloop>=0.23.0; sys_platform != 'win32'",
 ]
 
 [dependency-groups]
@@ -180,3 +180,6 @@ branch = true
 
 [tool.coverage.report]
 show_missing = true
+# Every directory under valmal has an __init__.py today; one added without would
+# otherwise drop out of the report, and the coverage figure with it.
+include_namespace_packages = true

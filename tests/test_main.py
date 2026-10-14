@@ -317,14 +317,16 @@ class TestRoutes:
 class TestServe:
     @pytest.fixture
     def served(self, monkeypatch: pytest.MonkeyPatch) -> list[str]:
-        import uvicorn
+        """Server.run replaced by one that records the app and comes up at once."""
+        from uvicorn.server import Server
 
         ran: list[str] = []
 
-        def run(app: object, **kwargs: object) -> None:
-            ran.append(type(app).__name__)
+        def run(self: Server, sockets: object = None) -> None:
+            ran.append(type(self.config.app).__name__)
+            self.started = True
 
-        monkeypatch.setattr(uvicorn, "run", run)
+        monkeypatch.setattr(Server, "run", run)
         return ran
 
     def test_a_stopped_bot_exits_as_failed_once_the_server_is_down(
@@ -346,6 +348,43 @@ class TestServe:
         entry._serve()
 
         assert served == ["Starlette"]
+
+    def test_a_server_that_never_started_exits_with_uvicorns_startup_failure(
+        self, entry: ModuleType, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """As uvicorn.run did: a port already taken ends the process, not silently."""
+        from uvicorn.server import Server
+
+        def run(self: Server, sockets: object = None) -> None:
+            pass
+
+        monkeypatch.setattr(Server, "run", run)
+        monkeypatch.setattr(entry, "_bot_stopped", False)
+
+        with pytest.raises(SystemExit) as exited:
+            entry._serve()
+
+        assert exited.value.code == 3
+
+    def test_a_keyboard_interrupt_while_serving_is_not_raised(
+        self, entry: ModuleType, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """As uvicorn.run did, so Ctrl-C ends a local run without a traceback."""
+        from uvicorn.server import Server
+
+        interrupted: list[bool] = []
+
+        def run(self: Server, sockets: object = None) -> None:
+            self.started = True
+            interrupted.append(True)
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(Server, "run", run)
+        monkeypatch.setattr(entry, "_bot_stopped", False)
+
+        entry._serve()
+
+        assert interrupted == [True]
 
 
 class TestTheLogHandler:
