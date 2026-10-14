@@ -20,7 +20,7 @@ dependencies = [
     # 2.1 installs it only with this extra. The bot itself never imports SQLAlchemy.
     "sqlalchemy[asyncio]>=2.1.4",
     "sqlmodel>=0.0.48",
-    "starlette>=1.7.0",
+    "starlette>=1.8.0",
     # zoneinfo reads the system's tz database, which a slim image may not have, and
     # falls back to this package.
     "tzdata>=2026.5",
