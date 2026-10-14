@@ -180,3 +180,6 @@ branch = true
 
 [tool.coverage.report]
 show_missing = true
+# Every directory under valmal has an __init__.py today; one added without would
+# otherwise drop out of the report, and the coverage figure with it.
+include_namespace_packages = true
