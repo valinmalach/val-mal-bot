@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel
+import msgspec
 
 from valmal.twitch.models.api.pagination import Pagination
 
@@ -10,7 +10,7 @@ class StreamType(str, Enum):
     error = ""
 
 
-class Stream(BaseModel):
+class Stream(msgspec.Struct, kw_only=True):
     id: str
     user_id: str
     user_login: str
@@ -27,6 +27,6 @@ class Stream(BaseModel):
     is_mature: bool
 
 
-class StreamResponse(BaseModel):
+class StreamResponse(msgspec.Struct):
     data: list[Stream]
     pagination: Pagination

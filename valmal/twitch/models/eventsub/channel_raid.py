@@ -1,13 +1,13 @@
 from typing import Literal
 
-from pydantic import BaseModel
+import msgspec
 
 
-class ChannelRaidSubscription(BaseModel):
+class ChannelRaidSubscription(msgspec.Struct):
     type: Literal["channel.raid"]
 
 
-class ChannelRaidEvent(BaseModel):
+class ChannelRaidEvent(msgspec.Struct):
     from_broadcaster_user_id: str
     from_broadcaster_user_login: str
     from_broadcaster_user_name: str
@@ -17,6 +17,6 @@ class ChannelRaidEvent(BaseModel):
     viewers: int
 
 
-class ChannelRaidEventSub(BaseModel):
+class ChannelRaidEventSub(msgspec.Struct):
     subscription: ChannelRaidSubscription
     event: ChannelRaidEvent

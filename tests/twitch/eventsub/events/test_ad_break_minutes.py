@@ -1,3 +1,4 @@
+import msgspec
 import pytest
 
 from tests.twitch.eventsub.events.support import EventWorld
@@ -10,7 +11,7 @@ pytestmark = pytest.mark.anyio
 
 
 def ad_break(seconds: int) -> ChannelAdBreakBeginEventSub:
-    return ChannelAdBreakBeginEventSub.model_validate(
+    return msgspec.convert(
         {
             "subscription": {"type": "channel.ad_break.begin"},
             "event": {
@@ -24,7 +25,8 @@ def ad_break(seconds: int) -> ChannelAdBreakBeginEventSub:
                 "requester_user_login": "req",
                 "requester_user_name": "Req",
             },
-        }
+        },
+        ChannelAdBreakBeginEventSub,
     )
 
 

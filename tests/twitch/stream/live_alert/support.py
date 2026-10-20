@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import discord
+import msgspec
 
 from tests.twitch.support import channel_json, stream_json, user_json, video_json
 from valmal.db.rows import LiveAlert
@@ -35,24 +36,24 @@ TEMPLATES = {
 
 
 def stream(**overrides: Any) -> Stream:
-    return Stream.model_validate(stream_json(**({"id": "10"} | overrides)))
+    return msgspec.convert(stream_json(**({"id": "10"} | overrides)), Stream)
 
 
 def user(**overrides: Any) -> User:
-    return User.model_validate(
-        user_json(**({"id": "111", "login": "valinmalach"} | overrides))
+    return msgspec.convert(
+        user_json(**({"id": "111", "login": "valinmalach"} | overrides)), User
     )
 
 
 def channel(**overrides: Any) -> Channel:
-    return Channel.model_validate(
-        channel_json("111", "valinmalach", "Valin", "Chess") | overrides
+    return msgspec.convert(
+        channel_json("111", "valinmalach", "Valin", "Chess") | overrides, Channel
     )
 
 
 def video(**overrides: Any) -> Video:
-    return Video.model_validate(
-        video_json(**({"id": "555", "stream_id": "10"} | overrides))
+    return msgspec.convert(
+        video_json(**({"id": "555", "stream_id": "10"} | overrides)), Video
     )
 
 

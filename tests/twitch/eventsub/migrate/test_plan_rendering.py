@@ -1,6 +1,7 @@
 import json
 from typing import Any
 
+import msgspec
 import pytest
 
 from tests.twitch.eventsub.migrate.support import CURRENT, OLD, ROUTES, sub
@@ -106,30 +107,32 @@ class TestConditionOf:
         }
 
     @pytest.mark.parametrize("value", [0, False, [], {}])
-    def test_keeps_an_undeclared_falsy_value_twitch_chose_to_send(
+    def test_a_condition_value_that_is_not_a_string_is_refused_rather_than_cast(
         self, value: object
     ) -> None:
-        subscription = Subscription.model_validate(
-            {
-                "id": "s",
-                "status": "enabled",
-                "type": "x",
-                "version": "1",
-                "condition": {"broadcaster_user_id": "1", "extra": value},
-                "created_at": "t",
-                "transport": {},
-                "cost": 0,
-            }
-        )
-
-        assert condition_of(subscription)["extra"] == value
+        """Every condition Twitch documents is strings; anything else fails loudly
+        at the listing, before a delete could act on a half-read condition."""
+        with pytest.raises(msgspec.ValidationError, match="condition"):
+            msgspec.convert(
+                {
+                    "id": "s",
+                    "status": "enabled",
+                    "type": "x",
+                    "version": "1",
+                    "condition": {"broadcaster_user_id": "1", "extra": value},
+                    "created_at": "t",
+                    "transport": {},
+                    "cost": 0,
+                },
+                Subscription,
+            )
 
     def test_is_a_copy_so_editing_it_leaves_the_subscription_alone(self) -> None:
         subscription = sub(broadcaster_user_id="1")
 
         condition_of(subscription)["broadcaster_user_id"] = "changed"
 
-        assert subscription.condition.broadcaster_user_id == "1"
+        assert subscription.condition["broadcaster_user_id"] == "1"
 
 
 class TestConditionIds:

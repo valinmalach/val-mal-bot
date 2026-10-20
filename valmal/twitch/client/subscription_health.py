@@ -24,10 +24,10 @@ def subscription_target(subscription: Subscription) -> str:
         (
             f"{label} {value}"
             for label, value in (
-                ("broadcaster", condition.broadcaster_user_id),
-                ("to broadcaster", condition.to_broadcaster_user_id),
-                ("from broadcaster", condition.from_broadcaster_user_id),
-                ("user", condition.user_id),
+                ("broadcaster", condition.get("broadcaster_user_id")),
+                ("to broadcaster", condition.get("to_broadcaster_user_id")),
+                ("from broadcaster", condition.get("from_broadcaster_user_id")),
+                ("user", condition.get("user_id")),
             )
             if value
         ),

@@ -60,9 +60,18 @@ def started_lazily(before: str = "") -> str:
     return chr(10).join(lines)
 
 
-# What the running bot loads of the database layer it does not use (ADR 0005).
-# Alembic and the tests keep SQLAlchemy; the bot reads rows over asyncpg.
-UNUSED = {"sqlalchemy", "sqlmodel", "alembic", "greenlet"}
+# What the running bot must not load: the database layer it does not use (ADR 0005),
+# and pydantic, which SQLModel keeps installed (#124). Alembic and the tests keep
+# both; the bot reads rows over asyncpg and parses Twitch with msgspec.
+UNUSED = {
+    "sqlalchemy",
+    "sqlmodel",
+    "alembic",
+    "greenlet",
+    "pydantic",
+    "pydantic_core",
+    "pydantic_settings",
+}
 
 
 def loaded(before: str = "") -> str:
@@ -186,3 +195,14 @@ class TestWhatTheBotLoads:
 
     def test_the_check_would_see_them_if_they_were_loaded(self) -> None:
         assert "sqlalchemy" in run_in_a_fresh_process(loaded("import sqlalchemy"))
+
+    def test_importing_main_loads_no_pydantic(self) -> None:
+        """About 11 MiB, settings and Twitch models included (#124)."""
+        assert not {"pydantic", "pydantic_settings"} & set(
+            run_in_a_fresh_process(loaded())
+        )
+
+    def test_the_check_would_see_pydantic_if_it_were_loaded(self) -> None:
+        found = run_in_a_fresh_process(loaded("import pydantic_settings"))
+
+        assert {"pydantic", "pydantic_settings"} <= set(found)

@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime
 from types import SimpleNamespace
 
+import msgspec
 import pytest
 
 from tests.twitch.stream.shoutout_queue.support import Stop, World
@@ -20,7 +21,9 @@ def world(monkeypatch: pytest.MonkeyPatch) -> World:
 
     async def get_user(user_id: int) -> User | None:
         world.looked_up.append(user_id)
-        answer = world.users.get(user_id, User.model_validate(user_json(str(user_id))))
+        answer = world.users.get(
+            user_id, msgspec.convert(user_json(str(user_id)), User)
+        )
         if isinstance(answer, Exception):
             raise answer
         return answer

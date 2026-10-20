@@ -1,7 +1,6 @@
 from valmal.twitch.eventsub.migrate_plan import Action, condition_of, decide
 from valmal.twitch.models.api.subscription import (
     Subscription,
-    SubscriptionCondition,
     SubscriptionTransport,
 )
 
@@ -13,14 +12,14 @@ def _sub(
     type_: str = "stream.online",
     callback: str = CURRENT,
     status: str = "enabled",
-    **condition: str | int,
+    **condition: str,
 ) -> Subscription:
     return Subscription(
         id="1",
         status=status,
         type=type_,
         version="1",
-        condition=SubscriptionCondition(**condition),  # pyright: ignore[reportArgumentType]
+        condition=condition,
         created_at="2026-01-01T00:00:00Z",
         transport=SubscriptionTransport(method="webhook", callback=callback),
         cost=1,
@@ -53,8 +52,8 @@ def test_condition_drops_the_empty_half_of_a_raid() -> None:
     assert condition_of(raid) == {"from_broadcaster_user_id": "1"}
 
 
-def test_condition_keeps_an_undeclared_falsy_value() -> None:
-    assert condition_of(_sub(broadcaster_user_id="1", reward_id=0)) == {
+def test_condition_keeps_a_key_twitch_added() -> None:
+    assert condition_of(_sub(broadcaster_user_id="1", reward_id="abc")) == {
         "broadcaster_user_id": "1",
-        "reward_id": 0,
+        "reward_id": "abc",
     }

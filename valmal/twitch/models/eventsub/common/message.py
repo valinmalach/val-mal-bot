@@ -1,5 +1,5 @@
-from pydantic import BaseModel
+import msgspec
 
 
-class Message(BaseModel):
+class Message(msgspec.Struct):
     text: str

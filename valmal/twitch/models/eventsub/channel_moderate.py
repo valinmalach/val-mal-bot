@@ -1,13 +1,13 @@
 from typing import Literal
 
-from pydantic import BaseModel
+import msgspec
 
 
-class ChannelModerateSubscription(BaseModel):
+class ChannelModerateSubscription(msgspec.Struct):
     type: Literal["channel.moderate"]
 
 
-class ChannelModerateEvent(BaseModel):
+class ChannelModerateEvent(msgspec.Struct):
     broadcaster_user_id: str
     # A plain str, not the Literal of every action Twitch documents: the handler
     # compares it to one value, and an action added to Twitch's list would
@@ -15,6 +15,6 @@ class ChannelModerateEvent(BaseModel):
     action: str
 
 
-class ChannelModerateEventSub(BaseModel):
+class ChannelModerateEventSub(msgspec.Struct):
     subscription: ChannelModerateSubscription
     event: ChannelModerateEvent

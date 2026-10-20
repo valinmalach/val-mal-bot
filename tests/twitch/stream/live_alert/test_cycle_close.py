@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+import msgspec
 import pytest
 
 from tests.twitch.stream.live_alert.support import (
@@ -85,7 +86,7 @@ class TestGatherCloseInfo:
         self, cycle_world: CycleWorld
     ) -> None:
         """Its title would retitle this message."""
-        other = stream().model_copy(update={"id": "11"})
+        other = msgspec.structs.replace(stream(), id="11")
         own = stream()
 
         assert (await self.gather(cycle_world, other))[0] is None

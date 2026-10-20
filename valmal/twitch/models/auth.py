@@ -1,13 +1,13 @@
-from pydantic import BaseModel
+import msgspec
 
 
-class AuthResponse(BaseModel):
+class AuthResponse(msgspec.Struct):
     access_token: str
     expires_in: int
     token_type: str
 
 
-class RefreshResponse(BaseModel):
+class RefreshResponse(msgspec.Struct):
     access_token: str
     expires_in: int | None
     refresh_token: str
@@ -15,7 +15,7 @@ class RefreshResponse(BaseModel):
     token_type: str
 
 
-class TokenValidationResponse(BaseModel):
+class TokenValidationResponse(msgspec.Struct):
     client_id: str
     login: str
     scopes: list[str]

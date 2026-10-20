@@ -2,6 +2,8 @@
 
 from typing import Any
 
+import msgspec
+
 from tests.twitch.support import stream_json, user_json
 from valmal.twitch.client.helix import HelixError
 from valmal.twitch.models.api.stream import Stream
@@ -103,8 +105,8 @@ class EventWorld:
 
 
 def live(login: str = "valinmalach", stream_id: str = "10") -> Stream:
-    return Stream.model_validate(stream_json(stream_id, user_login=login))
+    return msgspec.convert(stream_json(stream_id, user_login=login), Stream)
 
 
 def profile(user_id: str = "111", login: str = "valinmalach") -> User:
-    return User.model_validate(user_json(user_id, login))
+    return msgspec.convert(user_json(user_id, login), User)

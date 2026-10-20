@@ -2,6 +2,7 @@
 
 from typing import Any
 
+import msgspec
 import pytest
 
 from tests.twitch.eventsub.commands.support import ChatWorld
@@ -30,7 +31,7 @@ def chatworld(monkeypatch: pytest.MonkeyPatch) -> ChatWorld:
 
     async def get_user_by_username(username: str) -> User | None:
         answer = world.users.get(
-            username, User.model_validate(user_json("1", username))
+            username, msgspec.convert(user_json("1", username), User)
         )
         if isinstance(answer, Exception):
             raise answer
@@ -39,7 +40,7 @@ def chatworld(monkeypatch: pytest.MonkeyPatch) -> ChatWorld:
     async def get_channel(broadcaster_id: int) -> Channel | None:
         answer = world.channels.get(
             broadcaster_id,
-            Channel.model_validate(channel_json(str(broadcaster_id), "bob", "Bob")),
+            msgspec.convert(channel_json(str(broadcaster_id), "bob", "Bob"), Channel),
         )
         if isinstance(answer, Exception):
             raise answer

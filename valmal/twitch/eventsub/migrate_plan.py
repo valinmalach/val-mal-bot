@@ -12,7 +12,6 @@ import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
 
 from valmal.twitch.client.api import callback_url
 from valmal.twitch.models.api.subscription import Subscription
@@ -106,16 +105,12 @@ def _named_ids(subscription: Subscription) -> list[tuple[str, str]]:
     return [
         (label, value)
         for name, label in _CONDITION_ID_FIELDS
-        if isinstance(value := getattr(subscription.condition, name, None), str)
-        and value != ""
+        if (value := subscription.condition.get(name))
     ]
 
 
-def condition_of(subscription: Subscription) -> dict[str, Any]:
+def condition_of(subscription: Subscription) -> dict[str, str]:
     """The condition as Twitch sent it, minus the keys it sent empty.
-
-    ``exclude_none`` rather than a field list: the five declared keys default to
-    None and only some are set per type, while extras carry no default at all.
 
     The empty strings go for a harder reason than tidiness. Twitch answers with
     ``""`` for the half of a ``channel.raid`` condition that is not set, and of
@@ -127,15 +122,9 @@ def condition_of(subscription: Subscription) -> dict[str, Any]:
     can rebuild.
 
     Dropping it is not lossy: ``""`` is how Twitch says "not set" on the way out
-    and absence is how it requires the same thing on the way in. Compared against
-    ``""`` rather than tested for falsity, because ``0`` and ``False`` in an
-    undeclared key are values Twitch chose to send and are not this to decide.
+    and absence is how it requires the same thing on the way in.
     """
-    return {
-        key: value
-        for key, value in subscription.condition.model_dump(exclude_none=True).items()
-        if value != ""
-    }
+    return {key: value for key, value in subscription.condition.items() if value != ""}
 
 
 def condition_ids(subscriptions: list[Subscription]) -> list[str]:

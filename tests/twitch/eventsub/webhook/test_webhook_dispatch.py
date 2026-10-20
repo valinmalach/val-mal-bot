@@ -173,29 +173,33 @@ class TestRefusedPayloads:
         assert hooks.dispatched == []
         assert hooks.notified == [
             (
-                "400: Bad request on /t. Payload did not match"
-                " StreamOnlineEventSub at: subscription.type",
+                "400: Bad request on /t. Payload did not match StreamOnlineEventSub:"
+                " Invalid enum value 'stream.offline' - at `$.subscription.type`",
                 None,
             )
         ]
 
-    async def test_a_missing_field_is_named_by_its_path(
+    async def test_a_missing_field_is_named(
         self, client: httpx.AsyncClient, hooks: Hooks
     ) -> None:
         payload = stream_online_payload()
         del payload["event"]["started_at"]
 
-        await post(client, payload)
+        assert (await post(client, payload)).status_code == 400
+        assert hooks.notified[0][0].endswith(
+            "Object missing required field `started_at` - at `$.event`"
+        )
 
-        assert "at: event.started_at" in hooks.notified[0][0]
-
-    async def test_at_most_three_fields_are_listed(
+    async def test_a_field_of_the_wrong_type_is_named(
         self, client: httpx.AsyncClient, hooks: Hooks
     ) -> None:
-        await post(client, {"subscription": {"type": "stream.online"}, "event": {}})
+        payload = stream_online_payload()
+        payload["event"]["broadcaster_user_id"] = 5
 
-        listed = hooks.notified[0][0].split("at: ")[1].split("; ")
-        assert len(listed) == 3
+        assert (await post(client, payload)).status_code == 400
+        assert hooks.notified[0][0].endswith(
+            "Expected `str`, got `int` - at `$.event.broadcaster_user_id`"
+        )
 
     @pytest.mark.parametrize("missing", ["event", "subscription"])
     async def test_a_body_missing_a_top_level_key_is_a_400(

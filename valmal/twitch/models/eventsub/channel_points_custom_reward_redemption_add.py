@@ -1,13 +1,13 @@
 from typing import Literal
 
-from pydantic import BaseModel
+import msgspec
 
 
-class ChannelPointsCustomRewardRedemptionAddSubscription(BaseModel):
+class ChannelPointsCustomRewardRedemptionAddSubscription(msgspec.Struct):
     type: Literal["channel.channel_points_custom_reward_redemption.add"]
 
 
-class ChannelPointsCustomRewardRedemptionAddEvent(BaseModel):
+class ChannelPointsCustomRewardRedemptionAddEvent(msgspec.Struct):
     broadcaster_user_id: str
     # The id matches the autoshoutout list, the login is what a `!so` line
     # needs; user_name is the display name and is not modelled, because
@@ -16,6 +16,6 @@ class ChannelPointsCustomRewardRedemptionAddEvent(BaseModel):
     user_login: str
 
 
-class ChannelPointsCustomRewardRedemptionAddEventSub(BaseModel):
+class ChannelPointsCustomRewardRedemptionAddEventSub(msgspec.Struct):
     subscription: ChannelPointsCustomRewardRedemptionAddSubscription
     event: ChannelPointsCustomRewardRedemptionAddEvent

@@ -1,7 +1,7 @@
-from pydantic import BaseModel
+import msgspec
 
 
-class Channel(BaseModel):
+class Channel(msgspec.Struct):
     broadcaster_id: str
     broadcaster_login: str
     broadcaster_name: str
@@ -15,5 +15,5 @@ class Channel(BaseModel):
     is_branded_content: bool
 
 
-class ChannelResponse(BaseModel):
+class ChannelResponse(msgspec.Struct):
     data: list[Channel]

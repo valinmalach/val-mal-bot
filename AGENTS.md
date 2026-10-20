@@ -261,7 +261,7 @@ everything for it, rather than one directory per kind of file:
   and what says something in a channel: `audit`, `send`, `present`, `roles`,
   `birthday` and `duration`; `deleters` reads who deleted a message back from the audit
   log; `gateway_log` lifts discord.py's reconnect reasons into the logs.
-- `valmal/twitch/` — Twitch: `models/` (Pydantic payloads), `client/` (Helix, chat and subscription health),
+- `valmal/twitch/` — Twitch: `models/` (msgspec payloads), `client/` (Helix, chat and subscription health),
   `oauth/` (the grant flow, its routes and the stored tokens), `eventsub/` (the signed
   webhook route, its replay protection, what each event makes the bot do, chat
   commands, and repointing subscriptions) and `stream/` (what a live stream means:
@@ -280,8 +280,8 @@ that defines it. The package `__init__` files are docstrings that say what the d
 is for. `valmal/db/models/__init__.py` is the exception, because importing it is what
 registers the tables on the metadata Alembic reads.
 
-**Two model packages, both called `models`.** `valmal/twitch/models/` is Pydantic:
-Twitch API responses and EventSub payloads. `valmal/db/models/` is SQLModel: the
+**Two model packages, both called `models`.** `valmal/twitch/models/` is msgspec
+`Struct`s: Twitch API responses and EventSub payloads. `valmal/db/models/` is SQLModel: the
 tables, as Alembic and the tests see them. Each sits under the concern it belongs to, so
 the path says which is which.
 
@@ -291,6 +291,11 @@ statement constants in `repository.py` and `configuration.py` on the asyncpg poo
 test holds each row to its model and each read to its row, every UPDATE sets
 `updated_at = now()` itself (SQLAlchemy's `onupdate` is gone with it), and a test fails
 if importing `main` or any cog loads either package. Nothing outside `valmal/db/` holds a connection.
+
+**Nor does the bot load pydantic** (#124, about 11 MiB), which stays installed for
+SQLModel. The Twitch models are msgspec, and `valmal/core/settings.py` reads the
+environment, and a local `.env` as plain `KEY=VALUE` lines, through msgspec and the
+stdlib. The same test checks it.
 
 ## Architecture
 
@@ -379,7 +384,7 @@ parse instead of being compared against a string passed in beside it. That
 `event_sub.subscription`. `process_webhook` is generic in the model, which binds it to
 its handler: pairing `StreamOnlineEventSub` with the follow handler stops type-checking.
 
-**An event models the fields its handler reads, and no more.** Pydantic ignores
+**An event models the fields its handler reads, and no more.** msgspec ignores
 what is not declared, so the rest is ballast that has to be maintained against
 Twitch's docs and can only fail. A field is `str` rather than a `Literal` of the
 values Twitch documents unless something branches on all of them: a value Twitch
@@ -400,7 +405,7 @@ notifications alone: a wrong clock must not also refuse the resubscribe that rep
 
 **A signed request that the models reject answers 4xx, not 5xx.** A body that is
 not JSON, is not a JSON object, or does not match the route's model is a 400 with
-a notice naming the field that failed; only something genuinely unexpected is a
+a notice carrying msgspec's message, which names the first field that failed; only something genuinely unexpected is a
 500 with a report. The reason is that a payload this end cannot read is not a
 server fault, and a traceback for one is noise — *not* that it saves retries.
 Twitch documents no 4xx/5xx distinction, and revocation counts anything that is
@@ -442,15 +447,14 @@ edit must not break:
   and for six of the eight types the dump is the only way back.
 - A second confirmed run refuses while one is in flight, with a plain module flag rather
   than an `asyncio.Lock`, which would queue. Taken with no await between check and set.
-- `SubscriptionCondition` is the one model that keeps what it does not declare
-  (`extra="allow"`), because a condition is *round-tripped* to recreate a subscription and
-  a dropped key would recreate one broader than the original — the opposite of the rule
-  for payload models above, which are read, not written back.
+- A condition is a plain `dict[str, str]`, not a model, because it is *round-tripped* to
+  recreate a subscription and a dropped key would recreate one broader than the original —
+  the opposite of the rule for payload models above, which are read, not written back.
+  Read a key with `.get`: which are present depends on the type.
 - `condition_of` drops every value that is `""`, because Twitch sends `""` for the unset
   half of a `channel.raid` condition and refuses a create carrying both halves; a faithful
-  round-trip deletes both raid subscriptions and recreates neither. Compared against `""`
-  and not tested for falsity, so a `0` or `False` survives. **Do not make this round-trip
-  faithful again.**
+  round-trip deletes both raid subscriptions and recreates neither. **Do not make this
+  round-trip faithful again.**
 - `WEBHOOK_PATHS` is derived from the `_route` table, not written beside it, and is passed
   *into* `migrate` rather than imported, because nothing under `valmal/twitch/` imports a
   router; `valmal/bot/cogs/twitch_admin.py` hands it over.

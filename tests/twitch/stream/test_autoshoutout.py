@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any
 
+import msgspec
 import pytest
 
 from tests.twitch.support import (
@@ -24,17 +25,17 @@ pytestmark = pytest.mark.anyio
 
 
 def chat(**kwargs: Any) -> ChannelChatMessageEventSub:
-    return ChannelChatMessageEventSub.model_validate(chat_event(**kwargs))
+    return msgspec.convert(chat_event(**kwargs), ChannelChatMessageEventSub)
 
 
 def redemption(**kwargs: Any) -> ChannelPointsCustomRewardRedemptionAddEventSub:
-    return ChannelPointsCustomRewardRedemptionAddEventSub.model_validate(
-        redemption_event(**kwargs)
+    return msgspec.convert(
+        redemption_event(**kwargs), ChannelPointsCustomRewardRedemptionAddEventSub
     )
 
 
 def going_live(stream_id: str = "10") -> None:
-    stream_session._stream = Stream.model_validate(stream_json(stream_id))
+    stream_session._stream = msgspec.convert(stream_json(stream_id), Stream)
 
 
 class World:

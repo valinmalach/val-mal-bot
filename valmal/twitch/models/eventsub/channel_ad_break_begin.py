@@ -1,13 +1,13 @@
 from typing import Literal
 
-from pydantic import BaseModel
+import msgspec
 
 
-class ChannelAdBreakBeginSubscription(BaseModel):
+class ChannelAdBreakBeginSubscription(msgspec.Struct):
     type: Literal["channel.ad_break.begin"]
 
 
-class ChannelAdBreakBeginEvent(BaseModel):
+class ChannelAdBreakBeginEvent(msgspec.Struct):
     duration_seconds: int
     started_at: str
     is_automatic: bool
@@ -19,6 +19,6 @@ class ChannelAdBreakBeginEvent(BaseModel):
     requester_user_name: str
 
 
-class ChannelAdBreakBeginEventSub(BaseModel):
+class ChannelAdBreakBeginEventSub(msgspec.Struct):
     subscription: ChannelAdBreakBeginSubscription
     event: ChannelAdBreakBeginEvent

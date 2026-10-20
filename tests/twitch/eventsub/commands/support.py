@@ -2,6 +2,7 @@
 
 from typing import Any
 
+import msgspec
 import pytest
 
 from tests.twitch.support import chat_event
@@ -41,7 +42,7 @@ class ChatWorld:
 
 
 def event(text: str = "!x", **kwargs: Any) -> ChannelChatMessageEventSub:
-    return ChannelChatMessageEventSub.model_validate(chat_event(text, **kwargs))
+    return msgspec.convert(chat_event(text, **kwargs), ChannelChatMessageEventSub)
 
 
 def command(

@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel
+import msgspec
 
 from valmal.twitch.models.api.pagination import Pagination
 
@@ -11,12 +11,12 @@ class VideoType(str, Enum):
     upload = "upload"
 
 
-class MutedSegment(BaseModel):
+class MutedSegment(msgspec.Struct):
     duration: int
     offset: int
 
 
-class Video(BaseModel):
+class Video(msgspec.Struct, kw_only=True):
     id: str
     stream_id: str | None = None
     user_id: str
@@ -36,6 +36,6 @@ class Video(BaseModel):
     muted_segments: list[MutedSegment] | None = None
 
 
-class VideoResponse(BaseModel):
+class VideoResponse(msgspec.Struct):
     data: list[Video]
     pagination: Pagination

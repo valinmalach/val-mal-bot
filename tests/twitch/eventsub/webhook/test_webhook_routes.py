@@ -3,8 +3,8 @@ from types import CoroutineType
 from typing import Any, Literal, cast
 
 import httpx
+import msgspec
 import pytest
-from pydantic import BaseModel
 from starlette.applications import Starlette
 from starlette.routing import Route, Router
 
@@ -74,10 +74,11 @@ class TestWebhookPaths:
     def test_a_subscription_at_any_route_reads_as_deliverable(
         self, sub_type: str
     ) -> None:
-        subscription = Subscription.model_validate(
+        subscription = msgspec.convert(
             subscription_json(
                 type=sub_type, callback=callback_url(ctl.WEBHOOK_PATHS[sub_type])
-            )
+            ),
+            Subscription,
         )
 
         assert undeliverable(subscription) is None
@@ -158,30 +159,30 @@ class TestSubscriptionType:
         [(StreamOnlineEventSub, "stream.online")],
     )
     def test_reads_the_one_type_off_the_literal(
-        self, model: type[BaseModel], expected: str
+        self, model: type[msgspec.Struct], expected: str
     ) -> None:
         assert ctl._subscription_type(model) == expected
 
     def test_a_model_whose_subscription_is_not_a_model_is_refused_at_import(
         self,
     ) -> None:
-        class Bad(BaseModel):
+        class Bad(msgspec.Struct):
             subscription: str
 
         with pytest.raises(TypeError, match="subscription is not a model"):
             ctl._subscription_type(Bad)
 
     def test_a_type_that_is_not_a_single_value_literal_is_refused(self) -> None:
-        class Two(BaseModel):
+        class Two(msgspec.Struct):
             type: Literal["a", "b"]
 
-        class Plain(BaseModel):
+        class Plain(msgspec.Struct):
             type: str
 
-        class WithTwo(BaseModel):
+        class WithTwo(msgspec.Struct):
             subscription: Two
 
-        class WithPlain(BaseModel):
+        class WithPlain(msgspec.Struct):
             subscription: Plain
 
         with pytest.raises(TypeError, match="single-value Literal"):
