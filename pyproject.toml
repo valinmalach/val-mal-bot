@@ -15,8 +15,6 @@ dependencies = [
     # installed, and with the stdlib json when it is not.
     "msgspec>=0.22.0",
     "orjson>=3.13.0",
-    "pydantic>=2.14.1",
-    "pydantic-settings>=2.15.0",
     # Alembic's env.py runs on the asyncio engine, which needs greenlet, and SQLAlchemy
     # 2.1 installs it only with this extra. The bot itself never imports SQLAlchemy.
     "sqlalchemy[asyncio]>=2.1.5",

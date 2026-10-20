@@ -203,6 +203,4 @@ class TestWhatTheBotLoads:
         )
 
     def test_the_check_would_see_pydantic_if_it_were_loaded(self) -> None:
-        found = run_in_a_fresh_process(loaded("import pydantic_settings"))
-
-        assert {"pydantic", "pydantic_settings"} <= set(found)
+        assert "pydantic" in run_in_a_fresh_process(loaded("import pydantic"))
