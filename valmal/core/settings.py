@@ -1,5 +1,6 @@
 """Environment-backed settings, validated once at import."""
 
+import codecs
 import os
 import re
 from collections.abc import Iterator, Mapping
@@ -50,8 +51,11 @@ _DECLARED = {f.name for f in _FIELDS}
 _OPTIONAL = {f.name for f in _FIELDS if not f.required}
 _BOOLS = {f.name for f in _FIELDS if f.type is bool}
 
-# A backslash escapes the next character inside double quotes, as in python-dotenv.
-_DOUBLE_QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"')
+# python-dotenv's quoting: each quote style, and the escapes it decodes inside it.
+_QUOTED = {
+    '"': (re.compile(r'"((?:\\"|[^"])*)"'), re.compile(r"\\[\\'\"abfnrtv]")),
+    "'": (re.compile(r"'((?:\\'|[^'])*)'"), re.compile(r"\\[\\']")),
+}
 
 # msgspec reads only true/false/1/0, and a .env or Railway value may be a word.
 _BOOL_WORDS: dict[str, str] = {
@@ -73,15 +77,18 @@ def _dotenv(path: Path) -> dict[str, str]:
         key, sep, value = line.strip().removeprefix("export ").partition("=")
         if not sep or key.startswith("#"):
             continue
-        value = value.strip()
-        if quoted := _DOUBLE_QUOTED.match(value):
-            value = re.sub(r"\\(.)", r"\1", quoted[1])
-        elif value[:1] == "'" and (end := value.find("'", 1)) > 0:
-            value = value[1:end]
-        else:
-            value = value.partition(" #")[0].rstrip()
-        pairs[key.strip()] = value
+        pairs[key.strip()] = _unquoted(value.strip())
     return pairs
+
+
+def _unquoted(value: str) -> str:
+    if value[:1] in _QUOTED:
+        whole, escapes = _QUOTED[value[0]]
+        if quoted := whole.match(value):
+            return escapes.sub(
+                lambda m: codecs.decode(m[0], "unicode_escape"), quoted[1]
+            )
+    return value.partition(" #")[0].rstrip()
 
 
 def _supplied(values: Mapping[str, str]) -> dict[str, str]:

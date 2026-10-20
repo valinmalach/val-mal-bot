@@ -259,6 +259,27 @@ def test_a_backslash_escapes_a_quote_inside_double_quotes(
     assert settings._load().app_url == 'a"b'
 
 
+B = chr(92)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (f'"C:{B}path"', f"C:{B}path"),
+        (f'"a{B}nb"', f"a{chr(10)}b"),
+        (f'"a{B}{B}b"', f"a{B}b"),
+        (f"'it{B}'s'", "it's"),
+        (f"'a{B}nb'", f"a{B}nb"),
+        (f"'a{B}{B}b'", f"a{B}b"),
+    ],
+)
+def test_quoted_values_decode_the_escapes_python_dotenv_decoded(
+    raw: str, expected: str
+) -> None:
+    """Only those: a backslash before anything else is part of the value."""
+    assert settings._unquoted(raw) == expected
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
