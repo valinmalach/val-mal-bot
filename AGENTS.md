@@ -184,6 +184,15 @@ digest in that one file.
 Verity's `test_coverage` threshold is 95 and `test_quality` judges whether a test can fail;
 `.verity/standard.yaml` has both, and `verity standard push` uploads a change to them.
 
+**Dependabot cannot see this project's dependencies, so `.github/workflows/audit.yml`
+does its job.** Dependabot rejects `requires-python >=3.15` (`tool_version_not_supported`),
+so GitHub's dependency graph is frozen at the last pre-3.15 lock, and its alerts match
+versions that no longer ship (three aiohttp alerts in October 2026, dismissed as
+inaccurate). Before acting on an alert, compare its range with `uv.lock`. The `audit` job
+exports the lock, dev dependencies included, and runs a pinned `pip-audit --strict` over
+it, on every push and daily, since an advisory published between pushes is what
+Dependabot would have caught.
+
 **Merging to `master` is guarded by a ruleset**, which lives in the repository's settings
 and nowhere in the tree, so this is its record. A pull request is required, with no
 approval count because a sole maintainer cannot approve their own. Every review thread,
@@ -209,7 +218,9 @@ tree, so this is their record:
 
 Deliberately *not* required: `CodeQL`, which does not report on every PR and would
 sit at "Expected"; `Sourcery review`, skipped on most; and the two `Request reviews` jobs,
-which only ask for reviews. A required check has to be produced by the branch, so a job
+which only ask for reviews; and `audit`, because an advisory published today would
+otherwise block every PR, whatever it touches, until the fix lands. A red `audit` is
+still a bump to make first. A required check has to be produced by the branch, so a job
 renamed here has to be renamed in the ruleset too, or every PR sits at "Expected".
 
 **A full review on every push is requested by `.github/workflows/request-reviews.yml`,
@@ -705,6 +716,20 @@ fails where the name is first used, not at the import, so `tests/test_lazy_impor
 imports every module in a lazy process and touches every name on it; pytest cannot run
 lazily itself. Leave the `lazy` keyword out of the code: Sourcery is blind to a file that
 holds it. Turning the mode off is the start command without the flag.
+
+**The bot also runs with `-OO`, and nothing in it compiles at startup** (#128). `-OO`
+strips docstrings, 2.5 MiB of them, and asserts. So a slash command, parameter or group
+takes its description from `description=`, `@app_commands.describe` or `group_description`,
+never from a docstring, and nothing on a runtime path relies on `assert`. The lazy-import
+test runs under `-OO` for that reason. Bytecode comes from the build command, which
+compiles the stdlib, the venv, `valmal/` and `main.py` at levels 0 (for Alembic) and 2 into
+`PYTHONPYCACHEPREFIX` (`/app/.pycache`). The Python Railpack installs ships no bytecode,
+`PYTHONDONTWRITEBYTECODE=1` stops it writing any, and `UV_COMPILE_BYTECODE` reaches only
+the venv, at level 0. Compiling from source left the bot 3.5 MiB higher. `-OO` without
+its own bytecode is a net loss, since every module is then compiled. The prefix is the
+reason this works: the deploy image takes `/mise`, where the stdlib lives, from an
+earlier Railpack step than the build command, so bytecode written beside the stdlib
+would never reach it. `/app` comes from the build step.
 
 **The live bot can be profiled without a restart**, with 3.15's sampling profiler
 (PEP 799), now that nothing is traced. The bot is PID 1 in the container, and the #104

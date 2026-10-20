@@ -1,0 +1,28 @@
+name: Audit
+
+# Dependabot cannot read this project: it rejects requires-python >=3.15
+# (tool_version_not_supported), so its dependency graph is frozen at the last pre-3.15
+# lock and its alerts match versions that no longer ship. This checks the real lock
+# against the advisory database instead. It runs daily as well, because an advisory
+# published between pushes is what Dependabot would have caught.
+on:
+  push:
+  schedule:
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      # Dev dependencies too: CI runs them. --no-deps because the export is already the
+      # whole resolved set, pinned.
+      - name: Export the lock
+        run: uv export --locked --no-hashes --no-emit-project --format requirements-txt > requirements.txt
+      - name: Known vulnerabilities
+        run: uvx pip-audit@2.10.1 --no-deps --disable-pip --strict -r requirements.txt
