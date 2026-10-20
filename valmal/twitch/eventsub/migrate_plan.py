@@ -105,12 +105,12 @@ def _named_ids(subscription: Subscription) -> list[tuple[str, str]]:
     return [
         (label, value)
         for name, label in _CONDITION_ID_FIELDS
-        if (value := subscription.condition.get(name))
+        if isinstance(value := subscription.condition.get(name), str) and value
     ]
 
 
-def condition_of(subscription: Subscription) -> dict[str, str]:
-    """The condition as Twitch sent it, minus the keys it sent empty.
+def condition_of(subscription: Subscription) -> dict[str, object]:
+    """The condition as Twitch sent it, minus the keys it sent empty or null.
 
     The empty strings go for a harder reason than tidiness. Twitch answers with
     ``""`` for the half of a ``channel.raid`` condition that is not set, and of
@@ -122,9 +122,15 @@ def condition_of(subscription: Subscription) -> dict[str, str]:
     can rebuild.
 
     Dropping it is not lossy: ``""`` is how Twitch says "not set" on the way out
-    and absence is how it requires the same thing on the way in.
+    and absence is how it requires the same thing on the way in. A null is dropped
+    for the same reason. Compared against ``""`` and None rather than tested for
+    falsity, because ``0`` and ``False`` are values Twitch chose to send.
     """
-    return {key: value for key, value in subscription.condition.items() if value != ""}
+    return {
+        key: value
+        for key, value in subscription.condition.items()
+        if value != "" and value is not None
+    }
 
 
 def condition_ids(subscriptions: list[Subscription]) -> list[str]:

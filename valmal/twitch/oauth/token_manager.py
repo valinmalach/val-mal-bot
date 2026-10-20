@@ -6,13 +6,12 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from typing import Self, cast
 
-import msgspec
-
 from valmal.core import clock, http_client
 from valmal.core.errors import notify
 from valmal.core.settings import settings
 from valmal.db import repository
 from valmal.db.enums import TokenType
+from valmal.twitch.models import parse
 from valmal.twitch.models.auth import AuthResponse, RefreshResponse
 from valmal.twitch.oauth.grants import configured_scopes
 
@@ -165,9 +164,7 @@ class TwitchTokenManager:
             )
             return False
 
-        auth_response = msgspec.json.decode(
-            response.text, type=AuthResponse, strict=False
-        )
+        auth_response = parse.decode(response.text, AuthResponse)
         # RFC 6749: the token type is case insensitive.
         if auth_response.token_type.lower() != "bearer":
             logger.error(f"Unexpected token type received: {auth_response.token_type}")
@@ -243,9 +240,7 @@ class TwitchTokenManager:
             )
             return False
 
-        auth_response = msgspec.json.decode(
-            response.text, type=RefreshResponse, strict=False
-        )
+        auth_response = parse.decode(response.text, RefreshResponse)
         # RFC 6749: the token type is case insensitive.
         if auth_response.token_type.lower() != "bearer":
             logger.error(f"Unexpected token type received: {auth_response.token_type}")

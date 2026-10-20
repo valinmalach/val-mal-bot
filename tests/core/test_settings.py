@@ -229,14 +229,59 @@ def test_the_dotenv_file_skips_comments_and_lines_without_a_value(
     assert settings._load().app_url == "x=y"
 
 
-class TestBlankIsUnset:
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ('APP_URL="https://quoted.example"', "https://quoted.example"),
+        ("APP_URL='https://single.example' # note", "https://single.example"),
+        ("export APP_URL=https://exported.example", "https://exported.example"),
+        ("APP_URL=https://commented.example # local", "https://commented.example"),
+        ("APP_URL=https://hash.example/#fragment", "https://hash.example/#fragment"),
+    ],
+)
+def test_the_dotenv_file_is_read_as_python_dotenv_read_it(
+    line: str, expected: str, env: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Docker Compose reads the same file, and strips the quotes too."""
+    env.delenv("APP_URL")
+    (tmp_path / ".env").write_text(line, encoding="utf-8")
+
+    assert settings._load().app_url == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("yes", True),
+        ("On", True),
+        ("y", True),
+        ("t", True),
+        ("NO", False),
+        ("off", False),
+    ],
+)
+def test_booleans_take_the_words_pydantic_settings_took(
+    value: str, expected: bool, env: pytest.MonkeyPatch
+) -> None:
+    env.setenv("USE_TEST_BOT", value)
+    env.setenv("TEST_DISCORD_TOKEN", "test-bot-token")
+
+    assert settings._load().use_test_bot is expected
+
+
+def test_a_word_that_is_not_a_boolean_is_still_refused(env: pytest.MonkeyPatch) -> None:
+    env.setenv("DB_ECHO", "maybe")
+
+    with pytest.raises(RuntimeError, match="DB_ECHO"):
+        settings._load()
+
+
+class TestSupplied:
     def test_a_blank_optional_field_is_dropped(self) -> None:
-        assert settings._blank_is_unset({"port": "", "db_echo": "1"}) == {
-            "db_echo": "1"
-        }
+        assert settings._supplied({"port": "", "db_echo": "1"}) == {"db_echo": "1"}
 
     def test_a_blank_required_field_is_kept_to_be_rejected(self) -> None:
-        assert settings._blank_is_unset({"discord_token": ""}) == {"discord_token": ""}
+        assert settings._supplied({"discord_token": ""}) == {"discord_token": ""}
 
     def test_an_undeclared_name_is_dropped(self) -> None:
-        assert settings._blank_is_unset({"railway_environment": "production"}) == {}
+        assert settings._supplied({"railway_environment": "production"}) == {}

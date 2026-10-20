@@ -21,6 +21,7 @@ from valmal.twitch.eventsub.constants import (
     TWITCH_MESSAGE_TYPE,
 )
 from valmal.twitch.eventsub.signature import get_hmac, get_hmac_message, verify_message
+from valmal.twitch.models import parse
 from valmal.twitch.models.eventsub.channel_ad_break_begin import (
     ChannelAdBreakBeginEventSub,
 )
@@ -260,7 +261,7 @@ async def process_webhook[E: msgspec.Struct](
             return Response(status_code=202)
 
         try:
-            event_sub = msgspec.convert(validated, event_model)
+            event_sub = parse.convert(validated, event_model)
             fire_and_forget(task_func(event_sub), name=endpoint)
         except BaseException:
             replay.release(message_id)

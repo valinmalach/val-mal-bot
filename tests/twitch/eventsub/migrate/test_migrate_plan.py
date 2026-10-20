@@ -12,7 +12,7 @@ def _sub(
     type_: str = "stream.online",
     callback: str = CURRENT,
     status: str = "enabled",
-    **condition: str,
+    **condition: object,
 ) -> Subscription:
     return Subscription(
         id="1",

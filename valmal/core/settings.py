@@ -46,36 +46,57 @@ class Settings(msgspec.Struct, kw_only=True):
         return self.test_discord_token
 
 
+_FIELDS = msgspec.structs.fields(Settings)
+_DECLARED = {f.name for f in _FIELDS}
+_OPTIONAL = {f.name for f in _FIELDS if not f.required}
+_BOOLS = {f.name for f in _FIELDS if f.type is bool}
+
+# msgspec reads true/false/1/0; pydantic-settings, which these values were set
+# against, also read these.
+_BOOL_WORDS: dict[str, str] = {
+    **dict.fromkeys(("yes", "y", "on", "t"), "true"),
+    **dict.fromkeys(("no", "n", "off", "f"), "false"),
+}
+
+
 def _dotenv(path: Path) -> dict[str, str]:
-    """`KEY=VALUE` lines from a local `.env`, if there is one; Railway has none."""
+    """`KEY=VALUE` lines from a local `.env`, if there is one; Railway has none.
+
+    Read as python-dotenv and Docker Compose read it, as far as this file goes: an
+    `export ` prefix, a quoted value, and a ` #` comment after an unquoted one.
+    """
     if not path.is_file():
         return {}
     pairs: dict[str, str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
-        key, sep, value = line.partition("=")
-        if sep and not key.lstrip().startswith("#"):
-            pairs[key.strip()] = value.strip()
+        key, sep, value = line.strip().removeprefix("export ").partition("=")
+        if not sep or key.startswith("#"):
+            continue
+        value = value.strip()
+        if value[:1] in {"'", '"'} and (end := value.find(value[0], 1)) > 0:
+            value = value[1:end]
+        else:
+            value = value.partition(" #")[0].rstrip()
+        pairs[key.strip()] = value
     return pairs
 
 
-def _blank_is_unset(values: Mapping[str, str]) -> dict[str, str]:
-    """Keep the declared names, minus an empty optional one, so it takes its default.
+def _supplied(values: Mapping[str, str]) -> dict[str, str]:
+    """The declared names, minus an empty optional one, so it takes its default.
 
     Railway and a copied .env.example both supply "", which int and bool reject
     outright. The many variables Railway injects that are not declared are dropped.
     """
-    optional = {f.name for f in msgspec.structs.fields(Settings) if not f.required}
-    declared = {f.name for f in msgspec.structs.fields(Settings)}
     return {
-        name: value
+        name: _BOOL_WORDS.get(value.lower(), value) if name in _BOOLS else value
         for name, value in values.items()
-        if name in declared and (value != "" or name not in optional)
+        if name in _DECLARED and (value != "" or name not in _OPTIONAL)
     }
 
 
 def _problems(supplied: Mapping[str, str]) -> Iterator[str]:
     """Every bad variable, where msgspec stops at the first."""
-    for field in msgspec.structs.fields(Settings):
+    for field in _FIELDS:
         if field.name not in supplied:
             if field.required:
                 yield f"{field.name.upper()} (missing)"
@@ -91,7 +112,7 @@ def _load() -> Settings:
     merged = {k.lower(): v for k, v in _dotenv(Path(".env")).items()} | {
         k.lower(): v for k, v in os.environ.items()
     }
-    supplied = _blank_is_unset(merged)
+    supplied = _supplied(merged)
     try:
         return msgspec.convert(supplied, Settings, strict=False)
     except msgspec.ValidationError:

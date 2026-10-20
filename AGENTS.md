@@ -293,9 +293,12 @@ test holds each row to its model and each read to its row, every UPDATE sets
 if importing `main` or any cog loads either package. Nothing outside `valmal/db/` holds a connection.
 
 **Nor does the bot load pydantic** (#124, about 11 MiB), which stays installed for
-SQLModel. The Twitch models are msgspec, and `valmal/core/settings.py` reads the
-environment, and a local `.env` as plain `KEY=VALUE` lines, through msgspec and the
-stdlib. The same test checks it.
+SQLModel, and the same test checks it. `valmal/core/settings.py` reads the environment
+through msgspec, and a local `.env` with the stdlib, as python-dotenv read it: quotes,
+`export` and a trailing ` #` comment. The Twitch models are msgspec, and every Twitch body
+is parsed through `valmal/twitch/models/parse.py`, which takes `"60"` for an int and
+`"false"` for a bool as pydantic did, because Twitch's docs show some of each as strings.
+A new call site uses it rather than calling msgspec itself.
 
 ## Architecture
 
@@ -447,14 +450,16 @@ edit must not break:
   and for six of the eight types the dump is the only way back.
 - A second confirmed run refuses while one is in flight, with a plain module flag rather
   than an `asyncio.Lock`, which would queue. Taken with no await between check and set.
-- A condition is a plain `dict[str, str]`, not a model, because it is *round-tripped* to
+- A condition is a plain `dict[str, object]`, not a model, because it is *round-tripped* to
   recreate a subscription and a dropped key would recreate one broader than the original —
   the opposite of the rule for payload models above, which are read, not written back.
-  Read a key with `.get`: which are present depends on the type.
+  Its values are `object` so one null or number cannot fail the whole listing. Read a key
+  with `.get` and check it is a `str`: which are present depends on the type.
 - `condition_of` drops every value that is `""`, because Twitch sends `""` for the unset
   half of a `channel.raid` condition and refuses a create carrying both halves; a faithful
-  round-trip deletes both raid subscriptions and recreates neither. **Do not make this
-  round-trip faithful again.**
+  round-trip deletes both raid subscriptions and recreates neither. It drops a null too.
+  Compared against `""` and None, not tested for falsity, so a `0` or `False` survives.
+  **Do not make this round-trip faithful again.**
 - `WEBHOOK_PATHS` is derived from the `_route` table, not written beside it, and is passed
   *into* `migrate` rather than imported, because nothing under `valmal/twitch/` imports a
   router; `valmal/bot/cogs/twitch_admin.py` hands it over.

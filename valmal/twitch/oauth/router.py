@@ -6,7 +6,6 @@ signature checking, no EventSub models, a different path prefix.
 
 import logging
 
-import msgspec
 from discord.utils import escape_markdown
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -17,6 +16,7 @@ from valmal.core import http_client
 from valmal.core.errors import notify, report
 from valmal.core.settings import settings
 from valmal.db.enums import TokenType
+from valmal.twitch.models import parse
 from valmal.twitch.models.auth import RefreshResponse, TokenValidationResponse
 from valmal.twitch.oauth.grants import (
     authorization_url,
@@ -53,9 +53,7 @@ async def _validate_oauth_identity(
         )
         raise HTTPException(status_code=500, detail="Twitch token validation failed")
 
-    validation = msgspec.json.decode(
-        response.text, type=TokenValidationResponse, strict=False
-    )
+    validation = parse.decode(response.text, TokenValidationResponse)
     expected_id = expected_user_id(token_type)
     missing_scopes = sorted(set(configured_scopes()) - set(validation.scopes))
 
@@ -127,9 +125,7 @@ async def _oauth_callback_common(
         await notify(f"Failed to exchange token: {response.status} {response.text}")
         raise HTTPException(status_code=500)
 
-    auth_response = msgspec.json.decode(
-        response.text, type=RefreshResponse, strict=False
-    )
+    auth_response = parse.decode(response.text, RefreshResponse)
     # RFC 6749: the token type is case insensitive.
     if auth_response.token_type.lower() != "bearer":
         logger.error(
