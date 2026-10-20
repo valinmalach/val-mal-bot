@@ -729,7 +729,11 @@ the venv, at level 0. Compiling from source left the bot 3.5 MiB higher. `-OO` w
 its own bytecode is a net loss, since every module is then compiled. The prefix is the
 reason this works: the deploy image takes `/mise`, where the stdlib lives, from an
 earlier Railpack step than the build command, so bytecode written beside the stdlib
-would never reach it. `/app` comes from the build step.
+would never reach it. `/app` comes from the build step. The build command carries no
+quotes: Railpack strips them before `sh -c`, so a quoted `python -c` failed the first
+build. It finds the stdlib through the venv's symlink, by `.python-version`'s
+`major.minor`. `tests/test_railway_config.py` checks both, since otherwise only a failed
+deploy would.
 
 **The live bot can be profiled without a restart**, with 3.15's sampling profiler
 (PEP 799), now that nothing is traced. The bot is PID 1 in the container, and the #104

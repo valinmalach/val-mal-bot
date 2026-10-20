@@ -23,12 +23,13 @@ def main(ctx: RailwayContext | None = None) -> Project:
         # Bytecode for the stdlib, the venv and our code, at the level Alembic runs (0)
         # and the bot's (-OO), so neither compiles from source at startup (#128). Into
         # PYTHONPYCACHEPREFIX, under /app: the deploy image takes /mise, where the
-        # stdlib lives, from an earlier Railpack step than this one.
+        # stdlib lives, from an earlier Railpack step than this one. No quotes: Railpack
+        # strips them before sh -c, so the stdlib is found through the venv's symlink.
         build=(
             "uv sync --locked --no-dev --no-editable && "
             f"PYTHONPYCACHEPREFIX={PYCACHE} .venv/bin/python -m compileall -q -j0 "
             "--invalidation-mode unchecked-hash -o 0 -o 2 "
-            '"$(.venv/bin/python -c \'import sysconfig; print(sysconfig.get_paths()["stdlib"])\')" '
+            "$(dirname $(dirname $(readlink -f .venv/bin/python)))/lib/python3.15 "
             ".venv valmal main.py"
         ),
         # Lazy imports for the bot alone: a module nothing touches is never loaded.
