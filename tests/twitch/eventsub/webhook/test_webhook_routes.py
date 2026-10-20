@@ -84,6 +84,24 @@ class TestWebhookPaths:
         assert undeliverable(subscription) is None
 
 
+async def test_a_number_and_a_bool_sent_as_strings_reach_the_handler_converted(
+    real: httpx.AsyncClient, hooks: Hooks
+) -> None:
+    """How Twitch's docs show an ad break: "duration_seconds": "60"."""
+    payload = notification("channel.ad_break.begin")
+    payload["event"] |= {"duration_seconds": "60", "is_automatic": "false"}
+    raw, headers = delivery(payload)
+
+    response = await real.post("/webhook/twitch/adbreak", content=raw, headers=headers)
+
+    assert response.status_code == 202
+    ((_, coro),) = hooks.dispatched
+    frame = cast("CoroutineType[Any, Any, None]", coro).cr_frame
+    assert frame is not None
+    event = frame.f_locals["event_sub"].event
+    assert (event.duration_seconds, event.is_automatic) == (60, False)
+
+
 @pytest.mark.parametrize(("sub_type", "route"), list(ROUTES.items()))
 class TestEachRoute:
     async def test_a_signed_notification_is_accepted_and_reaches_its_own_handler(

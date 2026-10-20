@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from tests.twitch.eventsub.webhook.support import Hooks, delivery, stream_online_payload
-from valmal.twitch.eventsub import replay, router
+from valmal.twitch.eventsub import replay
 from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
 pytestmark = pytest.mark.anyio
@@ -46,24 +46,6 @@ class TestDispatch:
         payload["subscription"]["id"] = "sub"
 
         assert (await post(client, payload)).status_code == 202
-
-    async def test_the_payload_is_parsed_through_the_shared_lax_parser(
-        self, client: httpx.AsyncClient, hooks: Hooks, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Twitch's docs show some numbers and booleans as strings; parse takes them."""
-        models: list[type] = []
-        real = router.parse.convert
-
-        def convert(
-            body: Any, model: type[StreamOnlineEventSub]
-        ) -> StreamOnlineEventSub:
-            models.append(model)
-            return real(body, model)
-
-        monkeypatch.setattr(router.parse, "convert", convert)
-
-        assert (await post(client)).status_code == 202
-        assert models == [StreamOnlineEventSub]
 
     async def test_the_dispatch_is_named_for_the_endpoint_so_a_failure_reports_under_it(
         self, client: httpx.AsyncClient, hooks: Hooks

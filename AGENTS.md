@@ -295,7 +295,7 @@ if importing `main` or any cog loads either package. Nothing outside `valmal/db/
 **Nor does the bot load pydantic** (#124, about 11 MiB), which stays installed for
 SQLModel, and the same test checks it. `valmal/core/settings.py` reads the environment
 through msgspec, and a local `.env` with the stdlib, as python-dotenv read it: quotes,
-`export` and a trailing ` #` comment. The Twitch models are msgspec, and every Twitch body
+`export` and a `#` comment after a space. The Twitch models are msgspec, and every Twitch body
 is parsed through `valmal/twitch/models/parse.py`, which takes `"60"` for an int and
 `"false"` for a bool as pydantic did, because Twitch's docs show some of each as strings.
 A new call site uses it rather than calling msgspec itself.
