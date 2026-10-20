@@ -249,9 +249,20 @@ def test_the_dotenv_file_is_read_as_python_dotenv_read_it(
     assert settings._load().app_url == expected
 
 
+def test_a_backslash_escapes_a_quote_inside_double_quotes(
+    env: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    env.delenv("APP_URL")
+    escaped = f'{chr(92)}"'
+    (tmp_path / ".env").write_text(f'APP_URL="a{escaped}b" # c', encoding="utf-8")
+
+    assert settings._load().app_url == 'a"b'
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
+        ("TRUE", True),
         ("yes", True),
         ("On", True),
         ("y", True),

@@ -1,6 +1,7 @@
 """Environment-backed settings, validated once at import."""
 
 import os
+import re
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Annotated
@@ -49,6 +50,9 @@ _DECLARED = {f.name for f in _FIELDS}
 _OPTIONAL = {f.name for f in _FIELDS if not f.required}
 _BOOLS = {f.name for f in _FIELDS if f.type is bool}
 
+# A backslash escapes the next character inside double quotes, as in python-dotenv.
+_DOUBLE_QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"')
+
 # msgspec reads only true/false/1/0, and a .env or Railway value may be a word.
 _BOOL_WORDS: dict[str, str] = {
     **dict.fromkeys(("yes", "y", "on", "t"), "true"),
@@ -70,7 +74,9 @@ def _dotenv(path: Path) -> dict[str, str]:
         if not sep or key.startswith("#"):
             continue
         value = value.strip()
-        if value[:1] in {"'", '"'} and (end := value.find(value[0], 1)) > 0:
+        if quoted := _DOUBLE_QUOTED.match(value):
+            value = re.sub(r"\\(.)", r"\1", quoted[1])
+        elif value[:1] == "'" and (end := value.find("'", 1)) > 0:
             value = value[1:end]
         else:
             value = value.partition(" #")[0].rstrip()
