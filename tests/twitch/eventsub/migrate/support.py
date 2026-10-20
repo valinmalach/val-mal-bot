@@ -21,7 +21,7 @@ def sub(
     callback: str | None = OLD,
     status: str = "enabled",
     version: str = "1",
-    **condition: str,
+    **condition: object,
 ) -> Subscription:
     return msgspec.convert(
         {

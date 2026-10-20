@@ -26,6 +26,9 @@ class Action(StrEnum):
     # for. Reported and left alone: deleting it would destroy it for good, and a
     # recreate this end cannot address would not bring it back.
     SKIP = "no route for this type"
+    # Every condition Twitch documents is strings, so a recreate carrying anything
+    # else would likely be refused, after the delete it follows.
+    MALFORMED = "a condition value is not a string"
 
 
 def decide(subscription: Subscription, routes: Mapping[str, str]) -> Action:
@@ -48,6 +51,8 @@ def decide(subscription: Subscription, routes: Mapping[str, str]) -> Action:
     path = routes.get(subscription.type)
     if path is None:
         return Action.SKIP
+    if any(not isinstance(v, str) for v in condition_of(subscription).values()):
+        return Action.MALFORMED
     if subscription.transport.callback == callback_url(path):
         return Action.KEEP
     return Action.REPOINT
@@ -60,6 +65,7 @@ class Outcome:
     repoint: list[Subscription] = field(default_factory=list[Subscription])
     keep: list[Subscription] = field(default_factory=list[Subscription])
     skip: list[Subscription] = field(default_factory=list[Subscription])
+    malformed: list[Subscription] = field(default_factory=list[Subscription])
     migrated: list[Subscription] = field(default_factory=list[Subscription])
     # Two failure modes, kept apart because they call for opposite responses and
     # only one of them is an emergency. `stuck` did not move and is still
@@ -255,7 +261,8 @@ def summary(outcome: Outcome, *, confirm: bool) -> str:
         )
 
     if not outcome.repoint:
-        left_alone = f", {len(outcome.skip)} left alone" if outcome.skip else ""
+        untouched = len(outcome.skip) + len(outcome.malformed)
+        left_alone = f", {untouched} left alone" if untouched else ""
         return (
             f"Nothing to migrate: {len(outcome.keep)} subscription(s) already"
             f" call back on this deployment{left_alone}."
@@ -291,6 +298,12 @@ def summary(outcome: Outcome, *, confirm: bool) -> str:
     if outcome.skip:
         lines += _listed(
             "Left alone, no route for the type:", outcome.skip, outcome.logins
+        )
+    if outcome.malformed:
+        lines += _listed(
+            "Left alone, a condition value is not a string - repair by hand:",
+            outcome.malformed,
+            outcome.logins,
         )
     if outcome.dumped:
         lines.append(

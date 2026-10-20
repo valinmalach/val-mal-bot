@@ -1,3 +1,5 @@
+import pytest
+
 from valmal.twitch.eventsub.migrate_plan import Action, condition_of, decide
 from valmal.twitch.models.api.subscription import (
     Subscription,
@@ -38,6 +40,18 @@ def test_other_callback_is_repointed() -> None:
 
 def test_type_without_a_route_is_left_alone() -> None:
     assert decide(_sub("channel.follow"), ROUTES) is Action.SKIP
+
+
+@pytest.mark.parametrize("value", [5, True, ["1"]])
+def test_a_condition_value_that_is_not_a_string_is_left_alone(value: object) -> None:
+    """Its recreate would likely be refused, after the delete."""
+    assert decide(_sub(callback="https://old.example/x", user_id=value), ROUTES) is (
+        Action.MALFORMED
+    )
+
+
+def test_a_null_condition_value_is_not_malformed() -> None:
+    assert decide(_sub(broadcaster_user_id="1", reward_id=None), ROUTES) is Action.KEEP
 
 
 def test_status_does_not_decide() -> None:

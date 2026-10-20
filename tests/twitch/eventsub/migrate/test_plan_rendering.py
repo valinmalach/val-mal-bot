@@ -66,6 +66,7 @@ class TestDecide:
             "repoint",
             "already current",
             "no route for this type",
+            "a condition value is not a string",
         ]
 
 

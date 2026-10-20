@@ -223,6 +223,16 @@ class TestExistsAt:
 
         assert await migrate._exists_at(sub(), CURRENT) is False
 
+    async def test_a_null_it_sent_and_a_key_it_left_out_are_the_same_condition(
+        self, world: MigrateWorld
+    ) -> None:
+        """The recreate sends condition_of, which drops the null."""
+        world.calls.append(("delete", "x"))
+        world.after = [sub(id="new", callback=CURRENT, broadcaster_user_id="111")]
+
+        original = sub(broadcaster_user_id="111", reward_id=None)
+        assert await migrate._exists_at(original, CURRENT) is True
+
     async def test_finds_it_among_others(self, world: MigrateWorld) -> None:
         world.calls.append(("delete", "x"))
         world.after = [
