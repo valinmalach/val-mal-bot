@@ -1,5 +1,6 @@
-"""The bot runs with -X lazy_imports=all (.railway/railway.py), which nothing else
-here does: an import that only fails lazily would otherwise first fail in production.
+"""The bot runs with -OO -X lazy_imports=all (.railway/railway.py), which nothing else
+here does: an import that only fails lazily, or code that needs a docstring or an
+assert, would otherwise first fail in production.
 
 In a process of its own, because the mode is global and pytest itself does not
 survive it (an ImportCycleError inside _pytest.config).
@@ -13,7 +14,9 @@ from tests.support import run_python
 # imports it (the bot never does, ADR 0005).
 _RESOLVE_EVERYTHING = r"""
 import importlib, pathlib, re, sys
-assert sys.get_lazy_imports() == "all"
+# Not assert: -OO strips it.
+if (sys.get_lazy_imports(), sys.flags.optimize) != ("all", 2):
+    raise SystemExit("not the production flags")
 # From the files: pkgutil.walk_packages imports each package to look inside it.
 schema = re.compile(r"^(import|from) (sqlalchemy|sqlmodel)\b", re.MULTILINE)
 names = ["main"] + [
@@ -40,7 +43,7 @@ print(len(names))
 
 
 def test_every_module_imports_and_resolves_under_lazy_imports() -> None:
-    done = run_python("-X", "lazy_imports=all", "-c", _RESOLVE_EVERYTHING)
+    done = run_python("-OO", "-X", "lazy_imports=all", "-c", _RESOLVE_EVERYTHING)
 
     # The last line, as main's logging writes to stdout too; a sweep that found no
     # modules would pass without checking anything.

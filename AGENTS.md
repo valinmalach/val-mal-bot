@@ -706,6 +706,20 @@ imports every module in a lazy process and touches every name on it; pytest cann
 lazily itself. Leave the `lazy` keyword out of the code: Sourcery is blind to a file that
 holds it. Turning the mode off is the start command without the flag.
 
+**The bot also runs with `-OO`, and nothing in it compiles at startup** (#128). `-OO`
+strips docstrings, 2.5 MiB of them, and asserts. So a slash command, parameter or group
+takes its description from `description=`, `@app_commands.describe` or `group_description`,
+never from a docstring, and nothing on a runtime path relies on `assert`. The lazy-import
+test runs under `-OO` for that reason. Bytecode comes from the build command, which
+compiles the stdlib, the venv, `valmal/` and `main.py` at levels 0 (for Alembic) and 2 into
+`PYTHONPYCACHEPREFIX` (`/app/.pycache`). The Python Railpack installs ships no bytecode,
+`PYTHONDONTWRITEBYTECODE=1` stops it writing any, and `UV_COMPILE_BYTECODE` reaches only
+the venv, at level 0. Compiling from source left the bot 3.5 MiB higher. `-OO` without
+its own bytecode is a net loss, since every module is then compiled. The prefix is the
+reason this works: the deploy image takes `/mise`, where the stdlib lives, from an
+earlier Railpack step than the build command, so bytecode written beside the stdlib
+would never reach it. `/app` comes from the build step.
+
 **The live bot can be profiled without a restart**, with 3.15's sampling profiler
 (PEP 799), now that nothing is traced. The bot is PID 1 in the container, and the #104
 probe proved the container lets a process attach to it. `railway ssh` needs an SSH key
