@@ -18,9 +18,9 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     # Alembic's env.py runs on the asyncio engine, which needs greenlet, and SQLAlchemy
     # 2.1 installs it only with this extra. The bot itself never imports SQLAlchemy.
-    "sqlalchemy[asyncio]>=2.1.4",
+    "sqlalchemy[asyncio]>=2.1.5",
     "sqlmodel>=0.0.48",
-    "starlette>=1.8.0",
+    "starlette>=1.9.0",
     # zoneinfo reads the system's tz database, which a slim image may not have, and
     # falls back to this package.
     "tzdata>=2026.5",
@@ -40,7 +40,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "pytest-timeout>=2.4.0",
-    "ruff>=0.17.0",
+    "ruff>=0.17.1",
 ]
 
 [tool.pyright]
