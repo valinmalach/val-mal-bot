@@ -13,6 +13,7 @@ dependencies = [
     "discord.py>=2.7.1",
     # Nothing imports it: discord.py parses every gateway event with it when it is
     # installed, and with the stdlib json when it is not.
+    "msgspec>=0.22.0",
     "orjson>=3.13.0",
     "pydantic>=2.14.1",
     "pydantic-settings>=2.15.0",
