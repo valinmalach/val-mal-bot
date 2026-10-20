@@ -1,5 +1,4 @@
-# Line endings are LF in the repository and in every checkout. Without this a Windows
-# working tree under core.autocrlf=true is CRLF while the index and CI are LF, which
-# is what "LF will be replaced by CRLF" on every git command was about.
+# Without this a Windows working tree under core.autocrlf=true is CRLF while the index
+# and CI are LF.
 * text=auto eol=lf
 *.ico binary

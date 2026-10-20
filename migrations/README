@@ -1,6 +1,6 @@
 Alembic migrations for the bot's Postgres database (Railway).
 
-The schema itself is defined with SQLModel under db/models; these revisions are
+The schema itself is defined with SQLModel under valmal/db/models; these revisions are
 how it gets applied. env.py reads DATABASE_URL from the environment, so no
 credentials live in alembic.ini.
 

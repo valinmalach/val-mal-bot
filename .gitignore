@@ -1,10 +1,8 @@
-# Python
 __pycache__/
 *.py[cod]
 .venv
 venv/
 
-# Tests, coverage and linter caches
 .pytest_cache/
 .ruff_cache/
 .coverage
@@ -12,14 +10,12 @@ venv/
 coverage.xml
 htmlcov/
 
-# Environment: real values live in .env, and .env.example is the template
 .env
 .env.*
 !.env.example
 
 *.log
 
-# Editors
 .idea/
 .vscode/
 *.code-workspace
@@ -45,5 +41,4 @@ htmlcov/
 .codex/hooks.json
 .codex/config.toml
 
-# Ignore vscode AI rules
 .github/instructions/codacy.instructions.md

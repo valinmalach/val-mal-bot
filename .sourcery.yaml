@@ -22,8 +22,8 @@ ignore:
 rule_settings:
   enable:
   - default
-  # Zero findings today. A ratchet, not a cleanup: a debug print on Railway is
-  # unstructured stdout beside the logger everything else uses.
+  # A debug print on Railway is unstructured stdout beside the logger everything
+  # else uses.
   - no-debug
   # Both fire on the same guard in token_manager._guarded and turn a guard clause
   # into a ternary with an await in the else branch, which gpsg's own

@@ -31,7 +31,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    # asyncpg ships no type information, and pyright is strict.
     "asyncpg-stubs>=0.32.0",
     # The web app tests call the Starlette apps in process through ASGITransport.
     "httpx>=0.28.1",
@@ -43,8 +42,7 @@ dev = [
 ]
 
 [tool.pyright]
-# Pylance reads this section, so the editor and CLI pyright agree. Pinned rather
-# than left to Pylance's default, so a future change cannot move the goalposts.
+# Pylance reads this section, so the editor and CLI pyright agree.
 typeCheckingMode = "strict"
 
 # No exclude key: setting it REPLACES pyright's defaults instead of adding to
@@ -74,9 +72,7 @@ reportPrivateUsage = false
 target-version = "py315"
 
 [tool.ruff.lint]
-# select REPLACES Ruff's defaults, so the default F/E4/E7/E9 are listed. F, B, S and
-# ANN are the families Verity's Standard names; BLE is what every `# noqa: BLE001` in
-# the code already assumes; I, SIM, UP, RUF and C90 the code already satisfies.
+# select REPLACES Ruff's defaults, so the default F/E4/E7/E9 are listed.
 select = [
     "F", "E4", "E7", "E9",
     "B", "BLE", "RUF", "I", "SIM", "S", "C90", "ANN", "UP",
