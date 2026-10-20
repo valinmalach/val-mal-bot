@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import aiohttp
 import discord
+import msgspec
 import pytest
 
 from tests.twitch.stream.live_alert.support import alert, http_error, stream
@@ -61,7 +62,7 @@ class TestDecide:
         """A live stream that is not the one announced describes a different broadcast."""
         assert _decide(alert(), 900, 10, stream()) is Action.REFRESH
         other = stream()
-        other = other.model_copy(update={"id": "11"})
+        other = msgspec.structs.replace(other, id="11")
 
         assert _decide(alert(), 900, 10, other) is Action.CLOSE
 

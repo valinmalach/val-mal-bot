@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from typing import Any
 
+import msgspec
+
 from valmal.twitch.client.helix import HelixError
 from valmal.twitch.models.api.subscription import Subscription
 
@@ -19,9 +21,9 @@ def sub(
     callback: str | None = OLD,
     status: str = "enabled",
     version: str = "1",
-    **condition: str,
+    **condition: object,
 ) -> Subscription:
-    return Subscription.model_validate(
+    return msgspec.convert(
         {
             "id": id,
             "status": status,
@@ -31,7 +33,8 @@ def sub(
             "created_at": "2026-01-01T00:00:00Z",
             "transport": {"method": "webhook", "callback": callback},
             "cost": 1,
-        }
+        },
+        Subscription,
     )
 
 

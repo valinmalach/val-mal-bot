@@ -1,13 +1,13 @@
 from typing import Literal
 
-from pydantic import BaseModel
+import msgspec
 
 
-class StreamOnlineSubscription(BaseModel):
+class StreamOnlineSubscription(msgspec.Struct):
     type: Literal["stream.online"]
 
 
-class StreamOnlineEvent(BaseModel):
+class StreamOnlineEvent(msgspec.Struct):
     id: str
     broadcaster_user_id: str
     broadcaster_user_login: str
@@ -16,6 +16,6 @@ class StreamOnlineEvent(BaseModel):
     started_at: str
 
 
-class StreamOnlineEventSub(BaseModel):
+class StreamOnlineEventSub(msgspec.Struct):
     subscription: StreamOnlineSubscription
     event: StreamOnlineEvent

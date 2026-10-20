@@ -1,9 +1,10 @@
+import msgspec
 import pytest
 
 from tests.twitch.eventsub.events.support import EventWorld, live, profile
 from valmal.twitch.client.helix import HelixError
 from valmal.twitch.eventsub import events
-from valmal.twitch.models.api.stream import Stream
+from valmal.twitch.models.api.stream import Stream, StreamType
 from valmal.twitch.models.eventsub.stream_offline import StreamOfflineEventSub
 from valmal.twitch.models.eventsub.stream_online import StreamOnlineEventSub
 
@@ -11,7 +12,7 @@ pytestmark = pytest.mark.anyio
 
 
 def online(broadcaster_id: str = "111") -> StreamOnlineEventSub:
-    return StreamOnlineEventSub.model_validate(
+    return msgspec.convert(
         {
             "subscription": {"type": "stream.online"},
             "event": {
@@ -22,12 +23,13 @@ def online(broadcaster_id: str = "111") -> StreamOnlineEventSub:
                 "type": "live",
                 "started_at": "2026-06-15T11:59:00Z",
             },
-        }
+        },
+        StreamOnlineEventSub,
     )
 
 
 def offline(broadcaster_id: str = "111") -> StreamOfflineEventSub:
-    return StreamOfflineEventSub.model_validate(
+    return msgspec.convert(
         {
             "subscription": {"type": "stream.offline"},
             "event": {
@@ -35,7 +37,8 @@ def offline(broadcaster_id: str = "111") -> StreamOfflineEventSub:
                 "broadcaster_user_login": "bob",
                 "broadcaster_user_name": "Bob",
             },
-        }
+        },
+        StreamOfflineEventSub,
     )
 
 
@@ -72,7 +75,10 @@ class TestWaitForStreamInfo:
         assert stream is not None and error is None
 
     async def test_an_error_typed_stream_is_not_live(self, world: EventWorld) -> None:
-        world.stream_answers = [live().model_copy(update={"type": ""}), live()]
+        world.stream_answers = [
+            msgspec.structs.replace(live(), type=StreamType.error),
+            live(),
+        ]
 
         stream, _ = await events._wait_for_stream_info(111)
 

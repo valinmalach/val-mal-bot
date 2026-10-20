@@ -1,7 +1,7 @@
-from pydantic import BaseModel
+import msgspec
 
 
-class AdSchedule(BaseModel):
+class AdSchedule(msgspec.Struct):
     snooze_count: int
     snooze_refresh_at: int
     next_ad_at: int
@@ -10,5 +10,5 @@ class AdSchedule(BaseModel):
     preroll_free_time: int
 
 
-class AdScheduleResponse(BaseModel):
+class AdScheduleResponse(msgspec.Struct):
     data: list[AdSchedule]

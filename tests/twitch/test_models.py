@@ -2,15 +2,15 @@
 
 from typing import Any
 
+import msgspec
 import pytest
-from pydantic import BaseModel, ValidationError
+from msgspec import ValidationError
 
 from tests.twitch.support import stream_json, user_json, video_json
 from valmal.twitch.models.api.pagination import Pagination
 from valmal.twitch.models.api.stream import Stream, StreamType
 from valmal.twitch.models.api.subscription import (
     Subscription,
-    SubscriptionCondition,
     SubscriptionResponse,
 )
 from valmal.twitch.models.api.user import BroadcasterType, User, UserType
@@ -44,7 +44,7 @@ BROADCASTER = {
 # The documented `type` string each subscription model is bound to, and a payload
 # for it. The Literal is the whole reason a model exists: a payload for the wrong
 # event fails to parse instead of being compared against a string beside it.
-EVENTS: dict[str, tuple[type[BaseModel], dict[str, Any]]] = {
+EVENTS: dict[str, tuple[type[msgspec.Struct], dict[str, Any]]] = {
     "channel.ad_break.begin": (
         ChannelAdBreakBeginEventSub,
         {
@@ -121,7 +121,7 @@ class TestEventSubs:
         model = EVENTS[sub_type][0]
 
         # Any: the model is chosen per parameter, and each declares its own subscription.
-        parsed: Any = model.model_validate(_payload(sub_type))
+        parsed: Any = msgspec.convert(_payload(sub_type), model)
 
         assert parsed.subscription.type == sub_type
 
@@ -130,7 +130,7 @@ class TestEventSubs:
         payload["subscription"]["type"] = "some.other.event"
 
         with pytest.raises(ValidationError, match="type"):
-            EVENTS[sub_type][0].model_validate(payload)
+            msgspec.convert(payload, EVENTS[sub_type][0])
 
     def test_every_field_the_handler_reads_is_required(self, sub_type: str) -> None:
         model = EVENTS[sub_type][0]
@@ -139,7 +139,7 @@ class TestEventSubs:
             del payload["event"][field]
 
             with pytest.raises(ValidationError) as caught:
-                model.model_validate(payload)
+                msgspec.convert(payload, model)
 
             assert field in str(caught.value), field
 
@@ -150,7 +150,7 @@ class TestEventSubs:
         payload["subscription"]["id"] = "abc"
         payload["subscription"]["status"] = "enabled"
 
-        EVENTS[sub_type][0].model_validate(payload)
+        msgspec.convert(payload, EVENTS[sub_type][0])
 
     def test_the_event_and_the_subscription_are_both_required(
         self, sub_type: str
@@ -161,7 +161,7 @@ class TestEventSubs:
             payload = _payload(sub_type)
             del payload[missing]
             with pytest.raises(ValidationError):
-                model.model_validate(payload)
+                msgspec.convert(payload, model)
 
 
 class TestChatMessage:
@@ -169,13 +169,13 @@ class TestChatMessage:
         payload = _payload("channel.chat.message")
         payload["event"]["source_broadcaster_user_id"] = "77"
 
-        parsed = ChannelChatMessageEventSub.model_validate(payload)
+        parsed = msgspec.convert(payload, ChannelChatMessageEventSub)
 
         assert parsed.event.source_broadcaster_user_id == "77"
 
     def test_an_ordinary_line_has_no_source_rather_than_the_broadcaster(self) -> None:
-        parsed = ChannelChatMessageEventSub.model_validate(
-            _payload("channel.chat.message")
+        parsed = msgspec.convert(
+            _payload("channel.chat.message"), ChannelChatMessageEventSub
         )
 
         assert parsed.event.source_broadcaster_user_id is None
@@ -183,18 +183,18 @@ class TestChatMessage:
     def test_badges_may_be_empty_but_must_be_present(self) -> None:
         payload = _payload("channel.chat.message")
         payload["event"]["badges"] = []
-        assert ChannelChatMessageEventSub.model_validate(payload).event.badges == []
+        assert msgspec.convert(payload, ChannelChatMessageEventSub).event.badges == []
 
         del payload["event"]["badges"]
         with pytest.raises(ValidationError):
-            ChannelChatMessageEventSub.model_validate(payload)
+            msgspec.convert(payload, ChannelChatMessageEventSub)
 
     def test_the_login_and_display_name_are_separate_fields(self) -> None:
         """For some locales the display name is a different string entirely."""
         payload = _payload("channel.chat.message")
         payload["event"]["chatter_user_name"] = "チャッター"
 
-        event = ChannelChatMessageEventSub.model_validate(payload).event
+        event = msgspec.convert(payload, ChannelChatMessageEventSub).event
 
         assert event.chatter_user_login == "chatter"
         assert event.chatter_user_name == "チャッター"
@@ -203,7 +203,7 @@ class TestChatMessage:
         payload = _payload("channel.moderate")
         payload["event"]["action"] = "an_action_added_in_2027"
 
-        assert ChannelModerateEventSub.model_validate(payload).event.action == (
+        assert msgspec.convert(payload, ChannelModerateEventSub).event.action == (
             "an_action_added_in_2027"
         )
 
@@ -211,13 +211,13 @@ class TestChatMessage:
         payload = _payload("stream.online")
         payload["event"]["type"] = "a_new_kind"
 
-        assert StreamOnlineEventSub.model_validate(payload).event.type == "a_new_kind"
+        assert msgspec.convert(payload, StreamOnlineEventSub).event.type == "a_new_kind"
 
 
 class TestHelixResponses:
     def test_a_user(self) -> None:
-        user = User.model_validate(
-            user_json("1", "bob", type="staff", broadcaster_type="partner")
+        user = msgspec.convert(
+            user_json("1", "bob", type="staff", broadcaster_type="partner"), User
         )
 
         assert user.type is UserType.staff
@@ -225,72 +225,80 @@ class TestHelixResponses:
 
     @pytest.mark.parametrize("type_", ["", "admin", "global_mod", "staff"])
     def test_every_documented_user_type_parses(self, type_: str) -> None:
-        assert User.model_validate(user_json(type=type_)).type.value == type_
+        assert msgspec.convert(user_json(type=type_), User).type.value == type_
 
     @pytest.mark.parametrize("kind", ["", "affiliate", "partner"])
     def test_every_documented_broadcaster_type_parses(self, kind: str) -> None:
         assert (
-            User.model_validate(user_json(broadcaster_type=kind)).broadcaster_type.value
+            msgspec.convert(
+                user_json(broadcaster_type=kind), User
+            ).broadcaster_type.value
             == kind
         )
 
     def test_a_live_and_an_errored_stream(self) -> None:
-        assert Stream.model_validate(stream_json()).type is StreamType.live
-        assert Stream.model_validate(stream_json(type="")).type is StreamType.error
+        assert msgspec.convert(stream_json(), Stream).type is StreamType.live
+        assert msgspec.convert(stream_json(type=""), Stream).type is StreamType.error
 
     def test_tags_may_be_null(self) -> None:
-        assert Stream.model_validate(stream_json(tags=None)).tags is None
+        assert msgspec.convert(stream_json(tags=None), Stream).tags is None
 
     def test_a_stream_of_an_unknown_type_is_refused(self) -> None:
         with pytest.raises(ValidationError):
-            Stream.model_validate(stream_json(type="rerun"))
+            msgspec.convert(stream_json(type="rerun"), Stream)
 
     def test_a_video_without_a_stream_or_muted_segments(self) -> None:
-        video = Video.model_validate(video_json(stream_id=None))
+        video = msgspec.convert(video_json(stream_id=None), Video)
 
         assert video.stream_id is None
         assert video.muted_segments is None
         assert video.type is VideoType.archive
 
     def test_a_video_with_muted_segments(self) -> None:
-        video = Video.model_validate(
-            video_json(muted_segments=[{"duration": 30, "offset": 5}])
+        video = msgspec.convert(
+            video_json(muted_segments=[{"duration": 30, "offset": 5}]), Video
         )
 
         assert video.muted_segments is not None and video.muted_segments[0].offset == 5
 
     def test_pagination_is_absent_on_the_last_page(self) -> None:
-        assert Pagination.model_validate({}).cursor is None
-        assert Pagination.model_validate({"cursor": "abc"}).cursor == "abc"
+        assert msgspec.convert({}, Pagination).cursor is None
+        assert msgspec.convert({"cursor": "abc"}, Pagination).cursor == "abc"
 
 
 class TestSubscriptions:
     def test_a_condition_keeps_a_key_it_does_not_declare(self) -> None:
         """A condition is round-tripped to recreate a subscription: a dropped key
         would recreate one broader than the one it replaced."""
-        condition = SubscriptionCondition.model_validate(
-            {"broadcaster_user_id": "1", "reward_id": "abc"}
+        subscription = msgspec.convert(
+            {
+                "id": "1",
+                "status": "enabled",
+                "type": "channel.channel_points_custom_reward_redemption.add",
+                "version": "1",
+                "condition": {"broadcaster_user_id": "1", "reward_id": "abc"},
+                "created_at": "x",
+                "transport": {},
+                "cost": 0,
+            },
+            Subscription,
         )
 
-        assert condition.model_dump(exclude_none=True) == {
+        assert subscription.condition == {
             "broadcaster_user_id": "1",
             "reward_id": "abc",
         }
 
-    def test_a_condition_may_be_empty(self) -> None:
-        assert (
-            SubscriptionCondition.model_validate({}).model_dump(exclude_none=True) == {}
-        )
-
     def test_a_subscription_response_carries_its_totals(self) -> None:
-        response = SubscriptionResponse.model_validate(
+        response = msgspec.convert(
             {
                 "data": [],
                 "total": 0,
                 "total_cost": 0,
                 "max_total_cost": 10,
                 "pagination": {},
-            }
+            },
+            SubscriptionResponse,
         )
 
         assert response.max_total_cost == 10
@@ -298,7 +306,7 @@ class TestSubscriptions:
 
     def test_a_subscription_needs_its_transport(self) -> None:
         with pytest.raises(ValidationError):
-            Subscription.model_validate(
+            msgspec.convert(
                 {
                     "id": "1",
                     "status": "enabled",
@@ -307,14 +315,16 @@ class TestSubscriptions:
                     "condition": {},
                     "created_at": "x",
                     "cost": 1,
-                }
+                },
+                Subscription,
             )
 
 
 class TestAuthResponses:
     def test_an_app_token(self) -> None:
-        parsed = AuthResponse.model_validate(
-            {"access_token": "a", "expires_in": 3600, "token_type": "bearer"}
+        parsed = msgspec.convert(
+            {"access_token": "a", "expires_in": 3600, "token_type": "bearer"},
+            AuthResponse,
         )
 
         assert parsed.expires_in == 3600
@@ -327,11 +337,13 @@ class TestAuthResponses:
             "token_type": "bearer",
         }
 
-        assert RefreshResponse.model_validate({**base, "scope": ["a", "b"]}).scope == [
+        assert msgspec.convert(
+            {**base, "scope": ["a", "b"]}, RefreshResponse
+        ).scope == [
             "a",
             "b",
         ]
-        assert RefreshResponse.model_validate({**base, "scope": "a"}).scope == "a"
+        assert msgspec.convert({**base, "scope": "a"}, RefreshResponse).scope == "a"
 
     def test_a_refresh_may_answer_with_no_expiry_but_must_say_so(self) -> None:
         base: dict[str, Any] = {
@@ -342,21 +354,22 @@ class TestAuthResponses:
         }
 
         assert (
-            RefreshResponse.model_validate({**base, "expires_in": None}).expires_in
+            msgspec.convert({**base, "expires_in": None}, RefreshResponse).expires_in
             is None
         )
         with pytest.raises(ValidationError):
-            RefreshResponse.model_validate(base)
+            msgspec.convert(base, RefreshResponse)
 
     def test_a_token_validation_reply(self) -> None:
-        parsed = TokenValidationResponse.model_validate(
+        parsed = msgspec.convert(
             {
                 "client_id": "c",
                 "login": "bob",
                 "scopes": ["chat:read"],
                 "user_id": "1",
                 "expires_in": 10,
-            }
+            },
+            TokenValidationResponse,
         )
 
         assert parsed.scopes == ["chat:read"]

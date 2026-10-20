@@ -1,18 +1,18 @@
 from typing import Literal
 
-from pydantic import BaseModel
+import msgspec
 
 
-class StreamOfflineSubscription(BaseModel):
+class StreamOfflineSubscription(msgspec.Struct):
     type: Literal["stream.offline"]
 
 
-class StreamOfflineEvent(BaseModel):
+class StreamOfflineEvent(msgspec.Struct):
     broadcaster_user_id: str
     broadcaster_user_login: str
     broadcaster_user_name: str
 
 
-class StreamOfflineEventSub(BaseModel):
+class StreamOfflineEventSub(msgspec.Struct):
     subscription: StreamOfflineSubscription
     event: StreamOfflineEvent

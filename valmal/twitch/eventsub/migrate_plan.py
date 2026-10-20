@@ -12,7 +12,6 @@ import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
 
 from valmal.twitch.client.api import callback_url
 from valmal.twitch.models.api.subscription import Subscription
@@ -27,6 +26,9 @@ class Action(StrEnum):
     # for. Reported and left alone: deleting it would destroy it for good, and a
     # recreate this end cannot address would not bring it back.
     SKIP = "no route for this type"
+    # Every condition Twitch documents is strings, so a recreate carrying anything
+    # else would likely be refused, after the delete it follows.
+    MALFORMED = "a condition value is not a string"
 
 
 def decide(subscription: Subscription, routes: Mapping[str, str]) -> Action:
@@ -51,6 +53,10 @@ def decide(subscription: Subscription, routes: Mapping[str, str]) -> Action:
         return Action.SKIP
     if subscription.transport.callback == callback_url(path):
         return Action.KEEP
+    # A null too, though condition_of drops one: in a field the type requires, the
+    # recreate would go without it.
+    if any(not isinstance(v, str) for v in subscription.condition.values()):
+        return Action.MALFORMED
     return Action.REPOINT
 
 
@@ -61,6 +67,7 @@ class Outcome:
     repoint: list[Subscription] = field(default_factory=list[Subscription])
     keep: list[Subscription] = field(default_factory=list[Subscription])
     skip: list[Subscription] = field(default_factory=list[Subscription])
+    malformed: list[Subscription] = field(default_factory=list[Subscription])
     migrated: list[Subscription] = field(default_factory=list[Subscription])
     # Two failure modes, kept apart because they call for opposite responses and
     # only one of them is an emergency. `stuck` did not move and is still
@@ -106,16 +113,12 @@ def _named_ids(subscription: Subscription) -> list[tuple[str, str]]:
     return [
         (label, value)
         for name, label in _CONDITION_ID_FIELDS
-        if isinstance(value := getattr(subscription.condition, name, None), str)
-        and value != ""
+        if isinstance(value := subscription.condition.get(name), str) and value
     ]
 
 
-def condition_of(subscription: Subscription) -> dict[str, Any]:
-    """The condition as Twitch sent it, minus the keys it sent empty.
-
-    ``exclude_none`` rather than a field list: the five declared keys default to
-    None and only some are set per type, while extras carry no default at all.
+def condition_of(subscription: Subscription) -> dict[str, object]:
+    """The condition as Twitch sent it, minus the keys it sent empty or null.
 
     The empty strings go for a harder reason than tidiness. Twitch answers with
     ``""`` for the half of a ``channel.raid`` condition that is not set, and of
@@ -127,14 +130,14 @@ def condition_of(subscription: Subscription) -> dict[str, Any]:
     can rebuild.
 
     Dropping it is not lossy: ``""`` is how Twitch says "not set" on the way out
-    and absence is how it requires the same thing on the way in. Compared against
-    ``""`` rather than tested for falsity, because ``0`` and ``False`` in an
-    undeclared key are values Twitch chose to send and are not this to decide.
+    and absence is how it requires the same thing on the way in. A null is dropped
+    for the same reason. Compared against ``""`` and None rather than tested for
+    falsity, because ``0`` and ``False`` are values Twitch chose to send.
     """
     return {
         key: value
-        for key, value in subscription.condition.model_dump(exclude_none=True).items()
-        if value != ""
+        for key, value in subscription.condition.items()
+        if value != "" and value is not None
     }
 
 
@@ -260,7 +263,8 @@ def summary(outcome: Outcome, *, confirm: bool) -> str:
         )
 
     if not outcome.repoint:
-        left_alone = f", {len(outcome.skip)} left alone" if outcome.skip else ""
+        untouched = len(outcome.skip) + len(outcome.malformed)
+        left_alone = f", {untouched} left alone" if untouched else ""
         return (
             f"Nothing to migrate: {len(outcome.keep)} subscription(s) already"
             f" call back on this deployment{left_alone}."
@@ -296,6 +300,12 @@ def summary(outcome: Outcome, *, confirm: bool) -> str:
     if outcome.skip:
         lines += _listed(
             "Left alone, no route for the type:", outcome.skip, outcome.logins
+        )
+    if outcome.malformed:
+        lines += _listed(
+            "Left alone, a condition value is not a string - repair by hand:",
+            outcome.malformed,
+            outcome.logins,
         )
     if outcome.dumped:
         lines.append(

@@ -1,11 +1,8 @@
 from pathlib import Path
-from typing import ClassVar
 
 import pytest
-from pydantic import ValidationError
 
 from valmal.core import settings
-from valmal.core.settings import Settings
 
 # Names of every variable Settings reads, so a test can start from a blank slate
 # rather than from whatever the developer's shell happens to export.
@@ -82,8 +79,8 @@ def test_every_bad_variable_is_named_in_one_message(env: pytest.MonkeyPatch) -> 
 
 
 def test_the_error_never_carries_the_raw_values(env: pytest.MonkeyPatch) -> None:
-    """pydantic's own message quotes the input, which would put credentials in the
-    logs; that is what `from None` and the rebuilt message are for."""
+    """The values are credentials; that is what `from None` and the rebuilt
+    message are for."""
     env.setenv("PORT", "not-a-port-hunter2")
     env.setenv("DISCORD_TOKEN", "")
 
@@ -151,8 +148,8 @@ def test_variables_that_are_not_declared_are_ignored(env: pytest.MonkeyPatch) ->
 def test_a_dotenv_file_holding_variables_that_are_not_declared_still_loads(
     env: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """extra applies to a .env file, not to the process environment, so the test
-    above cannot tell extra="ignore" from extra="forbid"."""
+    """The file is read separately from the environment, so the test above does
+    not cover it."""
     (tmp_path / ".env").write_text(
         f"RAILWAY_ENVIRONMENT=production{chr(10)}SOMETHING_ELSE=x{chr(10)}",
         encoding="utf-8",
@@ -222,27 +219,101 @@ class TestActiveDiscordToken:
         assert settings._load().active_discord_token == "discord-secret-value"
 
 
-class TestBlankIsUnset:
-    """The before-validator, through the only door pydantic offers: validation."""
+def test_the_dotenv_file_skips_comments_and_lines_without_a_value(
+    env: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    env.delenv("APP_URL")
+    lines = ["# APP_URL=https://commented.example", "", "not a pair", "APP_URL = x=y "]
+    (tmp_path / ".env").write_text(chr(10).join(lines), encoding="utf-8")
 
-    REQUIRED_FIELDS: ClassVar[dict[str, str]] = {
-        name.lower(): value for name, value in REQUIRED.items()
-    }
+    assert settings._load().app_url == "x=y"
 
-    def test_a_non_mapping_passes_through_for_pydantic_to_reject(self) -> None:
-        with pytest.raises(ValidationError):
-            Settings.model_validate("not a dict")
 
-    def test_a_blank_optional_field_takes_its_default(self) -> None:
-        loaded = Settings.model_validate(
-            {**self.REQUIRED_FIELDS, "port": "", "PORT": ""}
-        )
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ('APP_URL="https://quoted.example"', "https://quoted.example"),
+        ("APP_URL='https://single.example' # note", "https://single.example"),
+        ("export APP_URL=https://exported.example", "https://exported.example"),
+        ("APP_URL=https://commented.example # local", "https://commented.example"),
+        ("APP_URL=https://hash.example/#fragment", "https://hash.example/#fragment"),
+    ],
+)
+def test_the_dotenv_file_is_read_as_python_dotenv_read_it(
+    line: str, expected: str, env: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Docker Compose reads the same file, and strips the quotes too."""
+    env.delenv("APP_URL")
+    (tmp_path / ".env").write_text(line, encoding="utf-8")
 
-        assert loaded.port == 8000
+    assert settings._load().app_url == expected
 
-    def test_a_blank_required_field_is_still_rejected(self) -> None:
-        with pytest.raises(ValidationError):
-            Settings.model_validate({**self.REQUIRED_FIELDS, "discord_token": ""})
 
-    def test_a_value_that_is_not_blank_is_kept(self) -> None:
-        assert Settings.model_validate({**self.REQUIRED_FIELDS, "port": "9"}).port == 9
+def test_a_backslash_escapes_a_quote_inside_double_quotes(
+    env: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    env.delenv("APP_URL")
+    escaped = f'{chr(92)}"'
+    (tmp_path / ".env").write_text(f'APP_URL="a{escaped}b" # c', encoding="utf-8")
+
+    assert settings._load().app_url == 'a"b'
+
+
+B = chr(92)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (f'"C:{B}path"', f"C:{B}path"),
+        (f'"a{B}nb"', f"a{chr(10)}b"),
+        (f'"a{B}{B}b"', f"a{B}b"),
+        (f"'it{B}'s'", "it's"),
+        (f"'a{B}nb'", f"a{B}nb"),
+        (f"'a{B}{B}b'", f"a{B}b"),
+    ],
+)
+def test_quoted_values_decode_the_escapes_python_dotenv_decoded(
+    raw: str, expected: str
+) -> None:
+    """Only those: a backslash before anything else is part of the value."""
+    assert settings._unquoted(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("TRUE", True),
+        ("yes", True),
+        ("On", True),
+        ("y", True),
+        ("t", True),
+        ("NO", False),
+        ("off", False),
+    ],
+)
+def test_booleans_take_the_words_pydantic_settings_took(
+    value: str, expected: bool, env: pytest.MonkeyPatch
+) -> None:
+    env.setenv("USE_TEST_BOT", value)
+    env.setenv("TEST_DISCORD_TOKEN", "test-bot-token")
+
+    assert settings._load().use_test_bot is expected
+
+
+def test_a_word_that_is_not_a_boolean_is_still_refused(env: pytest.MonkeyPatch) -> None:
+    env.setenv("DB_ECHO", "maybe")
+
+    with pytest.raises(RuntimeError, match="DB_ECHO"):
+        settings._load()
+
+
+class TestSupplied:
+    def test_a_blank_optional_field_is_dropped(self) -> None:
+        assert settings._supplied({"port": "", "db_echo": "1"}) == {"db_echo": "1"}
+
+    def test_a_blank_required_field_is_kept_to_be_rejected(self) -> None:
+        assert settings._supplied({"discord_token": ""}) == {"discord_token": ""}
+
+    def test_an_undeclared_name_is_dropped(self) -> None:
+        assert settings._supplied({"railway_environment": "production"}) == {}

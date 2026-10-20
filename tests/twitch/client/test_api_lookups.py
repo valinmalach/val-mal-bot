@@ -1,5 +1,6 @@
 from collections.abc import Callable
 
+import msgspec
 import pytest
 
 import valmal.twitch.client.api as api
@@ -23,7 +24,7 @@ HttpFactory = Callable[..., Script]
 
 
 def _subscription(**overrides: object) -> Subscription:
-    return Subscription.model_validate(subscription_json(**overrides))  # pyright: ignore[reportArgumentType]
+    return msgspec.convert(subscription_json(**overrides), Subscription)  # pyright: ignore[reportArgumentType]
 
 
 class TestCallbackUrl:
@@ -60,12 +61,12 @@ class TestLiveStream:
         assert api.live_stream(None) is None
 
     def test_a_live_stream_is_returned(self) -> None:
-        stream = Stream.model_validate(stream_json())
+        stream = msgspec.convert(stream_json(), Stream)
 
         assert api.live_stream(stream) is stream
 
     def test_an_error_typed_stream_is_refused_once_here(self) -> None:
-        stream = Stream.model_validate(stream_json(type=""))
+        stream = msgspec.convert(stream_json(type=""), Stream)
 
         assert stream.type is StreamType.error
         assert api.live_stream(stream) is None
@@ -264,6 +265,27 @@ class TestSingleLookups:
 
         assert schedule is not None and schedule.duration == 60
         assert script.requests[0].headers["Authorization"] == "Bearer broadcaster-token"
+
+    async def test_a_number_sent_as_a_string_still_parses(
+        self, helix_http: HttpFactory
+    ) -> None:
+        """Twitch's docs type the ad schedule's times as strings."""
+        row = dict.fromkeys(
+            (
+                "snooze_count",
+                "snooze_refresh_at",
+                "next_ad_at",
+                "duration",
+                "last_ad_at",
+                "preroll_free_time",
+            ),
+            "3",
+        )
+        helix_http(reply(200, {"data": [row]}))
+
+        schedule = await api.get_ad_schedule(1)
+
+        assert schedule is not None and schedule.next_ad_at == 3
 
     async def test_the_vod_is_the_archive_of_that_stream(
         self, helix_http: HttpFactory

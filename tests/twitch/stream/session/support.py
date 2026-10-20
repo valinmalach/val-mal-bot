@@ -3,6 +3,8 @@
 from datetime import UTC, datetime
 from typing import Any
 
+import msgspec
+
 from tests.twitch.support import stream_json
 from valmal.twitch.models.api.ad_schedule import AdSchedule
 from valmal.twitch.models.api.stream import Stream
@@ -11,7 +13,7 @@ NOW = datetime(2026, 6, 15, 12, tzinfo=UTC)
 
 
 def stream(id: str = "10", **overrides: Any) -> Stream:
-    return Stream.model_validate(stream_json(id, **overrides))
+    return msgspec.convert(stream_json(id, **overrides), Stream)
 
 
 class Calls:

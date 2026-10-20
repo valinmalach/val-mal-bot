@@ -1,5 +1,5 @@
-from pydantic import BaseModel
+import msgspec
 
 
-class Badge(BaseModel):
+class Badge(msgspec.Struct):
     set_id: str

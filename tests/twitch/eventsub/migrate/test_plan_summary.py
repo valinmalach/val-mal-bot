@@ -120,6 +120,16 @@ class TestSummary:
         assert "4 already current." in text
         assert "Left alone, no route for the type:" in text
 
+    def test_a_malformed_condition_is_reported_for_repair_by_hand(self) -> None:
+        text = summary(outcome(repoint=1, malformed=1), confirm=False)
+
+        assert "a condition value is not a string - repair by hand:" in text
+
+    def test_nothing_to_move_counts_a_malformed_one_as_left_alone(self) -> None:
+        assert summary(outcome(keep=1, skip=1, malformed=1), confirm=True).endswith(
+            "2 left alone."
+        )
+
     def test_names_come_from_the_logins_the_outcome_carries(self) -> None:
         made = outcome(repoint=1)
         made.logins = {"1001": "valin"}

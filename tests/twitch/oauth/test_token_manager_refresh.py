@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 import aiohttp
 import pytest
-from pydantic import ValidationError
+from msgspec import ValidationError
 
 from tests.credentials import CLIENT_ID, CLIENT_SECRET
 from tests.twitch.support import (

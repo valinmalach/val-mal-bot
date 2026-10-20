@@ -1,6 +1,7 @@
 import json
 from typing import Any
 
+import msgspec
 import pytest
 
 from tests.twitch.eventsub.migrate.support import CURRENT, OLD, ROUTES, sub
@@ -65,6 +66,7 @@ class TestDecide:
             "repoint",
             "already current",
             "no route for this type",
+            "a condition value is not a string",
         ]
 
 
@@ -105,31 +107,46 @@ class TestConditionOf:
             "broadcaster_user_id": "1"
         }
 
-    @pytest.mark.parametrize("value", [0, False, [], {}])
-    def test_keeps_an_undeclared_falsy_value_twitch_chose_to_send(
-        self, value: object
-    ) -> None:
-        subscription = Subscription.model_validate(
+    @staticmethod
+    def _with(**condition: object) -> Subscription:
+        return msgspec.convert(
             {
                 "id": "s",
                 "status": "enabled",
                 "type": "x",
                 "version": "1",
-                "condition": {"broadcaster_user_id": "1", "extra": value},
+                "condition": condition,
                 "created_at": "t",
                 "transport": {},
                 "cost": 0,
-            }
+            },
+            Subscription,
         )
 
+    @pytest.mark.parametrize("value", [0, False, [], {}])
+    def test_keeps_an_undeclared_falsy_value_twitch_chose_to_send(
+        self, value: object
+    ) -> None:
+        subscription = self._with(broadcaster_user_id="1", extra=value)
+
         assert condition_of(subscription)["extra"] == value
+
+    def test_drops_a_null_and_a_null_does_not_fail_the_listing(self) -> None:
+        subscription = self._with(broadcaster_user_id="1", reward_id=None)
+
+        assert condition_of(subscription) == {"broadcaster_user_id": "1"}
+
+    def test_an_id_field_that_is_not_a_string_names_nobody(self) -> None:
+        subscription = self._with(broadcaster_user_id=5, user_id="2")
+
+        assert condition_ids([subscription]) == ["2"]
 
     def test_is_a_copy_so_editing_it_leaves_the_subscription_alone(self) -> None:
         subscription = sub(broadcaster_user_id="1")
 
         condition_of(subscription)["broadcaster_user_id"] = "changed"
 
-        assert subscription.condition.broadcaster_user_id == "1"
+        assert subscription.condition["broadcaster_user_id"] == "1"
 
 
 class TestConditionIds:

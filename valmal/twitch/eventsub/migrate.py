@@ -145,7 +145,7 @@ async def _exists_at(subscription: Subscription, callback: str) -> bool:
         return any(
             other.type == subscription.type
             and other.version == subscription.version
-            and other.condition == subscription.condition
+            and condition_of(other) == condition_of(subscription)
             and other.transport.callback == callback
             for other in await get_subscriptions()
         )
@@ -254,6 +254,8 @@ def _classify(subscriptions: list[Subscription], routes: Mapping[str, str]) -> O
                 outcome.keep.append(subscription)
             case Action.SKIP:
                 outcome.skip.append(subscription)
+            case Action.MALFORMED:
+                outcome.malformed.append(subscription)
     return outcome
 
 

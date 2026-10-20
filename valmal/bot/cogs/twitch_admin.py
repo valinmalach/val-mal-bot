@@ -182,10 +182,9 @@ class TwitchAdmin(Cog):
             )
             if sub_type not in grouped_subscriptions:
                 grouped_subscriptions[sub_type] = []
-            if subscription.condition.broadcaster_user_id:
-                grouped_subscriptions[sub_type].append(
-                    subscription.condition.broadcaster_user_id
-                )
+            broadcaster_id = subscription.condition.get("broadcaster_user_id")
+            if isinstance(broadcaster_id, str) and broadcaster_id:
+                grouped_subscriptions[sub_type].append(broadcaster_id)
         names: dict[str, list[str]] = {}
         for sub_type, user_ids in grouped_subscriptions.items():
             if not user_ids:

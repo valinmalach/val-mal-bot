@@ -1,5 +1,6 @@
 from typing import Any
 
+import msgspec
 import pytest
 
 from tests.twitch.eventsub.commands.support import ChatWorld
@@ -18,19 +19,19 @@ pytestmark = pytest.mark.anyio
 
 
 def event(**kwargs: Any) -> ChannelChatMessageEventSub:
-    return ChannelChatMessageEventSub.model_validate(chat_event("!x", **kwargs))
+    return msgspec.convert(chat_event("!x", **kwargs), ChannelChatMessageEventSub)
 
 
 def alice(world: ChatWorld, user_id: str = "42") -> None:
     """Twitch knows `alice`, and her channel, playing Chess."""
-    world.users["alice"] = User.model_validate(user_json(user_id, "alice"))
-    world.channels[int(user_id)] = Channel.model_validate(
-        channel_json(user_id, "alice", "Alice", "Chess")
+    world.users["alice"] = msgspec.convert(user_json(user_id, "alice"), User)
+    world.channels[int(user_id)] = msgspec.convert(
+        channel_json(user_id, "alice", "Alice", "Chess"), Channel
     )
 
 
 def go_live() -> None:
-    stream_session._stream = Stream.model_validate(stream_json("10"))
+    stream_session._stream = msgspec.convert(stream_json("10"), Stream)
 
 
 NOT_FOUND: tuple[str, str, dict[str, str]] = ("111", "twitch_shoutout_not_found", {})
@@ -87,7 +88,7 @@ class TestShoutout:
     async def test_a_bare_command_shouts_out_the_channel_it_was_typed_in(
         self, chatworld: ChatWorld
     ) -> None:
-        chatworld.users["bob"] = User.model_validate(user_json("1", "bob"))
+        chatworld.users["bob"] = msgspec.convert(user_json("1", "bob"), User)
 
         await commands.shoutout(event(broadcaster_login="bob"), "")
 
@@ -148,7 +149,7 @@ class TestShoutout:
     async def test_a_user_with_no_channel_is_not_found(
         self, chatworld: ChatWorld
     ) -> None:
-        chatworld.users["alice"] = User.model_validate(user_json("42", "alice"))
+        chatworld.users["alice"] = msgspec.convert(user_json("42", "alice"), User)
         chatworld.channels[42] = None
 
         assert await commands.shoutout(event(), "alice") is False

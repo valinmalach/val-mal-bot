@@ -2,6 +2,7 @@ import asyncio
 from types import SimpleNamespace
 from typing import Any
 
+import msgspec
 import pytest
 
 from tests.twitch.eventsub.events.support import EventWorld
@@ -24,7 +25,7 @@ pytestmark = pytest.mark.anyio
 
 
 def chat(text: str, **kwargs: Any) -> ChannelChatMessageEventSub:
-    return ChannelChatMessageEventSub.model_validate(chat_event(text, **kwargs))
+    return msgspec.convert(chat_event(text, **kwargs), ChannelChatMessageEventSub)
 
 
 def raid(
@@ -33,7 +34,7 @@ def raid(
     to_id: str = "111",
     to_login: str = "valinmalach",
 ) -> ChannelRaidEventSub:
-    return ChannelRaidEventSub.model_validate(
+    return msgspec.convert(
         {
             "subscription": {"type": "channel.raid"},
             "event": {
@@ -45,7 +46,8 @@ def raid(
                 "to_broadcaster_user_name": to_login.title(),
                 "viewers": 12,
             },
-        }
+        },
+        ChannelRaidEventSub,
     )
 
 
@@ -137,7 +139,7 @@ class TestChatMessage:
 
 class TestFollow:
     async def test_thanks_the_follower_by_display_name(self, world: EventWorld) -> None:
-        event = ChannelFollowEventSub.model_validate(
+        event = msgspec.convert(
             {
                 "subscription": {"type": "channel.follow"},
                 "event": {
@@ -149,7 +151,8 @@ class TestFollow:
                     "broadcaster_user_name": "Bob",
                     "followed_at": "2026-06-15T11:59:00Z",
                 },
-            }
+            },
+            ChannelFollowEventSub,
         )
 
         await events.channel_follow(event)
@@ -160,7 +163,7 @@ class TestFollow:
 
     async def test_a_failure_is_reported_not_raised(self, world: EventWorld) -> None:
         world.template_error = RuntimeError("boom")
-        event = ChannelFollowEventSub.model_validate(
+        event = msgspec.convert(
             {
                 "subscription": {"type": "channel.follow"},
                 "event": {
@@ -172,7 +175,8 @@ class TestFollow:
                     "broadcaster_user_name": "Bob",
                     "followed_at": "2026-06-15T11:59:00Z",
                 },
-            }
+            },
+            ChannelFollowEventSub,
         )
 
         await events.channel_follow(event)
@@ -182,7 +186,7 @@ class TestFollow:
 
 class TestAdBreak:
     def event(self, seconds: int) -> ChannelAdBreakBeginEventSub:
-        return ChannelAdBreakBeginEventSub.model_validate(
+        return msgspec.convert(
             {
                 "subscription": {"type": "channel.ad_break.begin"},
                 "event": {
@@ -196,7 +200,8 @@ class TestAdBreak:
                     "requester_user_login": "req",
                     "requester_user_name": "Req",
                 },
-            }
+            },
+            ChannelAdBreakBeginEventSub,
         )
 
     async def test_announces_the_start_waits_out_the_break_announces_the_end_and_schedules_the_next_warning(
@@ -229,8 +234,9 @@ class TestAdBreak:
 
 class TestRedemption:
     def event(self) -> ChannelPointsCustomRewardRedemptionAddEventSub:
-        return ChannelPointsCustomRewardRedemptionAddEventSub.model_validate(
-            redemption_event(user_login="alice")
+        return msgspec.convert(
+            redemption_event(user_login="alice"),
+            ChannelPointsCustomRewardRedemptionAddEventSub,
         )
 
     async def test_the_redeemer_is_considered_for_an_autoshoutout(
@@ -327,11 +333,12 @@ class TestModerate:
     def event(
         self, action: str, broadcaster_id: str = "111"
     ) -> ChannelModerateEventSub:
-        return ChannelModerateEventSub.model_validate(
+        return msgspec.convert(
             {
                 "subscription": {"type": "channel.moderate"},
                 "event": {"broadcaster_user_id": broadcaster_id, "action": action},
-            }
+            },
+            ChannelModerateEventSub,
         )
 
     async def test_starting_a_raid_says_the_farewell(self, world: EventWorld) -> None:

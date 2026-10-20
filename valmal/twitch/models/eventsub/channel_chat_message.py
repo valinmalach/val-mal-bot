@@ -1,16 +1,16 @@
 from typing import Literal
 
-from pydantic import BaseModel
+import msgspec
 
 from valmal.twitch.models.eventsub.common.badge import Badge
 from valmal.twitch.models.eventsub.common.message import Message
 
 
-class ChannelChatMessageSubscription(BaseModel):
+class ChannelChatMessageSubscription(msgspec.Struct):
     type: Literal["channel.chat.message"]
 
 
-class ChannelChatMessageEvent(BaseModel):
+class ChannelChatMessageEvent(msgspec.Struct):
     broadcaster_user_id: str
     broadcaster_user_login: str
     broadcaster_user_name: str
@@ -29,6 +29,6 @@ class ChannelChatMessageEvent(BaseModel):
     source_broadcaster_user_id: str | None = None
 
 
-class ChannelChatMessageEventSub(BaseModel):
+class ChannelChatMessageEventSub(msgspec.Struct):
     subscription: ChannelChatMessageSubscription
     event: ChannelChatMessageEvent

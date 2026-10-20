@@ -2,7 +2,7 @@ import logging
 from collections.abc import Callable, Coroutine
 from typing import Any, NoReturn, cast, get_args
 
-from pydantic import BaseModel, ValidationError
+import msgspec
 from starlette.datastructures import Headers
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -21,6 +21,7 @@ from valmal.twitch.eventsub.constants import (
     TWITCH_MESSAGE_TYPE,
 )
 from valmal.twitch.eventsub.signature import get_hmac, get_hmac_message, verify_message
+from valmal.twitch.models import parse
 from valmal.twitch.models.eventsub.channel_ad_break_begin import (
     ChannelAdBreakBeginEventSub,
 )
@@ -203,7 +204,7 @@ async def validate_call(request: Request, endpoint: str) -> dict[str, Any] | Res
 
 
 async def _refuse_payload(
-    e: ValidationError, event_model: type[BaseModel], endpoint: str
+    e: msgspec.ValidationError, event_model: type[msgspec.Struct], endpoint: str
 ) -> NoReturn:
     """Log, notify and raise the 400 for a payload that failed to validate.
 
@@ -212,26 +213,19 @@ async def _refuse_payload(
     retries: Twitch documents no 4xx/5xx distinction, and revocation counts anything
     that is not a 2xx, so this spends the failure budget exactly as a 500 would.
     """
-    # The field, not just the model: what this most often catches is this
-    # end's model falling behind Twitch's payload, and the name of the
-    # field that moved is the whole diagnosis.
-    where = "; ".join(
-        ".".join(str(part) for part in err["loc"]) for err in e.errors()[:3]
-    )
+    # msgspec's message names the field, which is the whole diagnosis: what this
+    # most often catches is this end's model falling behind Twitch's payload.
     logger.warning(
-        "400: %s rejected the payload on %s at %s",
-        event_model.__name__,
-        endpoint,
-        where,
+        "400: %s rejected the payload on %s: %s", event_model.__name__, endpoint, e
     )
     await notify(
         f"400: Bad request on {endpoint}. Payload did not match"
-        f" {event_model.__name__} at: {where}"
+        f" {event_model.__name__}: {e}"
     )
     raise HTTPException(status_code=400) from e
 
 
-async def process_webhook[E: BaseModel](
+async def process_webhook[E: msgspec.Struct](
     request: Request,
     endpoint: str,
     event_model: type[E],
@@ -267,7 +261,7 @@ async def process_webhook[E: BaseModel](
             return Response(status_code=202)
 
         try:
-            event_sub = event_model.model_validate(validated)
+            event_sub = parse.convert(validated, event_model)
             fire_and_forget(task_func(event_sub), name=endpoint)
         except BaseException:
             replay.release(message_id)
@@ -275,7 +269,7 @@ async def process_webhook[E: BaseModel](
         return Response(status_code=202)
     except HTTPException:
         raise
-    except ValidationError as e:
+    except msgspec.ValidationError as e:
         await _refuse_payload(e, event_model, endpoint)
     except Exception as e:
         await report(e, f"500: Internal server error on {endpoint}")
@@ -289,24 +283,30 @@ async def process_webhook[E: BaseModel](
 WEBHOOK_PATHS: dict[str, str] = {}
 
 
-def _subscription_type(event_model: type[BaseModel]) -> str:
+def _field_type(model: type[msgspec.Struct], name: str) -> Any:
+    return next((f.type for f in msgspec.structs.fields(model) if f.name == name), None)
+
+
+def _subscription_type(event_model: type[msgspec.Struct]) -> str:
     """The EventSub type a model serves, read off the Literal that asserts it.
 
     Raises at import, which is the point: a model that stopped declaring exactly
     one type would otherwise leave its route out of WEBHOOK_PATHS, and a type
     missing from that map is one the migration declines to touch.
     """
-    subscription = event_model.model_fields["subscription"].annotation
-    if not isinstance(subscription, type) or not issubclass(subscription, BaseModel):
+    subscription = _field_type(event_model, "subscription")
+    if not isinstance(subscription, type) or not issubclass(
+        subscription, msgspec.Struct
+    ):
         raise TypeError(f"{event_model.__name__}.subscription is not a model")
 
-    declared = get_args(subscription.model_fields["type"].annotation)
+    declared = get_args(_field_type(subscription, "type"))
     if len(declared) != 1 or not isinstance(declared[0], str):
         raise TypeError(f"{subscription.__name__}.type is not a single-value Literal")
     return declared[0]
 
 
-def _route[E: BaseModel](
+def _route[E: msgspec.Struct](
     path: str,
     event_model: type[E],
     task_func: Callable[[E], Coroutine[Any, Any, None]],

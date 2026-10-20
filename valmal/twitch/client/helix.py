@@ -10,11 +10,12 @@ import asyncio
 import logging
 from typing import Any, Literal
 
-from pydantic import BaseModel
+import msgspec
 
 from valmal.core import http_client
 from valmal.core.settings import settings
 from valmal.db.enums import TokenType
+from valmal.twitch.models import parse
 from valmal.twitch.oauth.token_manager import token_manager
 
 logger = logging.getLogger(__name__)
@@ -165,7 +166,7 @@ async def request(
     raise HelixError(f"{method} {path} gave up after {attempts} attempts")
 
 
-async def fetch[T: BaseModel](
+async def fetch[T: msgspec.Struct](
     model: type[T],
     method: Method,
     path: str,
@@ -185,7 +186,7 @@ async def fetch[T: BaseModel](
         repeatable=repeatable,
     )
     try:
-        return model.model_validate(response.json())
+        return parse.decode(response.text, model)
     except Exception as e:
         raise HelixError(
             f"{method} {path} answered with a body that would not parse: {e}",

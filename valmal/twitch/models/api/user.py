@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel
+import msgspec
 
 
 class UserType(str, Enum):
@@ -16,7 +16,7 @@ class BroadcasterType(str, Enum):
     normal = ""
 
 
-class User(BaseModel):
+class User(msgspec.Struct):
     id: str
     login: str
     display_name: str
@@ -28,5 +28,5 @@ class User(BaseModel):
     created_at: str
 
 
-class UserResponse(BaseModel):
+class UserResponse(msgspec.Struct):
     data: list[User]

@@ -37,8 +37,7 @@ jobs:
       HAS_CODACY_TOKEN: ${{ secrets.CODACY_API_TOKEN != '' }}
     steps:
       # Not retried: a trigger Codacy accepted whose reply was lost would be sent
-      # twice, and each one is a review. The first real run answered 2xx within a
-      # second, before Codacy had started analysing the commit.
+      # twice, and each one is a review.
       # --fail-with-body, not -f: a refusal's reply says why, and -f discards it.
       - if: ${{ env.HAS_CODACY_TOKEN == 'true' }}
         run: >

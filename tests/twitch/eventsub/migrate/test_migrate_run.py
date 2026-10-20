@@ -237,3 +237,13 @@ class TestMigrateNothingToDo:
 
         assert len(outcome.skip) == 2
         assert world.calls == []
+
+    async def test_a_condition_value_that_is_not_a_string_is_never_deleted(
+        self, world: MigrateWorld
+    ) -> None:
+        world.listing = [sub(broadcaster_user_id=111)]
+
+        outcome = await migrate.migrate(ROUTES, confirm=True)
+
+        assert len(outcome.malformed) == 1
+        assert world.calls == []

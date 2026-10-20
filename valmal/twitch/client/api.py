@@ -193,7 +193,7 @@ async def _matching_subscriptions(
         subscription
         for subscription in await get_subscriptions()
         if subscription.type == f"stream.{sub_type}"
-        and subscription.condition.broadcaster_user_id == user_id
+        and subscription.condition.get("broadcaster_user_id") == user_id
     ]
 
 
@@ -335,7 +335,7 @@ async def unsubscribe_to_user(username: str) -> bool:
         subscription
         for subscription in await get_subscriptions()
         if subscription.type in {"stream.online", "stream.offline"}
-        and subscription.condition.broadcaster_user_id == user.id
+        and subscription.condition.get("broadcaster_user_id") == user.id
     ]
     if not matching:
         logger.info("No online/offline subscriptions for user: %r", username)

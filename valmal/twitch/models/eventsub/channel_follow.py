@@ -1,13 +1,13 @@
 from typing import Literal
 
-from pydantic import BaseModel
+import msgspec
 
 
-class ChannelFollowSubscription(BaseModel):
+class ChannelFollowSubscription(msgspec.Struct):
     type: Literal["channel.follow"]
 
 
-class ChannelFollowEvent(BaseModel):
+class ChannelFollowEvent(msgspec.Struct):
     user_id: str
     user_login: str
     user_name: str
@@ -17,6 +17,6 @@ class ChannelFollowEvent(BaseModel):
     followed_at: str
 
 
-class ChannelFollowEventSub(BaseModel):
+class ChannelFollowEventSub(msgspec.Struct):
     subscription: ChannelFollowSubscription
     event: ChannelFollowEvent
