@@ -1,16 +1,18 @@
 """Environment-backed settings, validated once at import."""
 
-from typing import Annotated, Any, cast
+import os
+from collections.abc import Iterator, Mapping
+from pathlib import Path
+from typing import Annotated
 
-from pydantic import StringConstraints, ValidationError, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import msgspec
 
 # A variable that exists but was never filled in arrives as "", which passes a
 # plain str and only fails later, at the login or the request that needed it.
-NonEmpty = Annotated[str, StringConstraints(min_length=1)]
+NonEmpty = Annotated[str, msgspec.Meta(min_length=1)]
 
 
-class Settings(BaseSettings):
+class Settings(msgspec.Struct, kw_only=True):
     """Credentials and per-instance configuration.
 
     Everything describing what the bot *does* belongs in Postgres, not here.
@@ -34,28 +36,6 @@ class Settings(BaseSettings):
     # than the production ones.
     use_test_bot: bool = False
 
-    @model_validator(mode="before")
-    @classmethod
-    def _blank_is_unset(cls, values: Any) -> Any:
-        """Let an empty optional variable fall back to its default.
-
-        Railway and a copied .env.example both supply "", which int and bool
-        reject outright.
-        """
-        if not isinstance(values, dict):
-            return values
-        supplied = cast("dict[str, Any]", values)
-        optional = {
-            name for name, field in cls.model_fields.items() if not field.is_required()
-        }
-        return {
-            key: value
-            for key, value in supplied.items()
-            if value != "" or key.lower() not in optional
-        }
-
-    # extra="ignore" so the many variables Railway injects into the environment
-    # do not have to be declared here.
     @property
     def active_discord_token(self) -> str:
         """The token to log in with, honouring use_test_bot."""
@@ -65,23 +45,58 @@ class Settings(BaseSettings):
             raise RuntimeError("USE_TEST_BOT is set but TEST_DISCORD_TOKEN is empty")
         return self.test_discord_token
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
+
+def _dotenv(path: Path) -> dict[str, str]:
+    """`KEY=VALUE` lines from a local `.env`, if there is one; Railway has none."""
+    if not path.is_file():
+        return {}
+    pairs: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        key, sep, value = line.partition("=")
+        if sep and not key.lstrip().startswith("#"):
+            pairs[key.strip()] = value.strip()
+    return pairs
+
+
+def _blank_is_unset(values: Mapping[str, str]) -> dict[str, str]:
+    """Keep the declared names, minus an empty optional one, so it takes its default.
+
+    Railway and a copied .env.example both supply "", which int and bool reject
+    outright. The many variables Railway injects that are not declared are dropped.
+    """
+    optional = {f.name for f in msgspec.structs.fields(Settings) if not f.required}
+    declared = {f.name for f in msgspec.structs.fields(Settings)}
+    return {
+        name: value
+        for name, value in values.items()
+        if name in declared and (value != "" or name not in optional)
+    }
+
+
+def _problems(supplied: Mapping[str, str]) -> Iterator[str]:
+    """Every bad variable, where msgspec stops at the first."""
+    for field in msgspec.structs.fields(Settings):
+        if field.name not in supplied:
+            if field.required:
+                yield f"{field.name.upper()} (missing)"
+            continue
+        try:
+            msgspec.convert(supplied[field.name], field.type, strict=False)
+        except msgspec.ValidationError as e:
+            yield f"{field.name.upper()} ({str(e).lower()})"
 
 
 def _load() -> Settings:
+    # Matched case-insensitively, and the real environment wins over the file.
+    merged = {k.lower(): v for k, v in _dotenv(Path(".env")).items()} | {
+        k.lower(): v for k, v in os.environ.items()
+    }
+    supplied = _blank_is_unset(merged)
     try:
-        # pyright cannot see that BaseSettings fills these from the environment.
-        return Settings()  # pyright: ignore[reportCallIssue]
-    except ValidationError as e:
-        problems = ", ".join(
-            f"{str(err['loc'][0]).upper()} ({err['msg'].lower()})" for err in e.errors()
-        )
-        # from None: pydantic's own message quotes the raw input, which would put
-        # token prefixes in the logs.
+        return msgspec.convert(supplied, Settings, strict=False)
+    except msgspec.ValidationError:
+        problems = ", ".join(_problems(supplied))
+        # from None: the values are credentials, and nothing of them belongs in a log.
         raise RuntimeError(f"Bad environment configuration: {problems}") from None
 
 
