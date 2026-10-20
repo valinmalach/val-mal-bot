@@ -40,8 +40,6 @@ __all__ = [
     "users_due_birthday",
 ]
 
-# discord_user
-
 GET_USER = """
 SELECT id, username, birthday, is_birthday_leap, birthday_timezone,
        created_at, updated_at
@@ -139,8 +137,6 @@ async def users_due_birthday(moment: datetime) -> list[rows.DiscordUser]:
     return [rows.build(rows.DiscordUser, record) for record in records]
 
 
-# discord_message
-
 GET_MESSAGE = """
 SELECT id, contents, guild_id, author_id, channel_id, attachment_urls, created_at
 FROM discord_message WHERE id = $1
@@ -205,8 +201,6 @@ async def delete_messages(message_ids: Collection[int]) -> None:
     async with transaction() as connection:
         await connection.execute(DELETE_MESSAGES, list(message_ids))
 
-
-# live_alert
 
 GET_LIVE_ALERT = """
 SELECT broadcaster_id, channel_id, message_id, stream_id, stream_started_at,
@@ -282,8 +276,6 @@ async def delete_live_alert(
             )
 
 
-# twitch_autoshoutout
-
 IS_AUTOSHOUTOUT = "SELECT 1 FROM twitch_autoshoutout WHERE twitch_user_id = $1"
 
 ADD_AUTOSHOUTOUT = """
@@ -324,8 +316,6 @@ async def remove_autoshoutout(twitch_user_id: int) -> bool:
         removed = await connection.fetchval(REMOVE_AUTOSHOUTOUT, twitch_user_id)
     return removed is not None
 
-
-# oauth_token
 
 LIST_OAUTH_TOKENS = """
 SELECT key, access_token, refresh_token, expires_at, scopes, created_at, updated_at

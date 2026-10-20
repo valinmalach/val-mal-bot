@@ -19,7 +19,6 @@ from valmal.db.config import get_dsn
 
 logger = logging.getLogger(__name__)
 
-# What the repository is handed: a pooled connection, used like a plain one.
 # Not a PEP 695 `type` statement, hence the UP040: Sourcery silently skips its
 # custom rules in a file that has one (see AGENTS.md).
 Connection: TypeAlias = "PoolConnectionProxy[asyncpg.Record]"  # noqa: UP040

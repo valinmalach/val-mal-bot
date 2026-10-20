@@ -11,8 +11,8 @@ _M = TypeVar("_M", bound=msgspec.Struct)
 
 def decode(text: str, model: type[_M]) -> _M:  # noqa: UP047
     """A JSON reply, parsed into `model`."""
-    # strict=False takes "60" for an int and "false" for a bool, as pydantic did:
-    # Twitch's docs show some numbers and booleans as strings.
+    # strict=False takes "60" for an int and "false" for a bool: Twitch's docs show
+    # some numbers and booleans as strings.
     return msgspec.json.decode(text, type=model, strict=False)
 
 

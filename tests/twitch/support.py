@@ -275,7 +275,6 @@ class TokenDb:
         )
 
 
-# Shared by the token manager's refresh and concurrency tests.
 NOW = datetime(2026, 6, 15, 12, tzinfo=UTC)
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 Http = Callable[..., Script]

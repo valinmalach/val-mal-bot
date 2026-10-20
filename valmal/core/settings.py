@@ -32,8 +32,6 @@ class Settings(msgspec.Struct, kw_only=True):
 
     db_echo: bool = False
 
-    # Local development: run against the test bot and a local database rather
-    # than the production ones.
     use_test_bot: bool = False
 
     @property
@@ -51,8 +49,7 @@ _DECLARED = {f.name for f in _FIELDS}
 _OPTIONAL = {f.name for f in _FIELDS if not f.required}
 _BOOLS = {f.name for f in _FIELDS if f.type is bool}
 
-# msgspec reads true/false/1/0; pydantic-settings, which these values were set
-# against, also read these.
+# msgspec reads only true/false/1/0, and a .env or Railway value may be a word.
 _BOOL_WORDS: dict[str, str] = {
     **dict.fromkeys(("yes", "y", "on", "t"), "true"),
     **dict.fromkeys(("no", "n", "off", "f"), "false"),
