@@ -5,6 +5,12 @@ A broken build command is found only by a failed deploy, after `railway config a
 """
 
 import ast
+import re
+import subprocess
+import sysconfig
+from pathlib import Path
+
+import pytest
 
 from tests.support import ROOT
 
@@ -49,8 +55,33 @@ def test_the_build_command_has_no_quotes() -> None:
     assert '"' not in command
 
 
+def _stdlib_argument() -> str:
+    """The one argument that is a shell expansion: where the stdlib is."""
+    found = re.search(r"\$\(.*\)\S*", _build_command())
+    assert found is not None
+    return found.group()
+
+
 def test_the_build_command_compiles_the_pinned_pythons_stdlib() -> None:
     version = (ROOT / ".python-version").read_text(encoding="utf-8").strip()
     major_minor = ".".join(version.split(".")[:2])
 
-    assert f"/lib/python{major_minor} " in _build_command()
+    assert _stdlib_argument().endswith(f"/lib/python{major_minor}")
+
+
+# A venv has bin/python only on Linux and macOS: CI's coverage job runs this.
+@pytest.mark.skipif(
+    not (ROOT / ".venv" / "bin" / "python").exists(), reason="needs .venv/bin/python"
+)
+def test_the_stdlib_argument_is_the_interpreters_stdlib() -> None:
+    """Evaluated by sh, as Railpack's build does, against this venv's interpreter."""
+    done = subprocess.run(  # noqa: S603
+        ["sh", "-c", f"echo {_stdlib_argument()}"],  # noqa: S607
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    expected = Path(sysconfig.get_paths()["stdlib"]).resolve()
+    assert Path(done.stdout.strip()).resolve() == expected
