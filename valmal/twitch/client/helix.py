@@ -185,7 +185,9 @@ async def fetch[T: msgspec.Struct](
         repeatable=repeatable,
     )
     try:
-        return msgspec.json.decode(response.text, type=model)
+        # strict=False takes "5" for an int, as pydantic did: Twitch's docs type
+        # some numbers, the ad schedule's times among them, as strings.
+        return msgspec.json.decode(response.text, type=model, strict=False)
     except Exception as e:
         raise HelixError(
             f"{method} {path} answered with a body that would not parse: {e}",

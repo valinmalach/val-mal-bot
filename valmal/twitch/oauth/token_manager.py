@@ -165,7 +165,9 @@ class TwitchTokenManager:
             )
             return False
 
-        auth_response = msgspec.json.decode(response.text, type=AuthResponse)
+        auth_response = msgspec.json.decode(
+            response.text, type=AuthResponse, strict=False
+        )
         # RFC 6749: the token type is case insensitive.
         if auth_response.token_type.lower() != "bearer":
             logger.error(f"Unexpected token type received: {auth_response.token_type}")
@@ -241,7 +243,9 @@ class TwitchTokenManager:
             )
             return False
 
-        auth_response = msgspec.json.decode(response.text, type=RefreshResponse)
+        auth_response = msgspec.json.decode(
+            response.text, type=RefreshResponse, strict=False
+        )
         # RFC 6749: the token type is case insensitive.
         if auth_response.token_type.lower() != "bearer":
             logger.error(f"Unexpected token type received: {auth_response.token_type}")

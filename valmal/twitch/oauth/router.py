@@ -53,7 +53,9 @@ async def _validate_oauth_identity(
         )
         raise HTTPException(status_code=500, detail="Twitch token validation failed")
 
-    validation = msgspec.json.decode(response.text, type=TokenValidationResponse)
+    validation = msgspec.json.decode(
+        response.text, type=TokenValidationResponse, strict=False
+    )
     expected_id = expected_user_id(token_type)
     missing_scopes = sorted(set(configured_scopes()) - set(validation.scopes))
 
@@ -125,7 +127,9 @@ async def _oauth_callback_common(
         await notify(f"Failed to exchange token: {response.status} {response.text}")
         raise HTTPException(status_code=500)
 
-    auth_response = msgspec.json.decode(response.text, type=RefreshResponse)
+    auth_response = msgspec.json.decode(
+        response.text, type=RefreshResponse, strict=False
+    )
     # RFC 6749: the token type is case insensitive.
     if auth_response.token_type.lower() != "bearer":
         logger.error(
