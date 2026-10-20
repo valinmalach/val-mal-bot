@@ -51,10 +51,12 @@ def decide(subscription: Subscription, routes: Mapping[str, str]) -> Action:
     path = routes.get(subscription.type)
     if path is None:
         return Action.SKIP
-    if any(not isinstance(v, str) for v in condition_of(subscription).values()):
-        return Action.MALFORMED
     if subscription.transport.callback == callback_url(path):
         return Action.KEEP
+    # A null too, though condition_of drops one: in a field the type requires, the
+    # recreate would go without it.
+    if any(not isinstance(v, str) for v in subscription.condition.values()):
+        return Action.MALFORMED
     return Action.REPOINT
 
 

@@ -50,8 +50,16 @@ def test_a_condition_value_that_is_not_a_string_is_left_alone(value: object) -> 
     )
 
 
-def test_a_null_condition_value_is_not_malformed() -> None:
-    assert decide(_sub(broadcaster_user_id="1", reward_id=None), ROUTES) is Action.KEEP
+def test_a_null_condition_value_is_left_alone_too() -> None:
+    """In a field the type requires, the recreate would go without it."""
+    old = "https://old.example/x"
+    null = _sub(callback=old, broadcaster_user_id=None)
+
+    assert decide(null, ROUTES) is Action.MALFORMED
+
+
+def test_a_malformed_condition_already_current_is_simply_kept() -> None:
+    assert decide(_sub(broadcaster_user_id=None), ROUTES) is Action.KEEP
 
 
 def test_status_does_not_decide() -> None:
