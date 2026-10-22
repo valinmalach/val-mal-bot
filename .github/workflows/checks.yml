@@ -38,7 +38,7 @@ jobs:
       DISCORD_TOKEN: unused
       TWITCH_CLIENT_ID: unused
       TWITCH_CLIENT_SECRET: unused
-      TWITCH_WEBHOOK_SECRET: unused
+      TWITCH_WEBHOOK_SECRET: unused-in-ci
       APP_URL: https://bot.example
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
