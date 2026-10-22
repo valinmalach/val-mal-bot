@@ -96,7 +96,8 @@ def test_the_error_never_carries_the_raw_values(env: pytest.MonkeyPatch) -> None
 
 
 @pytest.mark.parametrize(
-    "secret", ["x" * 9, "x" * 101, "x" * 9 + chr(233), "x" * 9 + chr(10)]
+    "secret",
+    ["x" * 9, "x" * 101, "x" * 9 + chr(233), "x" * 9 + chr(10), "x" * 10 + chr(10)],
 )
 def test_a_webhook_secret_twitch_would_refuse_fails_now(
     secret: str, env: pytest.MonkeyPatch
