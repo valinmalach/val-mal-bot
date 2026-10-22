@@ -25,7 +25,9 @@ class Settings(msgspec.Struct, kw_only=True):
 
     twitch_client_id: NonEmpty
     twitch_client_secret: NonEmpty
-    twitch_webhook_secret: NonEmpty
+    # Twitch's rule. Any other value fails at subscription create, which a migration
+    # reaches only after its delete.
+    twitch_webhook_secret: Annotated[str, msgspec.Meta(pattern=r"^[ -~]{10,100}$")]
 
     database_url: NonEmpty
     app_url: NonEmpty

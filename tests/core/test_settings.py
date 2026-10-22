@@ -95,6 +95,30 @@ def test_the_error_never_carries_the_raw_values(env: pytest.MonkeyPatch) -> None
     assert caught.value.__suppress_context__ is True
 
 
+@pytest.mark.parametrize(
+    "secret", ["x" * 9, "x" * 101, "x" * 9 + chr(233), "x" * 9 + chr(10)]
+)
+def test_a_webhook_secret_twitch_would_refuse_fails_now(
+    secret: str, env: pytest.MonkeyPatch
+) -> None:
+    """Twitch takes 10 to 100 ASCII characters, and finds out only at a create."""
+    env.setenv("TWITCH_WEBHOOK_SECRET", secret)
+
+    with pytest.raises(RuntimeError, match="TWITCH_WEBHOOK_SECRET") as caught:
+        settings._load()
+
+    assert secret not in str(caught.value)
+
+
+@pytest.mark.parametrize("secret", ["x" * 10, "x" * 100, "a-Z_9 ~!" * 8])
+def test_a_webhook_secret_twitch_accepts_loads(
+    secret: str, env: pytest.MonkeyPatch
+) -> None:
+    env.setenv("TWITCH_WEBHOOK_SECRET", secret)
+
+    assert settings._load().twitch_webhook_secret == secret
+
+
 def test_a_non_numeric_port_is_named(env: pytest.MonkeyPatch) -> None:
     env.setenv("PORT", "eight thousand")
 
