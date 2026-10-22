@@ -235,9 +235,10 @@ class TwitchAdmin(Cog):
     # No has_permissions: see the comment on twitch_auth above, same reasoning.
     @app_commands.describe(
         confirm="Actually do it. Without this it reports what it would do and stops.",
+        force="Recreate the ones already at this URL too, as rotating the webhook secret needs.",
     )
     async def migrate_subscriptions(
-        self, interaction: Interaction, confirm: bool = False
+        self, interaction: Interaction, confirm: bool = False, force: bool = False
     ) -> None:
         if interaction.user.id != config.setting("owner_id"):
             await interaction.response.send_message(
@@ -250,7 +251,7 @@ class TwitchAdmin(Cog):
         # which is well past Discord's three seconds.
         await interaction.response.defer(ephemeral=True)
         try:
-            outcome = await migrate(WEBHOOK_PATHS, confirm=confirm)
+            outcome = await migrate(WEBHOOK_PATHS, confirm=confirm, force=force)
         except HelixError as e:
             await report(e, "Failed to migrate Twitch subscriptions")
             await interaction.followup.send(

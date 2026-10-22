@@ -206,7 +206,9 @@ async def _repoint(
     outcome.migrated.append(subscription)
 
 
-async def migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
+async def migrate(
+    routes: Mapping[str, str], *, confirm: bool, force: bool = False
+) -> Outcome:
     """Repoint every subscription this deployment has a route for.
 
     A failed Helix listing raises, because a migration that cannot see the
@@ -232,7 +234,7 @@ async def migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
         # gap would let two runs both pass a check that only looked.
         _confirming = True
     try:
-        return await _migrate(routes, confirm=confirm)
+        return await _migrate(routes, confirm=confirm, force=force)
     finally:
         if confirm:
             _confirming = False
@@ -243,11 +245,13 @@ async def migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
 _confirming = False
 
 
-def _classify(subscriptions: list[Subscription], routes: Mapping[str, str]) -> Outcome:
+def _classify(
+    subscriptions: list[Subscription], routes: Mapping[str, str], *, force: bool
+) -> Outcome:
     """Sort every subscription into what is to be done with it, changing nothing."""
     outcome = Outcome()
     for subscription in subscriptions:
-        match decide(subscription, routes):
+        match decide(subscription, routes, force=force):
             case Action.REPOINT:
                 outcome.repoint.append(subscription)
             case Action.KEEP:
@@ -283,9 +287,9 @@ async def _report_failures(outcome: Outcome, logins: Mapping[str, str]) -> None:
         )
 
 
-async def _migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
+async def _migrate(routes: Mapping[str, str], *, confirm: bool, force: bool) -> Outcome:
     subscriptions = await get_subscriptions()
-    outcome = _classify(subscriptions, routes)
+    outcome = _classify(subscriptions, routes, force=force)
 
     if not outcome.repoint:
         return outcome

@@ -31,7 +31,9 @@ class Action(StrEnum):
     MALFORMED = "a condition value is not a string"
 
 
-def decide(subscription: Subscription, routes: Mapping[str, str]) -> Action:
+def decide(
+    subscription: Subscription, routes: Mapping[str, str], *, force: bool = False
+) -> Action:
     """What to do with this subscription. Pure, and the whole rule.
 
     The callback decides, and the status deliberately does not: repointing anything
@@ -47,11 +49,15 @@ def decide(subscription: Subscription, routes: Mapping[str, str]) -> Action:
     A subscription on the right callback and still not delivering is already
     ``undeliverable``, which ``recheck_subscriptions`` reports hourly. That check
     owns the problem; this one owns the callback.
+
+    ``force`` recreates one already on the right callback too: Twitch signs with
+    the secret a subscription was created with, so a rotated
+    ``TWITCH_WEBHOOK_SECRET`` needs every routed one recreated.
     """
     path = routes.get(subscription.type)
     if path is None:
         return Action.SKIP
-    if subscription.transport.callback == callback_url(path):
+    if not force and subscription.transport.callback == callback_url(path):
         return Action.KEEP
     # A null too, though condition_of drops one: in a field the type requires, the
     # recreate would go without it.

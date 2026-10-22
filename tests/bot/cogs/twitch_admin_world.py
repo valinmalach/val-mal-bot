@@ -29,7 +29,7 @@ class Admin:
         self.found = True
         self.action_error: HelixError | None = None
         self.acted: list[tuple[str, str]] = []
-        self.migrated: list[tuple[Any, bool]] = []
+        self.migrated: list[tuple[Any, bool, bool]] = []
         self.outcome = Outcome()
         self.migrate_error: HelixError | None = None
 
@@ -76,8 +76,8 @@ def install(monkeypatch: pytest.MonkeyPatch) -> Admin:
 
         return act
 
-    async def migrate(routes: Any, *, confirm: bool) -> Outcome:
-        admin.migrated.append((routes, confirm))
+    async def migrate(routes: Any, *, confirm: bool, force: bool) -> Outcome:
+        admin.migrated.append((routes, confirm, force))
         if admin.migrate_error is not None:
             raise admin.migrate_error
         return admin.outcome
