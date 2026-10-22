@@ -249,7 +249,7 @@ def _classify(
     subscriptions: list[Subscription], routes: Mapping[str, str], *, force: bool
 ) -> Outcome:
     """Sort every subscription into what is to be done with it, changing nothing."""
-    outcome = Outcome()
+    outcome = Outcome(forced=force)
     for subscription in subscriptions:
         match decide(subscription, routes, force=force):
             case Action.REPOINT:
@@ -275,11 +275,16 @@ async def _report_failures(outcome: Outcome, logins: Mapping[str, str]) -> None:
             )
         )
     if outcome.stuck:
-        # Separately, and not as an emergency: these are still delivering on the
-        # old callback, so the remedy is running the command again.
+        # Separately, and not as an emergency: these are untouched, so the remedy is
+        # running the command again, with force if this run had it.
+        where, again = (
+            ("on the old secret", "Re-running with force recreates them")
+            if outcome.forced
+            else ("on the old callback", "Re-running moves them")
+        )
         await notify(
-            f"Migration left {len(outcome.stuck)} subscription(s) on the old"
-            f" callback, untouched. Re-running moves them:\n"
+            f"Migration left {len(outcome.stuck)} subscription(s) {where},"
+            f" untouched. {again}:\n"
             + "\n".join(
                 f"- {describe(subscription, logins)}: {reason}"
                 for subscription, reason in outcome.stuck
@@ -307,7 +312,7 @@ async def _migrate(routes: Mapping[str, str], *, confirm: bool, force: bool) -> 
         f" subscription as it stands, which is the only record of the ones that"
         f" delete-then-create is about to put at risk.",
         "eventsub-subscriptions.json",
-        render_dump(subscriptions, routes, logins),
+        render_dump(subscriptions, routes, logins, force=outcome.forced),
     )
 
     if not confirm:

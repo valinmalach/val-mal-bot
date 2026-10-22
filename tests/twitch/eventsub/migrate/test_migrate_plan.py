@@ -67,18 +67,16 @@ def test_force_recreates_one_already_current() -> None:
 
 
 @pytest.mark.parametrize(
-    "status", ["notification_failures_exceeded", "webhook_callback_verification_failed"]
+    "status",
+    [
+        "notification_failures_exceeded",
+        "webhook_callback_verification_failed",
+        "webhook_callback_verification_pending",
+        "authorization_revoked",
+    ],
 )
-def test_force_recreates_one_that_failed_on_the_old_secret(status: str) -> None:
+def test_force_recreates_whatever_the_status(status: str) -> None:
     assert decide(_sub(status=status), ROUTES, force=True) is Action.REPOINT
-
-
-@pytest.mark.parametrize(
-    "status", ["authorization_revoked", "user_removed", "moderator_removed"]
-)
-def test_force_keeps_one_whose_permission_is_gone(status: str) -> None:
-    """Twitch would refuse the recreate, so forcing it would only delete it."""
-    assert decide(_sub(status=status), ROUTES, force=True) is Action.KEEP
 
 
 def test_force_still_leaves_unrouted_and_malformed_ones_alone() -> None:

@@ -222,6 +222,28 @@ class TestForce:
         ]
         assert [s.id for s in outcome.migrated] == ["s1"]
 
+    async def test_the_dump_labels_what_force_is_about_to_recreate(
+        self, world: MigrateWorld
+    ) -> None:
+        world.listing = [sub(callback=CURRENT)]
+
+        await migrate.migrate(ROUTES, confirm=False, force=True)
+
+        ((_, _, content),) = world.files
+        assert json.loads(content)[0]["action"] == "repoint"
+
+    async def test_a_failed_delete_is_said_to_need_force_again(
+        self, world: MigrateWorld
+    ) -> None:
+        world.listing = [sub(callback=CURRENT)]
+        world.delete_errors["s1"] = HelixError("500 down", status=500)
+
+        outcome = await migrate.migrate(ROUTES, confirm=True, force=True)
+
+        assert len(outcome.stuck) == 1
+        left = next(t for t, _ in world.notified if t.startswith("Migration left 1"))
+        assert "on the old secret" in left and "Re-running with force" in left
+
     async def test_still_leaves_unrouted_and_malformed_ones_alone(
         self, world: MigrateWorld
     ) -> None:

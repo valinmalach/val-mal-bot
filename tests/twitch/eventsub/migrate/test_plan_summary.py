@@ -82,8 +82,30 @@ class TestSummary:
 
         text = summary(made, confirm=True)
 
-        assert "Not moved, still on the old callback - safe to retry:" in text
+        assert (
+            "Not repointed, still as it was - safe to retry with `confirm: True`:"
+            in text
+        )
         assert "GONE" not in text
+
+    def test_a_forced_run_says_recreate_and_how_to_retry_with_force(self) -> None:
+        made = outcome(repoint=2, migrated=1, stuck=1)
+        made.forced = made.dumped = True
+
+        text = summary(made, confirm=True)
+
+        assert text.startswith("Recreated 1/2.")
+        assert "Not recreated, still as it was - safe to retry with" in text
+        assert "`confirm: True` and `force: True`:" in text
+
+    def test_a_forced_dry_run_says_to_rerun_with_force(self) -> None:
+        made = outcome(repoint=1)
+        made.forced = True
+
+        text = summary(made, confirm=False)
+
+        assert text.startswith("**Dry run.** Would recreate 1:")
+        assert "Run it again with `confirm: True` and `force: True` to do it." in text
 
     def test_lost_is_listed_before_stuck_because_it_is_the_emergency(self) -> None:
         made = outcome(repoint=2, lost=1, stuck=1)

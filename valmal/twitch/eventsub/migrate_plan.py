@@ -31,12 +31,6 @@ class Action(StrEnum):
     MALFORMED = "a condition value is not a string"
 
 
-# A revoked permission: Twitch refuses the recreate, so forcing one only deletes it.
-_UNREPAIRABLE = frozenset(
-    {"authorization_revoked", "user_removed", "moderator_removed"}
-)
-
-
 def decide(
     subscription: Subscription, routes: Mapping[str, str], *, force: bool = False
 ) -> Action:
@@ -58,15 +52,13 @@ def decide(
 
     ``force`` recreates one already on the right callback too: Twitch signs with
     the secret a subscription was created with, so a rotated
-    ``TWITCH_WEBHOOK_SECRET`` needs every routed one recreated, the ones that
-    already failed on the old secret included. Not one whose permission is gone.
+    ``TWITCH_WEBHOOK_SECRET`` needs every routed one recreated, whatever its
+    status.
     """
     path = routes.get(subscription.type)
     if path is None:
         return Action.SKIP
-    if subscription.transport.callback == callback_url(path) and (
-        not force or subscription.status in _UNREPAIRABLE
-    ):
+    if not force and subscription.transport.callback == callback_url(path):
         return Action.KEEP
     # A null too, though condition_of drops one: in a field the type requires, the
     # recreate would go without it.
@@ -97,6 +89,9 @@ class Outcome:
         default_factory=list[tuple[Subscription, str]]
     )
     dumped: bool = False
+    # Recreating at the current callback rather than moving: what is said about a
+    # failure, and how to retry, differs.
+    forced: bool = False
     # True when a confirmed run was already in flight, so this one did nothing.
     busy: bool = False
     # Carried so the caller names people rather than ids, without asking Helix
@@ -175,6 +170,8 @@ def render_dump(
     subscriptions: list[Subscription],
     routes: Mapping[str, str],
     logins: Mapping[str, str],
+    *,
+    force: bool = False,
 ) -> str:
     """Every subscription as JSON somebody can act on, not as Twitch phrased it.
 
@@ -208,7 +205,7 @@ def render_dump(
                     if (path := routes.get(subscription.type))
                     else None
                 ),
-                "action": decide(subscription, routes).value,
+                "action": decide(subscription, routes, force=force).value,
             }
             for subscription in subscriptions
         ],
@@ -285,9 +282,16 @@ def summary(outcome: Outcome, *, confirm: bool) -> str:
             f" call back on this deployment{left_alone}."
         )
 
+    verb, done, retry = (
+        ("recreate", "recreated", "`confirm: True` and `force: True`")
+        if outcome.forced
+        else ("repoint", "repointed", "`confirm: True`")
+    )
     lines: list[str] = []
     if confirm:
-        lines.append(f"Repointed {len(outcome.migrated)}/{len(outcome.repoint)}.")
+        lines.append(
+            f"{done.capitalize()} {len(outcome.migrated)}/{len(outcome.repoint)}."
+        )
         if outcome.lost:
             lines += _with_reasons(
                 "**GONE - recreate these from the dump:**",
@@ -296,7 +300,7 @@ def summary(outcome: Outcome, *, confirm: bool) -> str:
             )
         if outcome.stuck:
             lines += _with_reasons(
-                "Not moved, still on the old callback - safe to retry:",
+                f"Not {done}, still as it was - safe to retry with {retry}:",
                 outcome.stuck,
                 outcome.logins,
             )
@@ -304,11 +308,11 @@ def summary(outcome: Outcome, *, confirm: bool) -> str:
             lines.append("**Abandoned:** the dump could not be delivered.")
     else:
         lines += _listed(
-            f"**Dry run.** Would repoint {len(outcome.repoint)}:",
+            f"**Dry run.** Would {verb} {len(outcome.repoint)}:",
             outcome.repoint,
             outcome.logins,
         )
-        lines += ["", "Run it again with `confirm: True` to do it."]
+        lines += ["", f"Run it again with {retry} to do it."]
 
     if outcome.keep:
         lines.append(f"{len(outcome.keep)} already current.")
