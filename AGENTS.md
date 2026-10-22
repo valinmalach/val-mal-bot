@@ -707,7 +707,9 @@ and resident memory ended 8.3 MiB lower, with no CPU cost visible. Taking SQLAlc
 SQLModel out of the bot (#98) cut `rss_anon_kb` at 36 h from 81.3 MiB to 57.2 and
 `python_blocks` from 550k to 380k. Python 3.15 (#119) then settled at 57.1 MiB and about 376k
 at 24 h, and lazy imports with pendulum gone (#120, #121) at 52.4 MiB and about 337k at
-21.5 h, flat from 16 h: that is the baseline the next memory change is measured against.
+21.5 h. Precompiled `-OO` bytecode and msgspec in place of pydantic (#128, #124) then
+settled at 38.5 MiB and about 266k at 21.5 h, moving between 37 and 45 MiB with no trend
+after the first day: that is the baseline the next memory change is measured against.
 Compare `rss_anon_kb`, not `rss_kb`: the file-backed part is page cache the kernel
 trims on its own schedule, 26 MiB to 14 in the first day of that deploy. The `log_memory`
 loop logs a `Memory` line at startup and every 30 minutes with the split as keys:
