@@ -49,6 +49,13 @@ class TestSummary:
             "call back on this deployment, 2 left alone."
         )
 
+    def test_nothing_to_move_still_names_the_malformed_ones(self) -> None:
+        text = summary(outcome(keep=1, malformed=1), confirm=True)
+
+        assert text.startswith("Nothing to migrate")
+        assert "repair by hand:" in text
+        assert "- stream.online (broadcaster 1002)" in text
+
     def test_a_dry_run_lists_what_would_move_and_says_how_to_do_it(self) -> None:
         text = summary(outcome(repoint=2), confirm=False)
 
@@ -82,8 +89,30 @@ class TestSummary:
 
         text = summary(made, confirm=True)
 
-        assert "Not moved, still on the old callback - safe to retry:" in text
+        assert (
+            "Not repointed, still as it was - safe to retry with `confirm: True`:"
+            in text
+        )
         assert "GONE" not in text
+
+    def test_a_forced_run_says_recreate_and_how_to_retry_with_force(self) -> None:
+        made = outcome(repoint=2, migrated=1, stuck=1)
+        made.forced = made.dumped = True
+
+        text = summary(made, confirm=True)
+
+        assert text.startswith("Recreated 1/2.")
+        assert "Not recreated, still as it was - safe to retry with" in text
+        assert "`confirm: True` and `force: True`:" in text
+
+    def test_a_forced_dry_run_says_to_rerun_with_force(self) -> None:
+        made = outcome(repoint=1)
+        made.forced = True
+
+        text = summary(made, confirm=False)
+
+        assert text.startswith("**Dry run.** Would recreate 1:")
+        assert "Run it again with `confirm: True` and `force: True` to do it." in text
 
     def test_lost_is_listed_before_stuck_because_it_is_the_emergency(self) -> None:
         made = outcome(repoint=2, lost=1, stuck=1)
@@ -126,9 +155,9 @@ class TestSummary:
         assert "a condition value is not a string - repair by hand:" in text
 
     def test_nothing_to_move_counts_a_malformed_one_as_left_alone(self) -> None:
-        assert summary(outcome(keep=1, skip=1, malformed=1), confirm=True).endswith(
-            "2 left alone."
-        )
+        text = summary(outcome(keep=1, skip=1, malformed=1), confirm=True)
+
+        assert text.splitlines()[0].endswith("2 left alone.")
 
     def test_names_come_from_the_logins_the_outcome_carries(self) -> None:
         made = outcome(repoint=1)

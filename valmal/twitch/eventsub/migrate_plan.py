@@ -31,7 +31,9 @@ class Action(StrEnum):
     MALFORMED = "a condition value is not a string"
 
 
-def decide(subscription: Subscription, routes: Mapping[str, str]) -> Action:
+def decide(
+    subscription: Subscription, routes: Mapping[str, str], *, force: bool = False
+) -> Action:
     """What to do with this subscription. Pure, and the whole rule.
 
     The callback decides, and the status deliberately does not: repointing anything
@@ -47,11 +49,17 @@ def decide(subscription: Subscription, routes: Mapping[str, str]) -> Action:
     A subscription on the right callback and still not delivering is already
     ``undeliverable``, which ``recheck_subscriptions`` reports hourly. That check
     owns the problem; this one owns the callback.
+
+    ``force`` recreates one already on the right callback too: Twitch signs with
+    the secret a subscription was created with, so a rotated
+    ``TWITCH_WEBHOOK_SECRET`` needs every routed one recreated, whatever its
+    status. That includes the revoked ones above, accepted under force: their
+    recreate is refused, and they are reported lost, with the dump to restore from.
     """
     path = routes.get(subscription.type)
     if path is None:
         return Action.SKIP
-    if subscription.transport.callback == callback_url(path):
+    if not force and subscription.transport.callback == callback_url(path):
         return Action.KEEP
     # A null too, though condition_of drops one: in a field the type requires, the
     # recreate would go without it.
@@ -82,6 +90,9 @@ class Outcome:
         default_factory=list[tuple[Subscription, str]]
     )
     dumped: bool = False
+    # Recreating the ones already at the current callback too: what is said about a
+    # failure, and how to retry, differs.
+    forced: bool = False
     # True when a confirmed run was already in flight, so this one did nothing.
     busy: bool = False
     # Carried so the caller names people rather than ids, without asking Helix
@@ -160,6 +171,8 @@ def render_dump(
     subscriptions: list[Subscription],
     routes: Mapping[str, str],
     logins: Mapping[str, str],
+    *,
+    force: bool = False,
 ) -> str:
     """Every subscription as JSON somebody can act on, not as Twitch phrased it.
 
@@ -193,7 +206,7 @@ def render_dump(
                     if (path := routes.get(subscription.type))
                     else None
                 ),
-                "action": decide(subscription, routes).value,
+                "action": decide(subscription, routes, force=force).value,
             }
             for subscription in subscriptions
         ],
@@ -228,6 +241,9 @@ def describe(subscription: Subscription, logins: Mapping[str, str]) -> str:
 # whose length follows how many subscriptions exist, so it is the one that can
 # reach it; the dump it points at is a file and has no such limit.
 _DISCORD_MESSAGE_LIMIT = 1990
+
+
+_MALFORMED = "Left alone, a condition value is not a string - repair by hand:"
 
 
 def _listed(
@@ -265,14 +281,27 @@ def summary(outcome: Outcome, *, confirm: bool) -> str:
     if not outcome.repoint:
         untouched = len(outcome.skip) + len(outcome.malformed)
         left_alone = f", {untouched} left alone" if untouched else ""
-        return (
+        nothing = (
             f"Nothing to migrate: {len(outcome.keep)} subscription(s) already"
             f" call back on this deployment{left_alone}."
         )
+        # Named, not only counted: each needs repairing by hand.
+        if outcome.malformed:
+            return _within_limit(
+                [nothing, *_listed(_MALFORMED, outcome.malformed, outcome.logins)]
+            )
+        return nothing
 
+    verb, done, retry = (
+        ("recreate", "recreated", "`confirm: True` and `force: True`")
+        if outcome.forced
+        else ("repoint", "repointed", "`confirm: True`")
+    )
     lines: list[str] = []
     if confirm:
-        lines.append(f"Repointed {len(outcome.migrated)}/{len(outcome.repoint)}.")
+        lines.append(
+            f"{done.capitalize()} {len(outcome.migrated)}/{len(outcome.repoint)}."
+        )
         if outcome.lost:
             lines += _with_reasons(
                 "**GONE - recreate these from the dump:**",
@@ -281,7 +310,7 @@ def summary(outcome: Outcome, *, confirm: bool) -> str:
             )
         if outcome.stuck:
             lines += _with_reasons(
-                "Not moved, still on the old callback - safe to retry:",
+                f"Not {done}, still as it was - safe to retry with {retry}:",
                 outcome.stuck,
                 outcome.logins,
             )
@@ -289,11 +318,11 @@ def summary(outcome: Outcome, *, confirm: bool) -> str:
             lines.append("**Abandoned:** the dump could not be delivered.")
     else:
         lines += _listed(
-            f"**Dry run.** Would repoint {len(outcome.repoint)}:",
+            f"**Dry run.** Would {verb} {len(outcome.repoint)}:",
             outcome.repoint,
             outcome.logins,
         )
-        lines += ["", "Run it again with `confirm: True` to do it."]
+        lines += ["", f"Run it again with {retry} to do it."]
 
     if outcome.keep:
         lines.append(f"{len(outcome.keep)} already current.")
@@ -302,11 +331,7 @@ def summary(outcome: Outcome, *, confirm: bool) -> str:
             "Left alone, no route for the type:", outcome.skip, outcome.logins
         )
     if outcome.malformed:
-        lines += _listed(
-            "Left alone, a condition value is not a string - repair by hand:",
-            outcome.malformed,
-            outcome.logins,
-        )
+        lines += _listed(_MALFORMED, outcome.malformed, outcome.logins)
     if outcome.dumped:
         lines.append(
             "The full definition of every subscription is in the admin channel."

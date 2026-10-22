@@ -171,7 +171,8 @@ async def _repoint(
         # Nothing was destroyed: the old subscription is still whatever it was.
         outcome.stuck.append((subscription, f"delete failed, untouched: {e}"))
         await notify(
-            f"Could not delete {identity} while repointing it, so it still"
+            f"Could not delete {identity} while"
+            f" {'recreating' if outcome.forced else 'repointing'} it, so it still"
             f" calls back on {subscription.transport.callback}: {e}",
             key=f"migrate-delete:{subscription.id}",
         )
@@ -206,8 +207,11 @@ async def _repoint(
     outcome.migrated.append(subscription)
 
 
-async def migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
-    """Repoint every subscription this deployment has a route for.
+async def migrate(
+    routes: Mapping[str, str], *, confirm: bool, force: bool = False
+) -> Outcome:
+    """Repoint every subscription this deployment has a route for, and with
+    ``force`` recreate the ones already at the current callback too.
 
     A failed Helix listing raises, because a migration that cannot see the
     subscriptions has nothing to work from. Everything after that point is
@@ -232,7 +236,7 @@ async def migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
         # gap would let two runs both pass a check that only looked.
         _confirming = True
     try:
-        return await _migrate(routes, confirm=confirm)
+        return await _migrate(routes, confirm=confirm, force=force)
     finally:
         if confirm:
             _confirming = False
@@ -243,11 +247,13 @@ async def migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
 _confirming = False
 
 
-def _classify(subscriptions: list[Subscription], routes: Mapping[str, str]) -> Outcome:
+def _classify(
+    subscriptions: list[Subscription], routes: Mapping[str, str], *, force: bool
+) -> Outcome:
     """Sort every subscription into what is to be done with it, changing nothing."""
-    outcome = Outcome()
+    outcome = Outcome(forced=force)
     for subscription in subscriptions:
-        match decide(subscription, routes):
+        match decide(subscription, routes, force=force):
             case Action.REPOINT:
                 outcome.repoint.append(subscription)
             case Action.KEEP:
@@ -271,11 +277,16 @@ async def _report_failures(outcome: Outcome, logins: Mapping[str, str]) -> None:
             )
         )
     if outcome.stuck:
-        # Separately, and not as an emergency: these are still delivering on the
-        # old callback, so the remedy is running the command again.
+        # Separately, and not as an emergency: these are untouched, so the remedy is
+        # running the command again, with force if this run had it.
+        where, again = (
+            ("", "Re-running with force recreates them")
+            if outcome.forced
+            else (" on the old callback,", "Re-running moves them")
+        )
         await notify(
-            f"Migration left {len(outcome.stuck)} subscription(s) on the old"
-            f" callback, untouched. Re-running moves them:\n"
+            f"Migration left {len(outcome.stuck)} subscription(s){where}"
+            f" untouched. {again}:\n"
             + "\n".join(
                 f"- {describe(subscription, logins)}: {reason}"
                 for subscription, reason in outcome.stuck
@@ -283,9 +294,9 @@ async def _report_failures(outcome: Outcome, logins: Mapping[str, str]) -> None:
         )
 
 
-async def _migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
+async def _migrate(routes: Mapping[str, str], *, confirm: bool, force: bool) -> Outcome:
     subscriptions = await get_subscriptions()
-    outcome = _classify(subscriptions, routes)
+    outcome = _classify(subscriptions, routes, force=force)
 
     if not outcome.repoint:
         return outcome
@@ -298,12 +309,12 @@ async def _migrate(routes: Mapping[str, str], *, confirm: bool) -> Outcome:
     # committing to the destruction, and after the delete it is the only record
     # that a lost subscription existed at all.
     outcome.dumped = await notify_file(
-        f"{'Repointing' if confirm else 'Dry run for'} "
+        f"{('Recreating' if force else 'Repointing') if confirm else 'Dry run for'} "
         f"{len(outcome.repoint)} EventSub subscription(s). This is every"
         f" subscription as it stands, which is the only record of the ones that"
         f" delete-then-create is about to put at risk.",
         "eventsub-subscriptions.json",
-        render_dump(subscriptions, routes, logins),
+        render_dump(subscriptions, routes, logins, force=force),
     )
 
     if not confirm:

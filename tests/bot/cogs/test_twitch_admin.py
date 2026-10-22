@@ -128,6 +128,17 @@ class TestMigrateSubscriptions:
         assert admin.migrated[0][1] is False
         assert TwitchAdmin.migrate_subscriptions.parameters[0].default is False  # pyright: ignore[reportAttributeAccessIssue]
 
+    async def test_does_not_force_unless_asked(self, admin: Admin) -> None:
+        await run(TwitchAdmin.migrate_subscriptions, admin.interaction(), True)
+
+        assert admin.migrated[0][2] is False
+        assert TwitchAdmin.migrate_subscriptions.parameters[1].default is False  # pyright: ignore[reportAttributeAccessIssue]
+
+    async def test_hands_force_over(self, admin: Admin) -> None:
+        await run(TwitchAdmin.migrate_subscriptions, admin.interaction(), True, True)
+
+        assert admin.migrated[0][1:] == (True, True)
+
     async def test_hands_over_the_routes_the_webhook_router_registered(
         self, admin: Admin
     ) -> None:

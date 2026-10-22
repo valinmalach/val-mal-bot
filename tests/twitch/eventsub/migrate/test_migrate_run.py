@@ -206,6 +206,76 @@ class TestMigrateDryRun:
         assert migrate._confirming is True
 
 
+class TestForce:
+    async def test_recreates_one_already_current_with_the_dump_first(
+        self, world: MigrateWorld
+    ) -> None:
+        """What a rotated webhook secret needs: Twitch signs with the old one."""
+        world.listing = [sub(callback=CURRENT, broadcaster_user_id="111")]
+
+        outcome = await migrate.migrate(ROUTES, confirm=True, force=True)
+
+        assert world.files and outcome.dumped is True
+        assert world.calls == [
+            ("delete", "s1"),
+            ("create", "stream.online", "1", {"broadcaster_user_id": "111"}, CURRENT),
+        ]
+        assert [s.id for s in outcome.migrated] == ["s1"]
+
+    async def test_the_dump_labels_what_force_is_about_to_recreate(
+        self, world: MigrateWorld
+    ) -> None:
+        world.listing = [sub(callback=CURRENT)]
+
+        await migrate.migrate(ROUTES, confirm=False, force=True)
+
+        ((_, _, content),) = world.files
+        assert json.loads(content)[0]["action"] == "repoint"
+
+    async def test_the_dump_caption_says_recreating(self, world: MigrateWorld) -> None:
+        world.listing = [sub(callback=CURRENT)]
+
+        await migrate.migrate(ROUTES, confirm=True, force=True)
+
+        assert world.files[0][0].startswith("Recreating 1 EventSub subscription(s).")
+
+    async def test_a_failed_delete_is_said_to_need_force_again(
+        self, world: MigrateWorld
+    ) -> None:
+        world.listing = [sub(callback=CURRENT)]
+        world.delete_errors["s1"] = HelixError("500 down", status=500)
+
+        outcome = await migrate.migrate(ROUTES, confirm=True, force=True)
+
+        assert len(outcome.stuck) == 1
+        left = next(t for t, _ in world.notified if t.startswith("Migration left 1"))
+        assert left.startswith(
+            "Migration left 1 subscription(s) untouched. Re-running with force"
+        )
+        assert any("while recreating it" in t for t, _ in world.notified)
+
+    async def test_still_leaves_unrouted_and_malformed_ones_alone(
+        self, world: MigrateWorld
+    ) -> None:
+        world.listing = [
+            sub(type="channel.follow", callback=CURRENT),
+            sub(id="m", callback=CURRENT, broadcaster_user_id=111),
+        ]
+
+        outcome = await migrate.migrate(ROUTES, confirm=True, force=True)
+
+        assert len(outcome.skip) == 1 and len(outcome.malformed) == 1
+        assert world.calls == []
+
+    async def test_a_forced_dry_run_touches_nothing(self, world: MigrateWorld) -> None:
+        world.listing = [sub(callback=CURRENT)]
+
+        outcome = await migrate.migrate(ROUTES, confirm=False, force=True)
+
+        assert [s.id for s in outcome.repoint] == ["s1"]
+        assert world.calls == []
+
+
 class TestMigrateNothingToDo:
     async def test_everything_current_asks_for_no_logins_and_sends_no_dump(
         self, world: MigrateWorld

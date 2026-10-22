@@ -62,6 +62,28 @@ def test_a_malformed_condition_already_current_is_simply_kept() -> None:
     assert decide(_sub(broadcaster_user_id=None), ROUTES) is Action.KEEP
 
 
+def test_force_recreates_one_already_current() -> None:
+    assert decide(_sub(), ROUTES, force=True) is Action.REPOINT
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        "notification_failures_exceeded",
+        "webhook_callback_verification_failed",
+        "webhook_callback_verification_pending",
+        "authorization_revoked",
+    ],
+)
+def test_force_recreates_whatever_the_status(status: str) -> None:
+    assert decide(_sub(status=status), ROUTES, force=True) is Action.REPOINT
+
+
+def test_force_still_leaves_unrouted_and_malformed_ones_alone() -> None:
+    assert decide(_sub("channel.follow"), ROUTES, force=True) is Action.SKIP
+    assert decide(_sub(user_id=None), ROUTES, force=True) is Action.MALFORMED
+
+
 def test_status_does_not_decide() -> None:
     pending = _sub(status="webhook_callback_verification_pending")
 

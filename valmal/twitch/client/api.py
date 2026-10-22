@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 # A subscription at our callback in either of these is the goal already met.
 # Verification is a seconds-long transient on the way to "enabled": one caught
 # mid-way is about to arrive by itself, and replacing it destroys that.
-# migrate_plan.decide refuses to touch one for the same reason.
+# migrate_plan.decide refuses to touch one for the same reason, unless forced.
 _WORKING_STATUSES = frozenset({"enabled", "webhook_callback_verification_pending"})
 
 
