@@ -49,6 +49,13 @@ class TestSummary:
             "call back on this deployment, 2 left alone."
         )
 
+    def test_nothing_to_move_still_names_the_malformed_ones(self) -> None:
+        text = summary(outcome(keep=1, malformed=1), confirm=True)
+
+        assert text.startswith("Nothing to migrate")
+        assert "repair by hand:" in text
+        assert "- stream.online (broadcaster 1002)" in text
+
     def test_a_dry_run_lists_what_would_move_and_says_how_to_do_it(self) -> None:
         text = summary(outcome(repoint=2), confirm=False)
 
@@ -148,9 +155,9 @@ class TestSummary:
         assert "a condition value is not a string - repair by hand:" in text
 
     def test_nothing_to_move_counts_a_malformed_one_as_left_alone(self) -> None:
-        assert summary(outcome(keep=1, skip=1, malformed=1), confirm=True).endswith(
-            "2 left alone."
-        )
+        text = summary(outcome(keep=1, skip=1, malformed=1), confirm=True)
+
+        assert text.splitlines()[0].endswith("2 left alone.")
 
     def test_names_come_from_the_logins_the_outcome_carries(self) -> None:
         made = outcome(repoint=1)

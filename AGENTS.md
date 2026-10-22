@@ -425,8 +425,9 @@ startup check notices an undeliverable subscription; the command is what repairs
 With `force` it recreates the ones already at that URL too, which is what rotating
 `TWITCH_WEBHOOK_SECRET` needs: Twitch signs with the secret a subscription was created
 with, and the bot checks one. Deploy the new secret, then run it at once, confirmed:
-every delivery in between fails its signature, and enough failures revoke a
-subscription, which then cannot be listed to recreate it.
+every delivery in between fails its signature and is lost. Enough failures revoke a
+subscription, but Twitch still lists a revoked webhook subscription for at least 10
+days, so force can still recreate it; only the events it missed are gone.
 
 **The migration is destructive, and is built around that.** The reasoning is in the
 docstrings of `valmal/twitch/eventsub/migrate.py` and `migrate_plan.py`; the rules an

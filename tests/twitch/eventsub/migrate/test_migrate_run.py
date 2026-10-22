@@ -232,6 +232,13 @@ class TestForce:
         ((_, _, content),) = world.files
         assert json.loads(content)[0]["action"] == "repoint"
 
+    async def test_the_dump_caption_says_recreating(self, world: MigrateWorld) -> None:
+        world.listing = [sub(callback=CURRENT)]
+
+        await migrate.migrate(ROUTES, confirm=True, force=True)
+
+        assert world.files[0][0].startswith("Recreating 1 EventSub subscription(s).")
+
     async def test_a_failed_delete_is_said_to_need_force_again(
         self, world: MigrateWorld
     ) -> None:
@@ -242,7 +249,10 @@ class TestForce:
 
         assert len(outcome.stuck) == 1
         left = next(t for t, _ in world.notified if t.startswith("Migration left 1"))
-        assert "on the old secret" in left and "Re-running with force" in left
+        assert left.startswith(
+            "Migration left 1 subscription(s) untouched. Re-running with force"
+        )
+        assert any("while recreating it" in t for t, _ in world.notified)
 
     async def test_still_leaves_unrouted_and_malformed_ones_alone(
         self, world: MigrateWorld

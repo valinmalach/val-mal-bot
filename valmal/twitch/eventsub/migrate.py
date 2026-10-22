@@ -171,7 +171,8 @@ async def _repoint(
         # Nothing was destroyed: the old subscription is still whatever it was.
         outcome.stuck.append((subscription, f"delete failed, untouched: {e}"))
         await notify(
-            f"Could not delete {identity} while repointing it, so it still"
+            f"Could not delete {identity} while"
+            f" {'recreating' if outcome.forced else 'repointing'} it, so it still"
             f" calls back on {subscription.transport.callback}: {e}",
             key=f"migrate-delete:{subscription.id}",
         )
@@ -209,7 +210,8 @@ async def _repoint(
 async def migrate(
     routes: Mapping[str, str], *, confirm: bool, force: bool = False
 ) -> Outcome:
-    """Repoint every subscription this deployment has a route for.
+    """Repoint every subscription this deployment has a route for, and with
+    ``force`` recreate the ones already at the current callback too.
 
     A failed Helix listing raises, because a migration that cannot see the
     subscriptions has nothing to work from. Everything after that point is
@@ -278,12 +280,12 @@ async def _report_failures(outcome: Outcome, logins: Mapping[str, str]) -> None:
         # Separately, and not as an emergency: these are untouched, so the remedy is
         # running the command again, with force if this run had it.
         where, again = (
-            ("on the old secret", "Re-running with force recreates them")
+            ("", "Re-running with force recreates them")
             if outcome.forced
-            else ("on the old callback", "Re-running moves them")
+            else (" on the old callback,", "Re-running moves them")
         )
         await notify(
-            f"Migration left {len(outcome.stuck)} subscription(s) {where},"
+            f"Migration left {len(outcome.stuck)} subscription(s){where}"
             f" untouched. {again}:\n"
             + "\n".join(
                 f"- {describe(subscription, logins)}: {reason}"
@@ -307,12 +309,12 @@ async def _migrate(routes: Mapping[str, str], *, confirm: bool, force: bool) -> 
     # committing to the destruction, and after the delete it is the only record
     # that a lost subscription existed at all.
     outcome.dumped = await notify_file(
-        f"{'Repointing' if confirm else 'Dry run for'} "
+        f"{('Recreating' if force else 'Repointing') if confirm else 'Dry run for'} "
         f"{len(outcome.repoint)} EventSub subscription(s). This is every"
         f" subscription as it stands, which is the only record of the ones that"
         f" delete-then-create is about to put at risk.",
         "eventsub-subscriptions.json",
-        render_dump(subscriptions, routes, logins, force=outcome.forced),
+        render_dump(subscriptions, routes, logins, force=force),
     )
 
     if not confirm:

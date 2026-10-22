@@ -53,7 +53,8 @@ def decide(
     ``force`` recreates one already on the right callback too: Twitch signs with
     the secret a subscription was created with, so a rotated
     ``TWITCH_WEBHOOK_SECRET`` needs every routed one recreated, whatever its
-    status.
+    status. That includes the revoked ones above, accepted under force: their
+    recreate is refused, and they are reported lost, with the dump to restore from.
     """
     path = routes.get(subscription.type)
     if path is None:
@@ -89,7 +90,7 @@ class Outcome:
         default_factory=list[tuple[Subscription, str]]
     )
     dumped: bool = False
-    # Recreating at the current callback rather than moving: what is said about a
+    # Recreating the ones already at the current callback too: what is said about a
     # failure, and how to retry, differs.
     forced: bool = False
     # True when a confirmed run was already in flight, so this one did nothing.
@@ -242,6 +243,9 @@ def describe(subscription: Subscription, logins: Mapping[str, str]) -> str:
 _DISCORD_MESSAGE_LIMIT = 1990
 
 
+_MALFORMED = "Left alone, a condition value is not a string - repair by hand:"
+
+
 def _listed(
     heading: str, subscriptions: list[Subscription], logins: Mapping[str, str]
 ) -> list[str]:
@@ -277,10 +281,16 @@ def summary(outcome: Outcome, *, confirm: bool) -> str:
     if not outcome.repoint:
         untouched = len(outcome.skip) + len(outcome.malformed)
         left_alone = f", {untouched} left alone" if untouched else ""
-        return (
+        nothing = (
             f"Nothing to migrate: {len(outcome.keep)} subscription(s) already"
             f" call back on this deployment{left_alone}."
         )
+        # Named, not only counted: each needs repairing by hand.
+        if outcome.malformed:
+            return _within_limit(
+                [nothing, *_listed(_MALFORMED, outcome.malformed, outcome.logins)]
+            )
+        return nothing
 
     verb, done, retry = (
         ("recreate", "recreated", "`confirm: True` and `force: True`")
@@ -321,11 +331,7 @@ def summary(outcome: Outcome, *, confirm: bool) -> str:
             "Left alone, no route for the type:", outcome.skip, outcome.logins
         )
     if outcome.malformed:
-        lines += _listed(
-            "Left alone, a condition value is not a string - repair by hand:",
-            outcome.malformed,
-            outcome.logins,
-        )
+        lines += _listed(_MALFORMED, outcome.malformed, outcome.logins)
     if outcome.dumped:
         lines.append(
             "The full definition of every subscription is in the admin channel."
