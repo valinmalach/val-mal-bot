@@ -31,6 +31,12 @@ class Action(StrEnum):
     MALFORMED = "a condition value is not a string"
 
 
+# A revoked permission: Twitch refuses the recreate, so forcing one only deletes it.
+_UNREPAIRABLE = frozenset(
+    {"authorization_revoked", "user_removed", "moderator_removed"}
+)
+
+
 def decide(
     subscription: Subscription, routes: Mapping[str, str], *, force: bool = False
 ) -> Action:
@@ -52,12 +58,15 @@ def decide(
 
     ``force`` recreates one already on the right callback too: Twitch signs with
     the secret a subscription was created with, so a rotated
-    ``TWITCH_WEBHOOK_SECRET`` needs every routed one recreated.
+    ``TWITCH_WEBHOOK_SECRET`` needs every routed one recreated, the ones that
+    already failed on the old secret included. Not one whose permission is gone.
     """
     path = routes.get(subscription.type)
     if path is None:
         return Action.SKIP
-    if not force and subscription.transport.callback == callback_url(path):
+    if subscription.transport.callback == callback_url(path) and (
+        not force or subscription.status in _UNREPAIRABLE
+    ):
         return Action.KEEP
     # A null too, though condition_of drops one: in a field the type requires, the
     # recreate would go without it.
