@@ -20,7 +20,7 @@ instead:
   them together. The client half of aiohttp that is already loaded shares little with
   them.
 
-#128's log has the setup and the readings.
+The setup and the readings are in #128's log.
 
 The work would also have been large. Every route would move to aiohttp's request
 and response types, mostly the EventSub webhook router: the signature check, replay
