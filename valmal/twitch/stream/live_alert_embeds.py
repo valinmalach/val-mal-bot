@@ -13,7 +13,7 @@ from discord.ui import View
 from discord.utils import escape_markdown
 
 from valmal.bot.present import quoted
-from valmal.core import clock
+from valmal.core import clock, urls
 from valmal.core.config import config
 from valmal.core.errors import notify_soon
 from valmal.twitch.eventsub.commands import is_twitch_login
@@ -62,11 +62,10 @@ def vod_url(video_id: str) -> str:
 
 # Discord refuses the whole embed over one image URL it cannot fetch, so an image
 # Twitch sent malformed or empty is left off rather than costing the alert.
-_IMAGE_URL = re.compile(r"\Ahttps://[A-Za-z0-9.-]+\.[A-Za-z]{2,}/\S*\Z")
 
 
 def _image(url: str | None) -> str | None:
-    return url if url and _IMAGE_URL.fullmatch(url) else None
+    return url if url and urls.is_https_url(url) else None
 
 
 def _thumbnail(stream: Stream, now: datetime) -> str | None:

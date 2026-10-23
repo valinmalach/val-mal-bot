@@ -70,7 +70,8 @@ def test_a_database_url_that_cannot_be_parsed_fails_now(
     with pytest.raises(RuntimeError, match="DATABASE_URL") as caught:
         settings._load()
 
-    assert "hunter2" not in str(caught.value)
+    assert url.strip() not in str(caught.value)
+    assert "u:p" not in str(caught.value)
 
 
 @pytest.mark.parametrize(
@@ -79,6 +80,8 @@ def test_a_database_url_that_cannot_be_parsed_fails_now(
         "postgresql://postgres:pw@postgres.railway.internal:5432/railway",
         "postgres://localhost/db",
         "postgresql://u:p@host/db?sslmode=require",
+        "postgresql+asyncpg://u:p@host/db",
+        "postgresql://u:p@[::1]:5432/db",
     ],
 )
 def test_a_database_url_asyncpg_can_use_loads(

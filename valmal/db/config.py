@@ -6,16 +6,9 @@ The connection string is a secret, so it stays in ``.env`` as ``DATABASE_URL``.
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from valmal.core.settings import settings
+from valmal.core.urls import POSTGRES_SCHEMES
 
 ASYNC_DRIVER = "postgresql+asyncpg"
-
-_POSTGRES_SCHEMES = (
-    "postgresql+asyncpg",
-    "postgresql+psycopg2",
-    "postgresql+psycopg",
-    "postgresql",
-    "postgres",
-)
 
 # asyncpg.connect() raises TypeError on these libpq-only options, and SQLAlchemy
 # passes them through uncoerced, so they are dropped rather than translated.
@@ -63,7 +56,7 @@ _NOT_FOR_ASYNCPG = frozenset({"channel_binding", "connect_timeout", "options"})
 def get_dsn() -> str:
     """The configured database URL in the form ``asyncpg.connect()`` reads."""
     parts = urlsplit(settings.database_url)
-    if parts.scheme not in _POSTGRES_SCHEMES:
+    if parts.scheme not in POSTGRES_SCHEMES:
         return settings.database_url
 
     query = urlencode(
@@ -83,7 +76,7 @@ def get_database_url() -> str:
     rejects. The bot's own pool reads ``get_dsn()`` instead.
     """
     parts = urlsplit(settings.database_url)
-    if parts.scheme not in _POSTGRES_SCHEMES:
+    if parts.scheme not in POSTGRES_SCHEMES:
         return settings.database_url
 
     return urlunsplit(
