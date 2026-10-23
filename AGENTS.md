@@ -494,7 +494,9 @@ after a restart); `live_alert_cycle.py` is one pass and knows nothing about task
 broadcaster and is kept in Postgres, because it names a Discord message that outlives a
 redeploy; a stream session is the main broadcaster being live, holds the `Stream` it began
 for, and owns everything lasting exactly one stream — the queue's contents, the ad-break
-warning and the settled ids — in memory. Only a stream Helix confirms is gone stands a
+warning and the settled ids — in memory. A settled id recorded between streams (a raid
+answered while `stream.online` is still being confirmed) is kept into the next stream on
+purpose; `settle` says why. Only a stream Helix confirms is gone stands a
 session down, and the alert updater no longer asks. `stream_session` owns every transition
 of its own: `began` and `resume` take a session up, `wake` is the only thing that can bring
 one down, and both ends are private to the module. `resume` is not a second `began`:
