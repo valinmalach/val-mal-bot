@@ -61,6 +61,7 @@ class TestDatabaseUrl:
             "postgresql://u:p@[::1]:5432/db",
             "postgresql://u:p@host/db?sslmode=require",
             "postgresql://u:p%40ss@host/db",
+            "postgresql://u:p%20%7E@host/db",
         ],
     )
     def test_accepts_what_db_config_can_rewrite(self, url: str) -> None:
@@ -77,6 +78,9 @@ class TestDatabaseUrl:
             "postgresql://u:p@host/a/b",
             "postgresql://u:p@host/db/",
             "postgresql://u:p@host/db#x",
+            "postgresql://u:p@host/%00",
+            "postgresql://u%0A:p@host/db",
+            "postgresql://u:p@host/db%7f",
             "postgresql://u:p@host:/db",
             "mysql://u:p@host/db",
             "postgresql://u:p%@host/db",

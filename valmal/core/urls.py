@@ -8,9 +8,12 @@ import ipaddress
 import re
 from urllib.parse import SplitResult, urlsplit
 
-# RFC 3986's characters, percent escapes included. Checked before urlsplit, which
-# drops a tab or newline silently rather than refusing it.
-_URL_CHARS = re.compile(r"(?:[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=]|%[0-9A-Fa-f]{2})+")
+# RFC 3986's characters, and percent escapes for anything but a control character.
+# Checked before urlsplit, which drops a tab or newline silently rather than refusing
+# it, and asyncpg would decode an escaped one into the connection it then fails.
+_URL_CHARS = re.compile(
+    r"(?:[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=]|%(?![01][0-9A-Fa-f]|7[Ff])[0-9A-Fa-f]{2})+"
+)
 _LABEL = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
 
 # The schemes valmal/db/config.py rewrites for asyncpg and Alembic.
