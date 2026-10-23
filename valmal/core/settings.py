@@ -13,6 +13,20 @@ import msgspec
 # plain str and only fails later, at the login or the request that needed it.
 NonEmpty = Annotated[str, msgspec.Meta(min_length=1)]
 
+_HOST = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+_PORT = (
+    r"(?:6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}"
+    r"|[1-5][0-9]{4}|[1-9][0-9]{0,3})"
+)
+_APP_URL = (
+    rf"\Ahttps://{_HOST}(?:\.{_HOST})+(?::443)?/?\Z"
+    rf"|\Ahttp://(?:localhost|127\.0\.0\.1)(?::{_PORT})?/?\Z"
+)
+_DATABASE_URL = (
+    rf"\Apostgres(?:ql)?://(?:[^/?#\s{{}}@]+@)?[^/?#\s{{}}@:]+(?::{_PORT})?"
+    r"/[^/?#\s{}]+(?:\?[^#\s{}]*)?\Z"
+)
+
 
 class Settings(msgspec.Struct, kw_only=True):
     """Credentials and per-instance configuration.
@@ -29,8 +43,13 @@ class Settings(msgspec.Struct, kw_only=True):
     # reaches only after its delete.
     twitch_webhook_secret: Annotated[str, msgspec.Meta(pattern=r"\A[ -~]{10,100}\Z")]
 
-    database_url: NonEmpty
-    app_url: NonEmpty
+    # A connection string asyncpg and Alembic can parse; checked here so a mangled one
+    # names the variable instead of failing inside SQLAlchemy.
+    database_url: Annotated[str, msgspec.Meta(pattern=_DATABASE_URL)]
+    # Every EventSub callback and OAuth link is built on it, and Twitch accepts only
+    # https on the standard port: a bad one fails every recreate after its delete.
+    # Plain http is allowed for localhost alone, for local development.
+    app_url: Annotated[str, msgspec.Meta(pattern=_APP_URL)]
     # Railway injects PORT; 8000 is just a sane local default.
     port: int = 8000
 

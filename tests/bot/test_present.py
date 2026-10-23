@@ -8,7 +8,7 @@ from valmal.bot.present import get_channel_mention, get_discriminator, get_pfp, 
 
 
 def _user(
-    avatar_url: str | None, default_url: str = "https://cdn/default.png"
+    avatar_url: str | None, default_url: str = "https://cdn.example/default.png"
 ) -> discord.User:
     avatar = SimpleNamespace(url=avatar_url) if avatar_url else None
     return SimpleNamespace(  # pyright: ignore[reportReturnType]
@@ -17,11 +17,13 @@ def _user(
 
 
 def test_pfp_is_the_avatar_when_there_is_one() -> None:
-    assert get_pfp(_user("https://cdn/a.png")) == "https://cdn/a.png"
+    assert get_pfp(_user("https://cdn.example/a.png")) == "https://cdn.example/a.png"
 
 
 def test_pfp_falls_back_to_the_default_avatar() -> None:
-    assert get_pfp(_user(None, "https://cdn/d.png")) == "https://cdn/d.png"
+    assert (
+        get_pfp(_user(None, "https://cdn.example/d.png")) == "https://cdn.example/d.png"
+    )
 
 
 @pytest.mark.parametrize(

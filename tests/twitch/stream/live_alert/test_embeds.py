@@ -135,11 +135,13 @@ class TestAnnouncement:
         self,
     ) -> None:
         embed = embeds.announcement_embed(
-            stream(user_name="Valin"), user(profile_image_url="https://cdn/p.png"), URL
+            stream(user_name="Valin"),
+            user(profile_image_url="https://cdn.example/p.png"),
+            URL,
         )
 
         assert embed.author.name == "Valin is live!"
-        assert embed.author.icon_url == "https://cdn/p.png"
+        assert embed.author.icon_url == "https://cdn.example/p.png"
         assert embed.author.url == URL
 
     def test_without_a_profile_there_is_no_avatar(self) -> None:
@@ -149,12 +151,31 @@ class TestAnnouncement:
 
     def test_the_thumbnail_is_sized_and_cache_busted(self) -> None:
         embed = embeds.announcement_embed(
-            stream(thumbnail_url="https://cdn/live_{width}x{height}.jpg"), None, URL
+            stream(thumbnail_url="https://cdn.example/live_{width}x{height}.jpg"),
+            None,
+            URL,
         )
 
         assert (
-            embed.image.url == f"https://cdn/live_400x225.jpg?cb={int(NOW.timestamp())}"
+            embed.image.url
+            == f"https://cdn.example/live_400x225.jpg?cb={int(NOW.timestamp())}"
         )
+
+    @pytest.mark.parametrize(
+        "thumb",
+        ["", "not a url", "http://cdn.example/x.jpg", "https://{{cdn.example/x"],
+    )
+    def test_a_thumbnail_discord_would_refuse_is_left_off(self, thumb: str) -> None:
+        """Discord rejects the whole embed over one bad image URL."""
+        embed = embeds.announcement_embed(stream(thumbnail_url=thumb), None, URL)
+
+        assert embed.image.url is None
+
+    @pytest.mark.parametrize("avatar", ["", "https://cdn/p.png", "javascript:x"])
+    def test_an_avatar_discord_would_refuse_is_left_off(self, avatar: str) -> None:
+        embed = embeds.announcement_embed(stream(), user(profile_image_url=avatar), URL)
+
+        assert embed.author.icon_url is None
 
     def test_a_title_cannot_inject_a_link(self) -> None:
         embed = embeds.announcement_embed(
@@ -205,12 +226,12 @@ class TestLiveEmbed:
         later = NOW + timedelta(hours=1)
 
         embed = self.build(
-            now=later, thumbnail_url="https://cdn/live_{width}x{height}.jpg"
+            now=later, thumbnail_url="https://cdn.example/live_{width}x{height}.jpg"
         )
 
         assert (
             embed.image.url
-            == f"https://cdn/live_400x225.jpg?cb={int(later.timestamp())}"
+            == f"https://cdn.example/live_400x225.jpg?cb={int(later.timestamp())}"
         )
 
     def test_escapes_title_and_game_like_the_announcement(self) -> None:
@@ -305,9 +326,9 @@ class TestOfflineEmbed:
     def test_the_avatar_comes_from_the_profile_when_there_is_one(self) -> None:
         assert (
             self.build(
-                user_info=user(profile_image_url="https://cdn/p.png")
+                user_info=user(profile_image_url="https://cdn.example/p.png")
             ).author.icon_url
-            == "https://cdn/p.png"
+            == "https://cdn.example/p.png"
         )
         assert self.build().author.icon_url is None
 
