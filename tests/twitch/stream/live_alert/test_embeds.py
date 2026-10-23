@@ -177,6 +177,17 @@ class TestAnnouncement:
 
         assert embed.author.icon_url is None
 
+    def test_a_thumbnail_with_a_query_gets_the_cache_buster_as_one_more_param(
+        self,
+    ) -> None:
+        embed = embeds.announcement_embed(
+            stream(thumbnail_url="https://cdn.example/x.jpg?v=2"), None, URL
+        )
+
+        assert embed.image.url == (
+            f"https://cdn.example/x.jpg?v=2&cb={int(NOW.timestamp())}"
+        )
+
     def test_a_title_cannot_inject_a_link(self) -> None:
         embed = embeds.announcement_embed(
             stream(title="](https://evil.example)"), None, URL

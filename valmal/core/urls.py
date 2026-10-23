@@ -43,7 +43,10 @@ def _parts(url: str) -> SplitResult | None:
         port = parts.port  # raises for a port that is not a number up to 65535
     except ValueError:
         return None
-    return parts if port != 0 and _is_host(parts.hostname) else None
+    # A colon with no port after it is not "no port": callback_url would keep it.
+    if port == 0 or parts.netloc.endswith(":") or not _is_host(parts.hostname):
+        return None
+    return parts
 
 
 def is_app_url(url: str) -> bool:
@@ -66,12 +69,15 @@ def is_app_url(url: str) -> bool:
 def is_database_url(url: str) -> bool:
     """A postgres URL naming one database, as asyncpg and Alembic both need."""
     parts = _parts(url)
-    database = parts.path.strip("/") if parts else ""
+    # The path as written, less its one leading slash: get_dsn forwards it unchanged,
+    # so "db/" would reach asyncpg as a database called "db/".
+    database = parts.path.removeprefix("/") if parts else ""
     return (
         parts is not None
         and parts.scheme in POSTGRES_SCHEMES
         and bool(database)
         and "/" not in database
+        and "#" not in url
     )
 
 
@@ -81,5 +87,6 @@ def is_https_url(url: str) -> bool:
     return (
         parts is not None
         and url.startswith("https://")
+        and parts.username is None
         and "." in (parts.hostname or "")
     )

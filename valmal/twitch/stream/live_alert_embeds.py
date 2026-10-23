@@ -71,7 +71,8 @@ def _image(url: str | None) -> str | None:
 def _thumbnail(stream: Stream, now: datetime) -> str | None:
     """The stream preview at the embed's size, busted by the embed's own time."""
     thumb = _image(stream.thumbnail_url.replace("{width}x{height}", "400x225"))
-    return f"{thumb}?cb={int(now.timestamp())}" if thumb else None
+    separator = "&" if "?" in (thumb or "") else "?"
+    return f"{thumb}{separator}cb={int(now.timestamp())}" if thumb else None
 
 
 def mention(channel_id: int) -> str | None:
