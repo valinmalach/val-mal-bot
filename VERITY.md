@@ -294,9 +294,8 @@ evaluates the name.
 `pyproject.toml` states `target-version = "py315"`, so a Ruff that reads it has no such
 problem; only the gate's pattern mode, which exposes no target version, does. At py315 the
 whole repo is clean; with `ruff check --select F821 --target-version py313` it reports
-`valmal/twitch/stream/shoutout_queue.py:28` and `valmal/twitch/oauth/token_manager.py:29`
-(this case) and three more of the same shape in `tests/db/support.py` and
-`tests/db/test_session.py`. F821 was therefore removed from the list rather than
+`valmal/twitch/stream/shoutout_queue.py:28` and `valmal/twitch/oauth/token_manager.py:26`
+(this case) and one more of the same shape in `tests/db/test_pool.py` (2026-10-23). F821 was therefore removed from the list rather than
 suppressed: the project's own Ruff and pyright both enforce it correctly, so nothing is lost,
 and the recurring false positive no longer invites another suppression. The gate now inherits
 `target-version` through `.codacy/ruff.toml` (above), so F821 would be correct there again; the

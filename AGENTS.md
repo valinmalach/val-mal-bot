@@ -45,8 +45,8 @@ an account token of its own, so its four custom rules are enforced by running it
 The linters read their rules from the repo, so the editor, the commands above and Codacy
 agree: `[tool.ruff]`, `[tool.pylint]` and `[tool.bandit]` in `pyproject.toml`,
 `.markdownlint.jsonc` and `.prospector.yaml`. Ruff selects the families Verity's Standard
-names (F, B, S, ANN) plus BLE, I, SIM, UP, RUF and C90. `ANN401` and `UP042` are ignored
-on purpose: `Any` is deliberate in the generic config accessors, and a `StrEnum` would
+names (F, B, S, ANN) plus Ruff's default E4, E7 and E9, and BLE, I, SIM, UP, RUF and
+C90. `ANN401` and `UP042` are ignored on purpose: `Any` is deliberate in the generic config accessors, and a `StrEnum` would
 change `str()` of the `(str, Enum)` classes. A suppression says why in a comment above the
 line and marks Ruff and Bandit together, `# noqa: S104  # nosec B104`; Bandit reads
 everything after `nosec` as test ids, so no prose follows it. Ruff's formatter wraps a
@@ -126,7 +126,7 @@ uv venv on Windows has no `python3.exe`, so there `python3` is the global Python
 with the venv active, and a new global Python needs the SDK again. Only `python3` is
 affected; the other commands here run the venv's interpreter.
 
-**The suite covers everything that does not need a live service.** About 2,400 tests
+**The suite covers everything that does not need a live service.** About 2,800 tests
 cover 99% of the code outside `migrations/`, branches counted; what is left is `__main__`
 guards, a demo, and lines that cannot be reached. Nothing runs against Discord, Twitch
 or Postgres, so a real database round trip and a real gateway session are untested:
@@ -252,11 +252,13 @@ everything for it, rather than one directory per kind of file:
 
 - `valmal/core/` — plumbing the rest leans on: `settings` (the `.env`), `config` (the
   database-backed configuration) and the `safe_format` it renders with, `errors`,
-  `background`, `logging_json`, `http_client`, `memory`, and `clock`, the one place the
-  bot reads the time, so a test freezes it by patching `clock.now`.
-- `valmal/db/` — Postgres: `pool` (asyncpg), `repository` and `configuration` (every
-  statement the bot runs), `rows` (what they return), `enums`, and `models/` (the schema,
-  for Alembic and the tests only). Alembic's revisions are `migrations/`, at the root.
+  `background`, `logging_json`, `http_client`, `memory`, `urls` (the URL rules), and
+  `clock`, the one place the bot reads the time, so a test freezes it by patching
+  `clock.now`.
+- `valmal/db/` — Postgres: `pool` (asyncpg) and `config` (the `DATABASE_URL` it and
+  Alembic connect with), `repository` and `configuration` (every statement the bot runs),
+  `rows` (what they return), `enums`, and `base` and `models/` (the schema, for Alembic
+  and the tests only). Alembic's revisions are `migrations/`, at the root.
 - `valmal/bot/` — Discord: `client` (the bot and its gateway handlers), `cogs/`, `views`,
   and what says something in a channel: `audit`, `send`, `present`, `roles`,
   `birthday` and `duration`; `deleters` reads who deleted a message back from the audit
@@ -723,8 +725,8 @@ at 24 h, and lazy imports with pendulum gone (#120, #121) at 52.4 MiB and about 
 settled at 38.5 MiB and about 266k at 21.5 h, moving between 37 and 45 MiB with no trend
 after the first day: that is the baseline the next memory change is measured against.
 Compare `rss_anon_kb`, not `rss_kb`: the file-backed part is page cache the kernel
-trims on its own schedule, 26 MiB to 14 in the first day of that deploy. The `log_memory`
-loop logs a `Memory` line at startup and every 30 minutes with the split as keys:
+trims on its own schedule: 26 MiB to 14 in the first day after #98, and 20.5 to 11.9 in
+the second day after #124. The `log_memory` loop logs a `Memory` line at startup and every 30 minutes with the split as keys:
 `rss_anon_kb` is what grows, `heap_free_bytes` is freed memory glibc has kept, and
 `heap_in_use_bytes` and `python_blocks` are live data. Nothing is traced: OpenTelemetry cost about
 9 MB, and only HTTP-triggered work formed a trace, because discord.py's gateway events and

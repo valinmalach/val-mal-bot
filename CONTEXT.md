@@ -89,7 +89,7 @@ _Avoid_: stale, replaced, orphaned
 The main broadcaster being live, and the single answer to whether the bot is
 live. At most one at a time, and it owns every piece of state that lasts exactly
 one stream — the **shoutout queue**, the ad-break notification and which
-**autoshoutout list** members are **spent** — all of it in memory. Distinct from
+chatters are **settled** — all of it in memory. Distinct from
 a **live alert**, which exists per broadcaster and is kept in Postgres because it
 names a Discord message that has to outlive a redeploy.
 _Avoid_: broadcast, live session, stream run, session manager
