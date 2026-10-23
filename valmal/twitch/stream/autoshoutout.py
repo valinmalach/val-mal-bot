@@ -3,15 +3,17 @@
 Someone on the list gets one **autoshoutout** per **stream session** — the
 first time they chat, raid or redeem — and is then **settled**, so the list is
 asked about them once per stream rather than once per chat line. The list
-itself is a record in Postgres and outlives any session; what is spent belongs
-to the session, which clears it when a stream begins or ends.
+itself is a record in Postgres and outlives any session; who is settled belongs
+to the session, which clears it when a stream ends or another replaces it. A
+mark made between streams, such as a raider answered before ``stream.online``
+is confirmed, is kept into the next stream on purpose (``stream_session.settle``).
 
 Nothing here shouts anyone out directly. It posts `!so <login>` into chat, the
 way the raid handler already does, and that line returns through the chat
 webhook to the one shoutout handler. That keeps a single implementation of
 what a shoutout is, at the price of the wording being `!so`'s.
 
-Imports ``stream_session`` one way. The session owns the spent state and
+Imports ``stream_session`` one way. The session owns the settled state and
 clears its own; if it imported back to ask what an autoshoutout is, the two
 would be cyclic.
 """
