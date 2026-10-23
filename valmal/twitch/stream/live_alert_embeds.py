@@ -13,7 +13,7 @@ from discord.ui import View
 from discord.utils import escape_markdown
 
 from valmal.bot.present import quoted
-from valmal.core import clock
+from valmal.core import clock, urls
 from valmal.core.config import config
 from valmal.core.errors import notify_soon
 from valmal.twitch.eventsub.commands import is_twitch_login
@@ -60,6 +60,21 @@ def vod_url(video_id: str) -> str:
     return f"https://www.twitch.tv/videos/{video_id}"
 
 
+# Discord refuses the whole embed over one image URL it cannot fetch, so an image
+# Twitch sent malformed or empty is left off rather than costing the alert.
+
+
+def _image(url: str | None) -> str | None:
+    return url if url and urls.is_twitch_image_url(url) else None
+
+
+def _thumbnail(stream: Stream, now: datetime) -> str | None:
+    """The stream preview at the embed's size, busted by the embed's own time."""
+    thumb = _image(stream.thumbnail_url.replace("{width}x{height}", "400x225"))
+    separator = "&" if "?" in (thumb or "") else "?"
+    return f"{thumb}{separator}cb={int(now.timestamp())}" if thumb else None
+
+
 def mention(channel_id: int) -> str | None:
     """The live-alerts role ping, which only the stream alerts channel gets."""
     return (
@@ -103,8 +118,6 @@ def announcement_embed(
     stream: Stream, user_info: User | None, url: str
 ) -> discord.Embed:
     """The alert as first posted, timestamped at the stream's start."""
-    raw_thumb_url = stream.thumbnail_url.replace("{width}x{height}", "400x225")
-
     return (
         discord.Embed(
             description=f"[**{_linkable(stream.title)}**]({url})",
@@ -113,7 +126,7 @@ def announcement_embed(
         )
         .set_author(
             name=config.template("stream_live_title", name=stream.user_name),
-            icon_url=user_info.profile_image_url if user_info else None,
+            icon_url=_image(user_info.profile_image_url) if user_info else None,
             url=url,
         )
         .add_field(
@@ -126,7 +139,7 @@ def announcement_embed(
             value=f"{stream.viewer_count}",
             inline=True,
         )
-        .set_image(url=f"{raw_thumb_url}?cb={int(clock.now().timestamp())}")
+        .set_image(url=_thumbnail(stream, clock.now()))
     )
 
 
@@ -139,8 +152,6 @@ def live_embed(
     now: datetime,
 ) -> discord.Embed:
     """The alert as refreshed, carrying how long the stream has been up."""
-    raw_thumb_url = stream.thumbnail_url.replace("{width}x{height}", "400x225")
-
     return (
         discord.Embed(
             description=f"[**{_linkable(stream.title)}**]({url})",
@@ -149,7 +160,7 @@ def live_embed(
         )
         .set_author(
             name=config.template("stream_live_title", name=stream.user_name),
-            icon_url=user_info.profile_image_url if user_info else None,
+            icon_url=_image(user_info.profile_image_url) if user_info else None,
             url=url,
         )
         .add_field(
@@ -170,7 +181,7 @@ def live_embed(
         # now, not an independent clock.now(): the caller already took "now" to stamp
         # the embed with, and a second wall-clock read would make the cache-buster
         # nondeterministic against the rest of the embed, and untestable.
-        .set_image(url=f"{raw_thumb_url}?cb={int(now.timestamp())}")
+        .set_image(url=_thumbnail(stream, now))
         .set_footer(text=config.template("stream_footer_online", age=age))
     )
 
@@ -215,7 +226,7 @@ def offline_embed(
             name=config.template(
                 "stream_offline_title", name=_display_name(stream, user_info)
             ),
-            icon_url=user_info.profile_image_url if user_info else None,
+            icon_url=_image(user_info.profile_image_url) if user_info else None,
             url=url,
         )
         .add_field(

@@ -343,7 +343,13 @@ to `report`, and a new view with callbacks needs the same.
 **Two configuration sources, one hard line.** `.env` → `valmal/core/settings.py` answers *how
 this instance authenticates and where it runs*, validated once at import and failing
 with the raw values redacted. Postgres → `ConfigCache` in `valmal/core/config.py` answers
-*what the bot does*, snapshotted once in `setup_hook()`. `config.load()` has that one
+*what the bot does*, snapshotted once in `setup_hook()`. `APP_URL`, `DATABASE_URL` and
+`TWITCH_WEBHOOK_SECRET` are checked by format there too, because each reaches Twitch or
+asyncpg only after something has been deleted or started. The URL rules live in
+`valmal/core/urls.py`, which parses rather than pattern-matches: `APP_URL` must be `https`
+on the standard port with no path (plain `http` only for localhost), as Twitch requires of
+a callback, and a URL Twitch returns for an embed image is left off unless it passes
+`is_twitch_image_url` (Twitch's CDN only), since Discord refuses the whole embed. `config.load()` has that one
 call site, so a database edit takes effect on the next restart, not before.
 `valmal/db/README.md` records which side each value falls on and why; keep new values on
 the right side of that line.

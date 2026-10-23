@@ -9,6 +9,8 @@ from typing import Annotated
 
 import msgspec
 
+from valmal.core import urls
+
 # A variable that exists but was never filled in arrives as "", which passes a
 # plain str and only fails later, at the login or the request that needed it.
 NonEmpty = Annotated[str, msgspec.Meta(min_length=1)]
@@ -29,6 +31,9 @@ class Settings(msgspec.Struct, kw_only=True):
     # reaches only after its delete.
     twitch_webhook_secret: Annotated[str, msgspec.Meta(pattern=r"\A[ -~]{10,100}\Z")]
 
+    # Both are checked by format in _problems, against valmal/core/urls.py: a
+    # mangled DATABASE_URL would fail inside SQLAlchemy, and every EventSub callback
+    # is built on APP_URL, so a bad one fails each recreate after its delete.
     database_url: NonEmpty
     app_url: NonEmpty
     # Railway injects PORT; 8000 is just a sane local default.
@@ -106,6 +111,9 @@ def _supplied(values: Mapping[str, str]) -> dict[str, str]:
     }
 
 
+_FORMATS = {"app_url": urls.is_app_url, "database_url": urls.is_database_url}
+
+
 def _problems(supplied: Mapping[str, str]) -> Iterator[str]:
     """Every bad variable, where msgspec stops at the first."""
     for field in _FIELDS:
@@ -113,10 +121,14 @@ def _problems(supplied: Mapping[str, str]) -> Iterator[str]:
             if field.required:
                 yield f"{field.name.upper()} (missing)"
             continue
+        value = supplied[field.name]
         try:
-            msgspec.convert(supplied[field.name], field.type, strict=False)
+            msgspec.convert(value, field.type, strict=False)
         except msgspec.ValidationError as e:
             yield f"{field.name.upper()} ({str(e).lower()})"
+            continue
+        if (check := _FORMATS.get(field.name)) and not check(value):
+            yield f"{field.name.upper()} (not a URL this setting accepts)"
 
 
 def _load() -> Settings:
@@ -125,12 +137,10 @@ def _load() -> Settings:
         k.lower(): v for k, v in os.environ.items()
     }
     supplied = _supplied(merged)
-    try:
-        return msgspec.convert(supplied, Settings, strict=False)
-    except msgspec.ValidationError:
-        problems = ", ".join(_problems(supplied))
+    if problems := ", ".join(_problems(supplied)):
         # from None: the values are credentials, and nothing of them belongs in a log.
         raise RuntimeError(f"Bad environment configuration: {problems}") from None
+    return msgspec.convert(supplied, Settings, strict=False)
 
 
 settings = _load()

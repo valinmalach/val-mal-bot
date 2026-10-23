@@ -151,7 +151,7 @@ class TestInvites:
         await audit.invite_created(invite())
 
         assert log.embed.author.name == "Home"
-        assert log.embed.author.icon_url == "https://cdn.example/g.png"
+        assert log.embed.author.icon_url == "https://static-cdn.jtvnw.net/g.png"
 
     async def test_an_invite_from_an_unknown_guild_still_logs(self, log: Audit) -> None:
         await audit.invite_created(invite(where=None))

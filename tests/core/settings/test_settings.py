@@ -2,34 +2,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.core.settings.support import REQUIRED
 from valmal.core import settings
-
-# Names of every variable Settings reads, so a test can start from a blank slate
-# rather than from whatever the developer's shell happens to export.
-REQUIRED = {
-    "DISCORD_TOKEN": "discord-secret-value",
-    "TWITCH_CLIENT_ID": "client-id-value",
-    "TWITCH_CLIENT_SECRET": "client-secret-value",
-    "TWITCH_WEBHOOK_SECRET": "webhook-secret-value",
-    "DATABASE_URL": "postgresql://user:hunter2@host:5432/db",
-    "APP_URL": "https://bot.example",
-}
-OPTIONAL = ["TEST_DISCORD_TOKEN", "PORT", "DB_ECHO", "USE_TEST_BOT"]
-
-
-@pytest.fixture
-def env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> pytest.MonkeyPatch:
-    """A clean environment in a directory with no .env, so nothing leaks in.
-
-    Settings reads `.env` from the working directory; the developer's real one
-    holds real credentials.
-    """
-    monkeypatch.chdir(tmp_path)
-    for name in [*REQUIRED, *OPTIONAL]:
-        monkeypatch.delenv(name, raising=False)
-    for name, value in REQUIRED.items():
-        monkeypatch.setenv(name, value)
-    return monkeypatch
 
 
 def test_loads_the_required_values_and_defaults_the_rest(
@@ -93,31 +67,6 @@ def test_the_error_never_carries_the_raw_values(env: pytest.MonkeyPatch) -> None
     assert "discord-secret-value" not in message
     assert caught.value.__cause__ is None
     assert caught.value.__suppress_context__ is True
-
-
-@pytest.mark.parametrize(
-    "secret",
-    ["x" * 9, "x" * 101, "x" * 9 + chr(233), "x" * 9 + chr(10), "x" * 10 + chr(10)],
-)
-def test_a_webhook_secret_twitch_would_refuse_fails_now(
-    secret: str, env: pytest.MonkeyPatch
-) -> None:
-    """Twitch takes 10 to 100 ASCII characters, and finds out only at a create."""
-    env.setenv("TWITCH_WEBHOOK_SECRET", secret)
-
-    with pytest.raises(RuntimeError, match="TWITCH_WEBHOOK_SECRET") as caught:
-        settings._load()
-
-    assert secret not in str(caught.value)
-
-
-@pytest.mark.parametrize("secret", ["x" * 10, "x" * 100, "a-Z_9 ~!" * 8])
-def test_a_webhook_secret_twitch_accepts_loads(
-    secret: str, env: pytest.MonkeyPatch
-) -> None:
-    env.setenv("TWITCH_WEBHOOK_SECRET", secret)
-
-    assert settings._load().twitch_webhook_secret == secret
 
 
 def test_a_non_numeric_port_is_named(env: pytest.MonkeyPatch) -> None:
@@ -247,11 +196,15 @@ class TestActiveDiscordToken:
 def test_the_dotenv_file_skips_comments_and_lines_without_a_value(
     env: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    env.delenv("APP_URL")
-    lines = ["# APP_URL=https://commented.example", "", "not a pair", "APP_URL = x=y "]
+    lines = [
+        "# TEST_DISCORD_TOKEN=commented",
+        "",
+        "not a pair",
+        "TEST_DISCORD_TOKEN = x=y ",
+    ]
     (tmp_path / ".env").write_text(chr(10).join(lines), encoding="utf-8")
 
-    assert settings._load().app_url == "x=y"
+    assert settings._load().test_discord_token == "x=y"
 
 
 @pytest.mark.parametrize(
@@ -261,7 +214,6 @@ def test_the_dotenv_file_skips_comments_and_lines_without_a_value(
         ("APP_URL='https://single.example' # note", "https://single.example"),
         ("export APP_URL=https://exported.example", "https://exported.example"),
         ("APP_URL=https://commented.example # local", "https://commented.example"),
-        ("APP_URL=https://hash.example/#fragment", "https://hash.example/#fragment"),
     ],
 )
 def test_the_dotenv_file_is_read_as_python_dotenv_read_it(
@@ -274,14 +226,23 @@ def test_the_dotenv_file_is_read_as_python_dotenv_read_it(
     assert settings._load().app_url == expected
 
 
+def test_a_hash_inside_an_unquoted_value_is_not_a_comment(
+    env: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    (tmp_path / ".env").write_text("TEST_DISCORD_TOKEN=to#ken # note", encoding="utf-8")
+
+    assert settings._load().test_discord_token == "to#ken"
+
+
 def test_a_backslash_escapes_a_quote_inside_double_quotes(
     env: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    env.delenv("APP_URL")
     escaped = f'{chr(92)}"'
-    (tmp_path / ".env").write_text(f'APP_URL="a{escaped}b" # c', encoding="utf-8")
+    (tmp_path / ".env").write_text(
+        f'TEST_DISCORD_TOKEN="a{escaped}b" # c', encoding="utf-8"
+    )
 
-    assert settings._load().app_url == 'a"b'
+    assert settings._load().test_discord_token == 'a"b'
 
 
 B = chr(92)

@@ -19,7 +19,9 @@ class TestUserUpdate:
 
     def pair(self) -> tuple[Any, Any]:
         before = person(kind=discord.User, id=7)
-        after = person(kind=discord.User, id=7, avatar="https://cdn.example/new.png")
+        after = person(
+            kind=discord.User, id=7, avatar="https://static-cdn.jtvnw.net/new.png"
+        )
         return before, after
 
     async def test_a_new_avatar_is_logged_for_the_member_it_belongs_to(
@@ -36,7 +38,9 @@ class TestUserUpdate:
         self, ev: EventsWorld
     ) -> None:
         member = person(id=7)
-        member.guild_avatar = SimpleNamespace(url="https://cdn.example/guild.png")
+        member.guild_avatar = SimpleNamespace(
+            url="https://static-cdn.jtvnw.net/guild.png"
+        )
         self.in_guild(ev, member)
 
         await cog(ev).on_user_update(*self.pair())

@@ -146,7 +146,9 @@ class TestMemberUpdate:
 
     async def test_a_new_guild_avatar_is_logged(self, ev: EventsWorld) -> None:
         before, after = self.pair()
-        after.guild_avatar = SimpleNamespace(url="https://cdn.example/guild.png")
+        after.guild_avatar = SimpleNamespace(
+            url="https://static-cdn.jtvnw.net/guild.png"
+        )
 
         await cog(ev).on_member_update(before, after)
 
@@ -156,7 +158,7 @@ class TestMemberUpdate:
         """discord.py hands both sides the same User, so it cannot differ here;
         on_user_update is where it is seen."""
         before, after = self.pair()
-        after.avatar = SimpleNamespace(url="https://cdn.example/new.png")
+        after.avatar = SimpleNamespace(url="https://static-cdn.jtvnw.net/new.png")
 
         await cog(ev).on_member_update(before, after)
 
@@ -293,7 +295,9 @@ class TestMemberUpdate:
         self, ev: EventsWorld
     ) -> None:
         before, after = self.pair()
-        after.guild_avatar = SimpleNamespace(url="https://cdn.example/guild.png")
+        after.guild_avatar = SimpleNamespace(
+            url="https://static-cdn.jtvnw.net/guild.png"
+        )
         before.roles, after.roles = [role(1)], [role(2)]
         after.nick = "new"
         after.timed_out_until = NOW + timedelta(hours=1)
