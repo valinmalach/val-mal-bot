@@ -136,12 +136,12 @@ class TestAnnouncement:
     ) -> None:
         embed = embeds.announcement_embed(
             stream(user_name="Valin"),
-            user(profile_image_url="https://cdn.example/p.png"),
+            user(profile_image_url="https://static-cdn.jtvnw.net/p.png"),
             URL,
         )
 
         assert embed.author.name == "Valin is live!"
-        assert embed.author.icon_url == "https://cdn.example/p.png"
+        assert embed.author.icon_url == "https://static-cdn.jtvnw.net/p.png"
         assert embed.author.url == URL
 
     def test_without_a_profile_there_is_no_avatar(self) -> None:
@@ -151,14 +151,16 @@ class TestAnnouncement:
 
     def test_the_thumbnail_is_sized_and_cache_busted(self) -> None:
         embed = embeds.announcement_embed(
-            stream(thumbnail_url="https://cdn.example/live_{width}x{height}.jpg"),
+            stream(
+                thumbnail_url="https://static-cdn.jtvnw.net/live_{width}x{height}.jpg"
+            ),
             None,
             URL,
         )
 
         assert (
             embed.image.url
-            == f"https://cdn.example/live_400x225.jpg?cb={int(NOW.timestamp())}"
+            == f"https://static-cdn.jtvnw.net/live_400x225.jpg?cb={int(NOW.timestamp())}"
         )
 
     @pytest.mark.parametrize(
@@ -181,11 +183,11 @@ class TestAnnouncement:
         self,
     ) -> None:
         embed = embeds.announcement_embed(
-            stream(thumbnail_url="https://cdn.example/x.jpg?v=2"), None, URL
+            stream(thumbnail_url="https://static-cdn.jtvnw.net/x.jpg?v=2"), None, URL
         )
 
         assert embed.image.url == (
-            f"https://cdn.example/x.jpg?v=2&cb={int(NOW.timestamp())}"
+            f"https://static-cdn.jtvnw.net/x.jpg?v=2&cb={int(NOW.timestamp())}"
         )
 
     def test_a_title_cannot_inject_a_link(self) -> None:
@@ -237,12 +239,13 @@ class TestLiveEmbed:
         later = NOW + timedelta(hours=1)
 
         embed = self.build(
-            now=later, thumbnail_url="https://cdn.example/live_{width}x{height}.jpg"
+            now=later,
+            thumbnail_url="https://static-cdn.jtvnw.net/live_{width}x{height}.jpg",
         )
 
         assert (
             embed.image.url
-            == f"https://cdn.example/live_400x225.jpg?cb={int(later.timestamp())}"
+            == f"https://static-cdn.jtvnw.net/live_400x225.jpg?cb={int(later.timestamp())}"
         )
 
     def test_escapes_title_and_game_like_the_announcement(self) -> None:
@@ -337,9 +340,9 @@ class TestOfflineEmbed:
     def test_the_avatar_comes_from_the_profile_when_there_is_one(self) -> None:
         assert (
             self.build(
-                user_info=user(profile_image_url="https://cdn.example/p.png")
+                user_info=user(profile_image_url="https://static-cdn.jtvnw.net/p.png")
             ).author.icon_url
-            == "https://cdn.example/p.png"
+            == "https://static-cdn.jtvnw.net/p.png"
         )
         assert self.build().author.icon_url is None
 

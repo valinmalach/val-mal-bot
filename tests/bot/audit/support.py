@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 import discord
 
 AUDIT_CHANNEL = 4242
-DEFAULT_AVATAR = "https://cdn.example/default.png"
-AVATAR = "https://cdn.example/avatar.png"
+DEFAULT_AVATAR = "https://static-cdn.jtvnw.net/default.png"
+AVATAR = "https://static-cdn.jtvnw.net/avatar.png"
 
 # Each sentence says which row it is, so a test can tell "one role" from "several"
 # and "deleted by somebody" from "deleted" without reproducing the seeded English.
@@ -98,7 +98,9 @@ def message(
     return made
 
 
-def guild(name: str = "Home", icon: str | None = "https://cdn.example/g.png") -> Any:
+def guild(
+    name: str = "Home", icon: str | None = "https://static-cdn.jtvnw.net/g.png"
+) -> Any:
     made = MagicMock(spec=discord.Guild)
     made.name = name
     made.icon = SimpleNamespace(url=icon) if icon else None
@@ -120,7 +122,7 @@ def invite(
     return made
 
 
-def attachment(url: str = "https://cdn.example/file.png") -> Any:
+def attachment(url: str = "https://static-cdn.jtvnw.net/file.png") -> Any:
     return SimpleNamespace(url=url)
 
 

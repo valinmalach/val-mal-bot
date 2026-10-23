@@ -62,6 +62,7 @@ class TestDatabaseUrl:
             "postgresql://u:p@host/db?sslmode=require",
             "postgresql://u:p%40ss@host/db",
             "postgresql://u:p%20%7E@host/db",
+            "postgresql://u:p@db.example./db",
         ],
     )
     def test_accepts_what_db_config_can_rewrite(self, url: str) -> None:
@@ -92,31 +93,35 @@ class TestDatabaseUrl:
         assert not urls.is_database_url(url)
 
 
-class TestHttpsUrl:
+class TestTwitchImageUrl:
     @pytest.mark.parametrize(
         "url",
         [
             "https://static-cdn.jtvnw.net/x/profile_image-300x300.png",
             "https://static-cdn.jtvnw.net/previews-ttv/live_user_x-400x225.jpg",
+            "https://static-cdn.jtvnw.net/x.jpg?v=2",
         ],
     )
-    def test_accepts_a_twitch_cdn_image(self, url: str) -> None:
-        assert urls.is_https_url(url)
+    def test_accepts_twitchs_image_cdn(self, url: str) -> None:
+        assert urls.is_twitch_image_url(url)
 
     @pytest.mark.parametrize(
         "url",
         [
             "",
-            "http://cdn.example/x.png",
-            "https://cdn.example:99999/x.png",
-            "https://cdn.example:port/x.png",
-            "https://cdn.example/{width}x{height}.png",
-            "https://bad-.example/x.png",
-            "https://cdn/x.png",
+            "http://static-cdn.jtvnw.net/x.png",
+            "https://static-cdn.jtvnw.net:8443/x.png",
+            "https://static-cdn.jtvnw.net:port/x.png",
+            "https://static-cdn.jtvnw.net/{width}x{height}.png",
+            "https://static-cdn.jtvnw.net/x.png#y",
+            "https://user:pw@static-cdn.jtvnw.net/x.png",
+            "https://cdn.example/x.png",
+            "https://127.0.0.1/x.png",
+            "https://10.0.0.1/x.png",
+            "https://localhost/x.png",
+            "https://static-cdn.jtvnw.net.evil.example/x.png",
             "javascript:x",
-            "https://user:pw@cdn.example/x.png",
-            "https://cdn.example/x%g1.png",
         ],
     )
-    def test_refuses_what_discord_would_not_fetch(self, url: str) -> None:
-        assert not urls.is_https_url(url)
+    def test_refuses_anything_off_twitchs_cdn(self, url: str) -> None:
+        assert not urls.is_twitch_image_url(url)

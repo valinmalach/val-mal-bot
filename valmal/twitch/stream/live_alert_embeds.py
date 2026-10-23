@@ -65,7 +65,7 @@ def vod_url(video_id: str) -> str:
 
 
 def _image(url: str | None) -> str | None:
-    return url if url and urls.is_https_url(url) else None
+    return url if url and urls.is_twitch_image_url(url) else None
 
 
 def _thumbnail(stream: Stream, now: datetime) -> str | None:

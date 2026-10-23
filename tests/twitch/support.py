@@ -162,7 +162,7 @@ def user_json(id: str = "1", login: str = "bob", **overrides: Any) -> dict[str, 
         "type": "",
         "broadcaster_type": "",
         "description": "",
-        "profile_image_url": "https://cdn.example/p.png",
+        "profile_image_url": "https://static-cdn.jtvnw.net/p.png",
         "offline_image_url": "",
         "created_at": "2020-01-01T00:00:00Z",
     } | overrides
@@ -182,7 +182,7 @@ def stream_json(id: str = "10", user_id: str = "1", **overrides: Any) -> dict[st
         "viewer_count": 5,
         "started_at": "2026-01-01T00:00:00Z",
         "language": "en",
-        "thumbnail_url": "https://cdn.example/{width}x{height}.jpg",
+        "thumbnail_url": "https://static-cdn.jtvnw.net/{width}x{height}.jpg",
         "is_mature": False,
     } | overrides
 

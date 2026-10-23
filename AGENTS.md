@@ -349,7 +349,7 @@ asyncpg only after something has been deleted or started. The URL rules live in
 `valmal/core/urls.py`, which parses rather than pattern-matches: `APP_URL` must be `https`
 on the standard port with no path (plain `http` only for localhost), as Twitch requires of
 a callback, and a URL Twitch returns for an embed image is left off unless it passes
-`is_https_url`, since Discord refuses the whole embed. `config.load()` has that one
+`is_twitch_image_url` (Twitch's CDN only), since Discord refuses the whole embed. `config.load()` has that one
 call site, so a database edit takes effect on the next restart, not before.
 `valmal/db/README.md` records which side each value falls on and why; keep new values on
 the right side of that line.
