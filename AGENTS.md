@@ -14,7 +14,7 @@ a test suite.
 ## Commands
 
 ```sh
-uv sync                                            # dependencies; Python 3.15.1, pinned in .python-version
+uv sync                                            # dependencies; Python 3.15.2, pinned in .python-version
 docker compose up -d                               # local Postgres on :5432
 uv run alembic upgrade head                        # schema and the configuration in it
 uv run main.py                                     # run the bot (uvicorn on PORT, default 8000)
@@ -725,7 +725,9 @@ SQLModel out of the bot (#98) cut `rss_anon_kb` at 36 h from 81.3 MiB to 57.2 an
 at 24 h, and lazy imports with pendulum gone (#120, #121) at 52.4 MiB and about 337k at
 21.5 h. Precompiled `-OO` bytecode and msgspec in place of pydantic (#128, #124) then
 settled at 38.5 MiB and about 266k at 21.5 h, moving between 37 and 45 MiB with no trend
-after the first day: that is the baseline the next memory change is measured against.
+after the first day. Python 3.15.1, deployed as `dc92caf`, held 39.0 to 39.9 MiB and 260k
+to 266k from 24 h to 59.5 h, with `heap_free_bytes` peaking at 0.9 MiB: that is the
+baseline the next memory change, starting with 3.15.2, is measured against.
 Compare `rss_anon_kb`, not `rss_kb`: the file-backed part is page cache the kernel
 trims on its own schedule: 26 MiB to 14 in the first day after #98, and 20.5 to 11.9 in
 the second day after #124. The `log_memory` loop logs a `Memory` line at startup and every 30 minutes with the split as keys:
