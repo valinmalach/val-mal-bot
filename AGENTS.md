@@ -728,10 +728,11 @@ settled at 38.5 MiB and about 266k at 21.5 h, moving between 37 and 45 MiB with 
 after the first day. Python 3.15.1, deployed as `dc92caf`, held 39.0 to 39.9 MiB and 260k
 to 266k from 24 h to 59.5 h, with `heap_free_bytes` peaking at 0.9 MiB. Python 3.15.2
 (#139) averaged 40.2 MiB over the same hours against 39.5, with `python_blocks` within 1k,
-and kept rising slowly after them: a daily mean of 40.1 MiB on day two, 41.0 on day four
-and 42.2 on day seven, at about 268k blocks and 1.2 MiB of `heap_free_bytes`. No earlier
-deploy ran long enough to say whether that slope is new, so this seven-day run is the
-baseline the next memory change is measured against, day for day.
+and kept rising slowly after them: a daily mean of 40.1 MiB on day two and 41.0 on day
+four, and 42.2 over the first 14.5 h of day seven, at about 268k blocks and 1.2 MiB of
+`heap_free_bytes`. No earlier deploy ran long enough to say whether that slope is new, so
+this run, 158.5 h from deploy, is the baseline the next memory change is measured against,
+day for day.
 Compare `rss_anon_kb`, not `rss_kb`: the file-backed part is page cache the kernel
 trims on its own schedule: 26 MiB to 14 in the first day after #98, and 20.5 to 11.9 in
 the second day after #124. The `log_memory` loop logs a `Memory` line at startup and every 30 minutes with the split as keys:
