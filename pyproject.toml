@@ -22,7 +22,7 @@ dependencies = [
     "starlette>=1.10.0",
     # zoneinfo reads the system's tz database, which a slim image may not have, and
     # falls back to this package.
-    "tzdata>=2026.5",
+    "tzdata>=2026.6",
     # Not uvicorn[standard]: none of what it adds is used. httptools and pyyaml have no
     # 3.15 wheel (#109), watchfiles and websockets serve reload and ws, both off, and
     # uvloop cost about 1.2 MiB for a loop speed a bot at 0.002 vCPU never needs (#125).
@@ -35,7 +35,7 @@ dev = [
     # The web app tests call the Starlette apps in process through ASGITransport.
     "httpx>=0.28.1",
     "pyright>=1.1.414",
-    "pytest>=9.1.1",
+    "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
     "pytest-timeout>=2.4.0",
     "ruff>=0.17.3",
