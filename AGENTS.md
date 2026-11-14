@@ -217,23 +217,20 @@ tree, so this is their record:
   complexity stays, at 15, in Lizard, Ruff's `C90` and Verity alike.
 
 Deliberately *not* required: `CodeQL`, which does not report on every PR and would
-sit at "Expected"; `Sourcery review`, skipped on most; and the two `Request reviews` jobs,
-which only ask for reviews; and `audit`, because an advisory published today would
+sit at "Expected"; `Sourcery review`, skipped on most; and the `Request reviews` job,
+which only asks for a review; and `audit`, because an advisory published today would
 otherwise block every PR, whatever it touches, until the fix lands. A red `audit` is
 still a bump to make first. A required check has to be produced by the branch, so a job
 renamed here has to be renamed in the ruleset too, or every PR sits at "Expected".
 
-**A full review on every push is requested by `.github/workflows/request-reviews.yml`,
-because neither reviewer does one itself.** Sourcery re-reviews each commit in part and stops
-after five, so the workflow posts `@sourcery-ai review` with `SOURCERY_TRIGGER_TOKEN`, a
-fine-grained personal access token with no expiry (Sourcery ignores comments from other
-bots), skipping `opened` and drafts because Sourcery reviews a PR when it opens. Codacy's AI
-Reviewer posts only when triggered, and has no every-push mode, so its `ai-reviewer/trigger`
-endpoint is called with `CODACY_API_TOKEN`, an account token (`CODACY_PROJECT_TOKEN`, which
-uploads coverage, does not authorise that call), on `opened`, `synchronize`,
-`ready_for_review` and `reopened`. A run with no secret (a fork, Dependabot) skips the step; a
-token that exists but is rejected fails it, which is how a revoked one gets noticed. The
-workflow's own comments say why the Codacy call is not retried.
+**A full Sourcery review on every push is requested by
+`.github/workflows/request-reviews.yml`, because Sourcery does not do one itself.** It
+re-reviews each commit in part and stops after five, so the workflow posts
+`@sourcery-ai review` with `SOURCERY_TRIGGER_TOKEN`, a fine-grained personal access token
+with no expiry (Sourcery ignores comments from other bots), skipping `opened` and drafts
+because Sourcery reviews a PR when it opens. A run with no secret (Dependabot) skips
+the step; a token that exists but is rejected fails it, which is how a revoked one gets
+noticed. Codacy's AI Reviewer is not used: it needs a paid subscription.
 
 One more gate runs at commit time. `git commit` is intercepted by Verity, which
 analyses the staged diff and can block the commit. It is a Claude Code hook, not a
