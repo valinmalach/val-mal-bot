@@ -14,8 +14,9 @@ permissions: {}
 
 jobs:
   sourcery:
-    # Sourcery does its own full review on open, and skips drafts.
-    if: ${{ !github.event.pull_request.draft }}
+    # Sourcery does its own full review on open, and skips drafts. A fork's PR would
+    # spend the token too under pull_request_target, so it is skipped.
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     env:
       # Only whether the secret exists, never the secret. A Dependabot run gets no

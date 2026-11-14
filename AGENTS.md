@@ -228,7 +228,7 @@ renamed here has to be renamed in the ruleset too, or every PR sits at "Expected
 re-reviews each commit in part and stops after five, so the workflow posts
 `@sourcery-ai review` with `SOURCERY_TRIGGER_TOKEN`, a fine-grained personal access token
 with no expiry (Sourcery ignores comments from other bots), skipping `opened` and drafts
-because Sourcery reviews a PR when it opens. A run with no secret (Dependabot) skips
+because Sourcery reviews a PR when it opens. A fork's PR is skipped, and a run with no secret (Dependabot) skips
 the step; a token that exists but is rejected fails it, which is how a revoked one gets
 noticed. Codacy's AI Reviewer is not used: it needs a paid subscription.
 
