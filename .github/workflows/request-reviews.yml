@@ -5,8 +5,10 @@ name: Request reviews
 # is asked on open too. A draft is skipped when it opens, so `ready_for_review` asks
 # again for one that has just been marked ready, and `reopened` does the same for a PR
 # brought back from closed.
+# pull_request_target, so the workflow holding the tokens is master's, not one a PR
+# rewrote. Safe only while nothing here checks out or runs the PR's code.
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, ready_for_review, reopened]
 
 # The tokens below do the work, so GITHUB_TOKEN gets nothing.
@@ -18,8 +20,8 @@ jobs:
     if: ${{ github.event.action != 'opened' && !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     env:
-      # Only whether the secret exists, never the secret. A fork or a Dependabot run
-      # gets no secrets and skips the step; a token that exists but is rejected still
+      # Only whether the secret exists, never the secret. A Dependabot run gets no
+      # Actions secrets and skips the step; a token that exists but is rejected still
       # fails it, which is how a revoked one gets noticed.
       HAS_SOURCERY_TOKEN: ${{ secrets.SOURCERY_TRIGGER_TOKEN != '' }}
     steps:
